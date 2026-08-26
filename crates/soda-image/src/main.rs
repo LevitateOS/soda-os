@@ -489,6 +489,46 @@ impl Builder {
                     .join("assets/branding/installer/soda-symbol-256.png"),
                 sources.join("soda-symbol-256.png"),
             ),
+            (
+                self.root
+                    .join("assets/branding/icons/hicolor/16x16/apps/soda-os.png"),
+                sources.join("soda-os-16.png"),
+            ),
+            (
+                self.root
+                    .join("assets/branding/icons/hicolor/24x24/apps/soda-os.png"),
+                sources.join("soda-os-24.png"),
+            ),
+            (
+                self.root
+                    .join("assets/branding/icons/hicolor/32x32/apps/soda-os.png"),
+                sources.join("soda-os-32.png"),
+            ),
+            (
+                self.root
+                    .join("assets/branding/icons/hicolor/48x48/apps/soda-os.png"),
+                sources.join("soda-os-48.png"),
+            ),
+            (
+                self.root
+                    .join("assets/branding/icons/hicolor/64x64/apps/soda-os.png"),
+                sources.join("soda-os-64.png"),
+            ),
+            (
+                self.root
+                    .join("assets/branding/icons/hicolor/128x128/apps/soda-os.png"),
+                sources.join("soda-os-128.png"),
+            ),
+            (
+                self.root
+                    .join("assets/branding/icons/hicolor/256x256/apps/soda-os.png"),
+                sources.join("soda-os-256.png"),
+            ),
+            (
+                self.root
+                    .join("assets/branding/icons/hicolor/512x512/apps/soda-os.png"),
+                sources.join("soda-os-512.png"),
+            ),
         ] {
             copy(source, destination)?;
         }

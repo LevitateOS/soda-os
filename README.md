@@ -1,5 +1,7 @@
 # Soda OS
 
+![soda os](assets/branding/source/soda-logo-horizontal.svg)
+
 Soda OS is a Rocky Linux 10.2 AArch64 development appliance for trusted local
 networks. A thin client connects over SSH to project-owned development
 environments and uses a small Go/HTMX cockpit for people, project, worktree,
