@@ -200,6 +200,22 @@ impl Store {
             .ok_or_else(|| AppError::NotFound(format!("project {id}")))
     }
 
+    pub(crate) fn list_projects_for_person(&self, person_id: Uuid) -> Result<Vec<Project>> {
+        let projects = self.list_projects()?;
+        let connection = self.connection.lock().expect("database mutex poisoned");
+        let mut statement = connection.prepare(
+            "SELECT project_id FROM memberships WHERE person_id = ?1 ORDER BY project_id",
+        )?;
+        let rows = statement.query_map([person_id.to_string()], |row| row.get::<_, String>(0))?;
+        let project_ids = rows
+            .map(|row| row.map_err(AppError::from).and_then(|id| parse_uuid(&id)))
+            .collect::<Result<Vec<_>>>()?;
+        Ok(projects
+            .into_iter()
+            .filter(|project| project_ids.contains(&project.id))
+            .collect())
+    }
+
     pub(crate) fn add_membership(&self, membership: &Membership) -> Result<()> {
         let connection = self.connection.lock().expect("database mutex poisoned");
         connection
@@ -358,6 +374,38 @@ impl Store {
         )?;
         transaction.commit()?;
         Ok(())
+    }
+
+    pub(crate) fn project_installation(&self, project_id: Uuid) -> Result<ToolchainInstallation> {
+        let connection = self.connection.lock().expect("database mutex poisoned");
+        let row = connection
+            .query_row(
+                "SELECT i.id, i.profile, i.version, i.path, i.checksum, i.state
+                 FROM project_toolchains p
+                 JOIN toolchain_installations i ON i.id = p.installation_id
+                 WHERE p.project_id = ?1",
+                [project_id.to_string()],
+                |row| {
+                    Ok((
+                        row.get::<_, String>(0)?,
+                        row.get::<_, String>(1)?,
+                        row.get::<_, String>(2)?,
+                        row.get::<_, String>(3)?,
+                        row.get::<_, String>(4)?,
+                        row.get::<_, String>(5)?,
+                    ))
+                },
+            )
+            .optional()?
+            .ok_or_else(|| AppError::NotFound(format!("project {project_id} toolchain")))?;
+        Ok(ToolchainInstallation {
+            id: parse_uuid(&row.0)?,
+            profile: parse_profile(&row.1)?,
+            version: row.2,
+            path: row.3,
+            checksum: row.4,
+            state: parse_state(&row.5)?,
+        })
     }
 }
 

@@ -12,6 +12,7 @@ use crate::error::{AppError, Result};
 pub trait SystemOps: Send + Sync {
     fn create_person(&self, person: &Person, password: &str) -> Result<()>;
     fn create_project(&self, project: &Project) -> Result<()>;
+    fn ensure_repository(&self, project: &Project) -> Result<()>;
     fn create_worktree(
         &self,
         project: &Project,
@@ -114,19 +115,6 @@ impl SystemOps for HostSystem {
             fs::create_dir_all(&root)?;
         }
 
-        let repository = self.repository(project);
-        match &project.source {
-            ProjectSource::Empty => initialize_empty_repository(&repository)?,
-            ProjectSource::Git { remote_url } => {
-                run(Command::new("git").args([
-                    "clone",
-                    "--bare",
-                    remote_url,
-                    &repository.display().to_string(),
-                ]))?;
-            }
-        }
-
         let ssh_dir = root.join(".ssh");
         fs::create_dir_all(&ssh_dir)?;
         run(Command::new("ssh-keygen").args([
@@ -144,8 +132,38 @@ impl SystemOps for HostSystem {
             .create(true)
             .append(true)
             .open(ssh_dir.join("authorized_keys"))?;
+        if project.source == ProjectSource::Empty {
+            initialize_empty_repository(&self.repository(project))?;
+        }
         self.chown_project(project, &root)?;
         Ok(())
+    }
+
+    fn ensure_repository(&self, project: &Project) -> Result<()> {
+        let repository = self.repository(project);
+        if repository.is_dir() {
+            return Ok(());
+        }
+        let ProjectSource::Git { remote_url } = &project.source else {
+            return Err(AppError::System(format!(
+                "project {} repository is missing",
+                project.slug
+            )));
+        };
+        let deploy_key = self.project_root(project).join(".ssh/deploy_key");
+        let ssh_command = format!(
+            "ssh -i {} -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new",
+            deploy_key.display()
+        );
+        run(Command::new("git")
+            .args([
+                "clone",
+                "--bare",
+                remote_url,
+                &repository.display().to_string(),
+            ])
+            .env("GIT_SSH_COMMAND", ssh_command))?;
+        self.chown_project(project, &repository)
     }
 
     fn create_worktree(
@@ -308,4 +326,45 @@ fn output_with_input(command: &mut Command, input: &str) -> Result<String> {
     }
     String::from_utf8(result.stdout)
         .map_err(|error| AppError::System(format!("{display} returned invalid UTF-8: {error}")))
+}
+
+#[cfg(test)]
+mod tests {
+    use soda_core::{Project, ProjectSource, ToolchainProfile};
+    use tempfile::TempDir;
+    use uuid::Uuid;
+
+    use super::*;
+
+    #[test]
+    fn prepares_deploy_key_before_continuing_git_clone() {
+        let temp = TempDir::new().expect("temp dir");
+        let projects = temp.path().join("projects");
+        let remote = temp.path().join("remote.git");
+        let project = Project {
+            id: Uuid::new_v4(),
+            slug: "private-project".to_owned(),
+            name: "Private project".to_owned(),
+            unix_user: "soda-p-private-project".to_owned(),
+            profile: ToolchainProfile::Go,
+            source: ProjectSource::Git {
+                remote_url: remote.display().to_string(),
+            },
+        };
+        let system = HostSystem::test(&projects);
+
+        system.create_project(&project).expect("prepare project");
+        assert!(
+            projects
+                .join("private-project/.ssh/deploy_key.pub")
+                .is_file()
+        );
+        assert!(!projects.join("private-project/repository.git").exists());
+
+        initialize_empty_repository(&remote).expect("initialize remote");
+        system
+            .ensure_repository(&project)
+            .expect("continue clone after remote is ready");
+        assert!(projects.join("private-project/repository.git").is_dir());
+    }
 }

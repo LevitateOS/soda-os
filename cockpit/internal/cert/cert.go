@@ -1,0 +1,76 @@
+package cert
+
+import (
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
+	"crypto/x509"
+	"crypto/x509/pkix"
+	"encoding/pem"
+	"fmt"
+	"math/big"
+	"net"
+	"os"
+	"path/filepath"
+	"time"
+)
+
+func Ensure(certPath, keyPath string) error {
+	if fileExists(certPath) && fileExists(keyPath) {
+		return nil
+	}
+	if err := os.MkdirAll(filepath.Dir(certPath), 0o750); err != nil {
+		return err
+	}
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		return fmt.Errorf("generate cockpit key: %w", err)
+	}
+	serial, err := rand.Int(rand.Reader, new(big.Int).Lsh(big.NewInt(1), 128))
+	if err != nil {
+		return fmt.Errorf("generate certificate serial: %w", err)
+	}
+	now := time.Now()
+	template := &x509.Certificate{
+		SerialNumber: serial,
+		Subject:      pkix.Name{CommonName: "soda.local", Organization: []string{"Soda OS"}},
+		NotBefore:    now.Add(-time.Hour),
+		NotAfter:     now.AddDate(2, 0, 0),
+		KeyUsage:     x509.KeyUsageDigitalSignature,
+		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+		DNSNames:     []string{"soda.local", "soda"},
+		IPAddresses:  []net.IP{net.ParseIP("127.0.0.1"), net.ParseIP("::1")},
+	}
+	der, err := x509.CreateCertificate(rand.Reader, template, template, &key.PublicKey, key)
+	if err != nil {
+		return fmt.Errorf("create cockpit certificate: %w", err)
+	}
+	keyDER, err := x509.MarshalPKCS8PrivateKey(key)
+	if err != nil {
+		return fmt.Errorf("marshal cockpit key: %w", err)
+	}
+	if err := writePEM(keyPath, 0o600, "PRIVATE KEY", keyDER); err != nil {
+		return err
+	}
+	if err := writePEM(certPath, 0o644, "CERTIFICATE", der); err != nil {
+		return err
+	}
+	return nil
+}
+
+func fileExists(path string) bool {
+	info, err := os.Stat(path)
+	return err == nil && info.Mode().IsRegular()
+}
+
+func writePEM(path string, mode os.FileMode, kind string, contents []byte) error {
+	file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, mode)
+	if err != nil {
+		return err
+	}
+	if err := pem.Encode(file, &pem.Block{Type: kind, Bytes: contents}); err != nil {
+		file.Close()
+		return err
+	}
+	return file.Close()
+}

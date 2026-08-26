@@ -8,6 +8,9 @@ Requires:       git-core, openssh-server, shadow-utils, sqlite-libs
 %description
 Privileged project daemon, administrator CLI, and SSH session gateway for Soda OS.
 
+%pre
+getent group soda-api >/dev/null || groupadd --system soda-api
+
 %install
 mkdir -p %{buildroot}%{_libexecdir}/soda %{buildroot}%{_bindir} %{buildroot}%{_unitdir}
 install -m 0755 %{_sourcedir}/sodad %{buildroot}%{_libexecdir}/soda/sodad

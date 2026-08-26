@@ -97,3 +97,9 @@ pub struct ProvisioningJob {
     pub state: JobState,
     pub error: Option<String>,
 }
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DeployKey {
+    pub project_id: Uuid,
+    pub public_key: String,
+}

@@ -1,7 +1,7 @@
 use std::{fs, path::PathBuf, sync::Arc};
 
 use soda_core::{
-    CreatePersonRequest, CreateProjectRequest, JobState, Membership, Person, Project,
+    CreatePersonRequest, CreateProjectRequest, DeployKey, JobState, Membership, Person, Project,
     ProvisioningJob, ToolchainInstallation, Worktree,
 };
 use uuid::Uuid;
@@ -83,6 +83,29 @@ impl Service {
 
     pub fn list_projects(&self) -> Result<Vec<Project>> {
         self.store.list_projects()
+    }
+
+    pub fn list_projects_for_person(&self, person_id: Uuid) -> Result<Vec<Project>> {
+        self.store.person(person_id)?;
+        self.store.list_projects_for_person(person_id)
+    }
+
+    pub fn deploy_key(&self, project_id: Uuid) -> Result<DeployKey> {
+        let project = self.store.project(project_id)?;
+        let public_key = fs::read_to_string(
+            self.projects_root
+                .join(project.slug)
+                .join(".ssh/deploy_key.pub"),
+        )?;
+        Ok(DeployKey {
+            project_id,
+            public_key: public_key.trim().to_owned(),
+        })
+    }
+
+    pub fn project_installation(&self, project_id: Uuid) -> Result<ToolchainInstallation> {
+        self.store.project(project_id)?;
+        self.store.project_installation(project_id)
     }
 
     pub fn add_collaborator(&self, project_id: Uuid, person_id: Uuid) -> Result<Worktree> {
@@ -169,6 +192,7 @@ impl Service {
 
     fn install_project_profile(&self, project_id: Uuid) -> Result<()> {
         let project = self.store.project(project_id)?;
+        self.system.ensure_repository(&project)?;
         let installed = self.toolchains.install(project.profile)?;
         let installation = ToolchainInstallation {
             id: Uuid::new_v4(),

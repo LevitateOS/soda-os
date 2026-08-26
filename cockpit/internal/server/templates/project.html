@@ -1,0 +1,32 @@
+{{define "project.html"}}{{template "header" .}}
+<h1>{{.Project.Name}}</h1>
+<dl class="summary">
+  <div><dt>Project account</dt><dd><code>{{.Project.UnixUser}}</code></dd></div>
+  <div><dt>Toolchain</dt><dd>{{.Project.Profile}}</dd></div>
+  <div><dt>SSH</dt><dd><code>ssh {{.Project.UnixUser}}@soda.local</code></dd></div>
+</dl>
+<section class="panel">
+  <h2>Provisioning</h2>
+  {{if .Toolchain}}<p><strong>{{.Toolchain.State}}</strong> · {{.Toolchain.Version}}</p>{{else}}<p>Toolchain not ready.</p>{{end}}
+  {{if .Jobs}}<ul>{{range .Jobs}}<li>{{.State}}{{if .Error}} · <span class="error">{{.Error}}</span>{{end}}</li>{{end}}</ul>{{end}}
+  {{if .Admin}}<form method="post" action="/projects/{{.Project.ID}}/provisioning" hx-post="/projects/{{.Project.ID}}/provisioning"><button type="submit">Retry provisioning</button></form>{{end}}
+</section>
+<section class="panel">
+  <h2>Worktrees</h2>
+  {{if .Worktrees}}<table><thead><tr><th>Person</th><th>Name</th><th>Branch</th><th>Path</th></tr></thead><tbody>
+  {{range .Worktrees}}<tr><td>{{index $.PersonNames .PersonID}}</td><td>{{.Name}}</td><td><code>{{.Branch}}</code></td><td><code>{{.Path}}</code></td></tr>{{end}}
+  </tbody></table>{{else}}<p>No worktrees yet.</p>{{end}}
+</section>
+{{if .Admin}}
+<section class="grid">
+  <div class="panel"><h2>Add collaborator</h2><form method="post" action="/projects/{{.Project.ID}}/collaborators" hx-post="/projects/{{.Project.ID}}/collaborators">
+    <label>Person <select name="person_id">{{range .People}}<option value="{{.ID}}">{{.DisplayName}}</option>{{end}}</select></label><button type="submit">Add collaborator</button>
+  </form></div>
+  <div class="panel"><h2>Add worktree</h2><form method="post" action="/projects/{{.Project.ID}}/worktrees" hx-post="/projects/{{.Project.ID}}/worktrees">
+    <label>Person <select name="person_id">{{range .People}}<option value="{{.ID}}">{{.DisplayName}}</option>{{end}}</select></label>
+    <label>Name <input name="name" required></label><label>Base ref <input name="base_ref" value="main" required></label><button type="submit">Create worktree</button>
+  </form></div>
+</section>
+<section class="panel"><h2>Project deploy key</h2><p>Add this public key to a private SSH remote, then retry provisioning.</p><pre>{{.DeployKey}}</pre></section>
+{{end}}
+{{template "footer" .}}{{end}}

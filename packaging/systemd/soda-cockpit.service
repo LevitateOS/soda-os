@@ -13,7 +13,10 @@ NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=true
+StateDirectory=soda/certs
+StateDirectoryMode=0750
 ReadWritePaths=/var/lib/soda/certs
+UMask=0027
 
 [Install]
 WantedBy=multi-user.target

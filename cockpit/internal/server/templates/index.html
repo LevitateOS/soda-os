@@ -1,31 +1,14 @@
-{{define "index.html"}}
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>{{.Title}}</title>
-    <link rel="stylesheet" href="/static/app.css">
-  </head>
-  <body>
-    <header>
-      <h1>{{.Title}}</h1>
-      <p>Development cockpit · version {{.Version}}</p>
-    </header>
-    <main>
-      <section>
-        <h2>Host</h2>
-        <dl>
-          <dt>Status</dt><dd>Ready</dd>
-          <dt>Address</dt><dd>https://soda.local:9090</dd>
-        </dl>
-      </section>
-      <nav aria-label="Management">
-        <a href="/people">People</a>
-        <a href="/projects">Projects</a>
-        <a href="/profiles">Toolchains</a>
-      </nav>
-    </main>
-  </body>
-</html>
-{{end}}
+{{define "index.html"}}{{template "header" .}}
+<h1>Development host</h1>
+<dl class="summary">
+  <div><dt>Status</dt><dd>Ready</dd></div>
+  <div><dt>Address</dt><dd>https://soda.local:9090</dd></div>
+  <div><dt>Signed in</dt><dd>{{.User.DisplayName}} · {{.User.Role}}</dd></div>
+</dl>
+<section class="panel">
+  <h2>Your projects</h2>
+  {{if .Projects}}
+  <ul class="items">{{range .Projects}}<li><a href="/projects/{{.ID}}">{{.Name}}</a><span>{{.Profile}} · {{.UnixUser}}</span></li>{{end}}</ul>
+  {{else}}<p>No projects are assigned.</p>{{end}}
+</section>
+{{template "footer" .}}{{end}}

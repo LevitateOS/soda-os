@@ -5,6 +5,7 @@ Wants=network-online.target
 
 [Service]
 Type=simple
+Group=soda-api
 ExecStart=/usr/libexec/soda/sodad
 Restart=on-failure
 RuntimeDirectory=soda

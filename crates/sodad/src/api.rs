@@ -8,7 +8,7 @@ use axum::{
 use serde::Serialize;
 use soda_core::{
     AddCollaboratorRequest, CreatePersonRequest, CreateProjectRequest, CreateWorktreeRequest,
-    Person, Project, ProvisioningJob, Worktree,
+    DeployKey, Person, Project, ProvisioningJob, ToolchainInstallation, Worktree,
 };
 use uuid::Uuid;
 
@@ -30,7 +30,17 @@ pub fn router(service: Arc<Service>) -> Router {
     Router::new()
         .route("/v1/health", get(health))
         .route("/v1/people", get(list_people).post(create_person))
+        .route(
+            "/v1/people/{person_id}/projects",
+            get(list_projects_for_person),
+        )
         .route("/v1/projects", get(list_projects).post(create_project))
+        .route("/v1/projects/{project_id}/deploy-key", get(get_deploy_key))
+        .route(
+            "/v1/projects/{project_id}/toolchain",
+            get(get_project_toolchain),
+        )
+        .route("/v1/projects/{project_id}/clone", post(start_provisioning))
         .route(
             "/v1/projects/{project_id}/collaborators",
             post(add_collaborator),
@@ -65,6 +75,13 @@ async fn list_people(State(state): State<AppState>) -> Result<Json<Vec<Person>>>
     state.service.list_people().map(Json)
 }
 
+async fn list_projects_for_person(
+    State(state): State<AppState>,
+    Path(person_id): Path<Uuid>,
+) -> Result<Json<Vec<Project>>> {
+    state.service.list_projects_for_person(person_id).map(Json)
+}
+
 async fn create_project(
     State(state): State<AppState>,
     Json(request): Json<CreateProjectRequest>,
@@ -77,6 +94,20 @@ async fn create_project(
 
 async fn list_projects(State(state): State<AppState>) -> Result<Json<Vec<Project>>> {
     state.service.list_projects().map(Json)
+}
+
+async fn get_deploy_key(
+    State(state): State<AppState>,
+    Path(project_id): Path<Uuid>,
+) -> Result<Json<DeployKey>> {
+    state.service.deploy_key(project_id).map(Json)
+}
+
+async fn get_project_toolchain(
+    State(state): State<AppState>,
+    Path(project_id): Path<Uuid>,
+) -> Result<Json<ToolchainInstallation>> {
+    state.service.project_installation(project_id).map(Json)
 }
 
 async fn add_collaborator(
