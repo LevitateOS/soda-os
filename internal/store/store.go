@@ -397,6 +397,21 @@ func (s *Store) UpdateJob(ctx context.Context, value domain.ProvisioningJob) err
 	}
 	return nil
 }
+
+// FailInterruptedProvisioning makes jobs abandoned by an earlier sodad
+// process explicitly retryable. It must run once during daemon startup before
+// accepting provisioning requests.
+func (s *Store) FailInterruptedProvisioning(ctx context.Context) (int64, error) {
+	message := "provisioning interrupted by daemon restart; retry provisioning manually"
+	result := s.db.WithContext(ctx).Model(&ProvisioningJob{}).
+		Where("state = ?", string(domain.JobInstalling)).
+		Updates(map[string]any{"state": string(domain.JobFailed), "error": message})
+	if result.Error != nil {
+		return 0, classify(result.Error)
+	}
+	return result.RowsAffected, nil
+}
+
 func (s *Store) Jobs(ctx context.Context, projectID string) ([]domain.ProvisioningJob, error) {
 	var rows []ProvisioningJob
 	if err := s.db.WithContext(ctx).Where("project_id = ?", projectID).Order("created_at DESC").Find(&rows).Error; err != nil {

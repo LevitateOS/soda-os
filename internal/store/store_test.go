@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 
@@ -280,5 +281,39 @@ func TestBeginProvisioningEnforcesLatestState(t *testing.T) {
 	}
 	if err = repository.BeginProvisioning(ctx, domain.ProvisioningJob{ID: uuid.NewString(), ProjectID: project.ID, State: domain.JobInstalling}); !errors.Is(err, ErrFailedPrecondition) {
 		t.Fatalf("ready retry = %v", err)
+	}
+}
+
+func TestFailInterruptedProvisioningAllowsRetryAfterRestart(t *testing.T) {
+	repository, err := Open(filepath.Join(t.TempDir(), "soda.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	project := domain.Project{ID: uuid.NewString(), Slug: "demo", Name: "Demo", UnixUser: "soda-p-demo", Profile: domain.ToolchainGo, Source: domain.EmptyProjectSource{}}
+	if err = repository.CreateProject(ctx, project); err != nil {
+		t.Fatal(err)
+	}
+	abandoned := domain.ProvisioningJob{ID: uuid.NewString(), ProjectID: project.ID, State: domain.JobInstalling}
+	if err = repository.BeginProvisioning(ctx, abandoned); err != nil {
+		t.Fatal(err)
+	}
+	count, err := repository.FailInterruptedProvisioning(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if count != 1 {
+		t.Fatalf("reconciled jobs = %d, want 1", count)
+	}
+	jobs, err := repository.Jobs(ctx, project.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(jobs) != 1 || jobs[0].State != domain.JobFailed || jobs[0].Error == nil || !strings.Contains(*jobs[0].Error, "daemon restart") {
+		t.Fatalf("reconciled job = %#v", jobs)
+	}
+	retry := domain.ProvisioningJob{ID: uuid.NewString(), ProjectID: project.ID, State: domain.JobInstalling}
+	if err = repository.BeginProvisioning(ctx, retry); err != nil {
+		t.Fatalf("manual retry after restart reconciliation: %v", err)
 	}
 }

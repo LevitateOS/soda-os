@@ -42,6 +42,13 @@ func run(logger *slog.Logger) error {
 	if err != nil {
 		return err
 	}
+	interrupted, err := persistence.FailInterruptedProvisioning(runContext)
+	if err != nil {
+		return err
+	}
+	if interrupted != 0 {
+		logger.Warn("marked interrupted provisioning jobs failed", slog.Int64("jobs", interrupted))
+	}
 	system := host.New(projects, true)
 	observer, err := observe.NewManager(observe.Dependencies{Store: persistence, Host: observe.NewSystemHostSampler(nil, nil), Git: observe.NewSystemGitInspector(nil), Sessions: observe.NewSystemSessionInspector(nil)})
 	if err != nil {

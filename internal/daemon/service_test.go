@@ -524,6 +524,26 @@ func TestFailedPersistenceCompensatesFreshHostResources(t *testing.T) {
 		assertTableCount(t, repository, "projects", 0)
 	})
 
+	t.Run("project database cleanup failure preserves host resources", func(t *testing.T) {
+		repository, err := store.Open(filepath.Join(t.TempDir(), "soda.db"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		injectCreateFailure(t, repository, "ProvisioningJob")
+		injectDeleteFailure(t, repository, "Project")
+		hostSystem := &fakeHost{}
+		service := New(Options{Store: repository, Host: hostSystem, Toolchains: fakeInstaller{}, ProjectsRoot: t.TempDir()})
+		defer service.Close()
+		_, err = service.CreateProject(context.Background(), &sodav2.CreateProjectRequest{Slug: "demo", Name: "Demo", Profile: sodav2.ToolchainProfile_TOOLCHAIN_PROFILE_GO, Source: &sodav2.ProjectSource{Source: &sodav2.ProjectSource_Empty{Empty: &sodav2.EmptyProjectSource{}}}})
+		if status.Code(err) != codes.Internal {
+			t.Fatalf("status = %s, error = %v", status.Code(err), err)
+		}
+		if hostSystem.projectCleanups != 0 {
+			t.Fatalf("host cleanup ran despite durable project: %d", hostSystem.projectCleanups)
+		}
+		assertTableCount(t, repository, "projects", 1)
+	})
+
 	t.Run("project persistence", func(t *testing.T) {
 		repository, err := store.Open(filepath.Join(t.TempDir(), "soda.db"))
 		if err != nil {
@@ -644,6 +664,18 @@ func injectCreateFailure(t *testing.T, repository *store.Store, model string) {
 	if err := repository.DB().Callback().Create().Before("gorm:create").Register(name, func(tx *gorm.DB) {
 		if tx.Statement.Schema != nil && tx.Statement.Schema.Name == model {
 			tx.AddError(errors.New("injected " + model + " persistence failure"))
+		}
+	}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func injectDeleteFailure(t *testing.T, repository *store.Store, model string) {
+	t.Helper()
+	name := "soda:fail-delete:" + model
+	if err := repository.DB().Callback().Delete().Before("gorm:delete").Register(name, func(tx *gorm.DB) {
+		if tx.Statement.Schema != nil && tx.Statement.Schema.Name == model {
+			tx.AddError(errors.New("injected " + model + " cleanup failure"))
 		}
 	}); err != nil {
 		t.Fatal(err)

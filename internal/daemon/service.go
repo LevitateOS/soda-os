@@ -220,12 +220,16 @@ func (s *Service) CreateProject(ctx context.Context, request *sodav2.CreateProje
 	}
 	if _, err = s.startProvisioning(project.ID); err != nil {
 		cleanupErr := s.store.DeleteFreshProject(context.WithoutCancel(ctx), project.ID)
-		if hostCleanupErr := s.runCleanup(ctx, cleanup); hostCleanupErr != nil {
-			cleanupErr = errors.Join(cleanupErr, hostCleanupErr)
-		}
 		if cleanupErr != nil {
-			s.logger.Error("clean up failed project creation", slog.String("project", project.Slug), slog.Any("error", cleanupErr))
-			err = errors.Join(err, fmt.Errorf("cleanup failed: %w", cleanupErr))
+			// The project is still durable, so its matching host account and
+			// filesystem must remain intact. Removing them here would leave a
+			// persisted project that can no longer be provisioned or accessed.
+			s.logger.Error("clean up failed project database row", slog.String("project", project.Slug), slog.Any("error", cleanupErr))
+			return nil, rpcError(errors.Join(err, fmt.Errorf("database cleanup failed; host resources preserved: %w", cleanupErr)))
+		}
+		if hostCleanupErr := s.runCleanup(ctx, cleanup); hostCleanupErr != nil {
+			s.logger.Error("clean up failed project host resources", slog.String("project", project.Slug), slog.Any("error", hostCleanupErr))
+			err = errors.Join(err, fmt.Errorf("host cleanup failed: %w", hostCleanupErr))
 		}
 		return nil, rpcError(err)
 	}
