@@ -6,7 +6,7 @@ use std::{
     process::{Command, Stdio},
 };
 
-use soda_core::{Person, Project, ProjectSource, Role, Worktree};
+use soda_core::{ImportPersonRequest, Person, Project, ProjectSource, Role, Worktree};
 
 use crate::error::{AppError, Result};
 
@@ -45,6 +45,34 @@ impl HostSystem {
             projects_root: projects_root.into(),
             manage_accounts: false,
         }
+    }
+
+    pub(crate) fn installer_administrator(&self) -> Result<Option<ImportPersonRequest>> {
+        if !self.manage_accounts {
+            return Ok(None);
+        }
+        let passwd = fs::read_to_string("/etc/passwd")?;
+        let group = fs::read_to_string("/etc/group")?;
+        let Some(account) = installer_administrator_account(&passwd, &group) else {
+            return Ok(None);
+        };
+        let authorized_keys = Path::new(&account.home).join(".ssh/authorized_keys");
+        let ssh_public_key = fs::read_to_string(authorized_keys)
+            .ok()
+            .and_then(|keys| {
+                keys.lines()
+                    .map(str::trim)
+                    .find(|key| key.starts_with("ssh-ed25519 ") || key.starts_with("ssh-rsa "))
+                    .map(str::to_owned)
+            })
+            .unwrap_or_default();
+        Ok(Some(ImportPersonRequest {
+            email: format!("{}@soda.local", account.username),
+            username: account.username,
+            display_name: account.display_name,
+            role: Role::Admin,
+            ssh_public_key,
+        }))
     }
 
     fn project_root(&self, project: &Project) -> PathBuf {
@@ -103,7 +131,9 @@ impl SystemOps for HostSystem {
     }
 
     fn import_person(&self, person: &Person) -> Result<()> {
-        validate_key(&person.ssh_public_key)?;
+        if !person.ssh_public_key.is_empty() {
+            validate_key(&person.ssh_public_key)?;
+        }
         if !self.manage_accounts {
             return Ok(());
         }
@@ -277,6 +307,40 @@ impl SystemOps for HostSystem {
     }
 }
 
+struct LocalAccount {
+    username: String,
+    display_name: String,
+    home: String,
+}
+
+fn installer_administrator_account(passwd: &str, group: &str) -> Option<LocalAccount> {
+    let wheel_members = group.lines().find_map(|line| {
+        let fields = line.split(':').collect::<Vec<_>>();
+        (fields.len() == 4 && fields[0] == "wheel").then_some(fields[3])
+    })?;
+    for username in wheel_members.split(',').filter(|member| !member.is_empty()) {
+        let Some(fields) = passwd
+            .lines()
+            .map(|line| line.split(':').collect::<Vec<_>>())
+            .find(|fields| fields.len() >= 7 && fields[0] == username)
+        else {
+            continue;
+        };
+        let display_name = fields[4]
+            .split(',')
+            .next()
+            .map(str::trim)
+            .filter(|name| !name.is_empty())
+            .unwrap_or(username);
+        return Some(LocalAccount {
+            username: username.to_owned(),
+            display_name: display_name.to_owned(),
+            home: fields[5].to_owned(),
+        });
+    }
+    None
+}
+
 fn initialize_empty_repository(repository: &Path) -> Result<()> {
     run(Command::new("git").args([
         "init",
@@ -383,6 +447,24 @@ mod tests {
     use uuid::Uuid;
 
     use super::*;
+
+    #[test]
+    fn discovers_the_anaconda_wheel_administrator() {
+        let passwd = "root:x:0:0:root:/root:/bin/bash\n\
+vince:x:1000:1000:Vince Example:/home/vince:/bin/bash\n";
+        let group = "root:x:0:\nwheel:x:10:vince\n";
+
+        let account = installer_administrator_account(passwd, group)
+            .expect("discover installer administrator");
+        assert_eq!(account.username, "vince");
+        assert_eq!(account.display_name, "Vince Example");
+        assert_eq!(account.home, "/home/vince");
+    }
+
+    #[test]
+    fn ignores_wheel_members_missing_from_passwd() {
+        assert!(installer_administrator_account("", "wheel:x:10:missing\n").is_none());
+    }
 
     #[test]
     fn prepares_deploy_key_before_continuing_git_clone() {

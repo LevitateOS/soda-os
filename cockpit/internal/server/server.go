@@ -34,19 +34,20 @@ type sessionStore struct {
 }
 
 type pageData struct {
-	Title       string
-	Version     string
-	User        soda.Person
-	People      []soda.Person
-	Projects    []soda.Project
-	Project     *soda.Project
-	Worktrees   []soda.Worktree
-	Jobs        []soda.ProvisioningJob
-	Toolchain   *soda.ToolchainInstallation
-	DeployKey   string
-	PersonNames map[string]string
-	Error       string
-	Admin       bool
+	Title              string
+	Version            string
+	User               soda.Person
+	People             []soda.Person
+	Projects           []soda.Project
+	Project            *soda.Project
+	Worktrees          []soda.Worktree
+	Jobs               []soda.ProvisioningJob
+	Toolchain          *soda.ToolchainInstallation
+	DeployKey          string
+	PersonNames        map[string]string
+	Error              string
+	Admin              bool
+	ProvisioningActive bool
 }
 
 type userContextKey struct{}
@@ -84,6 +85,7 @@ func (s *Server) Handler() http.Handler {
 	protected.HandleFunc("GET /projects", s.projects)
 	protected.HandleFunc("POST /projects", s.createProject)
 	protected.HandleFunc("GET /projects/{project_id}", s.project)
+	protected.HandleFunc("GET /projects/{project_id}/provisioning", s.provisioning)
 	protected.HandleFunc("POST /projects/{project_id}/collaborators", s.addCollaborator)
 	protected.HandleFunc("POST /projects/{project_id}/worktrees", s.createWorktree)
 	protected.HandleFunc("POST /projects/{project_id}/provisioning", s.retryProvisioning)
@@ -239,14 +241,9 @@ func (s *Server) project(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "load worktrees", http.StatusBadGateway)
 		return
 	}
-	jobs, err := s.api.Jobs(r.Context(), project.ID)
+	jobs, installation, err := s.provisioningState(r.Context(), project.ID)
 	if err != nil {
-		http.Error(w, "load provisioning jobs", http.StatusBadGateway)
-		return
-	}
-	installation, err := s.api.Toolchain(r.Context(), project.ID)
-	if err != nil {
-		http.Error(w, "load toolchain", http.StatusBadGateway)
+		http.Error(w, "load provisioning", http.StatusBadGateway)
 		return
 	}
 	people, err := s.api.People(r.Context())
@@ -255,7 +252,8 @@ func (s *Server) project(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	data := pageData{Title: "Project · Soda OS", Version: "0.1.0", User: user, Project: &project,
-		People: people, Worktrees: worktrees, Jobs: jobs, Toolchain: installation, PersonNames: personNames(people)}
+		People: people, Worktrees: worktrees, Jobs: jobs, Toolchain: installation,
+		PersonNames: personNames(people), ProvisioningActive: provisioningActive(jobs)}
 	if user.Role == soda.RoleAdmin {
 		key, err := s.api.DeployKey(r.Context(), project.ID)
 		if err != nil {
@@ -265,6 +263,28 @@ func (s *Server) project(w http.ResponseWriter, r *http.Request) {
 		data.DeployKey = key.PublicKey
 	}
 	s.render(w, http.StatusOK, "project.html", data)
+}
+
+func (s *Server) provisioning(w http.ResponseWriter, r *http.Request) {
+	user := currentUser(r)
+	project, allowed, err := s.visibleProject(r.Context(), user, r.PathValue("project_id"))
+	if err != nil {
+		http.Error(w, "load project", http.StatusBadGateway)
+		return
+	}
+	if !allowed {
+		http.Error(w, "forbidden", http.StatusForbidden)
+		return
+	}
+	jobs, installation, err := s.provisioningState(r.Context(), project.ID)
+	if err != nil {
+		http.Error(w, "load provisioning", http.StatusBadGateway)
+		return
+	}
+	s.render(w, http.StatusOK, "provisioning", pageData{
+		User: user, Project: &project, Jobs: jobs, Toolchain: installation,
+		ProvisioningActive: provisioningActive(jobs),
+	})
 }
 
 func (s *Server) addCollaborator(w http.ResponseWriter, r *http.Request) {
@@ -308,6 +328,10 @@ func (s *Server) retryProvisioning(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+	if r.Header.Get("HX-Request") == "true" {
+		s.provisioning(w, r)
+		return
+	}
 	redirect(w, r, "/projects/"+projectID)
 }
 
@@ -326,6 +350,27 @@ func (s *Server) visibleProjects(ctx context.Context, user soda.Person) ([]soda.
 		return s.api.Projects(ctx)
 	}
 	return s.api.ProjectsForPerson(ctx, user.ID)
+}
+
+func (s *Server) provisioningState(ctx context.Context, projectID string) ([]soda.ProvisioningJob, *soda.ToolchainInstallation, error) {
+	jobs, err := s.api.Jobs(ctx, projectID)
+	if err != nil {
+		return nil, nil, err
+	}
+	installation, err := s.api.Toolchain(ctx, projectID)
+	if err != nil {
+		return nil, nil, err
+	}
+	return jobs, installation, nil
+}
+
+func provisioningActive(jobs []soda.ProvisioningJob) bool {
+	for _, job := range jobs {
+		if job.State == "installing" {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *Server) visibleProject(ctx context.Context, user soda.Person, projectID string) (soda.Project, bool, error) {

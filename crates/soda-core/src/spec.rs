@@ -15,7 +15,7 @@ pub enum SpecError {
         path: String,
         source: toml::de::Error,
     },
-    #[error("unsupported spec schema version {0}; expected 2")]
+    #[error("unsupported spec schema version {0}; expected 3")]
     Schema(u32),
 }
 
@@ -41,7 +41,8 @@ pub struct IdentitySpec {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct BaseSpec {
     pub distribution: String,
-    pub version: String,
+    pub installer_source_version: String,
+    pub package_stream: String,
     pub source_iso: String,
     pub source_iso_sha256: String,
     pub checksum_file: String,
@@ -56,6 +57,20 @@ pub struct InstallerSpec {
     pub boot_timeout_seconds: u16,
     pub branding_manifest: String,
     pub upstream_manifest: String,
+    pub payload: NetworkPayloadSpec,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct NetworkPayloadSpec {
+    pub mode: String,
+    pub baseos_mirrorlist: String,
+    pub appstream_mirrorlist: String,
+    pub install_weak_dependencies: bool,
+    pub max_iso_size_bytes: u64,
+    pub environment: String,
+    pub packages: Vec<String>,
+    pub automated_extra_packages: Vec<String>,
+    pub anaconda_required_packages: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -89,7 +104,7 @@ impl DistroSpec {
             path: path.display().to_string(),
             source,
         })?;
-        if spec.schema_version != 2 {
+        if spec.schema_version != 3 {
             return Err(SpecError::Schema(spec.schema_version));
         }
         Ok(spec)
@@ -149,7 +164,7 @@ mod tests {
     fn rejects_unknown_schema() {
         let error = toml::from_str::<DistroSpec>(
             r#"
-schema_version = 3
+schema_version = 2
 [identity]
 name = "Soda OS"
 id = "sodaos"
@@ -158,7 +173,8 @@ hostname = "soda"
 architecture = "aarch64"
 [base]
 distribution = "rocky"
-version = "10.2"
+installer_source_version = "10.2"
+package_stream = "10"
 source_iso = "iso"
 source_iso_sha256 = "hash"
 checksum_file = "checksum"
@@ -170,6 +186,16 @@ volume_id = "SodaOS-test-aarch64"
 boot_timeout_seconds = 10
 branding_manifest = "branding.toml"
 upstream_manifest = "upstream.toml"
+[installer.payload]
+mode = "network"
+baseos_mirrorlist = "https://example.test/baseos"
+appstream_mirrorlist = "https://example.test/appstream"
+install_weak_dependencies = false
+max_iso_size_bytes = 1342177280
+environment = "minimal-environment"
+packages = []
+automated_extra_packages = []
+anaconda_required_packages = []
 [network]
 cockpit_port = 9090
 mdns_name = "soda.local"
@@ -181,6 +207,6 @@ daemon_socket = "/run/soda/sodad.sock"
 "#,
         )
         .expect("valid TOML");
-        assert_eq!(error.schema_version, 3);
+        assert_eq!(error.schema_version, 2);
     }
 }

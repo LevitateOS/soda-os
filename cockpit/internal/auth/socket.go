@@ -3,6 +3,7 @@ package auth
 import (
 	"encoding/json"
 	"errors"
+	"log"
 	"net"
 	"os"
 	"path/filepath"
@@ -83,6 +84,10 @@ func serveConnection(connection net.Conn, authenticator Authenticator) {
 	if err := json.NewDecoder(connection).Decode(&request); err != nil {
 		return
 	}
-	authenticated := authenticator.Authenticate(request.Username, request.Password) == nil
+	authenticationError := authenticator.Authenticate(request.Username, request.Password)
+	if authenticationError != nil {
+		log.Printf("authentication failed for %q: %v", request.Username, authenticationError)
+	}
+	authenticated := authenticationError == nil
 	_ = json.NewEncoder(connection).Encode(socketResponse{Authenticated: authenticated})
 }

@@ -5,12 +5,7 @@
   <div><dt>Toolchain</dt><dd>{{.Project.Profile}}</dd></div>
   <div><dt>SSH</dt><dd><code>ssh {{.Project.UnixUser}}@soda.local</code></dd></div>
 </dl>
-<section class="panel">
-  <h2>Provisioning</h2>
-  {{if .Toolchain}}<p><strong>{{.Toolchain.State}}</strong> · {{.Toolchain.Version}}</p>{{else}}<p>Toolchain not ready.</p>{{end}}
-  {{if .Jobs}}<ul>{{range .Jobs}}<li>{{.State}}{{if .Error}} · <span class="error">{{.Error}}</span>{{end}}</li>{{end}}</ul>{{end}}
-  {{if .Admin}}<form method="post" action="/projects/{{.Project.ID}}/provisioning" hx-post="/projects/{{.Project.ID}}/provisioning"><button type="submit">Retry provisioning</button></form>{{end}}
-</section>
+{{template "provisioning" .}}
 <section class="panel">
   <h2>Worktrees</h2>
   {{if .Worktrees}}<table><thead><tr><th>Person</th><th>Name</th><th>Branch</th><th>Path</th></tr></thead><tbody>
@@ -30,3 +25,12 @@
 <section class="panel"><h2>Project deploy key</h2><p>Add this public key to a private SSH remote, then retry provisioning.</p><pre>{{.DeployKey}}</pre></section>
 {{end}}
 {{template "footer" .}}{{end}}
+
+{{define "provisioning"}}
+<section id="provisioning" class="panel" aria-live="polite" aria-busy="{{if .ProvisioningActive}}true{{else}}false{{end}}"{{if .ProvisioningActive}} hx-get="/projects/{{.Project.ID}}/provisioning" hx-trigger="every 2s" hx-swap="outerHTML"{{end}}>
+  <h2>Provisioning</h2>
+  {{if .Toolchain}}<p><strong>{{.Toolchain.State}}</strong> · {{.Toolchain.Version}}</p>{{else}}<p>Toolchain not ready.</p>{{end}}
+  {{if .Jobs}}<ul>{{range .Jobs}}<li>{{.State}}{{if .Error}} · <span class="error">{{.Error}}</span>{{end}}</li>{{end}}</ul>{{end}}
+  {{if .Admin}}<form method="post" action="/projects/{{.Project.ID}}/provisioning" hx-post="/projects/{{.Project.ID}}/provisioning" hx-target="#provisioning" hx-swap="outerHTML" hx-disabled-elt="button"><button type="submit"{{if .ProvisioningActive}} disabled{{end}}>{{if .ProvisioningActive}}Provisioning…{{else}}Retry provisioning{{end}}</button></form>{{end}}
+</section>
+{{end}}

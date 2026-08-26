@@ -7,11 +7,11 @@ Create an Apple Silicon Linux virtual machine in UTM with:
 - 8 GB RAM
 - 64 GB disk
 - the generated `SodaOS-0.1.0-aarch64.iso` as removable installation media
-- bridged networking when `soda.local` must be reachable from the LAN
+- bridged networking with wired DHCP and working Internet access
 
 Boot the VM and complete the slim graphical Soda installer. Choose language,
 keyboard and timezone, the target disk, wired DHCP networking, and the first
-Soda administrator with a strong PAM password. The hostname is already `soda`.
+Soda administrator with a PAM password. The hostname is already `soda`.
 Let installation finish, shut the VM down, eject the ISO, and boot from the
 virtual disk.
 

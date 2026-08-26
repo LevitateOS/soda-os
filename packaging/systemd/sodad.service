@@ -10,6 +10,7 @@ ExecStart=/usr/libexec/soda/sodad
 Restart=on-failure
 RuntimeDirectory=soda
 RuntimeDirectoryMode=0770
+RuntimeDirectoryPreserve=yes
 StateDirectory=soda
 StateDirectoryMode=0750
 UMask=0007

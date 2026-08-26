@@ -368,7 +368,7 @@ mod tests {
                 display_name: "Installer Admin".to_owned(),
                 email: "admin@example.test".to_owned(),
                 role: Role::Admin,
-                ssh_public_key: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAITest admin".to_owned(),
+                ssh_public_key: String::new(),
             })
             .expect("import administrator");
         assert_eq!(admin.role, Role::Admin);

@@ -12,6 +12,47 @@ use soda_core::DistroSpec;
 
 const BUILDER_IMAGE: &str = "soda-os-builder:0.1.0";
 const TARGET_RPMS: [&str; 3] = ["soda-release", "soda-runtime", "soda-cockpit"];
+const BASEOS_MIRRORLIST: &str =
+    "https://mirrors.rockylinux.org/mirrorlist?arch=aarch64&repo=BaseOS-10";
+const APPSTREAM_MIRRORLIST: &str =
+    "https://mirrors.rockylinux.org/mirrorlist?arch=aarch64&repo=AppStream-10";
+const PAYLOAD_PACKAGES: [&str; 7] = [
+    "avahi",
+    "git",
+    "openssh-server",
+    "soda-release",
+    "soda-runtime",
+    "soda-cockpit",
+    "sudo",
+];
+const AUTOMATED_EXTRA_PACKAGES: [&str; 1] = ["curl"];
+const ANACONDA_REQUIRED_PACKAGES: [&str; 6] = [
+    "kernel",
+    "grub2",
+    "grub2-tools",
+    "grub2-efi-aa64",
+    "grub2-efi-aa64-cdboot",
+    "shim-aa64",
+];
+const REQUIRED_FIRMWARE_PACKAGES: [&str; 4] = [
+    "linux-firmware",
+    "amd-gpu-firmware",
+    "intel-gpu-firmware",
+    "nvidia-gpu-firmware",
+];
+const ISO_ROOT_ALLOWLIST: [&str; 11] = [
+    ".discinfo",
+    ".treeinfo",
+    "COMMUNITY-CHARTER",
+    "EFI",
+    "EULA",
+    "LICENSE",
+    "RPM-GPG-KEY-Rocky-10",
+    "boot.catalog",
+    "images",
+    "ks.cfg",
+    "soda",
+];
 
 #[derive(Debug, Parser)]
 #[command(name = "soda-image", version, about = "Build Soda OS artifacts")]
@@ -109,8 +150,10 @@ impl Builder {
             "only AArch64 image builds are supported"
         );
         ensure!(
-            self.spec.base.distribution == "rocky" && self.spec.base.version == "10.2",
-            "Soda OS 0.1.0 requires Rocky Linux 10.2"
+            self.spec.base.distribution == "rocky"
+                && self.spec.base.installer_source_version == "10.2"
+                && self.spec.base.package_stream == "10",
+            "Soda OS requires the Rocky 10.2 installer runtime and Rocky 10 package stream"
         );
         ensure!(
             self.spec.installer.profile_id == "sodaos",
@@ -123,6 +166,34 @@ impl Builder {
         ensure!(
             self.spec.installer.boot_timeout_seconds == 10,
             "installer boot timeout must be 10 seconds"
+        );
+        let payload = &self.spec.installer.payload;
+        ensure!(
+            payload.mode == "network",
+            "installer payload must be network based"
+        );
+        ensure!(
+            payload.baseos_mirrorlist == BASEOS_MIRRORLIST
+                && payload.appstream_mirrorlist == APPSTREAM_MIRRORLIST,
+            "Rocky network sources differ from the approved mirrorlists"
+        );
+        ensure!(
+            !payload.install_weak_dependencies,
+            "weak RPM dependencies must remain disabled"
+        );
+        ensure!(
+            payload.max_iso_size_bytes == 1_342_177_280,
+            "compact ISO size limit must be 1.25 GiB"
+        );
+        ensure!(
+            payload.environment == "minimal-environment"
+                && string_slice_eq(&payload.packages, &PAYLOAD_PACKAGES)
+                && string_slice_eq(&payload.automated_extra_packages, &AUTOMATED_EXTRA_PACKAGES)
+                && string_slice_eq(
+                    &payload.anaconda_required_packages,
+                    &ANACONDA_REQUIRED_PACKAGES
+                ),
+            "network payload roots differ from the approved package contract"
         );
         for path in [
             &self.spec.base.source_iso,
@@ -220,7 +291,7 @@ impl Builder {
         for spoke in &upstream.spokes.hidden {
             ensure!(profile.contains(spoke), "profile does not hide {spoke}");
         }
-        ensure!(upstream.glade.len() == 3, "expected three Glade overlays");
+        ensure!(upstream.glade.len() == 4, "expected four Glade overlays");
         for glade in &upstream.glade {
             ensure!(
                 glade.path.starts_with("usr/share/anaconda/ui/spokes/")
@@ -255,6 +326,27 @@ impl Builder {
                 "required overlay {path} is missing"
             );
         }
+        for (path, mode) in [
+            ("packaging/kickstart/interactive.ks", "graphical"),
+            ("packaging/kickstart/automated.ks", "text"),
+        ] {
+            let kickstart = fs::read_to_string(self.root.join(path))?;
+            ensure!(
+                kickstart.contains(mode)
+                    && kickstart.contains(&format!(
+                        "url --mirrorlist=\"{}\"",
+                        payload.baseos_mirrorlist
+                    ))
+                    && kickstart.contains(&format!(
+                        "repo --name=AppStream --mirrorlist=\"{}\"",
+                        payload.appstream_mirrorlist
+                    ))
+                    && kickstart.contains("%packages --exclude-weakdeps")
+                    && kickstart.contains("file:///run/install/repo/soda/")
+                    && !kickstart.lines().any(|line| line.trim() == "cdrom"),
+                "{path} does not match the compact network payload contract"
+            );
+        }
         Ok(())
     }
 
@@ -287,7 +379,7 @@ impl Builder {
         );
         println!(
             "Verified Rocky {} {} source ISO and release signature",
-            self.spec.base.version, self.spec.identity.architecture
+            self.spec.base.installer_source_version, self.spec.identity.architecture
         );
         Ok(())
     }
@@ -481,6 +573,7 @@ impl Builder {
             "packaging/kickstart/interactive.ks"
         };
         self.docker(["ksvalidator", "-v", "RHEL10", &format!("/src/{kickstart}")])?;
+        self.resolve_network_payload(automated)?;
 
         let source_iso = self.container_path(&self.spec.base.source_iso)?;
         let source_metadata = artifacts.join("source-metadata");
@@ -547,14 +640,6 @@ impl Builder {
                 self.spec.identity.version
             ),
         )?;
-        fs::write(
-            overlay.join("media.repo"),
-            format!(
-                "[InstallMedia]\nname=Soda OS {}\nmediaid=None\nmetadata_expire=-1\ngpgcheck=0\ncost=500\n",
-                self.spec.identity.version
-            ),
-        )?;
-
         let output_container = self.container_path(&output)?;
         let mut xorriso = vec![
             "xorriso".to_owned(),
@@ -567,11 +652,19 @@ impl Builder {
             "replay".to_owned(),
             "-volid".to_owned(),
             self.spec.installer.volume_id.clone(),
+            "-rm_r".to_owned(),
+            "/BaseOS".to_owned(),
+            "/AppStream".to_owned(),
+            "--".to_owned(),
+            "-rm".to_owned(),
+            "/media.repo".to_owned(),
+            "/extra_files.json".to_owned(),
+            "/RPM-GPG-KEY-Rocky-10-Testing".to_owned(),
+            "--".to_owned(),
         ];
         for (disk, iso) in [
             (overlay.join(".treeinfo"), "/.treeinfo"),
             (overlay.join(".discinfo"), "/.discinfo"),
-            (overlay.join("media.repo"), "/media.repo"),
             (overlay.join("EFI/BOOT/grub.cfg"), "/EFI/BOOT/grub.cfg"),
             (overlay.join("images/efiboot.img"), "/images/efiboot.img"),
         ] {
@@ -602,6 +695,12 @@ impl Builder {
             "--force".to_owned(),
             output_container.clone(),
         ])?;
+        let iso_size = fs::metadata(&output)?.len();
+        ensure!(
+            iso_size <= self.spec.installer.payload.max_iso_size_bytes,
+            "compact ISO is {iso_size} bytes; maximum is {} bytes",
+            self.spec.installer.payload.max_iso_size_bytes
+        );
         self.inspect_iso(&output, automated)?;
 
         let digest = self.docker_output(["sha256sum", &output_container])?;
@@ -705,6 +804,7 @@ impl Builder {
             "etc/os-release",
             "usr/lib/os-release",
             "usr/share/anaconda/pixmaps/soda.css",
+            "usr/share/anaconda/ui/spokes/welcome.glade",
             "usr/share/anaconda/ui/spokes/storage.glade",
             "usr/share/anaconda/ui/spokes/network.glade",
             "usr/share/anaconda/ui/spokes/user.glade",
@@ -737,6 +837,7 @@ impl Builder {
         Ok(rendered)
     }
 
+    #[allow(clippy::too_many_lines)]
     fn inspect_iso(&self, iso: &Path, automated: bool) -> anyhow::Result<()> {
         let inspect = self.root.join(".artifacts/iso-inspect");
         recreate(&inspect)?;
@@ -744,7 +845,6 @@ impl Builder {
         for (source, destination) in [
             ("/.treeinfo", "treeinfo"),
             ("/.discinfo", "discinfo"),
-            ("/media.repo", "media.repo"),
             ("/EFI/BOOT/grub.cfg", "grub.cfg"),
             ("/ks.cfg", "ks.cfg"),
             ("/images/product.img", "product.img"),
@@ -754,7 +854,7 @@ impl Builder {
         let report = self.docker_output_combined_owned(vec![
             "xorriso".to_owned(),
             "-indev".to_owned(),
-            iso_container,
+            iso_container.clone(),
             "-pvd_info".to_owned(),
             "-report_el_torito".to_owned(),
             "plain".to_owned(),
@@ -784,7 +884,14 @@ impl Builder {
                 && !grub.contains("FIPS"),
             "boot menu contract failed"
         );
-        let customer_visible = ["treeinfo", "discinfo", "media.repo", "grub.cfg"]
+        let treeinfo = fs::read_to_string(inspect.join("treeinfo"))?;
+        ensure!(
+            !treeinfo.contains("BaseOS")
+                && !treeinfo.contains("AppStream")
+                && !treeinfo.contains("[variant-"),
+            "boot-only treeinfo still advertises a local Rocky package payload"
+        );
+        let customer_visible = ["treeinfo", "discinfo", "grub.cfg"]
             .into_iter()
             .map(|name| fs::read_to_string(inspect.join(name)))
             .collect::<Result<Vec<_>, _>>()?
@@ -795,7 +902,11 @@ impl Builder {
         );
         let kickstart = fs::read_to_string(inspect.join("ks.cfg"))?;
         ensure!(
-            kickstart.contains(if automated { "text" } else { "graphical" }),
+            kickstart.contains(if automated { "text" } else { "graphical" })
+                && kickstart.contains(BASEOS_MIRRORLIST)
+                && kickstart.contains(APPSTREAM_MIRRORLIST)
+                && kickstart.contains("%packages --exclude-weakdeps")
+                && !kickstart.lines().any(|line| line.trim() == "cdrom"),
             "ISO contains the wrong Kickstart mode"
         );
         let product_listing = self.docker_output_owned(vec![
@@ -809,9 +920,134 @@ impl Builder {
             product_listing.contains("etc/anaconda/profile.d/sodaos.conf"),
             "ISO product image is missing the Soda profile"
         );
+        let root_report = self.docker_output_combined_owned(vec![
+            "xorriso".to_owned(),
+            "-indev".to_owned(),
+            iso_container.clone(),
+            "-ls".to_owned(),
+            "/".to_owned(),
+        ])?;
+        let mut roots = quoted_listing_entries(&root_report);
+        roots.sort();
+        let mut expected_roots = ISO_ROOT_ALLOWLIST.map(str::to_owned).to_vec();
+        expected_roots.sort();
+        ensure!(
+            roots == expected_roots,
+            "compact ISO root differs from the allowlist: found {roots:?}"
+        );
+        let rpm_report = self.docker_output_combined_owned(vec![
+            "xorriso".to_owned(),
+            "-indev".to_owned(),
+            iso_container.clone(),
+            "-find".to_owned(),
+            "/soda".to_owned(),
+            "-type".to_owned(),
+            "f".to_owned(),
+            "-name".to_owned(),
+            "*.rpm".to_owned(),
+        ])?;
+        let rpm_entries = quoted_listing_entries(&rpm_report);
+        ensure!(
+            rpm_entries.len() == TARGET_RPMS.len()
+                && TARGET_RPMS.iter().all(|package| {
+                    rpm_entries.iter().any(|entry| {
+                        Path::new(entry)
+                            .file_name()
+                            .and_then(|filename| filename.to_str())
+                            .is_some_and(|filename| filename.starts_with(&format!("{package}-")))
+                    })
+                }),
+            "compact ISO does not contain exactly the three target Soda RPMs: {rpm_entries:?}"
+        );
+        ensure!(
+            fs::metadata(iso)?.len() <= self.spec.installer.payload.max_iso_size_bytes,
+            "compact ISO exceeds its size contract"
+        );
+        self.docker_owned(vec!["checkisomd5".to_owned(), iso_container])?;
         println!(
             "Inspected UEFI layout and Soda identity in {}",
             iso.display()
+        );
+        Ok(())
+    }
+
+    fn resolve_network_payload(&self, automated: bool) -> anyhow::Result<()> {
+        let artifacts = self.root.join(".artifacts");
+        let repo_dir = artifacts.join("network-repos");
+        let manifest_dir = artifacts.join("manifests");
+        recreate(&repo_dir)?;
+        fs::create_dir_all(&manifest_dir)?;
+        fs::write(
+            repo_dir.join("soda-network.repo"),
+            format!(
+                "[soda-baseos]\nname=Rocky Linux 10 BaseOS\nmirrorlist={}\nenabled=1\ngpgcheck=0\n\n[soda-appstream]\nname=Rocky Linux 10 AppStream\nmirrorlist={}\nenabled=1\ngpgcheck=0\n\n[soda-local]\nname=Soda OS local packages\nbaseurl=file:///src/.artifacts/soda\nenabled=1\ngpgcheck=0\n",
+                self.spec.installer.payload.baseos_mirrorlist,
+                self.spec.installer.payload.appstream_mirrorlist
+            ),
+        )?;
+
+        let mut roots = vec![format!("@{}", self.spec.installer.payload.environment)];
+        roots.extend(self.spec.installer.payload.packages.iter().cloned());
+        if automated {
+            roots.extend(
+                self.spec
+                    .installer
+                    .payload
+                    .automated_extra_packages
+                    .iter()
+                    .cloned(),
+            );
+        }
+        roots.extend(
+            self.spec
+                .installer
+                .payload
+                .anaconda_required_packages
+                .iter()
+                .cloned(),
+        );
+
+        let script = "set -euo pipefail; rm -rf /tmp/soda-network-root /tmp/soda-network-payload; mkdir -p /tmp/soda-network-root /tmp/soda-network-payload; dnf -q -y --installroot /tmp/soda-network-root --releasever \"$2\" --setopt=\"reposdir=$1\" --setopt=install_weak_deps=False --downloadonly --destdir /tmp/soda-network-payload install \"${@:3}\" >/dev/null; find /tmp/soda-network-payload -type f -name '*.rpm' -print0 | xargs -0 rpm -qp --qf '%{NAME}-%{VERSION}-%{RELEASE}.%{ARCH}\\n' | LC_ALL=C sort -u";
+        let mut command = vec![
+            "bash".to_owned(),
+            "-c".to_owned(),
+            script.to_owned(),
+            "soda-network-resolve".to_owned(),
+            self.container_path(&repo_dir)?,
+            self.spec.base.package_stream.clone(),
+        ];
+        command.extend(roots);
+        let resolved = self.docker_output_owned(command)?;
+        ensure!(
+            !resolved.trim().is_empty(),
+            "Rocky network payload resolved no RPMs"
+        );
+        for package in ANACONDA_REQUIRED_PACKAGES
+            .iter()
+            .chain(REQUIRED_FIRMWARE_PACKAGES.iter())
+            .chain(TARGET_RPMS.iter())
+        {
+            ensure!(
+                manifest_contains_package(&resolved, package),
+                "resolved network payload is missing {package}"
+            );
+        }
+        let suffix = if automated { "-test" } else { "" };
+        let manifest = manifest_dir.join(format!("rocky-network-payload{suffix}.txt"));
+        fs::write(
+            &manifest,
+            format!(
+                "baseos_mirrorlist={}\nappstream_mirrorlist={}\npackage_stream={}\nweak_dependencies=false\n\n{}",
+                self.spec.installer.payload.baseos_mirrorlist,
+                self.spec.installer.payload.appstream_mirrorlist,
+                self.spec.base.package_stream,
+                resolved
+            ),
+        )?;
+        println!(
+            "Resolved current Rocky {} network payload at {}",
+            self.spec.base.package_stream,
+            manifest.display()
         );
         Ok(())
     }
@@ -1099,14 +1335,21 @@ fn rewrite_treeinfo(
     let mut section = "";
     let mut output = Vec::new();
     let mut product_checksum_added = false;
+    let mut omit_section = false;
     for line in source.lines() {
         if line.starts_with('[') && line.ends_with(']') {
-            if section == "checksums" && !product_checksum_added {
+            if section == "checksums" && !product_checksum_added && !omit_section {
                 output.push(format!("images/product.img = sha256:{product_sha256}"));
                 product_checksum_added = true;
             }
             section = &line[1..line.len() - 1];
-            output.push(line.to_owned());
+            omit_section = section.starts_with("variant-");
+            if !omit_section {
+                output.push(line.to_owned());
+            }
+            continue;
+        }
+        if omit_section {
             continue;
         }
         let rewritten = match (section, line.split_once('=').map(|(key, _)| key.trim())) {
@@ -1118,6 +1361,8 @@ fn rewrite_treeinfo(
             ("general" | "release", Some("version")) => format!("version = {version}"),
             ("release", Some("name")) => "name = Soda OS".to_owned(),
             ("release", Some("short")) => "short = SodaOS".to_owned(),
+            ("general", Some("packagedir" | "repository" | "variant" | "variants"))
+            | ("tree", Some("variants")) => continue,
             _ => line.to_owned(),
         };
         output.push(rewritten);
@@ -1134,6 +1379,32 @@ fn recreate(path: &Path) -> anyhow::Result<()> {
     }
     fs::create_dir_all(path)?;
     Ok(())
+}
+
+fn string_slice_eq<const N: usize>(actual: &[String], expected: &[&str; N]) -> bool {
+    actual
+        .iter()
+        .map(String::as_str)
+        .eq(expected.iter().copied())
+}
+
+fn manifest_contains_package(manifest: &str, package: &str) -> bool {
+    manifest.lines().any(|line| {
+        line.strip_prefix(package)
+            .is_some_and(|rest| rest.starts_with('-'))
+    })
+}
+
+fn quoted_listing_entries(report: &str) -> Vec<String> {
+    report
+        .lines()
+        .filter_map(|line| {
+            let line = line.trim();
+            line.strip_prefix('\'')
+                .and_then(|entry| entry.strip_suffix('\''))
+                .map(str::to_owned)
+        })
+        .collect()
 }
 
 fn copy(source: impl AsRef<Path>, destination: impl AsRef<Path>) -> anyhow::Result<()> {
@@ -1279,13 +1550,23 @@ mod tests {
     }
 
     #[test]
-    fn rewrites_only_product_identity_in_treeinfo() {
-        let source = "[checksums]\nimages/efiboot.img = sha256:old\n\n[general]\nfamily = Rocky Linux\nname = Rocky Linux 10.2\nversion = 10.2\n\n[release]\nname = Rocky Linux\nshort = Rocky\nversion = 10.2\n\n[variant-BaseOS]\nname = BaseOS\n";
+    fn rewrites_treeinfo_for_boot_only_media() {
+        let source = "[checksums]\nimages/efiboot.img = sha256:old\n\n[general]\nfamily = Rocky Linux\nname = Rocky Linux 10.2\npackagedir = AppStream/Packages\nrepository = AppStream\nvariants = AppStream,BaseOS\nversion = 10.2\n\n[release]\nname = Rocky Linux\nshort = Rocky\nversion = 10.2\n\n[tree]\narch = aarch64\nvariants = AppStream,BaseOS\n\n[variant-BaseOS]\nname = BaseOS\n";
         let result = rewrite_treeinfo(source, "efi", "product", "0.1.0");
         assert!(result.contains("images/product.img = sha256:product"));
         assert!(result.contains("family = Soda OS"));
         assert!(result.contains("short = SodaOS"));
-        assert!(result.contains("[variant-BaseOS]\nname = BaseOS"));
+        assert!(!result.contains("variant-BaseOS"));
+        assert!(!result.contains("AppStream"));
+        assert!(!result.contains("BaseOS"));
         assert!(!result.contains("Rocky"));
+    }
+
+    #[test]
+    fn finds_exact_package_names_in_payload_manifest() {
+        let manifest = "kernel-6.12.aarch64\nkernel-core-6.12.aarch64\n";
+        assert!(manifest_contains_package(manifest, "kernel"));
+        assert!(manifest_contains_package(manifest, "kernel-core"));
+        assert!(!manifest_contains_package(manifest, "kern"));
     }
 }

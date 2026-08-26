@@ -1,4 +1,4 @@
-schema_version = 2
+schema_version = 3
 
 [identity]
 name = "Soda OS"
@@ -9,7 +9,8 @@ architecture = "aarch64"
 
 [base]
 distribution = "rocky"
-version = "10.2"
+installer_source_version = "10.2"
+package_stream = "10"
 source_iso = "isos/Rocky-10.2-aarch64-dvd1/Rocky-10.2-aarch64-dvd1.iso"
 source_iso_sha256 = "3b8253987604df1bc5e1c33c838ff3ee9ce4a8f02ed9e27e300ecff58c0c9588"
 checksum_file = "isos/Rocky-10.2-aarch64-dvd1/Rocky-10.2-aarch64-dvd1.iso.CHECKSUM"
@@ -22,6 +23,32 @@ volume_id = "SodaOS-0-1-0-aarch64"
 boot_timeout_seconds = 10
 branding_manifest = "packaging/anaconda/branding.toml"
 upstream_manifest = "packaging/anaconda/upstream.toml"
+
+[installer.payload]
+mode = "network"
+baseos_mirrorlist = "https://mirrors.rockylinux.org/mirrorlist?arch=aarch64&repo=BaseOS-10"
+appstream_mirrorlist = "https://mirrors.rockylinux.org/mirrorlist?arch=aarch64&repo=AppStream-10"
+install_weak_dependencies = false
+max_iso_size_bytes = 1342177280
+environment = "minimal-environment"
+packages = [
+  "avahi",
+  "git",
+  "openssh-server",
+  "soda-release",
+  "soda-runtime",
+  "soda-cockpit",
+  "sudo",
+]
+automated_extra_packages = ["curl"]
+anaconda_required_packages = [
+  "kernel",
+  "grub2",
+  "grub2-tools",
+  "grub2-efi-aa64",
+  "grub2-efi-aa64-cdboot",
+  "shim-aa64",
+]
 
 [network]
 cockpit_port = 9090

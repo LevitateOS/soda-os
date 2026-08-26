@@ -42,6 +42,12 @@ build-only installer-branding RPM, and inspects the deterministic Anaconda
 `.artifacts/images/SodaOS-0.1.0-aarch64.iso`; `just iso-test` produces the
 unattended, disposable-credential test image.
 
+The generated media is a compact network installer rather than a copy of the
+9 GB Rocky DVD. It keeps the Rocky 10.2 graphical installer runtime, Soda's
+local RPMs, and UEFI boot files, while downloading the current Rocky Linux 10
+system payload during installation. Wired DHCP and Internet access are
+required.
+
 The installer uses pinned stock Anaconda 40.22 with a Soda profile, stylesheet,
 artwork, and narrow Glade overlays. It does not fork Anaconda or add installer
 Python. See [installer customization](docs/installer.md) for the exact build

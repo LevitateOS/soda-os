@@ -10,6 +10,7 @@ ExecStart=/usr/libexec/soda/soda-authd
 Restart=on-failure
 RuntimeDirectory=soda
 RuntimeDirectoryMode=0770
+RuntimeDirectoryPreserve=yes
 UMask=0007
 
 [Install]

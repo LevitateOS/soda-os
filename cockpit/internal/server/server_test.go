@@ -17,9 +17,12 @@ type fakeAuth struct{ err error }
 func (a fakeAuth) Authenticate(_, _ string) error { return a.err }
 
 type fakeAPI struct {
-	people   []soda.Person
-	projects []soda.Project
-	created  *soda.CreatePersonRequest
+	people    []soda.Person
+	projects  []soda.Project
+	jobs      []soda.ProvisioningJob
+	toolchain *soda.ToolchainInstallation
+	created   *soda.CreatePersonRequest
+	retried   bool
 }
 
 func (f *fakeAPI) People(context.Context) ([]soda.Person, error)    { return f.people, nil }
@@ -40,13 +43,18 @@ func (f *fakeAPI) AddCollaborator(context.Context, string, string) (soda.Worktre
 func (f *fakeAPI) CreateWorktree(context.Context, string, string, string, string) (soda.Worktree, error) {
 	return soda.Worktree{}, nil
 }
-func (f *fakeAPI) Worktrees(context.Context, string) ([]soda.Worktree, error)   { return nil, nil }
-func (f *fakeAPI) Jobs(context.Context, string) ([]soda.ProvisioningJob, error) { return nil, nil }
+func (f *fakeAPI) Worktrees(context.Context, string) ([]soda.Worktree, error) { return nil, nil }
+func (f *fakeAPI) Jobs(context.Context, string) ([]soda.ProvisioningJob, error) {
+	return f.jobs, nil
+}
 func (f *fakeAPI) RetryProvisioning(context.Context, string) (soda.ProvisioningJob, error) {
-	return soda.ProvisioningJob{}, nil
+	f.retried = true
+	job := soda.ProvisioningJob{ID: "job-new", ProjectID: "project-1", State: "installing"}
+	f.jobs = append([]soda.ProvisioningJob{job}, f.jobs...)
+	return job, nil
 }
 func (f *fakeAPI) Toolchain(context.Context, string) (*soda.ToolchainInstallation, error) {
-	return nil, nil
+	return f.toolchain, nil
 }
 func (f *fakeAPI) DeployKey(context.Context, string) (soda.DeployKey, error) {
 	return soda.DeployKey{}, nil
@@ -98,6 +106,57 @@ func TestFailedAuthenticationDoesNotCreateSession(t *testing.T) {
 	response := request(app, http.MethodPost, "/login", form, nil)
 	if response.Code != http.StatusUnauthorized || !strings.Contains(response.Body.String(), "Invalid username or password") {
 		t.Fatalf("unexpected response: %d %q", response.Code, response.Body.String())
+	}
+}
+
+func TestProvisioningFragmentPollsOnlyWhileInstalling(t *testing.T) {
+	admin := soda.Person{ID: "admin-1", Username: "admin", DisplayName: "Admin", Role: soda.RoleAdmin}
+	project := soda.Project{ID: "project-1", Name: "Live project"}
+	api := &fakeAPI{
+		people:   []soda.Person{admin},
+		projects: []soda.Project{project},
+		jobs:     []soda.ProvisioningJob{{ID: "job-1", ProjectID: project.ID, State: "installing"}},
+	}
+	app := testServer(t, api, fakeAuth{})
+	token, err := app.sessions.create(admin)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cookie := &http.Cookie{Name: sessionCookie, Value: token}
+
+	installing := request(app, http.MethodGet, "/projects/project-1/provisioning", "", cookie)
+	if installing.Code != http.StatusOK || !strings.Contains(installing.Body.String(), `hx-trigger="every 2s"`) ||
+		!strings.Contains(installing.Body.String(), `disabled>Provisioning…`) {
+		t.Fatalf("expected live installing fragment, got %d %q", installing.Code, installing.Body.String())
+	}
+
+	api.jobs[0].State = "ready"
+	ready := request(app, http.MethodGet, "/projects/project-1/provisioning", "", cookie)
+	if ready.Code != http.StatusOK || strings.Contains(ready.Body.String(), `hx-trigger="every 2s"`) ||
+		!strings.Contains(ready.Body.String(), `>Retry provisioning</button>`) {
+		t.Fatalf("expected completed fragment without polling, got %d %q", ready.Code, ready.Body.String())
+	}
+}
+
+func TestHTMXRetryReturnsInstallingFragment(t *testing.T) {
+	admin := soda.Person{ID: "admin-1", Username: "admin", DisplayName: "Admin", Role: soda.RoleAdmin}
+	project := soda.Project{ID: "project-1", Name: "Live project"}
+	api := &fakeAPI{people: []soda.Person{admin}, projects: []soda.Project{project}}
+	app := testServer(t, api, fakeAuth{})
+	token, err := app.sessions.create(admin)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req := httptest.NewRequest(http.MethodPost, "/projects/project-1/provisioning", nil)
+	req.Header.Set("HX-Request", "true")
+	req.AddCookie(&http.Cookie{Name: sessionCookie, Value: token})
+	response := httptest.NewRecorder()
+	app.Handler().ServeHTTP(response, req)
+
+	if !api.retried || response.Code != http.StatusOK || response.Header().Get("HX-Redirect") != "" ||
+		!strings.Contains(response.Body.String(), `hx-trigger="every 2s"`) {
+		t.Fatalf("expected HTMX retry fragment, got retried=%t status=%d headers=%v body=%q",
+			api.retried, response.Code, response.Header(), response.Body.String())
 	}
 }
 

@@ -23,6 +23,25 @@ hidden = [
 ]
 
 [[glade]]
+path = "usr/share/anaconda/ui/spokes/welcome.glade"
+sha256 = "f0d0567000cbe77809a899c552fb2257ece131fb04cc40143cbfba2e0a1c04c0"
+
+[[glade.override]]
+object_id = "pickLanguageLabel"
+property = "label"
+value = "Choose the installer language. Wired DHCP and Internet access are required to download Soda OS system packages."
+
+[[glade.override]]
+object_id = "pickLanguageLabel"
+property = "height_request"
+value = "72"
+
+[[glade.override]]
+object_id = "pickLanguageLabel"
+property = "wrap"
+value = "True"
+
+[[glade]]
 path = "usr/share/anaconda/ui/spokes/storage.glade"
 sha256 = "e601b5eb01382a8fced1dafc3bc09df373f95c6edcc913009577e883bc636351"
 
