@@ -1,0 +1,17 @@
+schema_version = 1
+
+[profile]
+id = "web"
+display_name = "Web"
+
+[[tools]]
+id = "node"
+resolver = "node_active_lts"
+channel = "active_lts"
+bin_paths = ["bin"]
+
+[[tools]]
+id = "bun"
+resolver = "github_latest"
+channel = "stable"
+bin_paths = ["bin"]

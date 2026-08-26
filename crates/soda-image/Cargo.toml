@@ -1,0 +1,15 @@
+[package]
+name = "soda-image"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+clap.workspace = true
+sha2.workspace = true
+soda-core.workspace = true
+
+[lints]
+workspace = true

@@ -1,0 +1,11 @@
+schema_version = 1
+
+[profile]
+id = "go"
+display_name = "Go"
+
+[[tools]]
+id = "go"
+resolver = "go_latest"
+channel = "stable"
+bin_paths = ["bin"]

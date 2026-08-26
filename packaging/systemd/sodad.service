@@ -1,0 +1,17 @@
+[Unit]
+Description=Soda OS project daemon
+After=local-fs.target network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/libexec/soda/sodad
+Restart=on-failure
+RuntimeDirectory=soda
+RuntimeDirectoryMode=0770
+StateDirectory=soda
+StateDirectoryMode=0750
+UMask=0007
+
+[Install]
+WantedBy=multi-user.target

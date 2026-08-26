@@ -1,2 +1,12 @@
 /isos/**/*.iso
 .DS_Store
+.artifacts/
+target/
+cockpit/soda-cockpit
+*.rpm
+*.qcow2
+*.utm/
+*.crdownload
+*.key
+*.pem
+*.db

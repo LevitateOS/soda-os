@@ -1,0 +1,26 @@
+schema_version = 1
+
+[identity]
+name = "Soda OS"
+id = "sodaos"
+version = "0.1.0"
+hostname = "soda"
+architecture = "aarch64"
+
+[base]
+distribution = "rocky"
+version = "10.2"
+source_iso = "isos/Rocky-10.2-aarch64-dvd1/Rocky-10.2-aarch64-dvd1.iso"
+source_iso_sha256 = "3b8253987604df1bc5e1c33c838ff3ee9ce4a8f02ed9e27e300ecff58c0c9588"
+checksum_file = "isos/Rocky-10.2-aarch64-dvd1/Rocky-10.2-aarch64-dvd1.iso.CHECKSUM"
+signature_file = "isos/Rocky-10.2-aarch64-dvd1/Rocky-10.2-aarch64-dvd1.iso.CHECKSUM.asc"
+
+[network]
+cockpit_port = 9090
+mdns_name = "soda.local"
+
+[paths]
+state_dir = "/var/lib/soda"
+projects_dir = "/srv/soda/projects"
+toolchains_dir = "/opt/soda/toolchains"
+daemon_socket = "/run/soda/sodad.sock"
