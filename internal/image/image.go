@@ -462,7 +462,7 @@ func (b *Builder) assembleISO(ctx context.Context, overlay, output, kickstart st
 		return err
 	}
 	for _, path := range []string{filepath.Join(efiStage, "EFI", "BOOT", "grub.cfg"), filepath.Join(overlay, "EFI", "BOOT", "grub.cfg")} {
-		if err := os.WriteFile(path, []byte(grub), 0o644); err != nil {
+		if err := replaceFile(path, []byte(grub), 0o644); err != nil {
 			return err
 		}
 	}
@@ -1148,6 +1148,13 @@ func recreate(path string) error {
 		return err
 	}
 	return os.MkdirAll(path, 0o755)
+}
+
+func replaceFile(path string, data []byte, mode fs.FileMode) error {
+	if err := os.Remove(path); err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return err
+	}
+	return os.WriteFile(path, data, mode)
 }
 
 func copyFile(source, destination string) error {

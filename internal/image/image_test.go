@@ -93,6 +93,19 @@ func TestBuildGoBinariesUsesAllGoEntrypoints(t *testing.T) {
 	require.NotContains(t, strings.Join(commands, "\n"), "cargo")
 }
 
+func TestReplaceFileReplacesReadOnlyExtractedFile(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "grub.cfg")
+	require.NoError(t, os.WriteFile(path, []byte("upstream"), 0o444))
+
+	require.NoError(t, replaceFile(path, []byte("soda"), 0o644))
+	contents, err := os.ReadFile(path)
+	require.NoError(t, err)
+	require.Equal(t, "soda", string(contents))
+	info, err := os.Stat(path)
+	require.NoError(t, err)
+	require.Equal(t, os.FileMode(0o644), info.Mode().Perm())
+}
+
 func testSpec(volumeID string) config.DistroSpec {
 	return config.DistroSpec{
 		Identity:  config.IdentitySpec{Name: "Soda OS", Version: "0.2.0", Architecture: "aarch64"},
