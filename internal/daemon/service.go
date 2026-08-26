@@ -128,6 +128,9 @@ func (s *Service) CreatePerson(ctx context.Context, request *sodav2.CreatePerson
 	if err = host.ValidatePublicKey(request.GetSshPublicKey(), false); err != nil {
 		return nil, rpcError(invalid("%v", err))
 	}
+	if err = s.store.PreflightPerson(ctx, request.GetUsername()); err != nil {
+		return nil, rpcError(err)
+	}
 	person := domain.Person{ID: uuid.NewString(), Username: request.GetUsername(), DisplayName: request.GetDisplayName(), Email: request.GetEmail(), Role: role, SSHPublicKey: request.GetSshPublicKey()}
 	if err = s.host.CreatePerson(ctx, person, request.GetPassword()); err != nil {
 		return nil, rpcError(err)
@@ -148,6 +151,9 @@ func (s *Service) ImportPerson(ctx context.Context, request *sodav2.ImportPerson
 	}
 	if err = host.ValidatePublicKey(request.GetSshPublicKey(), true); err != nil {
 		return nil, rpcError(invalid("%v", err))
+	}
+	if err = s.store.PreflightPerson(ctx, request.GetUsername()); err != nil {
+		return nil, rpcError(err)
 	}
 	person := domain.Person{ID: uuid.NewString(), Username: request.GetUsername(), DisplayName: request.GetDisplayName(), Email: request.GetEmail(), Role: role, SSHPublicKey: request.GetSshPublicKey()}
 	if err = s.host.ImportPerson(ctx, person); err != nil {
@@ -187,6 +193,9 @@ func (s *Service) CreateProject(ctx context.Context, request *sodav2.CreateProje
 		return nil, rpcError(err)
 	}
 	project := domain.Project{ID: uuid.NewString(), Slug: request.GetSlug(), Name: request.GetName(), UnixUser: "soda-p-" + request.GetSlug(), Profile: profile, Source: source}
+	if err = s.store.PreflightProject(ctx, project.Slug, project.UnixUser); err != nil {
+		return nil, rpcError(err)
+	}
 	if err = s.host.CreateProject(ctx, project); err != nil {
 		return nil, rpcError(err)
 	}
@@ -248,6 +257,9 @@ func (s *Service) AddCollaborator(ctx context.Context, request *sodav2.AddCollab
 		return nil, rpcError(err)
 	}
 	tree := s.makeWorktree(project, person, "default", "people", "")
+	if err = s.store.PreflightWorktree(ctx, tree); err != nil {
+		return nil, rpcError(err)
+	}
 	if err = s.host.CreateWorktree(ctx, project, person, tree, "main"); err != nil {
 		return nil, rpcError(err)
 	}
@@ -296,9 +308,6 @@ func (s *Service) CreateWorktree(ctx context.Context, request *sodav2.CreateWork
 	if strings.TrimSpace(request.GetBaseRef()) == "" {
 		return nil, rpcError(invalid("base ref is required"))
 	}
-	if _, err = s.store.Membership(ctx, projectID, personID); err != nil {
-		return nil, rpcError(err)
-	}
 	project, err := s.store.Project(ctx, projectID)
 	if err != nil {
 		return nil, rpcError(err)
@@ -307,7 +316,16 @@ func (s *Service) CreateWorktree(ctx context.Context, request *sodav2.CreateWork
 	if err != nil {
 		return nil, rpcError(err)
 	}
+	if _, err = s.store.Membership(ctx, projectID, personID); err != nil {
+		if errors.Is(err, store.ErrNotFound) {
+			return nil, rpcError(precondition("person is not a project collaborator"))
+		}
+		return nil, rpcError(err)
+	}
 	tree := s.makeWorktree(project, person, request.GetName(), "work", request.GetName())
+	if err = s.store.PreflightWorktree(ctx, tree); err != nil {
+		return nil, rpcError(err)
+	}
 	if err = s.host.CreateWorktree(ctx, project, person, tree, request.GetBaseRef()); err != nil {
 		return nil, rpcError(err)
 	}
@@ -481,7 +499,7 @@ func (s *Service) SubscribeEvents(request *sodav2.SubscribeEventsRequest, stream
 
 func (s *Service) startProvisioning(projectID string) (domain.ProvisioningJob, error) {
 	job := domain.ProvisioningJob{ID: uuid.NewString(), ProjectID: projectID, State: domain.JobInstalling}
-	if err := s.store.CreateJob(s.background, job); err != nil {
+	if err := s.store.BeginProvisioning(s.background, job); err != nil {
 		return domain.ProvisioningJob{}, err
 	}
 	s.events.Publish(domain.EventProvisioningChanged, &projectID)

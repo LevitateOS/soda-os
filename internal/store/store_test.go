@@ -119,3 +119,77 @@ func TestMembershipWorktreeJobsAndToolchainResolution(t *testing.T) {
 		t.Fatalf("installation = %#v, resolution = %#v", got, gotResolution)
 	}
 }
+
+func TestSaveInstallationReusesProfileVersionAcrossProjects(t *testing.T) {
+	repository, err := Open(filepath.Join(t.TempDir(), "soda.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	firstProject := domain.Project{ID: uuid.NewString(), Slug: "first", Name: "First", UnixUser: "soda-p-first", Profile: domain.ToolchainGo, Source: domain.EmptyProjectSource{}}
+	secondProject := domain.Project{ID: uuid.NewString(), Slug: "second", Name: "Second", UnixUser: "soda-p-second", Profile: domain.ToolchainGo, Source: domain.EmptyProjectSource{}}
+	for _, project := range []domain.Project{firstProject, secondProject} {
+		if err = repository.CreateProject(ctx, project); err != nil {
+			t.Fatal(err)
+		}
+	}
+	first := domain.ToolchainInstallation{ID: uuid.NewString(), Profile: domain.ToolchainGo, Version: "go1.25.1", Path: "/opt/soda/toolchains/go/go1.25.1", Checksum: "verified", State: domain.JobReady}
+	firstResolution, err := repository.SaveInstallation(ctx, firstProject.ID, first)
+	if err != nil {
+		t.Fatal(err)
+	}
+	second := first
+	second.ID = uuid.NewString()
+	secondResolution, err := repository.SaveInstallation(ctx, secondProject.ID, second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if firstResolution.ToolchainInstallationID != first.ID {
+		t.Fatalf("first installation ID = %s", firstResolution.ToolchainInstallationID)
+	}
+	if secondResolution.ToolchainInstallationID != first.ID {
+		t.Fatalf("second project did not reuse installation: %#v", secondResolution)
+	}
+	var count int64
+	if err = repository.DB().Model(&ToolchainInstallation{}).Count(&count).Error; err != nil {
+		t.Fatal(err)
+	}
+	if count != 1 {
+		t.Fatalf("installation count = %d", count)
+	}
+}
+
+func TestBeginProvisioningEnforcesLatestState(t *testing.T) {
+	repository, err := Open(filepath.Join(t.TempDir(), "soda.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	project := domain.Project{ID: uuid.NewString(), Slug: "demo", Name: "Demo", UnixUser: "soda-p-demo", Profile: domain.ToolchainGo, Source: domain.EmptyProjectSource{}}
+	if err = repository.CreateProject(ctx, project); err != nil {
+		t.Fatal(err)
+	}
+	first := domain.ProvisioningJob{ID: uuid.NewString(), ProjectID: project.ID, State: domain.JobInstalling}
+	if err = repository.BeginProvisioning(ctx, first); err != nil {
+		t.Fatal(err)
+	}
+	if err = repository.BeginProvisioning(ctx, domain.ProvisioningJob{ID: uuid.NewString(), ProjectID: project.ID, State: domain.JobInstalling}); !errors.Is(err, ErrFailedPrecondition) {
+		t.Fatalf("installing retry = %v", err)
+	}
+	message := "failed"
+	first.State, first.Error = domain.JobFailed, &message
+	if err = repository.UpdateJob(ctx, first); err != nil {
+		t.Fatal(err)
+	}
+	second := domain.ProvisioningJob{ID: uuid.NewString(), ProjectID: project.ID, State: domain.JobInstalling}
+	if err = repository.BeginProvisioning(ctx, second); err != nil {
+		t.Fatalf("failed retry: %v", err)
+	}
+	second.State = domain.JobReady
+	if err = repository.UpdateJob(ctx, second); err != nil {
+		t.Fatal(err)
+	}
+	if err = repository.BeginProvisioning(ctx, domain.ProvisioningJob{ID: uuid.NewString(), ProjectID: project.ID, State: domain.JobInstalling}); !errors.Is(err, ErrFailedPrecondition) {
+		t.Fatalf("ready retry = %v", err)
+	}
+}

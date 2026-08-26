@@ -15,9 +15,10 @@ import (
 const SchemaVersion = 1
 
 var (
-	ErrNotFound          = errors.New("resource not found")
-	ErrAlreadyExists     = errors.New("resource already exists")
-	ErrUnsupportedSchema = errors.New("unsupported database schema")
+	ErrNotFound           = errors.New("resource not found")
+	ErrAlreadyExists      = errors.New("resource already exists")
+	ErrFailedPrecondition = errors.New("resource state does not allow operation")
+	ErrUnsupportedSchema  = errors.New("unsupported database schema")
 )
 
 type Person struct {
@@ -48,10 +49,10 @@ type Membership struct {
 
 type Worktree struct {
 	ID        string  `gorm:"primaryKey;size:36"`
-	ProjectID string  `gorm:"not null;uniqueIndex:worktree_identity;size:36"`
+	ProjectID string  `gorm:"not null;uniqueIndex:worktree_identity;uniqueIndex:worktree_branch;size:36"`
 	PersonID  string  `gorm:"not null;uniqueIndex:worktree_identity;size:36"`
 	Name      string  `gorm:"not null;uniqueIndex:worktree_identity"`
-	Branch    string  `gorm:"not null"`
+	Branch    string  `gorm:"not null;uniqueIndex:worktree_branch"`
 	Path      string  `gorm:"not null;uniqueIndex"`
 	Project   Project `gorm:"constraint:OnDelete:RESTRICT;foreignKey:ProjectID"`
 	Person    Person  `gorm:"constraint:OnDelete:RESTRICT;foreignKey:PersonID"`
@@ -162,6 +163,17 @@ func (s *Store) PersonByUsername(ctx context.Context, username string) (domain.P
 	return personDomain(row), nil
 }
 
+func (s *Store) PreflightPerson(ctx context.Context, username string) error {
+	var count int64
+	if err := s.db.WithContext(ctx).Model(&Person{}).Where("username = ?", username).Count(&count).Error; err != nil {
+		return err
+	}
+	if count != 0 {
+		return fmt.Errorf("%w: person %s", ErrAlreadyExists, username)
+	}
+	return nil
+}
+
 func (s *Store) CreateProject(ctx context.Context, value domain.Project) error {
 	kind, remote, err := sourceColumns(value.Source)
 	if err != nil {
@@ -198,6 +210,17 @@ func (s *Store) Project(ctx context.Context, id string) (domain.Project, error) 
 		return domain.Project{}, classify(err)
 	}
 	return projectDomain(row)
+}
+
+func (s *Store) PreflightProject(ctx context.Context, slug, unixUser string) error {
+	var count int64
+	if err := s.db.WithContext(ctx).Model(&Project{}).Where("slug = ? OR unix_user = ?", slug, unixUser).Count(&count).Error; err != nil {
+		return err
+	}
+	if count != 0 {
+		return fmt.Errorf("%w: project %s", ErrAlreadyExists, slug)
+	}
+	return nil
 }
 
 func (s *Store) ProjectsForPerson(ctx context.Context, personID string) ([]domain.Project, error) {
@@ -251,6 +274,20 @@ func (s *Store) CreateWorktree(ctx context.Context, value domain.Worktree) error
 	return classify(s.db.WithContext(ctx).Create(worktreeRow(value)).Error)
 }
 
+func (s *Store) PreflightWorktree(ctx context.Context, value domain.Worktree) error {
+	var count int64
+	err := s.db.WithContext(ctx).Model(&Worktree{}).
+		Where("path = ? OR (project_id = ? AND branch = ?) OR (project_id = ? AND person_id = ? AND name = ?)", value.Path, value.ProjectID, value.Branch, value.ProjectID, value.PersonID, value.Name).
+		Count(&count).Error
+	if err != nil {
+		return err
+	}
+	if count != 0 {
+		return fmt.Errorf("%w: worktree %s", ErrAlreadyExists, value.Name)
+	}
+	return nil
+}
+
 func (s *Store) Worktrees(ctx context.Context, projectID string) ([]domain.Worktree, error) {
 	var rows []Worktree
 	if err := s.db.WithContext(ctx).Where("project_id = ?", projectID).Order("path").Find(&rows).Error; err != nil {
@@ -283,6 +320,24 @@ func (s *Store) WorktreesForPerson(ctx context.Context, projectID, personID stri
 func (s *Store) CreateJob(ctx context.Context, value domain.ProvisioningJob) error {
 	return classify(s.db.WithContext(ctx).Create(jobRow(value)).Error)
 }
+
+func (s *Store) BeginProvisioning(ctx context.Context, value domain.ProvisioningJob) error {
+	return classify(s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var project Project
+		if err := tx.First(&project, "id = ?", value.ProjectID).Error; err != nil {
+			return err
+		}
+		var latest ProvisioningJob
+		err := tx.Where("project_id = ?", value.ProjectID).Order("created_at DESC").First(&latest).Error
+		if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+			return err
+		}
+		if err == nil && (latest.State == string(domain.JobInstalling) || latest.State == string(domain.JobReady)) {
+			return fmt.Errorf("%w: project provisioning is %s", ErrFailedPrecondition, latest.State)
+		}
+		return tx.Create(jobRow(value)).Error
+	}))
+}
 func (s *Store) UpdateJob(ctx context.Context, value domain.ProvisioningJob) error {
 	r := s.db.WithContext(ctx).Model(&ProvisioningJob{}).Where("id = ?", value.ID).Updates(map[string]any{"state": string(value.State), "error": value.Error})
 	if r.Error != nil {
@@ -308,8 +363,20 @@ func (s *Store) Jobs(ctx context.Context, projectID string) ([]domain.Provisioni
 func (s *Store) SaveInstallation(ctx context.Context, projectID string, value domain.ToolchainInstallation) (domain.ProjectToolchainResolution, error) {
 	var resolution domain.ProjectToolchainResolution
 	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		row := installationRow(value)
-		if err := tx.Where("profile = ? AND version = ?", row.Profile, row.Version).Assign(map[string]any{"path": row.Path, "checksum": row.Checksum, "state": row.State}).FirstOrCreate(&row).Error; err != nil {
+		candidate := installationRow(value)
+		var row ToolchainInstallation
+		err := tx.Where("profile = ? AND version = ?", candidate.Profile, candidate.Version).First(&row).Error
+		switch {
+		case err == nil:
+			if err = tx.Model(&row).Updates(map[string]any{"path": candidate.Path, "checksum": candidate.Checksum, "state": candidate.State}).Error; err != nil {
+				return err
+			}
+		case errors.Is(err, gorm.ErrRecordNotFound):
+			row = candidate
+			if err = tx.Create(&row).Error; err != nil {
+				return err
+			}
+		default:
 			return err
 		}
 		link := ProjectToolchainResolution{ProjectID: projectID, ToolchainInstallationID: row.ID}

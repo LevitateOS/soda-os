@@ -24,14 +24,26 @@ import (
 
 type fakeHost struct {
 	mu           sync.Mutex
+	people       int
+	imports      int
 	projects     []domain.Project
 	worktrees    []domain.Worktree
 	environments int
 }
 
 func (*fakeHost) InstallerAdministrator(context.Context) (*domain.Person, error) { return nil, nil }
-func (*fakeHost) CreatePerson(context.Context, domain.Person, string) error      { return nil }
-func (*fakeHost) ImportPerson(context.Context, domain.Person) error              { return nil }
+func (h *fakeHost) CreatePerson(context.Context, domain.Person, string) error {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.people++
+	return nil
+}
+func (h *fakeHost) ImportPerson(context.Context, domain.Person) error {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.imports++
+	return nil
+}
 func (h *fakeHost) CreateProject(_ context.Context, value domain.Project) error {
 	h.mu.Lock()
 	defer h.mu.Unlock()
@@ -59,6 +71,18 @@ type fakeInstaller struct{}
 
 func (fakeInstaller) Install(_ context.Context, profile domain.ToolchainProfile) (domain.ToolchainInstallation, error) {
 	return domain.ToolchainInstallation{Profile: profile, Version: string(profile) + "=test", Path: "/toolchains/" + string(profile), Checksum: "verified", State: domain.JobReady}, nil
+}
+
+type blockingInstaller struct {
+	started chan struct{}
+	release chan struct{}
+	once    sync.Once
+}
+
+func (b *blockingInstaller) Install(_ context.Context, profile domain.ToolchainProfile) (domain.ToolchainInstallation, error) {
+	b.once.Do(func() { close(b.started) })
+	<-b.release
+	return domain.ToolchainInstallation{Profile: profile, Version: string(profile) + "=blocked", Path: "/toolchains/" + string(profile), Checksum: "verified", State: domain.JobReady}, nil
 }
 
 type observeHost struct{}
@@ -259,5 +283,145 @@ func TestCommittedObservabilityBacksTelemetryAndEventStream(t *testing.T) {
 		if message.GetEvent().GetKind() == sodav2.EventKind_EVENT_KIND_PEOPLE_CHANGED {
 			break
 		}
+	}
+}
+
+func TestDuplicatePreflightsDoNotExecuteHostMutations(t *testing.T) {
+	repository, err := store.Open(filepath.Join(t.TempDir(), "soda.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	hostSystem := &fakeHost{}
+	service := New(Options{Store: repository, Host: hostSystem, Toolchains: fakeInstaller{}, ProjectsRoot: filepath.Join(t.TempDir(), "projects")})
+	defer service.Close()
+	ctx := context.Background()
+	personRequest := &sodav2.CreatePersonRequest{Username: "alice", DisplayName: "Alice", Email: "alice@example.test", Role: sodav2.Role_ROLE_DEVELOPER, SshPublicKey: "ssh-ed25519 AAAA alice", Password: "local"}
+	person, err := service.CreatePerson(ctx, personRequest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = service.CreatePerson(ctx, personRequest); status.Code(err) != codes.AlreadyExists {
+		t.Fatalf("duplicate person status = %s: %v", status.Code(err), err)
+	}
+	if _, err = service.ImportPerson(ctx, &sodav2.ImportPersonRequest{Username: "alice", DisplayName: "Alice", Email: "alice@example.test", Role: sodav2.Role_ROLE_DEVELOPER}); status.Code(err) != codes.AlreadyExists {
+		t.Fatalf("duplicate import status = %s: %v", status.Code(err), err)
+	}
+	projectRequest := &sodav2.CreateProjectRequest{Slug: "demo", Name: "Demo", Profile: sodav2.ToolchainProfile_TOOLCHAIN_PROFILE_GO, Source: &sodav2.ProjectSource{Source: &sodav2.ProjectSource_Empty{Empty: &sodav2.EmptyProjectSource{}}}}
+	project, err := service.CreateProject(ctx, projectRequest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = service.CreateProject(ctx, projectRequest); status.Code(err) != codes.AlreadyExists {
+		t.Fatalf("duplicate project status = %s: %v", status.Code(err), err)
+	}
+	if _, err = service.CreateWorktree(ctx, &sodav2.CreateWorktreeRequest{ProjectId: project.Project.Id, PersonId: person.Person.Id, Name: "premature", BaseRef: "main"}); status.Code(err) != codes.FailedPrecondition {
+		t.Fatalf("missing membership status = %s: %v", status.Code(err), err)
+	}
+	collaboratorRequest := &sodav2.AddCollaboratorRequest{ProjectId: project.Project.Id, PersonId: person.Person.Id}
+	if _, err = service.AddCollaborator(ctx, collaboratorRequest); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = service.AddCollaborator(ctx, collaboratorRequest); status.Code(err) != codes.AlreadyExists {
+		t.Fatalf("duplicate membership status = %s: %v", status.Code(err), err)
+	}
+	branchConflict := domain.Worktree{ID: uuid.NewString(), ProjectID: project.Project.Id, PersonID: person.Person.Id, Name: "legacy", Branch: "work/alice/feature", Path: filepath.Join(t.TempDir(), "legacy")}
+	if err = repository.CreateWorktree(ctx, branchConflict); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = service.CreateWorktree(ctx, &sodav2.CreateWorktreeRequest{ProjectId: project.Project.Id, PersonId: person.Person.Id, Name: "feature", BaseRef: "main"}); status.Code(err) != codes.AlreadyExists {
+		t.Fatalf("duplicate branch status = %s: %v", status.Code(err), err)
+	}
+	worktreeRequest := &sodav2.CreateWorktreeRequest{ProjectId: project.Project.Id, PersonId: person.Person.Id, Name: "second", BaseRef: "main"}
+	if _, err = service.CreateWorktree(ctx, worktreeRequest); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = service.CreateWorktree(ctx, worktreeRequest); status.Code(err) != codes.AlreadyExists {
+		t.Fatalf("duplicate worktree status = %s: %v", status.Code(err), err)
+	}
+	hostSystem.mu.Lock()
+	defer hostSystem.mu.Unlock()
+	if hostSystem.people != 1 || hostSystem.imports != 0 || len(hostSystem.projects) != 1 || len(hostSystem.worktrees) != 2 {
+		t.Fatalf("host mutations: people=%d imports=%d projects=%d worktrees=%d", hostSystem.people, hostSystem.imports, len(hostSystem.projects), len(hostSystem.worktrees))
+	}
+}
+
+func TestProvisioningAdmissionIsAtomicAndFailedJobsCanRetry(t *testing.T) {
+	repository, err := store.Open(filepath.Join(t.TempDir(), "soda.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	project := domain.Project{ID: uuid.NewString(), Slug: "demo", Name: "Demo", UnixUser: "soda-p-demo", Profile: domain.ToolchainGo, Source: domain.EmptyProjectSource{}}
+	if err = repository.CreateProject(context.Background(), project); err != nil {
+		t.Fatal(err)
+	}
+	installer := &blockingInstaller{started: make(chan struct{}), release: make(chan struct{})}
+	service := New(Options{Store: repository, Host: &fakeHost{}, Toolchains: installer, ProjectsRoot: t.TempDir()})
+	defer service.Close()
+	const attempts = 8
+	results := make(chan error, attempts)
+	start := make(chan struct{})
+	for range attempts {
+		go func() {
+			<-start
+			_, callErr := service.StartProvisioning(context.Background(), &sodav2.StartProvisioningRequest{ProjectId: project.ID})
+			results <- callErr
+		}()
+	}
+	close(start)
+	successes, preconditions := 0, 0
+	for range attempts {
+		callErr := <-results
+		switch status.Code(callErr) {
+		case codes.OK:
+			successes++
+		case codes.FailedPrecondition:
+			preconditions++
+		default:
+			t.Fatalf("unexpected status %s: %v", status.Code(callErr), callErr)
+		}
+	}
+	if successes != 1 || preconditions != attempts-1 {
+		t.Fatalf("successes=%d preconditions=%d", successes, preconditions)
+	}
+	<-installer.started
+	close(installer.release)
+	waitForJobState(t, repository, project.ID, domain.JobReady)
+	if _, err = service.StartProvisioning(context.Background(), &sodav2.StartProvisioningRequest{ProjectId: project.ID}); status.Code(err) != codes.FailedPrecondition {
+		t.Fatalf("ready retry status = %s: %v", status.Code(err), err)
+	}
+	jobs, err := repository.Jobs(context.Background(), project.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	latest := jobs[0]
+	failure := "retry requested after failure"
+	latest.State, latest.Error = domain.JobFailed, &failure
+	if err = repository.UpdateJob(context.Background(), latest); err != nil {
+		t.Fatal(err)
+	}
+	service.Close()
+	retryService := New(Options{Store: repository, Host: &fakeHost{}, Toolchains: fakeInstaller{}, ProjectsRoot: t.TempDir()})
+	defer retryService.Close()
+	if _, err = retryService.StartProvisioning(context.Background(), &sodav2.StartProvisioningRequest{ProjectId: project.ID}); err != nil {
+		t.Fatalf("failed job retry: %v", err)
+	}
+	waitForJobState(t, repository, project.ID, domain.JobReady)
+}
+
+func waitForJobState(t *testing.T, repository *store.Store, projectID string, want domain.JobState) {
+	t.Helper()
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		jobs, err := repository.Jobs(context.Background(), projectID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(jobs) > 0 && jobs[0].State == want {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("latest job did not reach %s: %#v", want, jobs)
+		}
+		time.Sleep(10 * time.Millisecond)
 	}
 }
