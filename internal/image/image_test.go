@@ -94,6 +94,22 @@ func TestBuildGoBinariesUsesAllGoEntrypoints(t *testing.T) {
 	require.NotContains(t, strings.Join(commands, "\n"), "cargo")
 }
 
+func TestRuntimePackagesRootOwnedProjectAuthorizedKeys(t *testing.T) {
+	configContents, err := os.ReadFile(filepath.Join("..", "..", "packaging", "sshd", "41-soda-project-accounts.conf"))
+	require.NoError(t, err)
+	configuration := string(configContents)
+	require.Contains(t, configuration, "Match User soda-p-*")
+	require.Contains(t, configuration, "AuthorizedKeysFile /etc/soda/authorized_keys/%u")
+	require.Contains(t, configuration, "Match all")
+
+	specContents, err := os.ReadFile(filepath.Join("..", "..", "packaging", "rpm", "soda-runtime.spec"))
+	require.NoError(t, err)
+	spec := string(specContents)
+	require.Contains(t, spec, "%attr(0755,root,root) %{_sysconfdir}/soda/authorized_keys")
+	require.Contains(t, spec, "ssh_home_t '/etc/soda/authorized_keys(/.*)?'")
+	require.Contains(t, spec, "restorecon -RF /etc/soda/authorized_keys")
+}
+
 func TestReplaceFileReplacesReadOnlyExtractedFile(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "grub.cfg")
 	require.NoError(t, os.WriteFile(path, []byte("upstream"), 0o444))

@@ -2,8 +2,6 @@ package observe
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -88,7 +86,7 @@ func (s *SystemSessionInspector) Inspect(ctx context.Context, projects []domain.
 	}
 	personByFingerprint := make(map[string]domain.Person, len(people))
 	for _, person := range people {
-		if fingerprint := PublicKeyFingerprint(person.SSHPublicKey); fingerprint != "" {
+		if fingerprint, fingerprintErr := domain.SSHKeyFingerprint(person.SSHPublicKey); fingerprintErr == nil {
 			personByFingerprint[fingerprint] = person
 		}
 	}
@@ -209,19 +207,6 @@ func ParseDisconnected(message string) (user, address string, port uint16, ok bo
 		return "", "", 0, false
 	}
 	return fields[0], fields[1], uint16(parsedPort), true
-}
-
-func PublicKeyFingerprint(key string) string {
-	fields := strings.Fields(key)
-	if len(fields) < 2 || (!strings.HasPrefix(fields[0], "ssh-") && !strings.HasPrefix(fields[0], "ecdsa-")) {
-		return ""
-	}
-	decoded, err := base64.StdEncoding.DecodeString(fields[1])
-	if err != nil {
-		return ""
-	}
-	digest := sha256.Sum256(decoded)
-	return "SHA256:" + base64.RawStdEncoding.EncodeToString(digest[:])
 }
 
 func parseJournalTime(value string) time.Time {

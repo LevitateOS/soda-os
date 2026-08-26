@@ -112,6 +112,17 @@ func TestCompletedToolchainAncestorsAreTraversable(t *testing.T) {
 	}
 }
 
+func TestDefaultHTTPClientHasRequestTimeout(t *testing.T) {
+	manager := New(t.TempDir())
+	client, ok := manager.Client.(*http.Client)
+	if !ok {
+		t.Fatalf("default client = %T", manager.Client)
+	}
+	if client.Timeout != defaultHTTPRequestTimeout || client.Timeout <= 0 {
+		t.Fatalf("HTTP timeout = %s", client.Timeout)
+	}
+}
+
 func tarPayload(t *testing.T, name string, contents []byte) []byte {
 	t.Helper()
 	var output bytes.Buffer

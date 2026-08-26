@@ -22,12 +22,13 @@ var (
 )
 
 type Person struct {
-	ID           string `gorm:"primaryKey;size:36"`
-	Username     string `gorm:"not null;uniqueIndex;size:24"`
-	DisplayName  string `gorm:"not null"`
-	Email        string `gorm:"not null"`
-	Role         string `gorm:"not null;check:role IN ('admin','developer')"`
-	SSHPublicKey string `gorm:"not null"`
+	ID             string  `gorm:"primaryKey;size:36"`
+	Username       string  `gorm:"not null;uniqueIndex;size:24"`
+	DisplayName    string  `gorm:"not null"`
+	Email          string  `gorm:"not null"`
+	Role           string  `gorm:"not null;check:role IN ('admin','developer')"`
+	SSHPublicKey   string  `gorm:"not null"`
+	SSHFingerprint *string `gorm:"uniqueIndex"`
 }
 
 type Project struct {
@@ -119,20 +120,42 @@ func Open(path string) (*Store, error) {
 		return nil, fmt.Errorf("%w: found version %d, expected %d; Soda OS 0.2 requires a fresh installation", ErrUnsupportedSchema, version, SchemaVersion)
 	}
 	if version == 0 {
-		if err := db.AutoMigrate(&Person{}, &Project{}, &Membership{}, &Worktree{}, &ToolchainInstallation{}, &ProjectToolchainResolution{}, &ProvisioningJob{}); err != nil {
-			return nil, fmt.Errorf("create Soda schema: %w", err)
-		}
-		if err := db.Exec(fmt.Sprintf("PRAGMA user_version = %d", SchemaVersion)).Error; err != nil {
-			return nil, fmt.Errorf("record Soda schema version: %w", err)
+		if err := initializeSchema(db, nil); err != nil {
+			return nil, err
 		}
 	}
 	return &Store{db: db}, nil
 }
 
+func initializeSchema(db *gorm.DB, beforeVersion func(*gorm.DB) error) error {
+	err := db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.AutoMigrate(&Person{}, &Project{}, &Membership{}, &Worktree{}, &ToolchainInstallation{}, &ProjectToolchainResolution{}, &ProvisioningJob{}); err != nil {
+			return fmt.Errorf("create Soda schema: %w", err)
+		}
+		if beforeVersion != nil {
+			if err := beforeVersion(tx); err != nil {
+				return err
+			}
+		}
+		if err := tx.Exec(fmt.Sprintf("PRAGMA user_version = %d", SchemaVersion)).Error; err != nil {
+			return fmt.Errorf("record Soda schema version: %w", err)
+		}
+		return nil
+	})
+	if err != nil {
+		return fmt.Errorf("initialize Soda schema: %w", err)
+	}
+	return nil
+}
+
 func (s *Store) DB() *gorm.DB { return s.db }
 
 func (s *Store) CreatePerson(ctx context.Context, value domain.Person) error {
-	return classify(s.db.WithContext(ctx).Create(&Person{value.ID, value.Username, value.DisplayName, value.Email, string(value.Role), value.SSHPublicKey}).Error)
+	fingerprint, err := personFingerprint(value.SSHPublicKey)
+	if err != nil {
+		return err
+	}
+	return classify(s.db.WithContext(ctx).Create(&Person{ID: value.ID, Username: value.Username, DisplayName: value.DisplayName, Email: value.Email, Role: string(value.Role), SSHPublicKey: value.SSHPublicKey, SSHFingerprint: fingerprint}).Error)
 }
 
 func (s *Store) People(ctx context.Context) ([]domain.Person, error) {
@@ -163,13 +186,26 @@ func (s *Store) PersonByUsername(ctx context.Context, username string) (domain.P
 	return personDomain(row), nil
 }
 
-func (s *Store) PreflightPerson(ctx context.Context, username string) error {
+func (s *Store) PreflightPerson(ctx context.Context, username, publicKey string) error {
 	var count int64
 	if err := s.db.WithContext(ctx).Model(&Person{}).Where("username = ?", username).Count(&count).Error; err != nil {
 		return err
 	}
 	if count != 0 {
 		return fmt.Errorf("%w: person %s", ErrAlreadyExists, username)
+	}
+	fingerprint, err := personFingerprint(publicKey)
+	if err != nil {
+		return err
+	}
+	if fingerprint == nil {
+		return nil
+	}
+	if err = s.db.WithContext(ctx).Model(&Person{}).Where("ssh_fingerprint = ?", *fingerprint).Count(&count).Error; err != nil {
+		return err
+	}
+	if count != 0 {
+		return fmt.Errorf("%w: SSH public key", ErrAlreadyExists)
 	}
 	return nil
 }
@@ -180,6 +216,19 @@ func (s *Store) CreateProject(ctx context.Context, value domain.Project) error {
 		return err
 	}
 	return classify(s.db.WithContext(ctx).Create(&Project{ID: value.ID, Slug: value.Slug, Name: value.Name, UnixUser: value.UnixUser, Profile: string(value.Profile), SourceKind: kind, SourceRemoteURL: remote}).Error)
+}
+
+// DeleteFreshProject is internal failed-create compensation. Foreign-key
+// restrictions ensure it cannot remove a project once related state exists.
+func (s *Store) DeleteFreshProject(ctx context.Context, id string) error {
+	result := s.db.WithContext(ctx).Where("id = ?", id).Delete(&Project{})
+	if result.Error != nil {
+		return classify(result.Error)
+	}
+	if result.RowsAffected != 1 {
+		return ErrNotFound
+	}
+	return nil
 }
 
 func (s *Store) Projects(ctx context.Context) ([]domain.Project, error) {
@@ -416,6 +465,17 @@ func classify(err error) error {
 }
 func personDomain(r Person) domain.Person {
 	return domain.Person{ID: r.ID, Username: r.Username, DisplayName: r.DisplayName, Email: r.Email, Role: domain.Role(r.Role), SSHPublicKey: r.SSHPublicKey}
+}
+
+func personFingerprint(publicKey string) (*string, error) {
+	if publicKey == "" {
+		return nil, nil
+	}
+	fingerprint, err := domain.SSHKeyFingerprint(publicKey)
+	if err != nil {
+		return nil, err
+	}
+	return &fingerprint, nil
 }
 func sourceColumns(source domain.ProjectSource) (string, *string, error) {
 	switch value := source.(type) {

@@ -72,7 +72,10 @@ func (f fakeSessionSystem) ProcessEnvironments(context.Context) ([][]string, err
 
 func TestSessionInspectorDegradesOnSocketFailureButRetainsJournalState(t *testing.T) {
 	key := "ssh-ed25519 AQID"
-	fingerprint := PublicKeyFingerprint(key)
+	fingerprint, err := domain.SSHKeyFingerprint(key)
+	if err != nil {
+		t.Fatal(err)
+	}
 	system := fakeSessionSystem{
 		journal:   []byte("{\"MESSAGE\":\"Accepted publickey for soda-p-demo from 192.0.2.4 port 5000 ssh2: ED25519 " + fingerprint + "\"}\n"),
 		socketErr: errors.New("ss unavailable"),

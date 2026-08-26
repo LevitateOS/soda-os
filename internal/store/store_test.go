@@ -3,11 +3,16 @@ package store
 import (
 	"context"
 	"errors"
+	"fmt"
 	"path/filepath"
+	"sync"
 	"testing"
 
 	"github.com/LevitateOS/soda-os/internal/domain"
 	"github.com/google/uuid"
+	"gorm.io/driver/sqlite"
+	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 )
 
 func TestOpenCreatesSchemaVersionOneAndEnforcesConstraints(t *testing.T) {
@@ -67,6 +72,90 @@ func TestOpenRejectsUnsupportedSchema(t *testing.T) {
 	_, err = Open(path)
 	if !errors.Is(err, ErrUnsupportedSchema) {
 		t.Fatalf("error = %v", err)
+	}
+}
+
+func TestSchemaInitializationRollsBackTablesAndVersionTogether(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(filepath.Join(t.TempDir(), "soda.db")), &gorm.Config{Logger: logger.Default.LogMode(logger.Silent)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	injected := errors.New("injected version failure")
+	if err = initializeSchema(db, func(*gorm.DB) error { return injected }); !errors.Is(err, injected) {
+		t.Fatalf("initialization error = %v", err)
+	}
+	var version int
+	if err = db.Raw("PRAGMA user_version").Scan(&version).Error; err != nil {
+		t.Fatal(err)
+	}
+	var tables int64
+	if err = db.Raw("SELECT count(*) FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'").Scan(&tables).Error; err != nil {
+		t.Fatal(err)
+	}
+	if version != 0 || tables != 0 {
+		t.Fatalf("partial schema remained: version=%d tables=%d", version, tables)
+	}
+}
+
+func TestPersonFingerprintUniquenessAllowsEmptyBootstrapKeys(t *testing.T) {
+	repository, err := Open(filepath.Join(t.TempDir(), "soda.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	key := "ssh-ed25519 AAAA"
+	first := domain.Person{ID: uuid.NewString(), Username: "alice", DisplayName: "Alice", Email: "alice@example.test", Role: domain.RoleDeveloper, SSHPublicKey: key + " first-comment"}
+	second := domain.Person{ID: uuid.NewString(), Username: "bob", DisplayName: "Bob", Email: "bob@example.test", Role: domain.RoleDeveloper, SSHPublicKey: key + " different-comment"}
+	if err = repository.CreatePerson(ctx, first); err != nil {
+		t.Fatal(err)
+	}
+	if err = repository.PreflightPerson(ctx, second.Username, second.SSHPublicKey); !errors.Is(err, ErrAlreadyExists) {
+		t.Fatalf("fingerprint preflight = %v", err)
+	}
+	if err = repository.CreatePerson(ctx, second); !errors.Is(err, ErrAlreadyExists) {
+		t.Fatalf("fingerprint constraint = %v", err)
+	}
+	for i := 0; i < 2; i++ {
+		person := domain.Person{ID: uuid.NewString(), Username: fmt.Sprintf("bootstrap%d", i), DisplayName: "Bootstrap", Email: fmt.Sprintf("bootstrap%d@soda.local", i), Role: domain.RoleAdmin}
+		if err = repository.CreatePerson(ctx, person); err != nil {
+			t.Fatalf("empty key %d: %v", i, err)
+		}
+	}
+}
+
+func TestPersonFingerprintConstraintIsConcurrent(t *testing.T) {
+	repository, err := Open(filepath.Join(t.TempDir(), "soda.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	key := "ssh-ed25519 AAAA"
+	start := make(chan struct{})
+	errorsByAttempt := make(chan error, 2)
+	var ready sync.WaitGroup
+	ready.Add(2)
+	for i, username := range []string{"alice", "bob"} {
+		go func(index int, name string) {
+			ready.Done()
+			<-start
+			errorsByAttempt <- repository.CreatePerson(ctx, domain.Person{ID: uuid.NewString(), Username: name, DisplayName: name, Email: name + "@example.test", Role: domain.RoleDeveloper, SSHPublicKey: fmt.Sprintf("%s comment-%d", key, index)})
+		}(i, username)
+	}
+	ready.Wait()
+	close(start)
+	successes, duplicates := 0, 0
+	for range 2 {
+		switch err = <-errorsByAttempt; {
+		case err == nil:
+			successes++
+		case errors.Is(err, ErrAlreadyExists):
+			duplicates++
+		default:
+			t.Fatalf("unexpected create error: %v", err)
+		}
+	}
+	if successes != 1 || duplicates != 1 {
+		t.Fatalf("successes=%d duplicates=%d", successes, duplicates)
 	}
 }
 

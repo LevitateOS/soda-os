@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/LevitateOS/soda-os/internal/domain"
 	sodav2 "github.com/LevitateOS/soda-os/internal/gen/soda/v2"
@@ -47,29 +48,33 @@ func (noopEvents) Publish(domain.EventKind, *string) {}
 
 type Service struct {
 	sodav2.UnimplementedSodaServiceServer
-	store        *store.Store
-	host         host.Operations
-	toolchains   toolchain.Installer
-	telemetry    Telemetry
-	events       EventPublisher
-	eventSource  EventSource
-	projectsRoot string
-	logger       *slog.Logger
-	background   context.Context
-	cancel       context.CancelFunc
-	wg           sync.WaitGroup
+	store               *store.Store
+	host                host.Operations
+	toolchains          toolchain.Installer
+	telemetry           Telemetry
+	events              EventPublisher
+	eventSource         EventSource
+	projectsRoot        string
+	logger              *slog.Logger
+	background          context.Context
+	cancel              context.CancelFunc
+	wg                  sync.WaitGroup
+	provisioningTimeout time.Duration
 }
 
 type Options struct {
-	Store        *store.Store
-	Host         host.Operations
-	Toolchains   toolchain.Installer
-	Telemetry    Telemetry
-	Events       EventPublisher
-	EventSource  EventSource
-	ProjectsRoot string
-	Logger       *slog.Logger
+	Store               *store.Store
+	Host                host.Operations
+	Toolchains          toolchain.Installer
+	Telemetry           Telemetry
+	Events              EventPublisher
+	EventSource         EventSource
+	ProjectsRoot        string
+	Logger              *slog.Logger
+	ProvisioningTimeout time.Duration
 }
+
+const defaultProvisioningTimeout = 30 * time.Minute
 
 func New(options Options) *Service {
 	background, cancel := context.WithCancel(context.Background())
@@ -81,7 +86,11 @@ func New(options Options) *Service {
 	if logger == nil {
 		logger = slog.Default()
 	}
-	return &Service{store: options.Store, host: options.Host, toolchains: options.Toolchains, telemetry: options.Telemetry, events: events, eventSource: options.EventSource, projectsRoot: options.ProjectsRoot, logger: logger, background: background, cancel: cancel}
+	provisioningTimeout := options.ProvisioningTimeout
+	if provisioningTimeout <= 0 {
+		provisioningTimeout = defaultProvisioningTimeout
+	}
+	return &Service{store: options.Store, host: options.Host, toolchains: options.Toolchains, telemetry: options.Telemetry, events: events, eventSource: options.EventSource, projectsRoot: options.ProjectsRoot, logger: logger, background: background, cancel: cancel, provisioningTimeout: provisioningTimeout}
 }
 func (s *Service) Close() { s.cancel(); s.wg.Wait() }
 
@@ -101,11 +110,12 @@ func (s *Service) BootstrapInstallerAdministrator(ctx context.Context) error {
 		return nil
 	}
 	candidate.ID = uuid.NewString()
-	if err = s.host.ImportPerson(ctx, *candidate); err != nil {
+	cleanup, err := s.host.ImportPerson(ctx, *candidate)
+	if err != nil {
 		return err
 	}
 	if err = s.store.CreatePerson(ctx, *candidate); err != nil {
-		return err
+		return s.compensate(ctx, err, cleanup, "installer administrator", candidate.Username)
 	}
 	s.events.Publish(domain.EventPeopleChanged, nil)
 	return nil
@@ -125,18 +135,22 @@ func (s *Service) CreatePerson(ctx context.Context, request *sodav2.CreatePerson
 	if request.GetPassword() == "" {
 		return nil, rpcError(invalid("password is required"))
 	}
+	if strings.ContainsAny(request.GetPassword(), "\r\n\x00") {
+		return nil, rpcError(invalid("password contains a line or NUL delimiter"))
+	}
 	if err = host.ValidatePublicKey(request.GetSshPublicKey(), false); err != nil {
 		return nil, rpcError(invalid("%v", err))
 	}
-	if err = s.store.PreflightPerson(ctx, request.GetUsername()); err != nil {
+	if err = s.store.PreflightPerson(ctx, request.GetUsername(), request.GetSshPublicKey()); err != nil {
 		return nil, rpcError(err)
 	}
 	person := domain.Person{ID: uuid.NewString(), Username: request.GetUsername(), DisplayName: request.GetDisplayName(), Email: request.GetEmail(), Role: role, SSHPublicKey: request.GetSshPublicKey()}
-	if err = s.host.CreatePerson(ctx, person, request.GetPassword()); err != nil {
+	cleanup, err := s.host.CreatePerson(ctx, person, request.GetPassword())
+	if err != nil {
 		return nil, rpcError(err)
 	}
 	if err = s.store.CreatePerson(ctx, person); err != nil {
-		return nil, rpcError(err)
+		return nil, rpcError(s.compensate(ctx, err, cleanup, "person", person.Username))
 	}
 	s.events.Publish(domain.EventPeopleChanged, nil)
 	return &sodav2.CreatePersonResponse{Person: personProto(person)}, nil
@@ -152,15 +166,16 @@ func (s *Service) ImportPerson(ctx context.Context, request *sodav2.ImportPerson
 	if err = host.ValidatePublicKey(request.GetSshPublicKey(), true); err != nil {
 		return nil, rpcError(invalid("%v", err))
 	}
-	if err = s.store.PreflightPerson(ctx, request.GetUsername()); err != nil {
+	if err = s.store.PreflightPerson(ctx, request.GetUsername(), request.GetSshPublicKey()); err != nil {
 		return nil, rpcError(err)
 	}
 	person := domain.Person{ID: uuid.NewString(), Username: request.GetUsername(), DisplayName: request.GetDisplayName(), Email: request.GetEmail(), Role: role, SSHPublicKey: request.GetSshPublicKey()}
-	if err = s.host.ImportPerson(ctx, person); err != nil {
+	cleanup, err := s.host.ImportPerson(ctx, person)
+	if err != nil {
 		return nil, rpcError(err)
 	}
 	if err = s.store.CreatePerson(ctx, person); err != nil {
-		return nil, rpcError(err)
+		return nil, rpcError(s.compensate(ctx, err, cleanup, "imported person", person.Username))
 	}
 	s.events.Publish(domain.EventPeopleChanged, nil)
 	return &sodav2.ImportPersonResponse{Person: personProto(person)}, nil
@@ -196,16 +211,25 @@ func (s *Service) CreateProject(ctx context.Context, request *sodav2.CreateProje
 	if err = s.store.PreflightProject(ctx, project.Slug, project.UnixUser); err != nil {
 		return nil, rpcError(err)
 	}
-	if err = s.host.CreateProject(ctx, project); err != nil {
+	cleanup, err := s.host.CreateProject(ctx, project)
+	if err != nil {
 		return nil, rpcError(err)
 	}
 	if err = s.store.CreateProject(ctx, project); err != nil {
+		return nil, rpcError(s.compensate(ctx, err, cleanup, "project", project.Slug))
+	}
+	if _, err = s.startProvisioning(project.ID); err != nil {
+		cleanupErr := s.store.DeleteFreshProject(context.WithoutCancel(ctx), project.ID)
+		if hostCleanupErr := s.runCleanup(ctx, cleanup); hostCleanupErr != nil {
+			cleanupErr = errors.Join(cleanupErr, hostCleanupErr)
+		}
+		if cleanupErr != nil {
+			s.logger.Error("clean up failed project creation", slog.String("project", project.Slug), slog.Any("error", cleanupErr))
+			err = errors.Join(err, fmt.Errorf("cleanup failed: %w", cleanupErr))
+		}
 		return nil, rpcError(err)
 	}
 	s.events.Publish(domain.EventProjectsChanged, nil)
-	if _, err = s.startProvisioning(project.ID); err != nil {
-		return nil, rpcError(err)
-	}
 	return &sodav2.CreateProjectResponse{Project: projectProto(project)}, nil
 }
 func (s *Service) ListProjects(ctx context.Context, _ *sodav2.ListProjectsRequest) (*sodav2.ListProjectsResponse, error) {
@@ -260,12 +284,13 @@ func (s *Service) AddCollaborator(ctx context.Context, request *sodav2.AddCollab
 	if err = s.store.PreflightWorktree(ctx, tree); err != nil {
 		return nil, rpcError(err)
 	}
-	if err = s.host.CreateWorktree(ctx, project, person, tree, "main"); err != nil {
+	cleanup, err := s.host.CreateWorktree(ctx, project, person, tree, "main")
+	if err != nil {
 		return nil, rpcError(err)
 	}
 	membership := domain.Membership{ProjectID: projectID, PersonID: personID}
 	if err = s.store.AddMembershipAndWorktree(ctx, membership, tree); err != nil {
-		return nil, rpcError(err)
+		return nil, rpcError(s.compensate(ctx, err, cleanup, "collaborator worktree", tree.Path))
 	}
 	s.events.Publish(domain.EventWorktreesChanged, &projectID)
 	return &sodav2.AddCollaboratorResponse{Membership: membershipProto(membership), Worktree: worktreeProto(tree)}, nil
@@ -326,11 +351,12 @@ func (s *Service) CreateWorktree(ctx context.Context, request *sodav2.CreateWork
 	if err = s.store.PreflightWorktree(ctx, tree); err != nil {
 		return nil, rpcError(err)
 	}
-	if err = s.host.CreateWorktree(ctx, project, person, tree, request.GetBaseRef()); err != nil {
+	cleanup, err := s.host.CreateWorktree(ctx, project, person, tree, request.GetBaseRef())
+	if err != nil {
 		return nil, rpcError(err)
 	}
 	if err = s.store.CreateWorktree(ctx, tree); err != nil {
-		return nil, rpcError(err)
+		return nil, rpcError(s.compensate(ctx, err, cleanup, "worktree", tree.Path))
 	}
 	s.events.Publish(domain.EventWorktreesChanged, &projectID)
 	return &sodav2.CreateWorktreeResponse{Worktree: worktreeProto(tree)}, nil
@@ -508,17 +534,37 @@ func (s *Service) startProvisioning(projectID string) (domain.ProvisioningJob, e
 	return job, nil
 }
 func (s *Service) runProvisioning(projectID, jobID string) {
-	ctx := s.background
+	ctx, cancel := context.WithTimeout(s.background, s.provisioningTimeout)
+	defer cancel()
 	job := domain.ProvisioningJob{ID: jobID, ProjectID: projectID, State: domain.JobReady}
 	if err := s.installProject(ctx, projectID); err != nil {
 		message := err.Error()
 		job.State = domain.JobFailed
 		job.Error = &message
 	}
-	if err := s.store.UpdateJob(ctx, job); err != nil {
+	updateContext, updateCancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer updateCancel()
+	if err := s.store.UpdateJob(updateContext, job); err != nil {
 		s.logger.Error("update provisioning job", slog.String("job_id", jobID), slog.Any("error", err))
 	}
 	s.events.Publish(domain.EventProvisioningChanged, &projectID)
+}
+
+func (s *Service) compensate(ctx context.Context, operationErr error, cleanup host.Cleanup, resource, identity string) error {
+	if cleanupErr := s.runCleanup(ctx, cleanup); cleanupErr != nil {
+		s.logger.Error("creation cleanup failed", slog.String("resource", resource), slog.String("identity", identity), slog.Any("error", cleanupErr))
+		return errors.Join(operationErr, fmt.Errorf("cleanup failed: %w", cleanupErr))
+	}
+	return operationErr
+}
+
+func (s *Service) runCleanup(ctx context.Context, cleanup host.Cleanup) error {
+	if cleanup == nil {
+		return nil
+	}
+	cleanupContext, cancel := context.WithTimeout(context.WithoutCancel(ctx), 15*time.Second)
+	defer cancel()
+	return cleanup(cleanupContext)
 }
 func (s *Service) installProject(ctx context.Context, projectID string) error {
 	project, err := s.store.Project(ctx, projectID)

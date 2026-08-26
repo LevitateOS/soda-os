@@ -2,9 +2,13 @@ package daemon
 
 import (
 	"context"
+	"errors"
+	"io"
+	"log/slog"
 	"net"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -12,6 +16,7 @@ import (
 	"github.com/LevitateOS/soda-os/internal/domain"
 	sodav2 "github.com/LevitateOS/soda-os/internal/gen/soda/v2"
 	"github.com/LevitateOS/soda-os/internal/grpcclient"
+	"github.com/LevitateOS/soda-os/internal/host"
 	"github.com/LevitateOS/soda-os/internal/observe"
 	"github.com/LevitateOS/soda-os/internal/store"
 	"github.com/google/uuid"
@@ -20,42 +25,66 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/status"
 	"google.golang.org/grpc/test/bufconn"
+	"gorm.io/gorm"
 )
 
 type fakeHost struct {
-	mu           sync.Mutex
-	people       int
-	imports      int
-	projects     []domain.Project
-	worktrees    []domain.Worktree
-	environments int
+	mu               sync.Mutex
+	people           int
+	imports          int
+	projects         []domain.Project
+	worktrees        []domain.Worktree
+	environments     int
+	personCleanups   int
+	projectCleanups  int
+	worktreeCleanups int
 }
 
 func (*fakeHost) InstallerAdministrator(context.Context) (*domain.Person, error) { return nil, nil }
-func (h *fakeHost) CreatePerson(context.Context, domain.Person, string) error {
+func (h *fakeHost) CreatePerson(context.Context, domain.Person, string) (host.Cleanup, error) {
 	h.mu.Lock()
-	defer h.mu.Unlock()
 	h.people++
-	return nil
+	h.mu.Unlock()
+	return func(context.Context) error {
+		h.mu.Lock()
+		defer h.mu.Unlock()
+		h.personCleanups++
+		return nil
+	}, nil
 }
-func (h *fakeHost) ImportPerson(context.Context, domain.Person) error {
+func (h *fakeHost) ImportPerson(context.Context, domain.Person) (host.Cleanup, error) {
 	h.mu.Lock()
-	defer h.mu.Unlock()
 	h.imports++
-	return nil
+	h.mu.Unlock()
+	return func(context.Context) error {
+		h.mu.Lock()
+		defer h.mu.Unlock()
+		h.personCleanups++
+		return nil
+	}, nil
 }
-func (h *fakeHost) CreateProject(_ context.Context, value domain.Project) error {
+func (h *fakeHost) CreateProject(_ context.Context, value domain.Project) (host.Cleanup, error) {
 	h.mu.Lock()
-	defer h.mu.Unlock()
 	h.projects = append(h.projects, value)
-	return nil
+	h.mu.Unlock()
+	return func(context.Context) error {
+		h.mu.Lock()
+		defer h.mu.Unlock()
+		h.projectCleanups++
+		return nil
+	}, nil
 }
 func (*fakeHost) EnsureRepository(context.Context, domain.Project) error { return nil }
-func (h *fakeHost) CreateWorktree(_ context.Context, _ domain.Project, _ domain.Person, value domain.Worktree, _ string) error {
+func (h *fakeHost) CreateWorktree(_ context.Context, _ domain.Project, _ domain.Person, value domain.Worktree, _ string) (host.Cleanup, error) {
 	h.mu.Lock()
-	defer h.mu.Unlock()
 	h.worktrees = append(h.worktrees, value)
-	return nil
+	h.mu.Unlock()
+	return func(context.Context) error {
+		h.mu.Lock()
+		defer h.mu.Unlock()
+		h.worktreeCleanups++
+		return nil
+	}, nil
 }
 func (h *fakeHost) WriteProjectEnvironment(context.Context, domain.Project, string) error {
 	h.mu.Lock()
@@ -77,6 +106,13 @@ type blockingInstaller struct {
 	started chan struct{}
 	release chan struct{}
 	once    sync.Once
+}
+
+type timeoutInstaller struct{}
+
+func (timeoutInstaller) Install(ctx context.Context, _ domain.ToolchainProfile) (domain.ToolchainInstallation, error) {
+	<-ctx.Done()
+	return domain.ToolchainInstallation{}, ctx.Err()
 }
 
 func (b *blockingInstaller) Install(_ context.Context, profile domain.ToolchainProfile) (domain.ToolchainInstallation, error) {
@@ -406,6 +442,223 @@ func TestProvisioningAdmissionIsAtomicAndFailedJobsCanRetry(t *testing.T) {
 		t.Fatalf("failed job retry: %v", err)
 	}
 	waitForJobState(t, repository, project.ID, domain.JobReady)
+}
+
+func TestCreatePersonRejectsPasswordDelimitersWithoutComplexityPolicy(t *testing.T) {
+	repository, err := store.Open(filepath.Join(t.TempDir(), "soda.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	hostSystem := &fakeHost{}
+	service := New(Options{Store: repository, Host: hostSystem, Toolchains: fakeInstaller{}, ProjectsRoot: t.TempDir()})
+	defer service.Close()
+	request := &sodav2.CreatePersonRequest{Username: "alice", DisplayName: "Alice", Email: "alice@example.test", Role: sodav2.Role_ROLE_DEVELOPER, SshPublicKey: "ssh-ed25519 AAAA alice"}
+	for index, password := range []string{"short", "with spaces", "colon:allowed"} {
+		username := request.Username + string(rune('a'+index))
+		candidate := &sodav2.CreatePersonRequest{Username: username, DisplayName: request.DisplayName, Email: username + "@example.test", Role: request.Role, SshPublicKey: []string{"ssh-ed25519 AAAA first", "ssh-ed25519 AQID second", "ssh-ed25519 BAUG third"}[index], Password: password}
+		if _, err = service.CreatePerson(context.Background(), candidate); err != nil {
+			t.Fatalf("password %q: %v", password, err)
+		}
+	}
+	before := hostSystem.people
+	request.Password = "bad\x00password"
+	if _, err = service.CreatePerson(context.Background(), request); status.Code(err) != codes.InvalidArgument {
+		t.Fatalf("NUL password status = %s: %v", status.Code(err), err)
+	}
+	if hostSystem.people != before {
+		t.Fatalf("delimiter reached host: people=%d before=%d", hostSystem.people, before)
+	}
+}
+
+func TestDuplicateSSHKeyFingerprintPreflightSkipsHost(t *testing.T) {
+	repository, err := store.Open(filepath.Join(t.TempDir(), "soda.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	hostSystem := &fakeHost{}
+	service := New(Options{Store: repository, Host: hostSystem, Toolchains: fakeInstaller{}, ProjectsRoot: t.TempDir()})
+	defer service.Close()
+	key := "ssh-ed25519 AAAA"
+	if _, err = service.CreatePerson(context.Background(), &sodav2.CreatePersonRequest{Username: "alice", DisplayName: "Alice", Email: "alice@example.test", Role: sodav2.Role_ROLE_DEVELOPER, SshPublicKey: key + " first", Password: "local"}); err != nil {
+		t.Fatal(err)
+	}
+	_, err = service.CreatePerson(context.Background(), &sodav2.CreatePersonRequest{Username: "bob", DisplayName: "Bob", Email: "bob@example.test", Role: sodav2.Role_ROLE_DEVELOPER, SshPublicKey: key + " second", Password: "local"})
+	if status.Code(err) != codes.AlreadyExists {
+		t.Fatalf("duplicate fingerprint status = %s: %v", status.Code(err), err)
+	}
+	if hostSystem.people != 1 {
+		t.Fatalf("duplicate fingerprint reached host: people=%d", hostSystem.people)
+	}
+}
+
+func TestFailedPersistenceCompensatesFreshHostResources(t *testing.T) {
+	t.Run("person", func(t *testing.T) {
+		repository, err := store.Open(filepath.Join(t.TempDir(), "soda.db"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		injectCreateFailure(t, repository, "Person")
+		hostSystem := &fakeHost{}
+		service := New(Options{Store: repository, Host: hostSystem, Toolchains: fakeInstaller{}, ProjectsRoot: t.TempDir()})
+		defer service.Close()
+		_, err = service.CreatePerson(context.Background(), &sodav2.CreatePersonRequest{Username: "alice", DisplayName: "Alice", Email: "alice@example.test", Role: sodav2.Role_ROLE_DEVELOPER, SshPublicKey: "ssh-ed25519 AAAA alice", Password: "local"})
+		if err == nil || hostSystem.personCleanups != 1 {
+			t.Fatalf("error=%v cleanups=%d", err, hostSystem.personCleanups)
+		}
+		assertTableCount(t, repository, "people", 0)
+	})
+
+	t.Run("project and provisioning admission", func(t *testing.T) {
+		repository, err := store.Open(filepath.Join(t.TempDir(), "soda.db"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		injectCreateFailure(t, repository, "ProvisioningJob")
+		hostSystem := &fakeHost{}
+		service := New(Options{Store: repository, Host: hostSystem, Toolchains: fakeInstaller{}, ProjectsRoot: t.TempDir()})
+		defer service.Close()
+		_, err = service.CreateProject(context.Background(), &sodav2.CreateProjectRequest{Slug: "demo", Name: "Demo", Profile: sodav2.ToolchainProfile_TOOLCHAIN_PROFILE_GO, Source: &sodav2.ProjectSource{Source: &sodav2.ProjectSource_Empty{Empty: &sodav2.EmptyProjectSource{}}}})
+		if err == nil || hostSystem.projectCleanups != 1 {
+			t.Fatalf("error=%v cleanups=%d", err, hostSystem.projectCleanups)
+		}
+		assertTableCount(t, repository, "projects", 0)
+	})
+
+	t.Run("project persistence", func(t *testing.T) {
+		repository, err := store.Open(filepath.Join(t.TempDir(), "soda.db"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		injectCreateFailure(t, repository, "Project")
+		hostSystem := &fakeHost{}
+		service := New(Options{Store: repository, Host: hostSystem, Toolchains: fakeInstaller{}, ProjectsRoot: t.TempDir()})
+		defer service.Close()
+		_, err = service.CreateProject(context.Background(), &sodav2.CreateProjectRequest{Slug: "demo", Name: "Demo", Profile: sodav2.ToolchainProfile_TOOLCHAIN_PROFILE_GO, Source: &sodav2.ProjectSource{Source: &sodav2.ProjectSource_Empty{Empty: &sodav2.EmptyProjectSource{}}}})
+		if err == nil || hostSystem.projectCleanups != 1 {
+			t.Fatalf("error=%v cleanups=%d", err, hostSystem.projectCleanups)
+		}
+		assertTableCount(t, repository, "projects", 0)
+	})
+}
+
+func TestCompensationPreservesOriginalAndAttachesCleanupFailure(t *testing.T) {
+	original := errors.New("persistence failed")
+	cleanupFailure := errors.New("cleanup failed")
+	service := &Service{logger: slog.New(slog.NewTextHandler(io.Discard, nil))}
+	result := service.compensate(context.Background(), original, func(context.Context) error { return cleanupFailure }, "person", "alice")
+	if !errors.Is(result, original) || !errors.Is(result, cleanupFailure) {
+		t.Fatalf("compensation error = %v", result)
+	}
+}
+
+func TestFailedMembershipAndWorktreePersistenceCompensatesHostWorktrees(t *testing.T) {
+	repository, err := store.Open(filepath.Join(t.TempDir(), "soda.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	person := domain.Person{ID: uuid.NewString(), Username: "alice", DisplayName: "Alice", Email: "alice@example.test", Role: domain.RoleDeveloper, SSHPublicKey: "ssh-ed25519 AAAA alice"}
+	project := domain.Project{ID: uuid.NewString(), Slug: "demo", Name: "Demo", UnixUser: "soda-p-demo", Profile: domain.ToolchainGo, Source: domain.EmptyProjectSource{}}
+	if err = repository.CreatePerson(ctx, person); err != nil {
+		t.Fatal(err)
+	}
+	if err = repository.CreateProject(ctx, project); err != nil {
+		t.Fatal(err)
+	}
+	injectCreateFailure(t, repository, "Membership")
+	hostSystem := &fakeHost{}
+	service := New(Options{Store: repository, Host: hostSystem, Toolchains: fakeInstaller{}, ProjectsRoot: t.TempDir()})
+	defer service.Close()
+	if _, err = service.AddCollaborator(ctx, &sodav2.AddCollaboratorRequest{ProjectId: project.ID, PersonId: person.ID}); err == nil {
+		t.Fatal("expected membership persistence failure")
+	}
+	if hostSystem.worktreeCleanups != 1 {
+		t.Fatalf("worktree cleanups = %d", hostSystem.worktreeCleanups)
+	}
+	assertTableCount(t, repository, "memberships", 0)
+	assertTableCount(t, repository, "worktrees", 0)
+}
+
+func TestFailedAdditionalWorktreePersistenceCompensatesHostWorktree(t *testing.T) {
+	repository, err := store.Open(filepath.Join(t.TempDir(), "soda.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	person := domain.Person{ID: uuid.NewString(), Username: "alice", DisplayName: "Alice", Email: "alice@example.test", Role: domain.RoleDeveloper, SSHPublicKey: "ssh-ed25519 AAAA alice"}
+	project := domain.Project{ID: uuid.NewString(), Slug: "demo", Name: "Demo", UnixUser: "soda-p-demo", Profile: domain.ToolchainGo, Source: domain.EmptyProjectSource{}}
+	if err = repository.CreatePerson(ctx, person); err != nil {
+		t.Fatal(err)
+	}
+	if err = repository.CreateProject(ctx, project); err != nil {
+		t.Fatal(err)
+	}
+	defaultTree := domain.Worktree{ID: uuid.NewString(), ProjectID: project.ID, PersonID: person.ID, Name: "default", Branch: "people/alice", Path: filepath.Join(t.TempDir(), "default")}
+	if err = repository.AddMembershipAndWorktree(ctx, domain.Membership{ProjectID: project.ID, PersonID: person.ID}, defaultTree); err != nil {
+		t.Fatal(err)
+	}
+	injectCreateFailure(t, repository, "Worktree")
+	hostSystem := &fakeHost{}
+	service := New(Options{Store: repository, Host: hostSystem, Toolchains: fakeInstaller{}, ProjectsRoot: t.TempDir()})
+	defer service.Close()
+	if _, err = service.CreateWorktree(ctx, &sodav2.CreateWorktreeRequest{ProjectId: project.ID, PersonId: person.ID, Name: "feature", BaseRef: "main"}); err == nil {
+		t.Fatal("expected worktree persistence failure")
+	}
+	if hostSystem.worktreeCleanups != 1 {
+		t.Fatalf("worktree cleanups = %d", hostSystem.worktreeCleanups)
+	}
+	assertTableCount(t, repository, "worktrees", 1)
+}
+
+func TestProvisioningDeadlineMarksFailedAndAllowsManualRetry(t *testing.T) {
+	repository, err := store.Open(filepath.Join(t.TempDir(), "soda.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	project := domain.Project{ID: uuid.NewString(), Slug: "demo", Name: "Demo", UnixUser: "soda-p-demo", Profile: domain.ToolchainGo, Source: domain.EmptyProjectSource{}}
+	if err = repository.CreateProject(context.Background(), project); err != nil {
+		t.Fatal(err)
+	}
+	service := New(Options{Store: repository, Host: &fakeHost{}, Toolchains: timeoutInstaller{}, ProjectsRoot: t.TempDir(), ProvisioningTimeout: 25 * time.Millisecond})
+	defer service.Close()
+	if _, err = service.StartProvisioning(context.Background(), &sodav2.StartProvisioningRequest{ProjectId: project.ID}); err != nil {
+		t.Fatal(err)
+	}
+	waitForJobState(t, repository, project.ID, domain.JobFailed)
+	jobs, err := repository.Jobs(context.Background(), project.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if jobs[0].Error == nil || !strings.Contains(*jobs[0].Error, context.DeadlineExceeded.Error()) {
+		t.Fatalf("timeout job = %#v", jobs[0])
+	}
+	if _, err = service.StartProvisioning(context.Background(), &sodav2.StartProvisioningRequest{ProjectId: project.ID}); err != nil {
+		t.Fatalf("manual retry after timeout: %v", err)
+	}
+	waitForJobState(t, repository, project.ID, domain.JobFailed)
+}
+
+func injectCreateFailure(t *testing.T, repository *store.Store, model string) {
+	t.Helper()
+	name := "soda:fail-create:" + model
+	if err := repository.DB().Callback().Create().Before("gorm:create").Register(name, func(tx *gorm.DB) {
+		if tx.Statement.Schema != nil && tx.Statement.Schema.Name == model {
+			tx.AddError(errors.New("injected " + model + " persistence failure"))
+		}
+	}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func assertTableCount(t *testing.T, repository *store.Store, table string, want int64) {
+	t.Helper()
+	var count int64
+	if err := repository.DB().Table(table).Count(&count).Error; err != nil {
+		t.Fatal(err)
+	}
+	if count != want {
+		t.Fatalf("%s count = %d, want %d", table, count, want)
+	}
 }
 
 func waitForJobState(t *testing.T, repository *store.Store, projectID string, want domain.JobState) {

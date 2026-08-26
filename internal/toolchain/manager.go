@@ -18,6 +18,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/BurntSushi/toml"
 	"github.com/LevitateOS/soda-os/internal/domain"
@@ -51,7 +52,11 @@ type artifact struct {
 	kind                         archiveKind
 }
 
-func New(root string) *Manager { return &Manager{Root: root, Client: &http.Client{}} }
+const defaultHTTPRequestTimeout = 10 * time.Minute
+
+func New(root string) *Manager {
+	return &Manager{Root: root, Client: &http.Client{Timeout: defaultHTTPRequestTimeout}}
+}
 
 func (m *Manager) Install(ctx context.Context, profile domain.ToolchainProfile) (domain.ToolchainInstallation, error) {
 	if !validProfile(profile) {
