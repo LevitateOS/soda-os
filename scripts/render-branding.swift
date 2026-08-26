@@ -9,7 +9,7 @@ struct Asset {
 }
 
 let root = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
-guard FileManager.default.fileExists(atPath: root.appendingPathComponent("Cargo.toml").path) else {
+guard FileManager.default.fileExists(atPath: root.appendingPathComponent("go.mod").path) else {
     fputs("run from the Soda OS repository root\n", stderr)
     exit(1)
 }

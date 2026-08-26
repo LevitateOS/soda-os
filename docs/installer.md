@@ -14,7 +14,7 @@ and upstream overlay manifest. `just check` validates that contract, the
 committed asset dimensions and hashes, Kickstarts, and spoke lists without
 contacting the network.
 
-During `just rpm`, the Rust image builder:
+During `just rpm`, the Go image builder:
 
 1. verifies the signed Rocky checksum file and source DVD digest;
 2. extracts the pinned Anaconda GUI RPM from that DVD;
@@ -31,7 +31,7 @@ kdump, root password, manual or specialized storage, reclaim, encryption, and
 advanced network controls are deliberately unavailable. Their required values
 come from the Kickstart and profile contracts.
 
-During `just iso`, the Rust builder resolves and records the current network
+During `just iso`, the Go builder resolves and records the current network
 payload, extracts the source EFI tree, installs a complete Soda GRUB
 configuration, rebuilds the AArch64 EFI image with `mkefiboot`, and replays the
 source boot layout with xorriso. The complete BaseOS and AppStream DVD trees
@@ -43,7 +43,7 @@ local Rocky package trees, extra Soda RPMs, or an image larger than 1.25 GiB.
 Installation requires wired DHCP and Internet access. RPM weak dependencies
 are disabled, while Rocky's minimal environment still selects its standard
 general-hardware firmware packages. Exact Rocky RPM versions can advance while
-Soda OS remains version 0.1.0.
+Soda OS remains version 0.2.0.
 
 Rocky Linux remains the kernel, userspace, package source, repository identity,
 and RPM provenance. This base is documented in the installed

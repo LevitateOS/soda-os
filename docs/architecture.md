@@ -5,10 +5,10 @@ Soda OS keeps four ownership boundaries:
 1. Rocky Linux owns the base operating system and standard administration
    facilities.
 2. TOML specifications own Soda identity, paths, and toolchain source policy.
-3. Rust owns privileged orchestration, persistence, project sessions, and image
+3. Go owns privileged orchestration, persistence, project sessions, and image
    build sequencing.
 4. The Go/HTMX cockpit owns the human-facing management website and calls the
-   Rust daemon over a local Unix socket.
+   Go daemon over a local gRPC Unix socket.
 
 The network-facing `soda-cockpit` process runs as an unprivileged service.
 Linux password checks are delegated over `/run/soda/pam.sock` to the small
@@ -40,7 +40,7 @@ Linux accounts ownership of project files.
 
 ## Runtime state
 
-`sodad` exposes HTTP/JSON only through `/run/soda/sodad.sock`. It stores people,
+`sodad` exposes gRPC only through `/run/soda/sodad.sock`. It stores people,
 projects, memberships, worktrees, toolchain resolutions, and provisioning jobs
 in `/var/lib/soda/soda.db`. Project repositories live under `/srv/soda/projects`
 and publisher-resolved toolchains are cached under `/opt/soda/toolchains`.

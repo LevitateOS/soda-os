@@ -3,7 +3,7 @@ schema_version = 3
 [identity]
 name = "Soda OS"
 id = "sodaos"
-version = "0.1.0"
+version = "0.2.0"
 hostname = "soda"
 architecture = "aarch64"
 
@@ -19,7 +19,7 @@ signature_file = "isos/Rocky-10.2-aarch64-dvd1/Rocky-10.2-aarch64-dvd1.iso.CHECK
 [installer]
 profile_id = "sodaos"
 anaconda_gui_nevra = "anaconda-gui-40.22.3.46-1.el10.rocky.0.6.aarch64"
-volume_id = "SodaOS-0-1-0-aarch64"
+volume_id = "SodaOS-0-2-0-aarch64"
 boot_timeout_seconds = 10
 branding_manifest = "packaging/anaconda/branding.toml"
 upstream_manifest = "packaging/anaconda/upstream.toml"

@@ -2,7 +2,6 @@ FROM rockylinux/rockylinux:10
 
 RUN dnf -y install \
       ca-certificates \
-      cargo \
       cpio \
       createrepo_c \
       gcc \
@@ -17,7 +16,6 @@ RUN dnf -y install \
       pykickstart \
       rocky-gpg-keys \
       rpm-build \
-      rust \
       sequoia-sq \
       isomd5sum \
       systemd-rpm-macros \

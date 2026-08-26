@@ -4,24 +4,23 @@ default:
     @just --list
 
 fmt:
-    cargo fmt --all
-    gofmt -w cockpit
+    gofmt -w $(find . -name '*.go' -not -path './.artifacts/*')
 
 check:
-    cargo fmt --all --check
-    cargo clippy --workspace --all-targets -- -D warnings
-    cargo test --workspace
-    go test ./cockpit/...
-    cargo run -q -p soda-image -- check
+    test -z "$(gofmt -l $(find . -name '*.go' -not -path './.artifacts/*'))"
+    ./scripts/protobuf-verify.sh
+    go vet ./...
+    go test ./...
+    go run ./cmd/soda-image check
 
 rpm:
-    cargo run -p soda-image -- rpm
+    go run ./cmd/soda-image rpm
 
 iso:
-    cargo run -p soda-image -- iso
+    go run ./cmd/soda-image iso
 
 iso-test:
-    cargo run -p soda-image -- iso --automated
+    go run ./cmd/soda-image iso --automated
 
 verify-iso:
-    cargo run -p soda-image -- verify
+    go run ./cmd/soda-image verify

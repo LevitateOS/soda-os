@@ -6,7 +6,7 @@ Create an Apple Silicon Linux virtual machine in UTM with:
 - 4 virtual CPUs
 - 8 GB RAM
 - 64 GB disk
-- the generated `SodaOS-0.1.0-aarch64.iso` as removable installation media
+- the generated `SodaOS-0.2.0-aarch64.iso` as removable installation media
 - bridged networking with wired DHCP and working Internet access
 
 Boot the VM and complete the slim graphical Soda installer. Choose language,
@@ -44,6 +44,6 @@ SSH instructions shown by the cockpit use each project's `soda-p-<slug>`
 account. A collaborator's own key selects their worktree; collaborators do not
 share the project account's password (the project account is locked).
 
-The unattended `.artifacts/images/SodaOS-0.1.0-aarch64-test.iso` is strictly a
+The unattended `.artifacts/images/SodaOS-0.2.0-aarch64-test.iso` is strictly a
 disposable test artifact. It uses username and password `soda-test`, powers off
 after installation, and must not be distributed as a release image.

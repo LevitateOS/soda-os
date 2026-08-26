@@ -70,7 +70,7 @@ func TestCheckUsesSpecDerivedVolumeID(t *testing.T) {
 	writeTestFile(t, root, "upstream.toml", validUpstreamTOML())
 	builder := &Builder{Root: root, runner: &RecordingRunner{}, Spec: testSpec("SodaOS-0-2-0-aarch64")}
 	require.NoError(t, builder.Check(context.Background()))
-	builder.Spec.Installer.VolumeID = "SodaOS-0-1-0-aarch64"
+	builder.Spec.Installer.VolumeID = "SodaOS-0-0-0-aarch64"
 	require.ErrorContains(t, builder.Check(context.Background()), "unexpected installer volume ID")
 }
 
@@ -86,6 +86,10 @@ func TestBuildGoBinariesUsesAllGoEntrypoints(t *testing.T) {
 	require.Contains(t, strings.Join(commands, "\n"), "./cmd/sodad")
 	require.Contains(t, strings.Join(commands, "\n"), "./cmd/sodactl")
 	require.Contains(t, strings.Join(commands, "\n"), "./cmd/soda-ssh")
+	require.Contains(t, strings.Join(commands, "\n"), "./cockpit/cmd/soda-cockpit")
+	require.Contains(t, strings.Join(commands, "\n"), "./cockpit/cmd/soda-authd")
+	require.Contains(t, strings.Join(commands, "\n"), "-buildvcs=false")
+	require.Contains(t, strings.Join(commands, "\n"), "internal/version.Version=0.2.0")
 	require.NotContains(t, strings.Join(commands, "\n"), "cargo")
 }
 

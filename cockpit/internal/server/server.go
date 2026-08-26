@@ -15,6 +15,7 @@ import (
 
 	"github.com/LevitateOS/soda-os/cockpit/internal/auth"
 	"github.com/LevitateOS/soda-os/cockpit/internal/soda"
+	"github.com/LevitateOS/soda-os/internal/version"
 )
 
 //go:embed templates/*.html static/*
@@ -136,7 +137,7 @@ func health(w http.ResponseWriter, _ *http.Request) {
 }
 
 func (s *Server) loginPage(w http.ResponseWriter, _ *http.Request) {
-	s.render(w, http.StatusOK, "login.html", pageData{Title: "Sign in · Soda OS", Version: "0.1.0"})
+	s.render(w, http.StatusOK, "login.html", pageData{Title: "Sign in · Soda OS", Version: version.Version})
 }
 
 func (s *Server) login(w http.ResponseWriter, r *http.Request) {
@@ -146,7 +147,7 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 	}
 	username := r.FormValue("username")
 	if err := s.auth.Authenticate(username, r.FormValue("password")); err != nil {
-		s.render(w, http.StatusUnauthorized, "login.html", pageData{Title: "Sign in · Soda OS", Version: "0.1.0", Error: "Invalid username or password."})
+		s.render(w, http.StatusUnauthorized, "login.html", pageData{Title: "Sign in · Soda OS", Version: version.Version, Error: "Invalid username or password."})
 		return
 	}
 	people, err := s.api.People(r.Context())
@@ -162,7 +163,7 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if person == nil {
-		s.render(w, http.StatusForbidden, "login.html", pageData{Title: "Sign in · Soda OS", Version: "0.1.0", Error: "This Linux account is not registered with Soda OS."})
+		s.render(w, http.StatusForbidden, "login.html", pageData{Title: "Sign in · Soda OS", Version: version.Version, Error: "This Linux account is not registered with Soda OS."})
 		return
 	}
 	token, err := s.sessions.create(*person)
@@ -190,7 +191,7 @@ func (s *Server) home(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	host, _ := s.api.HostStatus(r.Context())
-	s.render(w, http.StatusOK, "index.html", pageData{Title: "Soda OS", Version: "0.1.0", User: user, Projects: projects, Host: &host})
+	s.render(w, http.StatusOK, "index.html", pageData{Title: "Soda OS", Version: version.Version, User: user, Projects: projects, Host: &host})
 }
 
 func (s *Server) events(w http.ResponseWriter, r *http.Request) {
@@ -324,7 +325,7 @@ func (s *Server) people(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "load people", http.StatusBadGateway)
 		return
 	}
-	s.render(w, http.StatusOK, "people.html", pageData{Title: "People · Soda OS", Version: "0.1.0", User: currentUser(r), People: people})
+	s.render(w, http.StatusOK, "people.html", pageData{Title: "People · Soda OS", Version: version.Version, User: currentUser(r), People: people})
 }
 
 func (s *Server) createPerson(w http.ResponseWriter, r *http.Request) {
@@ -372,7 +373,7 @@ func (s *Server) projects(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "load projects", http.StatusBadGateway)
 		return
 	}
-	s.render(w, http.StatusOK, "projects.html", pageData{Title: "Projects · Soda OS", Version: "0.1.0", User: user, Projects: projects})
+	s.render(w, http.StatusOK, "projects.html", pageData{Title: "Projects · Soda OS", Version: version.Version, User: user, Projects: projects})
 }
 
 func (s *Server) createProject(w http.ResponseWriter, r *http.Request) {
@@ -429,7 +430,7 @@ func (s *Server) project(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "load people", http.StatusBadGateway)
 		return
 	}
-	data := pageData{Title: "Project · Soda OS", Version: "0.1.0", User: user, Project: &project,
+	data := pageData{Title: "Project · Soda OS", Version: version.Version, User: user, Project: &project,
 		People: people, Worktrees: worktrees, Jobs: jobs, Toolchain: installation,
 		PersonNames: personNames(people), ProvisioningActive: provisioningActive(jobs), EventProjectID: project.ID}
 	if user.Role == soda.RoleAdmin {
@@ -680,7 +681,7 @@ func (s *Server) profiles(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "load profiles", http.StatusBadGateway)
 		return
 	}
-	s.render(w, http.StatusOK, "profiles.html", pageData{Title: "Toolchains · Soda OS", Version: "0.1.0", User: user, Projects: projects})
+	s.render(w, http.StatusOK, "profiles.html", pageData{Title: "Toolchains · Soda OS", Version: version.Version, User: user, Projects: projects})
 }
 
 func (s *Server) visibleProjects(ctx context.Context, user soda.Person) ([]soda.Project, error) {

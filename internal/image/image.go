@@ -351,6 +351,7 @@ func (b *Builder) BuildRPMs(ctx context.Context) error {
 }
 
 func (b *Builder) buildGoBinaries(ctx context.Context) error {
+	linkerFlags := "-s -w -buildid= -X github.com/LevitateOS/soda-os/internal/version.Version=" + b.Spec.Identity.Version
 	for _, target := range []struct{ output, pkg string }{
 		{"sodad", "./cmd/sodad"},
 		{"sodactl", "./cmd/sodactl"},
@@ -358,7 +359,7 @@ func (b *Builder) buildGoBinaries(ctx context.Context) error {
 		{"soda-cockpit", "./cockpit/cmd/soda-cockpit"},
 		{"soda-authd", "./cockpit/cmd/soda-authd"},
 	} {
-		if err := b.docker(ctx, false, []string{"CGO_ENABLED=1"}, "go", "build", "-trimpath", "-ldflags=-s -w", "-o", "/src/.artifacts/build/"+target.output, target.pkg); err != nil {
+		if err := b.docker(ctx, false, []string{"CGO_ENABLED=1"}, "go", "build", "-buildvcs=false", "-trimpath", "-ldflags="+linkerFlags, "-o", "/src/.artifacts/build/"+target.output, target.pkg); err != nil {
 			return err
 		}
 	}
@@ -846,7 +847,7 @@ func (b *Builder) upstreamManifest() (upstreamManifest, error) {
 }
 
 func (b *Builder) buildContainer(ctx context.Context) error {
-	return b.runner.Run(ctx, Command{Dir: b.Root, Name: "docker", Args: []string{"build", "--platform", "linux/arm64", "--file", "packaging/builder/Containerfile", "--tag", b.imageName(), "."}})
+	return b.runner.Run(ctx, Command{Dir: b.Root, Name: "docker", Args: []string{"build", "--quiet", "--platform", "linux/arm64", "--file", "packaging/builder/Containerfile", "--tag", b.imageName(), "."}})
 }
 
 func (b *Builder) docker(ctx context.Context, privileged bool, environment []string, name string, args ...string) error {

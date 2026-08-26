@@ -8,18 +8,16 @@ environments and uses a small Go/HTMX cockpit for people, project, worktree,
 and toolchain management.
 
 This repository is independent from LevitateOS. It borrows the separation
-between declarative distro specifications, Rust orchestration, explicit
+between declarative distro specifications, Go orchestration, explicit
 contracts, and scenario tests, while keeping Rocky Linux responsible for the
 kernel, glibc, systemd, GNU Coreutils, RPM/DNF, Anaconda, SELinux, and SSH.
 
 ## Repository layout
 
-- `crates/soda-core`: shared domain types and validation
-- `crates/sodad`: privileged local daemon and SQLite state owner
-- `crates/sodactl`: administrator CLI for the daemon
-- `crates/soda-ssh`: forced-command SSH worktree gateway
-- `crates/soda-image`: RPM and installer ISO orchestrator
-- `cockpit`: standalone Go/HTMX management website and local PAM helper
+- `api`: protobuf contract for Soda's private gRPC API
+- `cmd`: Go executables for the daemon, CLI, SSH gateway, and image builder
+- `internal`: Go domain, persistence, runtime, toolchain, and image packages
+- `cockpit`: Go/HTMX management website and local PAM helper
 - `distro`: Soda identity and toolchain profile specifications
 - `packaging`: RPM, systemd, Avahi, Kickstart, and Anaconda overlay inputs
 - `tests`: repository-level contract and scenario tests
@@ -41,7 +39,7 @@ Rocky 10 release key and then verifies the configured DVD SHA-256. `just rpm`
 builds and test-installs the three target Soda RPMs, creates the isolated
 build-only installer-branding RPM, and inspects the deterministic Anaconda
 `product.img`. `just iso` produces
-`.artifacts/images/SodaOS-0.1.0-aarch64.iso`; `just iso-test` produces the
+`.artifacts/images/SodaOS-0.2.0-aarch64.iso`; `just iso-test` produces the
 unattended, disposable-credential test image.
 
 The generated media is a compact network installer rather than a copy of the

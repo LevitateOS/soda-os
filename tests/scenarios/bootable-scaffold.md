@@ -1,6 +1,6 @@
 # Bootable scaffold scenario
 
-This scenario is the release gate for Soda OS 0.1.0. Generated images, disks,
+This scenario is the release gate for Soda OS 0.2.0. Generated images, disks,
 keys, credentials, logs, databases, and RPMs remain under ignored artifact
 paths.
 
@@ -14,7 +14,7 @@ paths.
    DNF transaction. Require the separate build-only `soda-installer-branding`
    RPM and inspected `product.img` outside that repository.
 4. Run `just iso` and `just iso-test`; require AArch64 UEFI boot records, the
-   `SodaOS-0-1-0-aarch64` label, Soda metadata, the Soda RPM repository, the
+   `SodaOS-0-2-0-aarch64` label, Soda metadata, the Soda RPM repository, the
    selected Kickstart, the pinned installer profile, and only the approved Soda
    OS boot-menu entries in each resulting ISO.
 
@@ -23,7 +23,7 @@ paths.
 Install the automated ISO into a new 64 GB AArch64 disk. It must power off
 without operator input. Boot only the installed disk and require:
 
-- `/etc/os-release` identifies `Soda OS 0.1.0` and `ID=sodaos`;
+- `/etc/os-release` identifies `Soda OS 0.2.0` and `ID=sodaos`;
 - SELinux is enforcing;
 - `sshd`, `sodad`, `soda-authd`, `soda-cockpit`, `avahi-daemon`, and
   `firewalld` are active;
