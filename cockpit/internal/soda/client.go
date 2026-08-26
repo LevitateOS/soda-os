@@ -170,7 +170,7 @@ type Client struct {
 
 // NewClient connects to the private Soda daemon over its Unix-domain gRPC socket.
 func NewClient(socketPath string) (*Client, error) {
-	connection, err := grpcclient.Dial(context.Background(), socketPath)
+	connection, err := grpcclient.New(socketPath)
 	if err != nil {
 		return nil, fmt.Errorf("dial sodad: %w", err)
 	}
@@ -335,9 +335,9 @@ func (c *Client) Events(ctx context.Context, projectID string) (<-chan Event, er
 			if err != nil {
 				return
 			}
-			event, ok := event(response)
-			if !ok {
-				continue
+			event, err := event(response)
+			if err != nil {
+				return
 			}
 			select {
 			case events <- event:
@@ -354,13 +354,26 @@ type RPCError struct {
 	Message string
 }
 
-func (e RPCError) Error() string { return fmt.Sprintf("sodad RPC %s: %s", e.Code, e.Message) }
+func (e RPCError) Error() string { return e.Message }
 func rpcError(err error) error {
 	if err == nil {
 		return nil
 	}
 	result := status.Convert(err)
-	return RPCError{Code: result.Code(), Message: result.Message()}
+	message := "Soda request failed."
+	switch result.Code() {
+	case codes.InvalidArgument, codes.AlreadyExists, codes.FailedPrecondition, codes.NotFound:
+		message = result.Message()
+	case codes.Unavailable, codes.DeadlineExceeded:
+		message = "Soda service unavailable."
+	case codes.Internal, codes.Unknown, codes.DataLoss:
+		message = "Soda service error."
+	case codes.PermissionDenied, codes.Unauthenticated:
+		message = "Permission denied."
+	case codes.Canceled:
+		message = "Request canceled."
+	}
+	return RPCError{Code: result.Code(), Message: message}
 }
 
 func person(value *sodav2.Person) Person {
@@ -439,19 +452,28 @@ func activeSSHConnection(value *sodav2.ActiveSshConnection) ActiveSSHConnection 
 	}
 	return result
 }
-func event(value *sodav2.SubscribeEventsResponse) (Event, bool) {
-	if value.GetControl() == sodav2.StreamControl_STREAM_CONTROL_REFRESH {
-		return Event{Kind: "refresh"}, true
+func event(value *sodav2.SubscribeEventsResponse) (Event, error) {
+	switch payload := value.GetPayload().(type) {
+	case *sodav2.SubscribeEventsResponse_Control:
+		if payload.Control != sodav2.StreamControl_STREAM_CONTROL_REFRESH {
+			return Event{}, fmt.Errorf("invalid stream control %d", payload.Control)
+		}
+		return Event{Kind: "refresh"}, nil
+	case *sodav2.SubscribeEventsResponse_Event:
+		if payload.Event == nil {
+			return Event{}, fmt.Errorf("event stream returned an empty event")
+		}
+		result := Event{Kind: eventKind(payload.Event.GetKind()), Sequence: payload.Event.GetSequence()}
+		if result.Kind == "" {
+			return Event{}, fmt.Errorf("invalid event kind %d", payload.Event.GetKind())
+		}
+		if payload.Event.ProjectId != nil {
+			result.ProjectID = payload.Event.ProjectId
+		}
+		return result, nil
+	default:
+		return Event{}, fmt.Errorf("event stream returned an empty payload")
 	}
-	raw := value.GetEvent()
-	if raw == nil {
-		return Event{}, false
-	}
-	result := Event{Kind: eventKind(raw.GetKind()), Sequence: raw.GetSequence()}
-	if raw.ProjectId != nil {
-		result.ProjectID = raw.ProjectId
-	}
-	return result, result.Kind != ""
 }
 
 func roleToProto(value Role) sodav2.Role {

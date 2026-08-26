@@ -3,6 +3,9 @@ package soda
 import (
 	"context"
 	"net"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -18,6 +21,8 @@ import (
 type fakeSodaService struct {
 	sodav2.UnimplementedSodaServiceServer
 	projectRequest *sodav2.CreateProjectRequest
+	eventProjectID *string
+	invalidControl bool
 }
 
 func (s *fakeSodaService) ListPeople(context.Context, *sodav2.ListPeopleRequest) (*sodav2.ListPeopleResponse, error) {
@@ -38,7 +43,11 @@ func (*fakeSodaService) GetHostStatus(context.Context, *sodav2.GetHostStatusRequ
 	return &sodav2.GetHostStatusResponse{Host: &sodav2.HostStatus{SampledAt: timestamppb.New(time.Unix(1_700_000_000, 0)), Overall: sodav2.RuntimeState_RUNTIME_STATE_READY, CpuPercent: &cpu, LoadAverage: &sodav2.LoadAverage{OneMinute: 1, FiveMinutes: 2, FifteenMinutes: 3}}}, nil
 }
 
-func (*fakeSodaService) SubscribeEvents(_ *sodav2.SubscribeEventsRequest, stream sodav2.SodaService_SubscribeEventsServer) error {
+func (s *fakeSodaService) SubscribeEvents(request *sodav2.SubscribeEventsRequest, stream sodav2.SodaService_SubscribeEventsServer) error {
+	s.eventProjectID = request.ProjectId
+	if s.invalidControl {
+		return stream.Send(&sodav2.SubscribeEventsResponse{Payload: &sodav2.SubscribeEventsResponse_Control{Control: sodav2.StreamControl_STREAM_CONTROL_UNSPECIFIED}})
+	}
 	if err := stream.Send(&sodav2.SubscribeEventsResponse{Payload: &sodav2.SubscribeEventsResponse_Control{Control: sodav2.StreamControl_STREAM_CONTROL_REFRESH}}); err != nil {
 		return err
 	}
@@ -74,7 +83,7 @@ func TestClientMapsGRPCResourcesAndOptionalValues(t *testing.T) {
 }
 
 func TestClientPreservesMissingToolchainAndExplicitRefresh(t *testing.T) {
-	client, _ := bufconnClient(t)
+	client, service := bufconnClient(t)
 	installation, err := client.Toolchain(context.Background(), "project-1")
 	if err != nil || installation != nil {
 		t.Fatalf("Toolchain() = %#v, %v; want nil, nil", installation, err)
@@ -92,24 +101,114 @@ func TestClientPreservesMissingToolchainAndExplicitRefresh(t *testing.T) {
 	if event := <-events; event.Kind != "git_changed" || event.ProjectID == nil || *event.ProjectID != "project-1" || event.Sequence != 9 {
 		t.Fatalf("second event = %#v", event)
 	}
-}
-
-func TestClientTurnsGRPCErrorsIntoUsefulErrors(t *testing.T) {
-	client := newClient(failingService{}, nil)
-	_, err := client.People(context.Background())
-	if err == nil {
-		t.Fatal("People() error = nil")
-	}
-	rpc, ok := err.(RPCError)
-	if !ok || rpc.Code != codes.Unavailable || rpc.Message != "daemon unavailable" {
-		t.Fatalf("People() error = %#v", err)
+	if service.eventProjectID == nil || *service.eventProjectID != "project-1" {
+		t.Fatalf("SubscribeEvents project ID = %#v", service.eventProjectID)
 	}
 }
 
-type failingService struct{ sodav2.SodaServiceClient }
+func TestClientSanitizesGRPCErrors(t *testing.T) {
+	tests := []struct {
+		name    string
+		code    codes.Code
+		detail  string
+		message string
+	}{
+		{name: "validation", code: codes.InvalidArgument, detail: "username must start with a lowercase letter", message: "username must start with a lowercase letter"},
+		{name: "conflict", code: codes.AlreadyExists, detail: "username already exists", message: "username already exists"},
+		{name: "unavailable", code: codes.Unavailable, detail: "dial unix /run/soda/sodad.sock: connection refused", message: "Soda service unavailable."},
+		{name: "internal", code: codes.Internal, detail: "sqlite failed at /var/lib/soda/soda.db", message: "Soda service error."},
+		{name: "unknown", code: codes.Unknown, detail: "panic: secret implementation detail", message: "Soda service error."},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			client := newClient(failingService{err: status.Error(test.code, test.detail)}, nil)
+			_, err := client.People(context.Background())
+			rpc, ok := err.(RPCError)
+			if !ok || rpc.Code != test.code || err.Error() != test.message {
+				t.Fatalf("People() error = %#v, want code %s and %q", err, test.code, test.message)
+			}
+			if test.message != test.detail && strings.Contains(err.Error(), test.detail) {
+				t.Fatalf("People() exposed daemon detail %q", test.detail)
+			}
+		})
+	}
+}
 
-func (failingService) ListPeople(context.Context, *sodav2.ListPeopleRequest, ...grpc.CallOption) (*sodav2.ListPeopleResponse, error) {
-	return nil, status.Error(codes.Unavailable, "daemon unavailable")
+func TestInvalidStreamControlClosesEventsForRecovery(t *testing.T) {
+	client, service := bufconnClient(t)
+	service.invalidControl = true
+	events, err := client.Events(context.Background(), "")
+	if err != nil {
+		t.Fatalf("Events() error = %v", err)
+	}
+	select {
+	case event, open := <-events:
+		if open {
+			t.Fatalf("Events() returned invalid control as %#v", event)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("Events() did not close after invalid control")
+	}
+}
+
+func TestNewClientDoesNotWaitForSocketAndRecoversLater(t *testing.T) {
+	tempDir, err := os.MkdirTemp("/tmp", "soda-cockpit-grpc-")
+	if err != nil {
+		t.Fatalf("create socket directory: %v", err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(tempDir) })
+	socketPath := filepath.Join(tempDir, "sodad.sock")
+	started := time.Now()
+	client, err := NewClient(socketPath)
+	if err != nil {
+		t.Fatalf("NewClient() error = %v", err)
+	}
+	t.Cleanup(func() { _ = client.Close() })
+	if elapsed := time.Since(started); elapsed > 250*time.Millisecond {
+		t.Fatalf("NewClient() blocked for %s", elapsed)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	_, err = client.People(ctx)
+	cancel()
+	if err == nil || err.Error() != "Soda service unavailable." {
+		t.Fatalf("People() before daemon = %v", err)
+	}
+
+	listener, err := net.Listen("unix", socketPath)
+	if err != nil {
+		t.Fatalf("listen on recovered socket: %v", err)
+	}
+	server := grpc.NewServer()
+	sodav2.RegisterSodaServiceServer(server, &fakeSodaService{})
+	go func() { _ = server.Serve(listener) }()
+	t.Cleanup(func() { server.Stop(); _ = listener.Close() })
+
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		ctx, cancel := context.WithTimeout(context.Background(), 250*time.Millisecond)
+		people, callErr := client.People(ctx)
+		cancel()
+		if callErr == nil {
+			if len(people) != 1 || people[0].Username != "alice" {
+				t.Fatalf("People() after recovery = %#v", people)
+			}
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("People() did not recover: %v", callErr)
+		}
+		time.Sleep(25 * time.Millisecond)
+	}
+}
+
+type failingService struct {
+	sodav2.SodaServiceClient
+	err error
+}
+
+func (service failingService) ListPeople(context.Context, *sodav2.ListPeopleRequest, ...grpc.CallOption) (*sodav2.ListPeopleResponse, error) {
+	return nil, service.err
 }
 
 func bufconnClient(t *testing.T) (*Client, *fakeSodaService) {
