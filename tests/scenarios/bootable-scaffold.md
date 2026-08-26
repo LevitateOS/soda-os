@@ -10,10 +10,13 @@ paths.
 2. Run `just verify-iso`; require an authenticated Rocky 10 release signature
    and the configured SHA-256 match.
 3. Run `just rpm`; require exactly `soda-release`, `soda-runtime`, and
-   `soda-cockpit`, followed by a successful disposable DNF transaction.
+   `soda-cockpit` in the target repository, followed by a successful disposable
+   DNF transaction. Require the separate build-only `soda-installer-branding`
+   RPM and inspected `product.img` outside that repository.
 4. Run `just iso` and `just iso-test`; require AArch64 UEFI boot records, the
-   Soda RPM repository, the selected Kickstart, and the Soda OS boot-menu
-   branding in each resulting ISO.
+   `SodaOS-0-1-0-aarch64` label, Soda metadata, the Soda RPM repository, the
+   selected Kickstart, the pinned installer profile, and only the approved Soda
+   OS boot-menu entries in each resulting ISO.
 
 ## Installed-system gate
 

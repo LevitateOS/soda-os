@@ -4,7 +4,7 @@ cdrom
 lang en_US.UTF-8
 keyboard us
 timezone UTC --utc
-network --bootproto=dhcp --device=link --activate --hostname=soda-test
+network --bootproto=dhcp --device=link --activate --hostname=soda
 rootpw --lock
 user --name=soda-test --groups=wheel --password=soda-test --plaintext
 zerombr

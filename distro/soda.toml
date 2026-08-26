@@ -1,4 +1,4 @@
-schema_version = 1
+schema_version = 2
 
 [identity]
 name = "Soda OS"
@@ -14,6 +14,14 @@ source_iso = "isos/Rocky-10.2-aarch64-dvd1/Rocky-10.2-aarch64-dvd1.iso"
 source_iso_sha256 = "3b8253987604df1bc5e1c33c838ff3ee9ce4a8f02ed9e27e300ecff58c0c9588"
 checksum_file = "isos/Rocky-10.2-aarch64-dvd1/Rocky-10.2-aarch64-dvd1.iso.CHECKSUM"
 signature_file = "isos/Rocky-10.2-aarch64-dvd1/Rocky-10.2-aarch64-dvd1.iso.CHECKSUM.asc"
+
+[installer]
+profile_id = "sodaos"
+anaconda_gui_nevra = "anaconda-gui-40.22.3.46-1.el10.rocky.0.6.aarch64"
+volume_id = "SodaOS-0-1-0-aarch64"
+boot_timeout_seconds = 10
+branding_manifest = "packaging/anaconda/branding.toml"
+upstream_manifest = "packaging/anaconda/upstream.toml"
 
 [network]
 cockpit_port = 9090

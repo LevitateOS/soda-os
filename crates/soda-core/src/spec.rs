@@ -15,7 +15,7 @@ pub enum SpecError {
         path: String,
         source: toml::de::Error,
     },
-    #[error("unsupported spec schema version {0}; expected 1")]
+    #[error("unsupported spec schema version {0}; expected 2")]
     Schema(u32),
 }
 
@@ -24,6 +24,7 @@ pub struct DistroSpec {
     pub schema_version: u32,
     pub identity: IdentitySpec,
     pub base: BaseSpec,
+    pub installer: InstallerSpec,
     pub network: NetworkSpec,
     pub paths: PathSpec,
 }
@@ -45,6 +46,16 @@ pub struct BaseSpec {
     pub source_iso_sha256: String,
     pub checksum_file: String,
     pub signature_file: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct InstallerSpec {
+    pub profile_id: String,
+    pub anaconda_gui_nevra: String,
+    pub volume_id: String,
+    pub boot_timeout_seconds: u16,
+    pub branding_manifest: String,
+    pub upstream_manifest: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -78,7 +89,7 @@ impl DistroSpec {
             path: path.display().to_string(),
             source,
         })?;
-        if spec.schema_version != 1 {
+        if spec.schema_version != 2 {
             return Err(SpecError::Schema(spec.schema_version));
         }
         Ok(spec)
@@ -138,7 +149,7 @@ mod tests {
     fn rejects_unknown_schema() {
         let error = toml::from_str::<DistroSpec>(
             r#"
-schema_version = 2
+schema_version = 3
 [identity]
 name = "Soda OS"
 id = "sodaos"
@@ -152,6 +163,13 @@ source_iso = "iso"
 source_iso_sha256 = "hash"
 checksum_file = "checksum"
 signature_file = "signature"
+[installer]
+profile_id = "sodaos"
+anaconda_gui_nevra = "anaconda-gui-1.aarch64"
+volume_id = "SodaOS-test-aarch64"
+boot_timeout_seconds = 10
+branding_manifest = "branding.toml"
+upstream_manifest = "upstream.toml"
 [network]
 cockpit_port = 9090
 mdns_name = "soda.local"
@@ -163,6 +181,6 @@ daemon_socket = "/run/soda/sodad.sock"
 "#,
         )
         .expect("valid TOML");
-        assert_eq!(error.schema_version, 2);
+        assert_eq!(error.schema_version, 3);
     }
 }

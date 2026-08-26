@@ -1,6 +1,8 @@
 # Soda OS interactive installer overlay for Rocky Linux 10.2.
 graphical
 cdrom
+rootpw --lock
+network --bootproto=dhcp --device=link --activate --hostname=soda
 firstboot --disable
 selinux --enforcing
 firewall --enabled --service=ssh --port=9090:tcp
@@ -19,6 +21,5 @@ sudo
 %end
 
 %post --erroronfail
-/usr/bin/hostnamectl --root=/ set-hostname soda
 /usr/bin/systemctl enable sshd sodad soda-authd soda-cockpit avahi-daemon
 %end

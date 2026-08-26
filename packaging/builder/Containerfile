@@ -3,12 +3,14 @@ FROM rockylinux/rockylinux:10
 RUN dnf -y install \
       ca-certificates \
       cargo \
+      cpio \
       createrepo_c \
       gcc \
       gcc-c++ \
       git \
       golang \
       lorax \
+      libxml2 \
       make \
       pam-devel \
       pkgconf-pkg-config \
@@ -17,9 +19,11 @@ RUN dnf -y install \
       rpm-build \
       rust \
       sequoia-sq \
+      isomd5sum \
       systemd-rpm-macros \
       tar \
       unzip \
+      xorriso \
       xz \
     && dnf clean all
 
