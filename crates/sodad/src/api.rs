@@ -8,7 +8,7 @@ use axum::{
 use serde::Serialize;
 use soda_core::{
     AddCollaboratorRequest, CreatePersonRequest, CreateProjectRequest, CreateWorktreeRequest,
-    Person, Project, Worktree,
+    Person, Project, ProvisioningJob, Worktree,
 };
 use uuid::Uuid;
 
@@ -39,6 +39,10 @@ pub fn router(service: Arc<Service>) -> Router {
             "/v1/projects/{project_id}/worktrees",
             get(list_worktrees).post(create_worktree),
         )
+        .route(
+            "/v1/projects/{project_id}/provisioning",
+            get(list_jobs).post(start_provisioning),
+        )
         .with_state(AppState { service })
 }
 
@@ -65,7 +69,10 @@ async fn create_project(
     State(state): State<AppState>,
     Json(request): Json<CreateProjectRequest>,
 ) -> Result<Json<Project>> {
-    state.service.create_project(request).map(Json)
+    let project = state.service.create_project(request)?;
+    let job = state.service.start_provisioning(project.id)?;
+    spawn_provisioning(state.service, job.project_id, job.id);
+    Ok(Json(project))
 }
 
 async fn list_projects(State(state): State<AppState>) -> Result<Json<Vec<Project>>> {
@@ -104,4 +111,24 @@ async fn list_worktrees(
     Path(project_id): Path<Uuid>,
 ) -> Result<Json<Vec<Worktree>>> {
     state.service.list_worktrees(project_id).map(Json)
+}
+
+async fn start_provisioning(
+    State(state): State<AppState>,
+    Path(project_id): Path<Uuid>,
+) -> Result<Json<ProvisioningJob>> {
+    let job = state.service.start_provisioning(project_id)?;
+    spawn_provisioning(state.service, job.project_id, job.id);
+    Ok(Json(job))
+}
+
+async fn list_jobs(
+    State(state): State<AppState>,
+    Path(project_id): Path<Uuid>,
+) -> Result<Json<Vec<ProvisioningJob>>> {
+    state.service.list_jobs(project_id).map(Json)
+}
+
+fn spawn_provisioning(service: Arc<Service>, project_id: Uuid, job_id: Uuid) {
+    tokio::task::spawn_blocking(move || service.run_provisioning(project_id, job_id));
 }

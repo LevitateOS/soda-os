@@ -3,6 +3,7 @@ mod error;
 mod service;
 mod store;
 mod system;
+mod toolchains;
 
 use std::{path::PathBuf, sync::Arc};
 
@@ -16,9 +17,14 @@ use system::HostSystem;
 /// # Errors
 ///
 /// Returns an error when the database cannot be opened or migrated.
-pub fn production_router(database: PathBuf, projects_root: PathBuf) -> anyhow::Result<Router> {
+pub fn production_router(
+    database: PathBuf,
+    projects_root: PathBuf,
+    toolchains_root: PathBuf,
+) -> anyhow::Result<Router> {
     let store = Arc::new(Store::open(database)?);
     let system = Arc::new(HostSystem::production(&projects_root));
-    let service = Arc::new(Service::new(store, system, projects_root));
+    let toolchains = Arc::new(toolchains::ToolchainManager::new(toolchains_root)?);
+    let service = Arc::new(Service::new(store, system, toolchains, projects_root));
     Ok(api::router(service))
 }

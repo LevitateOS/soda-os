@@ -1,7 +1,10 @@
 use std::{path::Path, sync::Mutex};
 
 use rusqlite::{Connection, OptionalExtension, params};
-use soda_core::{Membership, Person, Project, ProjectSource, Role, ToolchainProfile, Worktree};
+use soda_core::{
+    JobState, Membership, Person, Project, ProjectSource, ProvisioningJob, Role,
+    ToolchainInstallation, ToolchainProfile, Worktree,
+};
 use uuid::Uuid;
 
 use crate::error::{AppError, Result};
@@ -272,6 +275,90 @@ impl Store {
         })
         .collect()
     }
+
+    pub(crate) fn create_job(&self, job: &ProvisioningJob) -> Result<()> {
+        let connection = self.connection.lock().expect("database mutex poisoned");
+        connection.execute(
+            "INSERT INTO provisioning_jobs (id, project_id, state, error) VALUES (?1, ?2, ?3, ?4)",
+            params![
+                job.id.to_string(),
+                job.project_id.to_string(),
+                state_name(job.state),
+                job.error,
+            ],
+        )?;
+        Ok(())
+    }
+
+    pub(crate) fn update_job(&self, job: &ProvisioningJob) -> Result<()> {
+        let connection = self.connection.lock().expect("database mutex poisoned");
+        connection.execute(
+            "UPDATE provisioning_jobs SET state = ?2, error = ?3 WHERE id = ?1",
+            params![job.id.to_string(), state_name(job.state), job.error],
+        )?;
+        Ok(())
+    }
+
+    pub(crate) fn list_jobs(&self, project_id: Uuid) -> Result<Vec<ProvisioningJob>> {
+        let connection = self.connection.lock().expect("database mutex poisoned");
+        let mut statement = connection.prepare(
+            "SELECT id, project_id, state, error FROM provisioning_jobs
+             WHERE project_id = ?1 ORDER BY rowid DESC",
+        )?;
+        let rows = statement.query_map([project_id.to_string()], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, String>(2)?,
+                row.get::<_, Option<String>>(3)?,
+            ))
+        })?;
+        rows.map(|row| {
+            let (id, project_id, state, error) = row?;
+            Ok(ProvisioningJob {
+                id: parse_uuid(&id)?,
+                project_id: parse_uuid(&project_id)?,
+                state: parse_state(&state)?,
+                error,
+            })
+        })
+        .collect()
+    }
+
+    pub(crate) fn save_installation(
+        &self,
+        project_id: Uuid,
+        installation: &ToolchainInstallation,
+    ) -> Result<()> {
+        let mut connection = self.connection.lock().expect("database mutex poisoned");
+        let transaction = connection.transaction()?;
+        transaction.execute(
+            "INSERT INTO toolchain_installations (id, profile, version, path, checksum, state)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+             ON CONFLICT(profile, version) DO UPDATE SET
+               path = excluded.path, checksum = excluded.checksum, state = excluded.state",
+            params![
+                installation.id.to_string(),
+                installation.profile.as_str(),
+                installation.version,
+                installation.path,
+                installation.checksum,
+                state_name(installation.state),
+            ],
+        )?;
+        let installation_id: String = transaction.query_row(
+            "SELECT id FROM toolchain_installations WHERE profile = ?1 AND version = ?2",
+            params![installation.profile.as_str(), installation.version],
+            |row| row.get(0),
+        )?;
+        transaction.execute(
+            "INSERT INTO project_toolchains (project_id, installation_id) VALUES (?1, ?2)
+             ON CONFLICT(project_id) DO UPDATE SET installation_id = excluded.installation_id",
+            params![project_id.to_string(), installation_id],
+        )?;
+        transaction.commit()?;
+        Ok(())
+    }
 }
 
 fn role_name(role: Role) -> &'static str {
@@ -296,6 +383,23 @@ fn parse_profile(value: &str) -> Result<ToolchainProfile> {
         "rust" => Ok(ToolchainProfile::Rust),
         "go" => Ok(ToolchainProfile::Go),
         other => Err(AppError::Invalid(format!("unknown profile {other}"))),
+    }
+}
+
+fn state_name(state: JobState) -> &'static str {
+    match state {
+        JobState::Installing => "installing",
+        JobState::Ready => "ready",
+        JobState::Failed => "failed",
+    }
+}
+
+fn parse_state(value: &str) -> Result<JobState> {
+    match value {
+        "installing" => Ok(JobState::Installing),
+        "ready" => Ok(JobState::Ready),
+        "failed" => Ok(JobState::Failed),
+        other => Err(AppError::Invalid(format!("unknown job state {other}"))),
     }
 }
 

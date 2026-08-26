@@ -34,6 +34,14 @@ enum Command {
         command: ProjectCommand,
     },
     Collaborator(AddCollaborator),
+    Provision {
+        #[arg(long)]
+        project: Uuid,
+    },
+    Jobs {
+        #[arg(long)]
+        project: Uuid,
+    },
     Worktrees {
         #[command(subcommand)]
         command: WorktreeCommand,
@@ -122,6 +130,7 @@ struct AddWorktree {
 }
 
 #[tokio::main]
+#[allow(clippy::too_many_lines)]
 async fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
     let response = match cli.command {
@@ -176,6 +185,24 @@ async fn main() -> anyhow::Result<()> {
                 Method::POST,
                 &format!("/v1/projects/{}/collaborators", args.project),
                 &body,
+            )
+            .await?
+        }
+        Command::Provision { project } => {
+            request(
+                &cli.socket,
+                Method::POST,
+                &format!("/v1/projects/{project}/provisioning"),
+                None,
+            )
+            .await?
+        }
+        Command::Jobs { project } => {
+            request(
+                &cli.socket,
+                Method::GET,
+                &format!("/v1/projects/{project}/provisioning"),
+                None,
             )
             .await?
         }

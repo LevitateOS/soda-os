@@ -1,25 +1,36 @@
-use std::{path::PathBuf, sync::Arc};
+use std::{fs, path::PathBuf, sync::Arc};
 
-use soda_core::{CreatePersonRequest, CreateProjectRequest, Membership, Person, Project, Worktree};
+use soda_core::{
+    CreatePersonRequest, CreateProjectRequest, JobState, Membership, Person, Project,
+    ProvisioningJob, ToolchainInstallation, Worktree,
+};
 use uuid::Uuid;
 
 use crate::{
     error::{AppError, Result},
     store::Store,
     system::SystemOps,
+    toolchains::ToolchainManager,
 };
 
 pub struct Service {
     store: Arc<Store>,
     system: Arc<dyn SystemOps>,
+    toolchains: Arc<ToolchainManager>,
     projects_root: PathBuf,
 }
 
 impl Service {
-    pub fn new(store: Arc<Store>, system: Arc<dyn SystemOps>, projects_root: PathBuf) -> Self {
+    pub fn new(
+        store: Arc<Store>,
+        system: Arc<dyn SystemOps>,
+        toolchains: Arc<ToolchainManager>,
+        projects_root: PathBuf,
+    ) -> Self {
         Self {
             store,
             system,
+            toolchains,
             projects_root,
         }
     }
@@ -118,6 +129,65 @@ impl Service {
         self.store.list_worktrees(project_id)
     }
 
+    pub fn start_provisioning(&self, project_id: Uuid) -> Result<ProvisioningJob> {
+        self.store.project(project_id)?;
+        let job = ProvisioningJob {
+            id: Uuid::new_v4(),
+            project_id,
+            state: JobState::Installing,
+            error: None,
+        };
+        self.store.create_job(&job)?;
+        Ok(job)
+    }
+
+    pub fn run_provisioning(&self, project_id: Uuid, job_id: Uuid) {
+        let result = self.install_project_profile(project_id);
+        let job = match result {
+            Ok(()) => ProvisioningJob {
+                id: job_id,
+                project_id,
+                state: JobState::Ready,
+                error: None,
+            },
+            Err(error) => ProvisioningJob {
+                id: job_id,
+                project_id,
+                state: JobState::Failed,
+                error: Some(error.to_string()),
+            },
+        };
+        if let Err(error) = self.store.update_job(&job) {
+            tracing::error!(%error, %job_id, "failed to update provisioning job");
+        }
+    }
+
+    pub fn list_jobs(&self, project_id: Uuid) -> Result<Vec<ProvisioningJob>> {
+        self.store.project(project_id)?;
+        self.store.list_jobs(project_id)
+    }
+
+    fn install_project_profile(&self, project_id: Uuid) -> Result<()> {
+        let project = self.store.project(project_id)?;
+        let installed = self.toolchains.install(project.profile)?;
+        let installation = ToolchainInstallation {
+            id: Uuid::new_v4(),
+            profile: project.profile,
+            version: installed.version,
+            path: installed.path.display().to_string(),
+            checksum: installed.checksum,
+            state: installed.state,
+        };
+        self.store.save_installation(project_id, &installation)?;
+        let soda_dir = self.projects_root.join(&project.slug).join(".soda");
+        fs::create_dir_all(&soda_dir)?;
+        fs::write(
+            soda_dir.join("env"),
+            format!("source {}/env\n", installation.path),
+        )?;
+        Ok(())
+    }
+
     fn worktree(
         &self,
         project: &Project,
@@ -186,7 +256,7 @@ mod tests {
     use tempfile::TempDir;
 
     use super::*;
-    use crate::{store::Store, system::HostSystem};
+    use crate::{store::Store, system::HostSystem, toolchains::ToolchainManager};
 
     #[test]
     fn creates_two_collaborator_worktrees_with_git_identity() {
@@ -194,7 +264,10 @@ mod tests {
         let projects = temp.path().join("projects");
         let store = Arc::new(Store::open(temp.path().join("soda.db")).expect("open store"));
         let system = Arc::new(HostSystem::test(&projects));
-        let service = Service::new(store, system, projects.clone());
+        let toolchains = Arc::new(
+            ToolchainManager::new(temp.path().join("toolchains")).expect("toolchain manager"),
+        );
+        let service = Service::new(store, system, toolchains, projects.clone());
 
         let alice = service
             .create_person(person("alice", "Alice Example", "alice@example.test"))
