@@ -20,7 +20,12 @@ func main() {
 	if err := cert.Ensure(certFile, keyFile); err != nil {
 		log.Fatal(err)
 	}
-	app, err := server.New(soda.NewClient(socket), auth.NewClient(pamSocket))
+	api, err := soda.NewClient(socket)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer api.Close()
+	app, err := server.New(api, auth.NewClient(pamSocket))
 	if err != nil {
 		log.Fatal(err)
 	}
