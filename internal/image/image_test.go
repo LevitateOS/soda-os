@@ -82,10 +82,11 @@ func TestBuildGoBinariesUsesAllGoEntrypoints(t *testing.T) {
 	for _, command := range runner.Commands {
 		commands = append(commands, command.String())
 	}
-	require.Len(t, commands, 5)
+	require.Len(t, commands, 6)
 	require.Contains(t, strings.Join(commands, "\n"), "./cmd/sodad")
 	require.Contains(t, strings.Join(commands, "\n"), "./cmd/sodactl")
 	require.Contains(t, strings.Join(commands, "\n"), "./cmd/soda-ssh")
+	require.Contains(t, strings.Join(commands, "\n"), "./cmd/soda-image")
 	require.Contains(t, strings.Join(commands, "\n"), "./cockpit/cmd/soda-cockpit")
 	require.Contains(t, strings.Join(commands, "\n"), "./cockpit/cmd/soda-authd")
 	require.Contains(t, strings.Join(commands, "\n"), "-buildvcs=false")

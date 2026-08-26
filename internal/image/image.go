@@ -356,6 +356,7 @@ func (b *Builder) buildGoBinaries(ctx context.Context) error {
 		{"sodad", "./cmd/sodad"},
 		{"sodactl", "./cmd/sodactl"},
 		{"soda-ssh", "./cmd/soda-ssh"},
+		{"soda-image", "./cmd/soda-image"},
 		{"soda-cockpit", "./cockpit/cmd/soda-cockpit"},
 		{"soda-authd", "./cockpit/cmd/soda-authd"},
 	} {
