@@ -71,55 +71,6 @@ func (Role) EnumDescriptor() ([]byte, []int) {
 	return file_soda_v2_soda_proto_rawDescGZIP(), []int{0}
 }
 
-type ProjectSourceKind int32
-
-const (
-	ProjectSourceKind_PROJECT_SOURCE_KIND_UNSPECIFIED ProjectSourceKind = 0
-	ProjectSourceKind_PROJECT_SOURCE_KIND_EMPTY       ProjectSourceKind = 1
-	ProjectSourceKind_PROJECT_SOURCE_KIND_GIT         ProjectSourceKind = 2
-)
-
-// Enum value maps for ProjectSourceKind.
-var (
-	ProjectSourceKind_name = map[int32]string{
-		0: "PROJECT_SOURCE_KIND_UNSPECIFIED",
-		1: "PROJECT_SOURCE_KIND_EMPTY",
-		2: "PROJECT_SOURCE_KIND_GIT",
-	}
-	ProjectSourceKind_value = map[string]int32{
-		"PROJECT_SOURCE_KIND_UNSPECIFIED": 0,
-		"PROJECT_SOURCE_KIND_EMPTY":       1,
-		"PROJECT_SOURCE_KIND_GIT":         2,
-	}
-)
-
-func (x ProjectSourceKind) Enum() *ProjectSourceKind {
-	p := new(ProjectSourceKind)
-	*p = x
-	return p
-}
-
-func (x ProjectSourceKind) String() string {
-	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
-}
-
-func (ProjectSourceKind) Descriptor() protoreflect.EnumDescriptor {
-	return file_soda_v2_soda_proto_enumTypes[1].Descriptor()
-}
-
-func (ProjectSourceKind) Type() protoreflect.EnumType {
-	return &file_soda_v2_soda_proto_enumTypes[1]
-}
-
-func (x ProjectSourceKind) Number() protoreflect.EnumNumber {
-	return protoreflect.EnumNumber(x)
-}
-
-// Deprecated: Use ProjectSourceKind.Descriptor instead.
-func (ProjectSourceKind) EnumDescriptor() ([]byte, []int) {
-	return file_soda_v2_soda_proto_rawDescGZIP(), []int{1}
-}
-
 type ToolchainProfile int32
 
 const (
@@ -159,11 +110,11 @@ func (x ToolchainProfile) String() string {
 }
 
 func (ToolchainProfile) Descriptor() protoreflect.EnumDescriptor {
-	return file_soda_v2_soda_proto_enumTypes[2].Descriptor()
+	return file_soda_v2_soda_proto_enumTypes[1].Descriptor()
 }
 
 func (ToolchainProfile) Type() protoreflect.EnumType {
-	return &file_soda_v2_soda_proto_enumTypes[2]
+	return &file_soda_v2_soda_proto_enumTypes[1]
 }
 
 func (x ToolchainProfile) Number() protoreflect.EnumNumber {
@@ -172,7 +123,7 @@ func (x ToolchainProfile) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use ToolchainProfile.Descriptor instead.
 func (ToolchainProfile) EnumDescriptor() ([]byte, []int) {
-	return file_soda_v2_soda_proto_rawDescGZIP(), []int{2}
+	return file_soda_v2_soda_proto_rawDescGZIP(), []int{1}
 }
 
 type JobState int32
@@ -211,11 +162,11 @@ func (x JobState) String() string {
 }
 
 func (JobState) Descriptor() protoreflect.EnumDescriptor {
-	return file_soda_v2_soda_proto_enumTypes[3].Descriptor()
+	return file_soda_v2_soda_proto_enumTypes[2].Descriptor()
 }
 
 func (JobState) Type() protoreflect.EnumType {
-	return &file_soda_v2_soda_proto_enumTypes[3]
+	return &file_soda_v2_soda_proto_enumTypes[2]
 }
 
 func (x JobState) Number() protoreflect.EnumNumber {
@@ -224,7 +175,7 @@ func (x JobState) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use JobState.Descriptor instead.
 func (JobState) EnumDescriptor() ([]byte, []int) {
-	return file_soda_v2_soda_proto_rawDescGZIP(), []int{3}
+	return file_soda_v2_soda_proto_rawDescGZIP(), []int{2}
 }
 
 type RuntimeState int32
@@ -263,11 +214,11 @@ func (x RuntimeState) String() string {
 }
 
 func (RuntimeState) Descriptor() protoreflect.EnumDescriptor {
-	return file_soda_v2_soda_proto_enumTypes[4].Descriptor()
+	return file_soda_v2_soda_proto_enumTypes[3].Descriptor()
 }
 
 func (RuntimeState) Type() protoreflect.EnumType {
-	return &file_soda_v2_soda_proto_enumTypes[4]
+	return &file_soda_v2_soda_proto_enumTypes[3]
 }
 
 func (x RuntimeState) Number() protoreflect.EnumNumber {
@@ -276,7 +227,7 @@ func (x RuntimeState) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use RuntimeState.Descriptor instead.
 func (RuntimeState) EnumDescriptor() ([]byte, []int) {
-	return file_soda_v2_soda_proto_rawDescGZIP(), []int{4}
+	return file_soda_v2_soda_proto_rawDescGZIP(), []int{3}
 }
 
 type WorktreeState int32
@@ -315,11 +266,11 @@ func (x WorktreeState) String() string {
 }
 
 func (WorktreeState) Descriptor() protoreflect.EnumDescriptor {
-	return file_soda_v2_soda_proto_enumTypes[5].Descriptor()
+	return file_soda_v2_soda_proto_enumTypes[4].Descriptor()
 }
 
 func (WorktreeState) Type() protoreflect.EnumType {
-	return &file_soda_v2_soda_proto_enumTypes[5]
+	return &file_soda_v2_soda_proto_enumTypes[4]
 }
 
 func (x WorktreeState) Number() protoreflect.EnumNumber {
@@ -328,7 +279,7 @@ func (x WorktreeState) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use WorktreeState.Descriptor instead.
 func (WorktreeState) EnumDescriptor() ([]byte, []int) {
-	return file_soda_v2_soda_proto_rawDescGZIP(), []int{5}
+	return file_soda_v2_soda_proto_rawDescGZIP(), []int{4}
 }
 
 type SshChannelKind int32
@@ -367,11 +318,11 @@ func (x SshChannelKind) String() string {
 }
 
 func (SshChannelKind) Descriptor() protoreflect.EnumDescriptor {
-	return file_soda_v2_soda_proto_enumTypes[6].Descriptor()
+	return file_soda_v2_soda_proto_enumTypes[5].Descriptor()
 }
 
 func (SshChannelKind) Type() protoreflect.EnumType {
-	return &file_soda_v2_soda_proto_enumTypes[6]
+	return &file_soda_v2_soda_proto_enumTypes[5]
 }
 
 func (x SshChannelKind) Number() protoreflect.EnumNumber {
@@ -380,7 +331,7 @@ func (x SshChannelKind) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use SshChannelKind.Descriptor instead.
 func (SshChannelKind) EnumDescriptor() ([]byte, []int) {
-	return file_soda_v2_soda_proto_rawDescGZIP(), []int{6}
+	return file_soda_v2_soda_proto_rawDescGZIP(), []int{5}
 }
 
 type EventKind int32
@@ -431,11 +382,11 @@ func (x EventKind) String() string {
 }
 
 func (EventKind) Descriptor() protoreflect.EnumDescriptor {
-	return file_soda_v2_soda_proto_enumTypes[7].Descriptor()
+	return file_soda_v2_soda_proto_enumTypes[6].Descriptor()
 }
 
 func (EventKind) Type() protoreflect.EnumType {
-	return &file_soda_v2_soda_proto_enumTypes[7]
+	return &file_soda_v2_soda_proto_enumTypes[6]
 }
 
 func (x EventKind) Number() protoreflect.EnumNumber {
@@ -444,6 +395,52 @@ func (x EventKind) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use EventKind.Descriptor instead.
 func (EventKind) EnumDescriptor() ([]byte, []int) {
+	return file_soda_v2_soda_proto_rawDescGZIP(), []int{6}
+}
+
+type StreamControl int32
+
+const (
+	StreamControl_STREAM_CONTROL_UNSPECIFIED StreamControl = 0
+	StreamControl_STREAM_CONTROL_REFRESH     StreamControl = 1
+)
+
+// Enum value maps for StreamControl.
+var (
+	StreamControl_name = map[int32]string{
+		0: "STREAM_CONTROL_UNSPECIFIED",
+		1: "STREAM_CONTROL_REFRESH",
+	}
+	StreamControl_value = map[string]int32{
+		"STREAM_CONTROL_UNSPECIFIED": 0,
+		"STREAM_CONTROL_REFRESH":     1,
+	}
+)
+
+func (x StreamControl) Enum() *StreamControl {
+	p := new(StreamControl)
+	*p = x
+	return p
+}
+
+func (x StreamControl) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (StreamControl) Descriptor() protoreflect.EnumDescriptor {
+	return file_soda_v2_soda_proto_enumTypes[7].Descriptor()
+}
+
+func (StreamControl) Type() protoreflect.EnumType {
+	return &file_soda_v2_soda_proto_enumTypes[7]
+}
+
+func (x StreamControl) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use StreamControl.Descriptor instead.
+func (StreamControl) EnumDescriptor() ([]byte, []int) {
 	return file_soda_v2_soda_proto_rawDescGZIP(), []int{7}
 }
 
@@ -613,7 +610,6 @@ func (x *GitProjectSource) GetRemoteUrl() string {
 
 type ProjectSource struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	Kind  ProjectSourceKind      `protobuf:"varint,1,opt,name=kind,proto3,enum=soda.v2.ProjectSourceKind" json:"kind,omitempty"`
 	// Types that are valid to be assigned to Source:
 	//
 	//	*ProjectSource_Empty
@@ -653,13 +649,6 @@ func (*ProjectSource) Descriptor() ([]byte, []int) {
 	return file_soda_v2_soda_proto_rawDescGZIP(), []int{3}
 }
 
-func (x *ProjectSource) GetKind() ProjectSourceKind {
-	if x != nil {
-		return x.Kind
-	}
-	return ProjectSourceKind_PROJECT_SOURCE_KIND_UNSPECIFIED
-}
-
 func (x *ProjectSource) GetSource() isProjectSource_Source {
 	if x != nil {
 		return x.Source
@@ -690,11 +679,11 @@ type isProjectSource_Source interface {
 }
 
 type ProjectSource_Empty struct {
-	Empty *EmptyProjectSource `protobuf:"bytes,2,opt,name=empty,proto3,oneof"`
+	Empty *EmptyProjectSource `protobuf:"bytes,1,opt,name=empty,proto3,oneof"`
 }
 
 type ProjectSource_Git struct {
-	Git *GitProjectSource `protobuf:"bytes,3,opt,name=git,proto3,oneof"`
+	Git *GitProjectSource `protobuf:"bytes,2,opt,name=git,proto3,oneof"`
 }
 
 func (*ProjectSource_Empty) isProjectSource_Source() {}
@@ -3710,8 +3699,12 @@ func (x *SubscribeEventsRequest) GetProjectId() string {
 }
 
 type SubscribeEventsResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Event         *SodaEvent             `protobuf:"bytes,1,opt,name=event,proto3" json:"event,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Types that are valid to be assigned to Payload:
+	//
+	//	*SubscribeEventsResponse_Event
+	//	*SubscribeEventsResponse_Control
+	Payload       isSubscribeEventsResponse_Payload `protobuf_oneof:"payload"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3746,12 +3739,46 @@ func (*SubscribeEventsResponse) Descriptor() ([]byte, []int) {
 	return file_soda_v2_soda_proto_rawDescGZIP(), []int{58}
 }
 
-func (x *SubscribeEventsResponse) GetEvent() *SodaEvent {
+func (x *SubscribeEventsResponse) GetPayload() isSubscribeEventsResponse_Payload {
 	if x != nil {
-		return x.Event
+		return x.Payload
 	}
 	return nil
 }
+
+func (x *SubscribeEventsResponse) GetEvent() *SodaEvent {
+	if x != nil {
+		if x, ok := x.Payload.(*SubscribeEventsResponse_Event); ok {
+			return x.Event
+		}
+	}
+	return nil
+}
+
+func (x *SubscribeEventsResponse) GetControl() StreamControl {
+	if x != nil {
+		if x, ok := x.Payload.(*SubscribeEventsResponse_Control); ok {
+			return x.Control
+		}
+	}
+	return StreamControl_STREAM_CONTROL_UNSPECIFIED
+}
+
+type isSubscribeEventsResponse_Payload interface {
+	isSubscribeEventsResponse_Payload()
+}
+
+type SubscribeEventsResponse_Event struct {
+	Event *SodaEvent `protobuf:"bytes,1,opt,name=event,proto3,oneof"`
+}
+
+type SubscribeEventsResponse_Control struct {
+	Control StreamControl `protobuf:"varint,2,opt,name=control,proto3,enum=soda.v2.StreamControl,oneof"`
+}
+
+func (*SubscribeEventsResponse_Event) isSubscribeEventsResponse_Payload() {}
+
+func (*SubscribeEventsResponse_Control) isSubscribeEventsResponse_Payload() {}
 
 var File_soda_v2_soda_proto protoreflect.FileDescriptor
 
@@ -3768,11 +3795,10 @@ const file_soda_v2_soda_proto_rawDesc = "" +
 	"\x12EmptyProjectSource\"1\n" +
 	"\x10GitProjectSource\x12\x1d\n" +
 	"\n" +
-	"remote_url\x18\x01 \x01(\tR\tremoteUrl\"\xad\x01\n" +
-	"\rProjectSource\x12.\n" +
-	"\x04kind\x18\x01 \x01(\x0e2\x1a.soda.v2.ProjectSourceKindR\x04kind\x123\n" +
-	"\x05empty\x18\x02 \x01(\v2\x1b.soda.v2.EmptyProjectSourceH\x00R\x05empty\x12-\n" +
-	"\x03git\x18\x03 \x01(\v2\x19.soda.v2.GitProjectSourceH\x00R\x03gitB\b\n" +
+	"remote_url\x18\x01 \x01(\tR\tremoteUrl\"}\n" +
+	"\rProjectSource\x123\n" +
+	"\x05empty\x18\x01 \x01(\v2\x1b.soda.v2.EmptyProjectSourceH\x00R\x05empty\x12-\n" +
+	"\x03git\x18\x02 \x01(\v2\x19.soda.v2.GitProjectSourceH\x00R\x03gitB\b\n" +
 	"\x06source\"\xc3\x01\n" +
 	"\aProject\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
@@ -4008,18 +4034,16 @@ const file_soda_v2_soda_proto_rawDesc = "" +
 	"\x16SubscribeEventsRequest\x12\"\n" +
 	"\n" +
 	"project_id\x18\x01 \x01(\tH\x00R\tprojectId\x88\x01\x01B\r\n" +
-	"\v_project_id\"C\n" +
-	"\x17SubscribeEventsResponse\x12(\n" +
-	"\x05event\x18\x01 \x01(\v2\x12.soda.v2.SodaEventR\x05event*@\n" +
+	"\v_project_id\"\x84\x01\n" +
+	"\x17SubscribeEventsResponse\x12*\n" +
+	"\x05event\x18\x01 \x01(\v2\x12.soda.v2.SodaEventH\x00R\x05event\x122\n" +
+	"\acontrol\x18\x02 \x01(\x0e2\x16.soda.v2.StreamControlH\x00R\acontrolB\t\n" +
+	"\apayload*@\n" +
 	"\x04Role\x12\x14\n" +
 	"\x10ROLE_UNSPECIFIED\x10\x00\x12\x0e\n" +
 	"\n" +
 	"ROLE_ADMIN\x10\x01\x12\x12\n" +
-	"\x0eROLE_DEVELOPER\x10\x02*t\n" +
-	"\x11ProjectSourceKind\x12#\n" +
-	"\x1fPROJECT_SOURCE_KIND_UNSPECIFIED\x10\x00\x12\x1d\n" +
-	"\x19PROJECT_SOURCE_KIND_EMPTY\x10\x01\x12\x1b\n" +
-	"\x17PROJECT_SOURCE_KIND_GIT\x10\x02*\xa4\x01\n" +
+	"\x0eROLE_DEVELOPER\x10\x02*\xa4\x01\n" +
 	"\x10ToolchainProfile\x12!\n" +
 	"\x1dTOOLCHAIN_PROFILE_UNSPECIFIED\x10\x00\x12\x19\n" +
 	"\x15TOOLCHAIN_PROFILE_WEB\x10\x01\x12\x1c\n" +
@@ -4054,7 +4078,10 @@ const file_soda_v2_soda_proto_rawDesc = "" +
 	"\x1cEVENT_KIND_WORKTREES_CHANGED\x10\x04\x12#\n" +
 	"\x1fEVENT_KIND_PROVISIONING_CHANGED\x10\x05\x12\x1a\n" +
 	"\x16EVENT_KIND_GIT_CHANGED\x10\x06\x12\x1f\n" +
-	"\x1bEVENT_KIND_SESSIONS_CHANGED\x10\a2\xf1\f\n" +
+	"\x1bEVENT_KIND_SESSIONS_CHANGED\x10\a*K\n" +
+	"\rStreamControl\x12\x1e\n" +
+	"\x1aSTREAM_CONTROL_UNSPECIFIED\x10\x00\x12\x1a\n" +
+	"\x16STREAM_CONTROL_REFRESH\x10\x012\xf1\f\n" +
 	"\vSodaService\x129\n" +
 	"\x06Health\x12\x16.soda.v2.HealthRequest\x1a\x17.soda.v2.HealthResponse\x12K\n" +
 	"\fCreatePerson\x12\x1c.soda.v2.CreatePersonRequest\x1a\x1d.soda.v2.CreatePersonResponse\x12K\n" +
@@ -4093,13 +4120,13 @@ var file_soda_v2_soda_proto_enumTypes = make([]protoimpl.EnumInfo, 8)
 var file_soda_v2_soda_proto_msgTypes = make([]protoimpl.MessageInfo, 59)
 var file_soda_v2_soda_proto_goTypes = []any{
 	(Role)(0),                                // 0: soda.v2.Role
-	(ProjectSourceKind)(0),                   // 1: soda.v2.ProjectSourceKind
-	(ToolchainProfile)(0),                    // 2: soda.v2.ToolchainProfile
-	(JobState)(0),                            // 3: soda.v2.JobState
-	(RuntimeState)(0),                        // 4: soda.v2.RuntimeState
-	(WorktreeState)(0),                       // 5: soda.v2.WorktreeState
-	(SshChannelKind)(0),                      // 6: soda.v2.SshChannelKind
-	(EventKind)(0),                           // 7: soda.v2.EventKind
+	(ToolchainProfile)(0),                    // 1: soda.v2.ToolchainProfile
+	(JobState)(0),                            // 2: soda.v2.JobState
+	(RuntimeState)(0),                        // 3: soda.v2.RuntimeState
+	(WorktreeState)(0),                       // 4: soda.v2.WorktreeState
+	(SshChannelKind)(0),                      // 5: soda.v2.SshChannelKind
+	(EventKind)(0),                           // 6: soda.v2.EventKind
+	(StreamControl)(0),                       // 7: soda.v2.StreamControl
 	(*Person)(nil),                           // 8: soda.v2.Person
 	(*EmptyProjectSource)(nil),               // 9: soda.v2.EmptyProjectSource
 	(*GitProjectSource)(nil),                 // 10: soda.v2.GitProjectSource
@@ -4163,55 +4190,55 @@ var file_soda_v2_soda_proto_goTypes = []any{
 }
 var file_soda_v2_soda_proto_depIdxs = []int32{
 	0,  // 0: soda.v2.Person.role:type_name -> soda.v2.Role
-	1,  // 1: soda.v2.ProjectSource.kind:type_name -> soda.v2.ProjectSourceKind
-	9,  // 2: soda.v2.ProjectSource.empty:type_name -> soda.v2.EmptyProjectSource
-	10, // 3: soda.v2.ProjectSource.git:type_name -> soda.v2.GitProjectSource
-	2,  // 4: soda.v2.Project.profile:type_name -> soda.v2.ToolchainProfile
-	11, // 5: soda.v2.Project.source:type_name -> soda.v2.ProjectSource
-	2,  // 6: soda.v2.ToolchainInstallation.profile:type_name -> soda.v2.ToolchainProfile
-	3,  // 7: soda.v2.ToolchainInstallation.state:type_name -> soda.v2.JobState
-	3,  // 8: soda.v2.ProvisioningJob.state:type_name -> soda.v2.JobState
-	4,  // 9: soda.v2.ServiceStatus.state:type_name -> soda.v2.RuntimeState
-	67, // 10: soda.v2.HostStatus.sampled_at:type_name -> google.protobuf.Timestamp
-	4,  // 11: soda.v2.HostStatus.overall:type_name -> soda.v2.RuntimeState
-	19, // 12: soda.v2.HostStatus.services:type_name -> soda.v2.ServiceStatus
-	20, // 13: soda.v2.HostStatus.interfaces:type_name -> soda.v2.NetworkInterface
-	22, // 14: soda.v2.HostStatus.load_average:type_name -> soda.v2.LoadAverage
-	21, // 15: soda.v2.HostStatus.filesystems:type_name -> soda.v2.FilesystemStatus
-	4,  // 16: soda.v2.HostStatus.ssh_observer:type_name -> soda.v2.RuntimeState
-	4,  // 17: soda.v2.HostStatus.git_observer:type_name -> soda.v2.RuntimeState
-	5,  // 18: soda.v2.WorktreeStatus.state:type_name -> soda.v2.WorktreeState
-	6,  // 19: soda.v2.SshChannel.kind:type_name -> soda.v2.SshChannelKind
-	67, // 20: soda.v2.ActiveSshConnection.connected_at:type_name -> google.protobuf.Timestamp
-	25, // 21: soda.v2.ActiveSshConnection.channels:type_name -> soda.v2.SshChannel
-	7,  // 22: soda.v2.SodaEvent.kind:type_name -> soda.v2.EventKind
-	0,  // 23: soda.v2.CreatePersonRequest.role:type_name -> soda.v2.Role
-	8,  // 24: soda.v2.CreatePersonResponse.person:type_name -> soda.v2.Person
-	0,  // 25: soda.v2.ImportPersonRequest.role:type_name -> soda.v2.Role
-	8,  // 26: soda.v2.ImportPersonResponse.person:type_name -> soda.v2.Person
-	8,  // 27: soda.v2.ListPeopleResponse.people:type_name -> soda.v2.Person
-	2,  // 28: soda.v2.CreateProjectRequest.profile:type_name -> soda.v2.ToolchainProfile
-	11, // 29: soda.v2.CreateProjectRequest.source:type_name -> soda.v2.ProjectSource
-	12, // 30: soda.v2.CreateProjectResponse.project:type_name -> soda.v2.Project
-	12, // 31: soda.v2.ListProjectsResponse.projects:type_name -> soda.v2.Project
-	12, // 32: soda.v2.ListProjectsForPersonResponse.projects:type_name -> soda.v2.Project
-	13, // 33: soda.v2.AddCollaboratorResponse.membership:type_name -> soda.v2.Membership
-	14, // 34: soda.v2.AddCollaboratorResponse.worktree:type_name -> soda.v2.Worktree
-	8,  // 35: soda.v2.Collaborator.person:type_name -> soda.v2.Person
-	13, // 36: soda.v2.Collaborator.membership:type_name -> soda.v2.Membership
-	14, // 37: soda.v2.Collaborator.worktrees:type_name -> soda.v2.Worktree
-	45, // 38: soda.v2.ListCollaboratorsResponse.collaborators:type_name -> soda.v2.Collaborator
-	14, // 39: soda.v2.CreateWorktreeResponse.worktree:type_name -> soda.v2.Worktree
-	14, // 40: soda.v2.ListWorktreesResponse.worktrees:type_name -> soda.v2.Worktree
-	18, // 41: soda.v2.GetDeployKeyResponse.deploy_key:type_name -> soda.v2.DeployKey
-	15, // 42: soda.v2.GetProjectToolchainResponse.installation:type_name -> soda.v2.ToolchainInstallation
-	16, // 43: soda.v2.GetProjectToolchainResponse.resolution:type_name -> soda.v2.ProjectToolchainResolution
-	17, // 44: soda.v2.StartProvisioningResponse.job:type_name -> soda.v2.ProvisioningJob
-	17, // 45: soda.v2.ListProvisioningJobsResponse.jobs:type_name -> soda.v2.ProvisioningJob
-	23, // 46: soda.v2.GetHostStatusResponse.host:type_name -> soda.v2.HostStatus
-	24, // 47: soda.v2.ListWorktreeStatusesResponse.worktrees:type_name -> soda.v2.WorktreeStatus
-	26, // 48: soda.v2.ListActiveSshConnectionsResponse.connections:type_name -> soda.v2.ActiveSshConnection
-	27, // 49: soda.v2.SubscribeEventsResponse.event:type_name -> soda.v2.SodaEvent
+	9,  // 1: soda.v2.ProjectSource.empty:type_name -> soda.v2.EmptyProjectSource
+	10, // 2: soda.v2.ProjectSource.git:type_name -> soda.v2.GitProjectSource
+	1,  // 3: soda.v2.Project.profile:type_name -> soda.v2.ToolchainProfile
+	11, // 4: soda.v2.Project.source:type_name -> soda.v2.ProjectSource
+	1,  // 5: soda.v2.ToolchainInstallation.profile:type_name -> soda.v2.ToolchainProfile
+	2,  // 6: soda.v2.ToolchainInstallation.state:type_name -> soda.v2.JobState
+	2,  // 7: soda.v2.ProvisioningJob.state:type_name -> soda.v2.JobState
+	3,  // 8: soda.v2.ServiceStatus.state:type_name -> soda.v2.RuntimeState
+	67, // 9: soda.v2.HostStatus.sampled_at:type_name -> google.protobuf.Timestamp
+	3,  // 10: soda.v2.HostStatus.overall:type_name -> soda.v2.RuntimeState
+	19, // 11: soda.v2.HostStatus.services:type_name -> soda.v2.ServiceStatus
+	20, // 12: soda.v2.HostStatus.interfaces:type_name -> soda.v2.NetworkInterface
+	22, // 13: soda.v2.HostStatus.load_average:type_name -> soda.v2.LoadAverage
+	21, // 14: soda.v2.HostStatus.filesystems:type_name -> soda.v2.FilesystemStatus
+	3,  // 15: soda.v2.HostStatus.ssh_observer:type_name -> soda.v2.RuntimeState
+	3,  // 16: soda.v2.HostStatus.git_observer:type_name -> soda.v2.RuntimeState
+	4,  // 17: soda.v2.WorktreeStatus.state:type_name -> soda.v2.WorktreeState
+	5,  // 18: soda.v2.SshChannel.kind:type_name -> soda.v2.SshChannelKind
+	67, // 19: soda.v2.ActiveSshConnection.connected_at:type_name -> google.protobuf.Timestamp
+	25, // 20: soda.v2.ActiveSshConnection.channels:type_name -> soda.v2.SshChannel
+	6,  // 21: soda.v2.SodaEvent.kind:type_name -> soda.v2.EventKind
+	0,  // 22: soda.v2.CreatePersonRequest.role:type_name -> soda.v2.Role
+	8,  // 23: soda.v2.CreatePersonResponse.person:type_name -> soda.v2.Person
+	0,  // 24: soda.v2.ImportPersonRequest.role:type_name -> soda.v2.Role
+	8,  // 25: soda.v2.ImportPersonResponse.person:type_name -> soda.v2.Person
+	8,  // 26: soda.v2.ListPeopleResponse.people:type_name -> soda.v2.Person
+	1,  // 27: soda.v2.CreateProjectRequest.profile:type_name -> soda.v2.ToolchainProfile
+	11, // 28: soda.v2.CreateProjectRequest.source:type_name -> soda.v2.ProjectSource
+	12, // 29: soda.v2.CreateProjectResponse.project:type_name -> soda.v2.Project
+	12, // 30: soda.v2.ListProjectsResponse.projects:type_name -> soda.v2.Project
+	12, // 31: soda.v2.ListProjectsForPersonResponse.projects:type_name -> soda.v2.Project
+	13, // 32: soda.v2.AddCollaboratorResponse.membership:type_name -> soda.v2.Membership
+	14, // 33: soda.v2.AddCollaboratorResponse.worktree:type_name -> soda.v2.Worktree
+	8,  // 34: soda.v2.Collaborator.person:type_name -> soda.v2.Person
+	13, // 35: soda.v2.Collaborator.membership:type_name -> soda.v2.Membership
+	14, // 36: soda.v2.Collaborator.worktrees:type_name -> soda.v2.Worktree
+	45, // 37: soda.v2.ListCollaboratorsResponse.collaborators:type_name -> soda.v2.Collaborator
+	14, // 38: soda.v2.CreateWorktreeResponse.worktree:type_name -> soda.v2.Worktree
+	14, // 39: soda.v2.ListWorktreesResponse.worktrees:type_name -> soda.v2.Worktree
+	18, // 40: soda.v2.GetDeployKeyResponse.deploy_key:type_name -> soda.v2.DeployKey
+	15, // 41: soda.v2.GetProjectToolchainResponse.installation:type_name -> soda.v2.ToolchainInstallation
+	16, // 42: soda.v2.GetProjectToolchainResponse.resolution:type_name -> soda.v2.ProjectToolchainResolution
+	17, // 43: soda.v2.StartProvisioningResponse.job:type_name -> soda.v2.ProvisioningJob
+	17, // 44: soda.v2.ListProvisioningJobsResponse.jobs:type_name -> soda.v2.ProvisioningJob
+	23, // 45: soda.v2.GetHostStatusResponse.host:type_name -> soda.v2.HostStatus
+	24, // 46: soda.v2.ListWorktreeStatusesResponse.worktrees:type_name -> soda.v2.WorktreeStatus
+	26, // 47: soda.v2.ListActiveSshConnectionsResponse.connections:type_name -> soda.v2.ActiveSshConnection
+	27, // 48: soda.v2.SubscribeEventsResponse.event:type_name -> soda.v2.SodaEvent
+	7,  // 49: soda.v2.SubscribeEventsResponse.control:type_name -> soda.v2.StreamControl
 	28, // 50: soda.v2.SodaService.Health:input_type -> soda.v2.HealthRequest
 	30, // 51: soda.v2.SodaService.CreatePerson:input_type -> soda.v2.CreatePersonRequest
 	32, // 52: soda.v2.SodaService.ImportPerson:input_type -> soda.v2.ImportPersonRequest
@@ -4271,6 +4298,10 @@ func file_soda_v2_soda_proto_init() {
 	file_soda_v2_soda_proto_msgTypes[16].OneofWrappers = []any{}
 	file_soda_v2_soda_proto_msgTypes[19].OneofWrappers = []any{}
 	file_soda_v2_soda_proto_msgTypes[57].OneofWrappers = []any{}
+	file_soda_v2_soda_proto_msgTypes[58].OneofWrappers = []any{
+		(*SubscribeEventsResponse_Event)(nil),
+		(*SubscribeEventsResponse_Control)(nil),
+	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{

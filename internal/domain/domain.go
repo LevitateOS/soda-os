@@ -23,17 +23,19 @@ type Person struct {
 	SSHPublicKey string
 }
 
-type ProjectSourceKind string
+type ProjectSource interface {
+	isProjectSource()
+}
 
-const (
-	ProjectSourceEmpty ProjectSourceKind = "empty"
-	ProjectSourceGit   ProjectSourceKind = "git"
-)
+type EmptyProjectSource struct{}
 
-type ProjectSource struct {
-	Kind      ProjectSourceKind
+func (EmptyProjectSource) isProjectSource() {}
+
+type GitProjectSource struct {
 	RemoteURL string
 }
+
+func (GitProjectSource) isProjectSource() {}
 
 type ToolchainProfile string
 

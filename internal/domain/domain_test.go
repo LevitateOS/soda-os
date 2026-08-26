@@ -14,3 +14,9 @@ func TestParseID(t *testing.T) {
 	_, err = ParseID("not-an-id")
 	require.Error(t, err)
 }
+
+func TestProjectSourceVariants(t *testing.T) {
+	require.NoError(t, ValidateProjectSource(EmptyProjectSource{}))
+	require.NoError(t, ValidateProjectSource(GitProjectSource{RemoteURL: "git@example.com:team/project.git"}))
+	require.Error(t, ValidateProjectSource(nil))
+}

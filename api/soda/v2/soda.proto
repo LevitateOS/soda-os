@@ -42,12 +42,6 @@ enum Role {
   ROLE_DEVELOPER = 2;
 }
 
-enum ProjectSourceKind {
-  PROJECT_SOURCE_KIND_UNSPECIFIED = 0;
-  PROJECT_SOURCE_KIND_EMPTY = 1;
-  PROJECT_SOURCE_KIND_GIT = 2;
-}
-
 enum ToolchainProfile {
   TOOLCHAIN_PROFILE_UNSPECIFIED = 0;
   TOOLCHAIN_PROFILE_WEB = 1;
@@ -95,6 +89,11 @@ enum EventKind {
   EVENT_KIND_SESSIONS_CHANGED = 7;
 }
 
+enum StreamControl {
+  STREAM_CONTROL_UNSPECIFIED = 0;
+  STREAM_CONTROL_REFRESH = 1;
+}
+
 message Person {
   string id = 1;
   string username = 2;
@@ -111,10 +110,9 @@ message GitProjectSource {
 }
 
 message ProjectSource {
-  ProjectSourceKind kind = 1;
   oneof source {
-    EmptyProjectSource empty = 2;
-    GitProjectSource git = 3;
+    EmptyProjectSource empty = 1;
+    GitProjectSource git = 2;
   }
 }
 
@@ -409,5 +407,8 @@ message SubscribeEventsRequest {
 }
 
 message SubscribeEventsResponse {
-  SodaEvent event = 1;
+  oneof payload {
+    SodaEvent event = 1;
+    StreamControl control = 2;
+  }
 }
