@@ -211,6 +211,7 @@ impl Builder {
         ensure!(
             profile.contains("profile_id = sodaos")
                 && profile.contains("base_profile = rocky")
+                && profile.contains("efi_dir = rocky")
                 && profile.contains("custom_stylesheet = /usr/share/anaconda/pixmaps/soda.css")
                 && profile.contains("user (quality 1, length 6)")
                 && !profile.contains("strict"),
