@@ -1,11 +1,11 @@
 schema_version = 1
 
 [[asset]]
-source = "assets/branding/source/soda-logo-horizontal.svg"
+source = "assets/branding/source/soda-logo-white.svg"
 output = "assets/branding/installer/sidebar-logo.png"
 width = 114
 height = 36
-sha256 = "21652cdedcc483021abf7f874a96407fe10cbc05acf3208ab0dac28aa7a22848"
+sha256 = "7d81cc6abafc6e3f7b82bf925b31dc39500f6f8e1ed6290b6bea8dd067a62835"
 
 [[asset]]
 source = "assets/branding/source/sidebar-bg.svg"

@@ -1,0 +1,9 @@
+[Main]
+Product=Soda OS
+Version=0.1.0
+BugURL=
+IsFinal=True
+UUID=SodaOS-0.1.0.aarch64
+Variant=BaseOS
+[Compose]
+Lorax=40.5.15-1

@@ -211,7 +211,9 @@ impl Builder {
         ensure!(
             profile.contains("profile_id = sodaos")
                 && profile.contains("base_profile = rocky")
-                && profile.contains("custom_stylesheet = /usr/share/anaconda/pixmaps/soda.css"),
+                && profile.contains("custom_stylesheet = /usr/share/anaconda/pixmaps/soda.css")
+                && profile.contains("user (quality 1, length 6)")
+                && !profile.contains("strict"),
             "Soda Anaconda profile is incomplete"
         );
         for spoke in &upstream.spokes.hidden {
@@ -240,6 +242,7 @@ impl Builder {
             );
         }
         for path in [
+            "packaging/anaconda/product/.buildstamp",
             "packaging/anaconda/product/etc/os-release",
             "packaging/anaconda/product/usr/lib/os-release",
             "packaging/anaconda/product/usr/share/anaconda/pixmaps/soda.css",
@@ -563,10 +566,6 @@ impl Builder {
             "replay".to_owned(),
             "-volid".to_owned(),
             self.spec.installer.volume_id.clone(),
-            "-append_partition".to_owned(),
-            "2".to_owned(),
-            "C12A7328-F81F-11D2-BA4B-00A0C93EC93B".to_owned(),
-            self.container_path(&efiboot)?,
         ];
         for (disk, iso) in [
             (overlay.join(".treeinfo"), "/.treeinfo"),
@@ -700,6 +699,7 @@ impl Builder {
             self.container_path(&product_image)?,
         ])?;
         for required in [
+            ".buildstamp",
             "etc/anaconda/profile.d/sodaos.conf",
             "etc/os-release",
             "usr/lib/os-release",
