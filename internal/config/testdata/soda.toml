@@ -1,0 +1,46 @@
+schema_version = 3
+
+[identity]
+name = "Soda OS"
+id = "sodaos"
+version = "0.2.0"
+hostname = "soda"
+architecture = "aarch64"
+
+[base]
+distribution = "rocky"
+installer_source_version = "10.2"
+package_stream = "10"
+source_iso = "isos/Rocky.iso"
+source_iso_sha256 = "fixture"
+checksum_file = "CHECKSUM"
+signature_file = "CHECKSUM.asc"
+
+[installer]
+profile_id = "sodaos"
+anaconda_gui_nevra = "anaconda-gui-fixture.aarch64"
+volume_id = "SodaOS-0-2-0-aarch64"
+boot_timeout_seconds = 10
+branding_manifest = "branding.toml"
+upstream_manifest = "upstream.toml"
+
+[installer.payload]
+mode = "network"
+baseos_mirrorlist = "https://example.invalid/baseos"
+appstream_mirrorlist = "https://example.invalid/appstream"
+install_weak_dependencies = false
+max_iso_size_bytes = 1342177280
+environment = "minimal-environment"
+packages = ["git"]
+automated_extra_packages = ["curl"]
+anaconda_required_packages = ["kernel"]
+
+[network]
+cockpit_port = 9090
+mdns_name = "soda.local"
+
+[paths]
+state_dir = "/var/lib/soda"
+projects_dir = "/srv/soda/projects"
+toolchains_dir = "/opt/soda/toolchains"
+daemon_socket = "/run/soda/sodad.sock"

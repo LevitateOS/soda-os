@@ -1,0 +1,413 @@
+syntax = "proto3";
+
+package soda.v2;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/LevitateOS/soda-os/internal/gen/soda/v2;sodav2";
+
+service SodaService {
+  rpc Health(HealthRequest) returns (HealthResponse);
+
+  rpc CreatePerson(CreatePersonRequest) returns (CreatePersonResponse);
+  rpc ImportPerson(ImportPersonRequest) returns (ImportPersonResponse);
+  rpc ListPeople(ListPeopleRequest) returns (ListPeopleResponse);
+
+  rpc CreateProject(CreateProjectRequest) returns (CreateProjectResponse);
+  rpc ListProjects(ListProjectsRequest) returns (ListProjectsResponse);
+  rpc ListProjectsForPerson(ListProjectsForPersonRequest) returns (ListProjectsForPersonResponse);
+
+  rpc AddCollaborator(AddCollaboratorRequest) returns (AddCollaboratorResponse);
+  rpc ListCollaborators(ListCollaboratorsRequest) returns (ListCollaboratorsResponse);
+
+  rpc CreateWorktree(CreateWorktreeRequest) returns (CreateWorktreeResponse);
+  rpc ListWorktrees(ListWorktreesRequest) returns (ListWorktreesResponse);
+
+  rpc GetDeployKey(GetDeployKeyRequest) returns (GetDeployKeyResponse);
+  rpc GetProjectToolchain(GetProjectToolchainRequest) returns (GetProjectToolchainResponse);
+
+  rpc StartProvisioning(StartProvisioningRequest) returns (StartProvisioningResponse);
+  rpc ListProvisioningJobs(ListProvisioningJobsRequest) returns (ListProvisioningJobsResponse);
+
+  rpc GetHostStatus(GetHostStatusRequest) returns (GetHostStatusResponse);
+  rpc ListWorktreeStatuses(ListWorktreeStatusesRequest) returns (ListWorktreeStatusesResponse);
+  rpc ListActiveSshConnections(ListActiveSshConnectionsRequest) returns (ListActiveSshConnectionsResponse);
+
+  rpc SubscribeEvents(SubscribeEventsRequest) returns (stream SubscribeEventsResponse);
+}
+
+enum Role {
+  ROLE_UNSPECIFIED = 0;
+  ROLE_ADMIN = 1;
+  ROLE_DEVELOPER = 2;
+}
+
+enum ProjectSourceKind {
+  PROJECT_SOURCE_KIND_UNSPECIFIED = 0;
+  PROJECT_SOURCE_KIND_EMPTY = 1;
+  PROJECT_SOURCE_KIND_GIT = 2;
+}
+
+enum ToolchainProfile {
+  TOOLCHAIN_PROFILE_UNSPECIFIED = 0;
+  TOOLCHAIN_PROFILE_WEB = 1;
+  TOOLCHAIN_PROFILE_PYTHON = 2;
+  TOOLCHAIN_PROFILE_RUST = 3;
+  TOOLCHAIN_PROFILE_GO = 4;
+}
+
+enum JobState {
+  JOB_STATE_UNSPECIFIED = 0;
+  JOB_STATE_INSTALLING = 1;
+  JOB_STATE_READY = 2;
+  JOB_STATE_FAILED = 3;
+}
+
+enum RuntimeState {
+  RUNTIME_STATE_UNSPECIFIED = 0;
+  RUNTIME_STATE_READY = 1;
+  RUNTIME_STATE_DEGRADED = 2;
+  RUNTIME_STATE_UNAVAILABLE = 3;
+}
+
+enum WorktreeState {
+  WORKTREE_STATE_UNSPECIFIED = 0;
+  WORKTREE_STATE_CLEAN = 1;
+  WORKTREE_STATE_DIRTY = 2;
+  WORKTREE_STATE_UNAVAILABLE = 3;
+}
+
+enum SshChannelKind {
+  SSH_CHANNEL_KIND_UNSPECIFIED = 0;
+  SSH_CHANNEL_KIND_INTERACTIVE = 1;
+  SSH_CHANNEL_KIND_COMMAND = 2;
+  SSH_CHANNEL_KIND_SFTP = 3;
+}
+
+enum EventKind {
+  EVENT_KIND_UNSPECIFIED = 0;
+  EVENT_KIND_HOST_CHANGED = 1;
+  EVENT_KIND_PEOPLE_CHANGED = 2;
+  EVENT_KIND_PROJECTS_CHANGED = 3;
+  EVENT_KIND_WORKTREES_CHANGED = 4;
+  EVENT_KIND_PROVISIONING_CHANGED = 5;
+  EVENT_KIND_GIT_CHANGED = 6;
+  EVENT_KIND_SESSIONS_CHANGED = 7;
+}
+
+message Person {
+  string id = 1;
+  string username = 2;
+  string display_name = 3;
+  string email = 4;
+  Role role = 5;
+  string ssh_public_key = 6;
+}
+
+message EmptyProjectSource {}
+
+message GitProjectSource {
+  string remote_url = 1;
+}
+
+message ProjectSource {
+  ProjectSourceKind kind = 1;
+  oneof source {
+    EmptyProjectSource empty = 2;
+    GitProjectSource git = 3;
+  }
+}
+
+message Project {
+  string id = 1;
+  string slug = 2;
+  string name = 3;
+  string unix_user = 4;
+  ToolchainProfile profile = 5;
+  ProjectSource source = 6;
+}
+
+message Membership {
+  string project_id = 1;
+  string person_id = 2;
+}
+
+message Worktree {
+  string id = 1;
+  string project_id = 2;
+  string person_id = 3;
+  string name = 4;
+  string branch = 5;
+  string path = 6;
+}
+
+message ToolchainInstallation {
+  string id = 1;
+  ToolchainProfile profile = 2;
+  string version = 3;
+  string path = 4;
+  string checksum = 5;
+  JobState state = 6;
+}
+
+message ProjectToolchainResolution {
+  string project_id = 1;
+  string toolchain_installation_id = 2;
+}
+
+message ProvisioningJob {
+  string id = 1;
+  string project_id = 2;
+  JobState state = 3;
+  optional string error = 4;
+}
+
+message DeployKey {
+  string project_id = 1;
+  string public_key = 2;
+}
+
+message ServiceStatus {
+  string name = 1;
+  RuntimeState state = 2;
+}
+
+message NetworkInterface {
+  string name = 1;
+  repeated string addresses = 2;
+}
+
+message FilesystemStatus {
+  string path = 1;
+  uint64 total_bytes = 2;
+  uint64 available_bytes = 3;
+}
+
+message LoadAverage {
+  double one_minute = 1;
+  double five_minutes = 2;
+  double fifteen_minutes = 3;
+}
+
+message HostStatus {
+  google.protobuf.Timestamp sampled_at = 1;
+  RuntimeState overall = 2;
+  repeated ServiceStatus services = 3;
+  bool ssh_firewall_ready = 4;
+  bool cockpit_firewall_ready = 5;
+  repeated NetworkInterface interfaces = 6;
+  optional double cpu_percent = 7;
+  LoadAverage load_average = 8;
+  uint64 uptime_seconds = 9;
+  uint64 memory_total_bytes = 10;
+  uint64 memory_available_bytes = 11;
+  repeated FilesystemStatus filesystems = 12;
+  RuntimeState ssh_observer = 13;
+  RuntimeState git_observer = 14;
+}
+
+message WorktreeStatus {
+  string worktree_id = 1;
+  string branch = 2;
+  string short_commit = 3;
+  optional string upstream = 4;
+  uint64 ahead = 5;
+  uint64 behind = 6;
+  uint64 staged = 7;
+  uint64 modified = 8;
+  uint64 untracked = 9;
+  uint64 conflicted = 10;
+  WorktreeState state = 11;
+  optional string error = 12;
+}
+
+message SshChannel {
+  SshChannelKind kind = 1;
+  string worktree_id = 2;
+}
+
+message ActiveSshConnection {
+  string id = 1;
+  string project_id = 2;
+  string person_id = 3;
+  google.protobuf.Timestamp connected_at = 4;
+  string client_address = 5;
+  uint32 client_port = 6;
+  string server_address = 7;
+  uint32 server_port = 8;
+  repeated SshChannel channels = 9;
+}
+
+message SodaEvent {
+  EventKind kind = 1;
+  optional string project_id = 2;
+  uint64 sequence = 3;
+}
+
+message HealthRequest {}
+
+message HealthResponse {
+  string status = 1;
+  string service = 2;
+  string version = 3;
+}
+
+message CreatePersonRequest {
+  string username = 1;
+  string display_name = 2;
+  string email = 3;
+  Role role = 4;
+  string ssh_public_key = 5;
+  string password = 6;
+}
+
+message CreatePersonResponse {
+  Person person = 1;
+}
+
+message ImportPersonRequest {
+  string username = 1;
+  string display_name = 2;
+  string email = 3;
+  Role role = 4;
+  string ssh_public_key = 5;
+}
+
+message ImportPersonResponse {
+  Person person = 1;
+}
+
+message ListPeopleRequest {}
+
+message ListPeopleResponse {
+  repeated Person people = 1;
+}
+
+message CreateProjectRequest {
+  string slug = 1;
+  string name = 2;
+  ToolchainProfile profile = 3;
+  ProjectSource source = 4;
+}
+
+message CreateProjectResponse {
+  Project project = 1;
+}
+
+message ListProjectsRequest {}
+
+message ListProjectsResponse {
+  repeated Project projects = 1;
+}
+
+message ListProjectsForPersonRequest {
+  string person_id = 1;
+}
+
+message ListProjectsForPersonResponse {
+  repeated Project projects = 1;
+}
+
+message AddCollaboratorRequest {
+  string project_id = 1;
+  string person_id = 2;
+}
+
+message AddCollaboratorResponse {
+  Membership membership = 1;
+  Worktree worktree = 2;
+}
+
+message ListCollaboratorsRequest {
+  string project_id = 1;
+}
+
+message Collaborator {
+  Person person = 1;
+  Membership membership = 2;
+  repeated Worktree worktrees = 3;
+}
+
+message ListCollaboratorsResponse {
+  repeated Collaborator collaborators = 1;
+}
+
+message CreateWorktreeRequest {
+  string project_id = 1;
+  string person_id = 2;
+  string name = 3;
+  string base_ref = 4;
+}
+
+message CreateWorktreeResponse {
+  Worktree worktree = 1;
+}
+
+message ListWorktreesRequest {
+  string project_id = 1;
+}
+
+message ListWorktreesResponse {
+  repeated Worktree worktrees = 1;
+}
+
+message GetDeployKeyRequest {
+  string project_id = 1;
+}
+
+message GetDeployKeyResponse {
+  DeployKey deploy_key = 1;
+}
+
+message GetProjectToolchainRequest {
+  string project_id = 1;
+}
+
+message GetProjectToolchainResponse {
+  ToolchainInstallation installation = 1;
+  ProjectToolchainResolution resolution = 2;
+}
+
+message StartProvisioningRequest {
+  string project_id = 1;
+}
+
+message StartProvisioningResponse {
+  ProvisioningJob job = 1;
+}
+
+message ListProvisioningJobsRequest {
+  string project_id = 1;
+}
+
+message ListProvisioningJobsResponse {
+  repeated ProvisioningJob jobs = 1;
+}
+
+message GetHostStatusRequest {}
+
+message GetHostStatusResponse {
+  HostStatus host = 1;
+}
+
+message ListWorktreeStatusesRequest {
+  string project_id = 1;
+}
+
+message ListWorktreeStatusesResponse {
+  repeated WorktreeStatus worktrees = 1;
+}
+
+message ListActiveSshConnectionsRequest {}
+
+message ListActiveSshConnectionsResponse {
+  repeated ActiveSshConnection connections = 1;
+}
+
+message SubscribeEventsRequest {
+  optional string project_id = 1;
+}
+
+message SubscribeEventsResponse {
+  SodaEvent event = 1;
+}
