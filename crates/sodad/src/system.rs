@@ -1,6 +1,7 @@
 use std::{
     fs::{self, OpenOptions},
     io::Write,
+    os::unix::fs::PermissionsExt,
     path::{Path, PathBuf},
     process::{Command, Stdio},
 };
@@ -11,6 +12,7 @@ use crate::error::{AppError, Result};
 
 pub trait SystemOps: Send + Sync {
     fn create_person(&self, person: &Person, password: &str) -> Result<()>;
+    fn import_person(&self, person: &Person) -> Result<()>;
     fn create_project(&self, project: &Project) -> Result<()>;
     fn ensure_repository(&self, project: &Project) -> Result<()>;
     fn create_worktree(
@@ -20,6 +22,7 @@ pub trait SystemOps: Send + Sync {
         worktree: &Worktree,
         base_ref: &str,
     ) -> Result<()>;
+    fn write_project_environment(&self, project: &Project, contents: &str) -> Result<()>;
 }
 
 #[derive(Debug, Clone)]
@@ -99,6 +102,28 @@ impl SystemOps for HostSystem {
         Ok(())
     }
 
+    fn import_person(&self, person: &Person) -> Result<()> {
+        validate_key(&person.ssh_public_key)?;
+        if !self.manage_accounts {
+            return Ok(());
+        }
+        let status = Command::new("getent")
+            .args(["passwd", &person.username])
+            .status()?;
+        if !status.success() {
+            return Err(AppError::NotFound(format!(
+                "Linux account {}",
+                person.username
+            )));
+        }
+        self.ensure_groups()?;
+        let role_group = match person.role {
+            Role::Admin => "soda-admins",
+            Role::Developer => "soda-developers",
+        };
+        run(Command::new("usermod").args(["--append", "--groups", role_group, &person.username]))
+    }
+
     fn create_project(&self, project: &Project) -> Result<()> {
         let root = self.project_root(project);
         if self.manage_accounts {
@@ -108,7 +133,7 @@ impl SystemOps for HostSystem {
                 "--home-dir",
                 &root.display().to_string(),
                 "--shell",
-                "/usr/libexec/soda/soda-ssh",
+                "/bin/bash",
                 &project.unix_user,
             ]))?;
         } else {
@@ -117,6 +142,7 @@ impl SystemOps for HostSystem {
 
         let ssh_dir = root.join(".ssh");
         fs::create_dir_all(&ssh_dir)?;
+        fs::set_permissions(&ssh_dir, fs::Permissions::from_mode(0o700))?;
         run(Command::new("ssh-keygen").args([
             "-q",
             "-t",
@@ -128,12 +154,17 @@ impl SystemOps for HostSystem {
             "-f",
             &ssh_dir.join("deploy_key").display().to_string(),
         ]))?;
+        let authorized_keys = ssh_dir.join("authorized_keys");
         OpenOptions::new()
             .create(true)
             .append(true)
-            .open(ssh_dir.join("authorized_keys"))?;
+            .open(&authorized_keys)?;
+        fs::set_permissions(&authorized_keys, fs::Permissions::from_mode(0o600))?;
         if project.source == ProjectSource::Empty {
             initialize_empty_repository(&self.repository(project))?;
+        }
+        if self.manage_accounts {
+            run(Command::new("restorecon").args(["-R", &root.display().to_string()]))?;
         }
         self.chown_project(project, &root)?;
         Ok(())
@@ -178,6 +209,7 @@ impl SystemOps for HostSystem {
         let path = Path::new(&worktree.path);
         if let Some(parent) = path.parent() {
             fs::create_dir_all(parent)?;
+            self.chown_project(project, parent)?;
         }
         run(Command::new("git").args([
             "--git-dir",
@@ -195,6 +227,14 @@ impl SystemOps for HostSystem {
             "config",
             "extensions.worktreeConfig",
             "true",
+        ]))?;
+        run(Command::new("git").args([
+            "-C",
+            &worktree.path,
+            "config",
+            "--worktree",
+            "core.bare",
+            "false",
         ]))?;
         run(Command::new("git").args([
             "-C",
@@ -223,9 +263,17 @@ impl SystemOps for HostSystem {
             "command=\"/usr/libexec/soda/soda-ssh --actor {} --worktree {}\" {}",
             person.username, worktree.path, person.ssh_public_key
         )?;
+        self.chown_project(project, &repository)?;
         self.chown_project(project, path)?;
         self.chown_project(project, &authorized_keys)?;
         Ok(())
+    }
+
+    fn write_project_environment(&self, project: &Project, contents: &str) -> Result<()> {
+        let soda_dir = self.project_root(project).join(".soda");
+        fs::create_dir_all(&soda_dir)?;
+        fs::write(soda_dir.join("env"), contents)?;
+        self.chown_project(project, &soda_dir)
     }
 }
 

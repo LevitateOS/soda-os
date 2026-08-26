@@ -1,7 +1,7 @@
 [Unit]
 Description=Soda OS development cockpit
-After=network-online.target sodad.service
-Wants=network-online.target sodad.service
+After=network-online.target sodad.service soda-authd.service
+Wants=network-online.target sodad.service soda-authd.service
 
 [Service]
 Type=simple

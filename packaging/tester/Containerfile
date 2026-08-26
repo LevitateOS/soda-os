@@ -1,0 +1,10 @@
+FROM rockylinux/rockylinux:10
+
+RUN dnf -y install \
+      edk2-aarch64 \
+      openssh-clients \
+      qemu-img \
+      qemu-kvm \
+    && dnf clean all
+
+WORKDIR /src

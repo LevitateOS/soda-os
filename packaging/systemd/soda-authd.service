@@ -1,0 +1,16 @@
+[Unit]
+Description=Soda OS PAM authentication helper
+After=local-fs.target
+Before=soda-cockpit.service
+
+[Service]
+Type=simple
+Group=soda-api
+ExecStart=/usr/libexec/soda/soda-authd
+Restart=on-failure
+RuntimeDirectory=soda
+RuntimeDirectoryMode=0770
+UMask=0007
+
+[Install]
+WantedBy=multi-user.target

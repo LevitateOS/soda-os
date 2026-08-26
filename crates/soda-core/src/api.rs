@@ -13,6 +13,15 @@ pub struct CreatePersonRequest {
     pub password: String,
 }
 
+#[derive(Clone, Serialize, Deserialize)]
+pub struct ImportPersonRequest {
+    pub username: String,
+    pub display_name: String,
+    pub email: String,
+    pub role: Role,
+    pub ssh_public_key: String,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateProjectRequest {
     pub slug: String,

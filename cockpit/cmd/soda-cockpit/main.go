@@ -15,11 +15,12 @@ func main() {
 	certFile := envOr("SODA_COCKPIT_CERT", "/var/lib/soda/certs/cockpit.crt")
 	keyFile := envOr("SODA_COCKPIT_KEY", "/var/lib/soda/certs/cockpit.key")
 	socket := envOr("SODA_SOCKET", "/run/soda/sodad.sock")
+	pamSocket := envOr("SODA_PAM_SOCKET", "/run/soda/pam.sock")
 
 	if err := cert.Ensure(certFile, keyFile); err != nil {
 		log.Fatal(err)
 	}
-	app, err := server.New(soda.NewClient(socket), auth.NewPAM())
+	app, err := server.New(soda.NewClient(socket), auth.NewClient(pamSocket))
 	if err != nil {
 		log.Fatal(err)
 	}

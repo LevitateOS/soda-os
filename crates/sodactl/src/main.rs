@@ -8,7 +8,7 @@ use hyper_util::rt::TokioIo;
 use serde::Serialize;
 use soda_core::{
     AddCollaboratorRequest, CreatePersonRequest, CreateProjectRequest, CreateWorktreeRequest,
-    ProjectSource, Role, ToolchainProfile,
+    ImportPersonRequest, ProjectSource, Role, ToolchainProfile,
 };
 use tokio::net::UnixStream;
 use uuid::Uuid;
@@ -52,6 +52,7 @@ enum Command {
 enum PeopleCommand {
     List,
     Add(AddPerson),
+    Import(AddPerson),
 }
 
 #[derive(Debug, Args)]
@@ -152,6 +153,19 @@ async fn main() -> anyhow::Result<()> {
                     password,
                 };
                 request_json(&cli.socket, Method::POST, "/v1/people", &body).await?
+            }
+            PeopleCommand::Import(args) => {
+                let body = ImportPersonRequest {
+                    username: args.username,
+                    display_name: args.display_name,
+                    email: args.email,
+                    role: match args.role {
+                        RoleArg::Admin => Role::Admin,
+                        RoleArg::Developer => Role::Developer,
+                    },
+                    ssh_public_key: std::fs::read_to_string(args.ssh_key)?.trim().to_owned(),
+                };
+                request_json(&cli.socket, Method::POST, "/v1/people/import", &body).await?
             }
         },
         Command::Projects { command } => match command {

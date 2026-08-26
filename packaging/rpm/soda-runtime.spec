@@ -3,13 +3,15 @@ Version:        0.1.0
 Release:        1%{?dist}
 Summary:        Soda OS project runtime
 License:        MIT OR Apache-2.0
-Requires:       git-core, openssh-server, shadow-utils, sqlite-libs
+Requires:       ca-certificates, gcc, gcc-c++, git-core, make, openssh-clients, openssh-server, policycoreutils, policycoreutils-python-utils, pkgconf-pkg-config, shadow-utils, sqlite-libs, tar, unzip, xz
 
 %description
 Privileged project daemon, administrator CLI, and SSH session gateway for Soda OS.
 
 %pre
 getent group soda-api >/dev/null || groupadd --system soda-api
+install -d -m 0755 /srv/soda /srv/soda/projects
+install -d -m 0755 /opt/soda /opt/soda/toolchains
 
 %install
 mkdir -p %{buildroot}%{_libexecdir}/soda %{buildroot}%{_bindir} %{buildroot}%{_unitdir}
@@ -20,6 +22,8 @@ install -m 0644 %{_sourcedir}/sodad.service %{buildroot}%{_unitdir}/sodad.servic
 
 %post
 %systemd_post sodad.service
+semanage fcontext -a -e /home /srv/soda/projects 2>/dev/null || :
+restorecon -RF /srv/soda/projects 2>/dev/null || :
 
 %preun
 %systemd_preun sodad.service

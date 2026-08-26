@@ -55,6 +55,7 @@ impl ToolchainManager {
 
     pub fn install(&self, profile: ToolchainProfile) -> Result<InstalledProfile> {
         fs::create_dir_all(&self.root)?;
+        fs::set_permissions(&self.root, fs::Permissions::from_mode(0o755))?;
         let lock = fs::File::create(self.root.join(format!(".{}.lock", profile.as_str())))?;
         lock.lock_exclusive()?;
         let artifacts = self.resolve(profile)?;
@@ -93,13 +94,11 @@ impl ToolchainManager {
                 "export RUSTUP_HOME={}",
                 rust_root.join("rustup").display()
             )?;
-            writeln!(
-                env,
-                "export CARGO_HOME={}",
-                rust_root.join("cargo").display()
-            )?;
         }
         writeln!(env, "export PATH={}:$PATH", paths.join(":"))?;
+        drop(env);
+        make_tree_readable(&profile_root)?;
+        make_ancestors_traversable(&self.root, &profile_root)?;
 
         Ok(InstalledProfile {
             version,
@@ -278,6 +277,8 @@ impl ToolchainManager {
     fn install_artifact(&self, artifact: &Artifact) -> Result<Vec<String>> {
         let destination = self.root.join(artifact.tool).join(&artifact.version);
         if destination.join(".ready").is_file() {
+            make_tree_readable(&destination)?;
+            make_ancestors_traversable(&self.root, &destination)?;
             return Ok(vec![
                 artifact_bin_path(artifact, &destination)
                     .display()
@@ -343,10 +344,14 @@ impl ToolchainManager {
                     .env("RUSTUP_HOME", &rustup_home)
                     .env("CARGO_HOME", &cargo_home))?;
                 fs::write(destination.join(".ready"), b"ready\n")?;
+                make_tree_readable(&destination)?;
+                make_ancestors_traversable(&self.root, &destination)?;
                 return Ok(vec![cargo_home.join("bin").display().to_string()]);
             }
         }
         fs::write(destination.join(".ready"), b"ready\n")?;
+        make_tree_readable(&destination)?;
+        make_ancestors_traversable(&self.root, &destination)?;
         Ok(vec![destination.join("bin").display().to_string()])
     }
 
@@ -362,6 +367,7 @@ impl ToolchainManager {
             .env("UV_PYTHON_INSTALL_DIR", &python_root))?;
         let bin = first_python_bin(&python_root)?;
         let version = command_output(Command::new(bin.join("python3")).arg("--version"))?;
+        make_tree_readable(&python_root)?;
         Ok((vec![bin.display().to_string()], version.trim().to_owned()))
     }
 
@@ -472,6 +478,43 @@ fn first_python_bin(root: &Path) -> Result<PathBuf> {
     ))
 }
 
+fn make_tree_readable(path: &Path) -> Result<()> {
+    let metadata = fs::symlink_metadata(path)?;
+    if metadata.file_type().is_symlink() {
+        return Ok(());
+    }
+
+    if metadata.is_dir() {
+        fs::set_permissions(path, fs::Permissions::from_mode(0o755))?;
+        for entry in fs::read_dir(path)? {
+            make_tree_readable(&entry?.path())?;
+        }
+    } else {
+        let mode = if metadata.permissions().mode() & 0o0111 != 0 {
+            0o755
+        } else {
+            0o644
+        };
+        fs::set_permissions(path, fs::Permissions::from_mode(mode))?;
+    }
+    Ok(())
+}
+
+fn make_ancestors_traversable(root: &Path, path: &Path) -> Result<()> {
+    let mut current = path.parent();
+    while let Some(directory) = current {
+        if !directory.starts_with(root) {
+            break;
+        }
+        fs::set_permissions(directory, fs::Permissions::from_mode(0o755))?;
+        if directory == root {
+            break;
+        }
+        current = directory.parent();
+    }
+    Ok(())
+}
+
 fn run(command: &mut Command) -> Result<()> {
     let display = format!("{command:?}");
     let output = command.output()?;
@@ -531,6 +574,59 @@ mod tests {
     }
 
     #[test]
+    fn completed_toolchain_tree_is_root_writable_and_session_readable() {
+        let temp = TempDir::new().expect("temp dir");
+        let cache = temp.path().join("cache");
+        let tool = cache.join("tool");
+        let version = tool.join("version");
+        let bin = version.join("bin");
+        fs::create_dir_all(&bin).expect("bin directory");
+        let executable = bin.join("tool");
+        fs::write(&executable, b"tool").expect("tool file");
+        fs::set_permissions(&cache, fs::Permissions::from_mode(0o770)).expect("cache permissions");
+        fs::set_permissions(&tool, fs::Permissions::from_mode(0o770)).expect("tool permissions");
+        fs::set_permissions(&bin, fs::Permissions::from_mode(0o770)).expect("bin permissions");
+        fs::set_permissions(&executable, fs::Permissions::from_mode(0o770))
+            .expect("tool permissions");
+
+        make_tree_readable(&version).expect("normalize tree permissions");
+        make_ancestors_traversable(&cache, &version).expect("normalize parent permissions");
+
+        assert_eq!(
+            fs::metadata(&cache)
+                .expect("cache metadata")
+                .permissions()
+                .mode()
+                & 0o777,
+            0o755
+        );
+        assert_eq!(
+            fs::metadata(&tool)
+                .expect("tool metadata")
+                .permissions()
+                .mode()
+                & 0o777,
+            0o755
+        );
+        assert_eq!(
+            fs::metadata(&bin)
+                .expect("bin metadata")
+                .permissions()
+                .mode()
+                & 0o777,
+            0o755
+        );
+        assert_eq!(
+            fs::metadata(&executable)
+                .expect("tool metadata")
+                .permissions()
+                .mode()
+                & 0o777,
+            0o755
+        );
+    }
+
+    #[test]
     #[ignore = "queries live publisher metadata"]
     fn resolves_all_live_profiles() {
         let temp = TempDir::new().expect("temp dir");
@@ -561,6 +657,9 @@ mod tests {
         ] {
             let installed = manager.install(profile).expect("install profile");
             let env = fs::read_to_string(installed.path.join("env")).expect("profile env");
+            if profile == ToolchainProfile::Rust {
+                assert!(!env.contains("export CARGO_HOME="));
+            }
             let path = env
                 .lines()
                 .find_map(|line| line.strip_prefix("export PATH="))

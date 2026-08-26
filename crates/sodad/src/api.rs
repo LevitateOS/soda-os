@@ -8,7 +8,8 @@ use axum::{
 use serde::Serialize;
 use soda_core::{
     AddCollaboratorRequest, CreatePersonRequest, CreateProjectRequest, CreateWorktreeRequest,
-    DeployKey, Person, Project, ProvisioningJob, ToolchainInstallation, Worktree,
+    DeployKey, ImportPersonRequest, Person, Project, ProvisioningJob, ToolchainInstallation,
+    Worktree,
 };
 use uuid::Uuid;
 
@@ -30,6 +31,7 @@ pub fn router(service: Arc<Service>) -> Router {
     Router::new()
         .route("/v1/health", get(health))
         .route("/v1/people", get(list_people).post(create_person))
+        .route("/v1/people/import", post(import_person))
         .route(
             "/v1/people/{person_id}/projects",
             get(list_projects_for_person),
@@ -73,6 +75,13 @@ async fn create_person(
 
 async fn list_people(State(state): State<AppState>) -> Result<Json<Vec<Person>>> {
     state.service.list_people().map(Json)
+}
+
+async fn import_person(
+    State(state): State<AppState>,
+    Json(request): Json<ImportPersonRequest>,
+) -> Result<Json<Person>> {
+    state.service.import_person(request).map(Json)
 }
 
 async fn list_projects_for_person(

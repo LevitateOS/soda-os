@@ -1,4 +1,7 @@
-use std::{os::unix::fs::PermissionsExt, path::PathBuf};
+use std::{
+    os::unix::fs::PermissionsExt,
+    path::{Path, PathBuf},
+};
 
 use tokio::net::UnixListener;
 use tracing::info;
@@ -22,6 +25,16 @@ async fn main() -> anyhow::Result<()> {
     }
     if let Some(parent) = database_path.parent() {
         tokio::fs::create_dir_all(parent).await?;
+    }
+    tokio::fs::create_dir_all(&projects_root).await?;
+    std::fs::set_permissions(&projects_root, std::fs::Permissions::from_mode(0o755))?;
+    if projects_root.as_path() == Path::new("/srv/soda/projects") {
+        std::fs::set_permissions("/srv/soda", std::fs::Permissions::from_mode(0o755))?;
+    }
+    tokio::fs::create_dir_all(&toolchains_root).await?;
+    std::fs::set_permissions(&toolchains_root, std::fs::Permissions::from_mode(0o755))?;
+    if toolchains_root.as_path() == Path::new("/opt/soda/toolchains") {
+        std::fs::set_permissions("/opt/soda", std::fs::Permissions::from_mode(0o755))?;
     }
 
     let listener = UnixListener::bind(&socket_path)?;

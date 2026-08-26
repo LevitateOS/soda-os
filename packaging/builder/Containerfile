@@ -1,0 +1,26 @@
+FROM rockylinux/rockylinux:10
+
+RUN dnf -y install \
+      ca-certificates \
+      cargo \
+      createrepo_c \
+      gcc \
+      gcc-c++ \
+      git \
+      golang \
+      lorax \
+      make \
+      pam-devel \
+      pkgconf-pkg-config \
+      pykickstart \
+      rocky-gpg-keys \
+      rpm-build \
+      rust \
+      sequoia-sq \
+      systemd-rpm-macros \
+      tar \
+      unzip \
+      xz \
+    && dnf clean all
+
+WORKDIR /src

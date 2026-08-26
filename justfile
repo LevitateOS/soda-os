@@ -19,3 +19,9 @@ rpm:
 
 iso:
     cargo run -p soda-image -- iso
+
+iso-test:
+    cargo run -p soda-image -- iso --automated
+
+verify-iso:
+    cargo run -p soda-image -- verify
