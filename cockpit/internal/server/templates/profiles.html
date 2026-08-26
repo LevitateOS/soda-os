@@ -3,5 +3,5 @@
 <section class="panel"><p>Each project pins the stable versions resolved on its first successful provisioning run.</p>
 <dl class="summary"><div><dt>Web</dt><dd>Node.js + Bun</dd></div><div><dt>Python</dt><dd>CPython + uv</dd></div><div><dt>Rust</dt><dd>rustc + Cargo</dd></div><div><dt>Go</dt><dd>Go toolchain</dd></div></dl>
 </section>
-<section class="panel"><h2>Project profiles</h2>{{if .Projects}}<ul class="items">{{range .Projects}}<li><a href="/projects/{{.ID}}">{{.Name}}</a><span>{{.Profile}}</span></li>{{end}}</ul>{{else}}<p>No projects are assigned.</p>{{end}}</section>
+<section id="profile-projects" class="panel" hx-get="/profiles" hx-select="#profile-projects" hx-trigger="sse:projects_changed, sse:refresh" hx-swap="outerHTML"><h2>Project profiles</h2>{{if .Projects}}<ul class="items">{{range .Projects}}<li><a href="/projects/{{.ID}}">{{.Name}}</a><span>{{.Profile}}</span></li>{{end}}</ul>{{else}}<p>No projects are assigned.</p>{{end}}</section>
 {{template "footer" .}}{{end}}

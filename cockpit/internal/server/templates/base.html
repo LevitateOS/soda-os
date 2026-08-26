@@ -4,14 +4,16 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="htmx-config" content='{"responseHandling":[{"code":"204","swap":false},{"code":"422","swap":true},{"code":"[23]..","swap":true},{"code":"[45]..","swap":false,"error":true}]}' extended="true">
     <title>{{.Title}}</title>
     <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
     <link rel="icon" href="/static/favicon-32.png" sizes="32x32" type="image/png">
     <link rel="apple-touch-icon" href="/static/apple-touch-icon.png" sizes="180x180">
     <link rel="stylesheet" href="/static/app.css">
     <script src="/static/htmx.min.js" defer></script>
+    <script src="/static/sse.min.js" defer></script>
   </head>
-  <body>
+  <body{{if .User.Username}} hx-ext="sse" sse-connect="/events{{if .EventProjectID}}?project_id={{.EventProjectID}}{{end}}"{{end}}>
     <header class="topbar">
       <div class="identity">
         <a class="brand" href="/" aria-label="Soda OS home"><picture><source media="(prefers-color-scheme: dark)" srcset="/static/soda-logo-dark.svg"><img src="/static/soda-logo.svg" alt="soda os"></picture></a>
@@ -26,6 +28,7 @@
       </nav>
       {{end}}
     </header>
+    {{if .User.Username}}<div id="live-status" aria-live="assertive" sse-swap="backend_down,backend_up"></div>{{end}}
     <main>
 {{end}}
 

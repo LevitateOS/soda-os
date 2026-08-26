@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/LevitateOS/soda-os/cockpit/internal/soda"
 )
@@ -17,12 +18,17 @@ type fakeAuth struct{ err error }
 func (a fakeAuth) Authenticate(_, _ string) error { return a.err }
 
 type fakeAPI struct {
-	people    []soda.Person
-	projects  []soda.Project
-	jobs      []soda.ProvisioningJob
-	toolchain *soda.ToolchainInstallation
-	created   *soda.CreatePersonRequest
-	retried   bool
+	people       []soda.Person
+	projects     []soda.Project
+	worktrees    []soda.Worktree
+	jobs         []soda.ProvisioningJob
+	toolchain    *soda.ToolchainInstallation
+	statuses     []soda.WorktreeStatus
+	active       []soda.ActiveSSHConnection
+	events       <-chan soda.Event
+	created      *soda.CreatePersonRequest
+	retried      bool
+	eventProject string
 }
 
 func (f *fakeAPI) People(context.Context) ([]soda.Person, error)    { return f.people, nil }
@@ -43,7 +49,9 @@ func (f *fakeAPI) AddCollaborator(context.Context, string, string) (soda.Worktre
 func (f *fakeAPI) CreateWorktree(context.Context, string, string, string, string) (soda.Worktree, error) {
 	return soda.Worktree{}, nil
 }
-func (f *fakeAPI) Worktrees(context.Context, string) ([]soda.Worktree, error) { return nil, nil }
+func (f *fakeAPI) Worktrees(context.Context, string) ([]soda.Worktree, error) {
+	return f.worktrees, nil
+}
 func (f *fakeAPI) Jobs(context.Context, string) ([]soda.ProvisioningJob, error) {
 	return f.jobs, nil
 }
@@ -58,6 +66,23 @@ func (f *fakeAPI) Toolchain(context.Context, string) (*soda.ToolchainInstallatio
 }
 func (f *fakeAPI) DeployKey(context.Context, string) (soda.DeployKey, error) {
 	return soda.DeployKey{}, nil
+}
+func (f *fakeAPI) HostStatus(context.Context) (soda.HostStatus, error) {
+	return soda.HostStatus{Overall: "ready"}, nil
+}
+func (f *fakeAPI) WorktreeStatuses(context.Context, string) ([]soda.WorktreeStatus, error) {
+	return f.statuses, nil
+}
+func (f *fakeAPI) ActiveSessions(context.Context) ([]soda.ActiveSSHConnection, error) {
+	return f.active, nil
+}
+func (f *fakeAPI) Events(_ context.Context, projectID string) (<-chan soda.Event, error) {
+	f.eventProject = projectID
+	if f.events != nil {
+		return f.events, nil
+	}
+	events := make(chan soda.Event)
+	return events, nil
 }
 
 func TestHealthAndLoginPageArePublic(t *testing.T) {
@@ -109,7 +134,7 @@ func TestFailedAuthenticationDoesNotCreateSession(t *testing.T) {
 	}
 }
 
-func TestProvisioningFragmentPollsOnlyWhileInstalling(t *testing.T) {
+func TestProvisioningFragmentUsesEventsWhileInstalling(t *testing.T) {
 	admin := soda.Person{ID: "admin-1", Username: "admin", DisplayName: "Admin", Role: soda.RoleAdmin}
 	project := soda.Project{ID: "project-1", Name: "Live project"}
 	api := &fakeAPI{
@@ -125,14 +150,16 @@ func TestProvisioningFragmentPollsOnlyWhileInstalling(t *testing.T) {
 	cookie := &http.Cookie{Name: sessionCookie, Value: token}
 
 	installing := request(app, http.MethodGet, "/projects/project-1/provisioning", "", cookie)
-	if installing.Code != http.StatusOK || !strings.Contains(installing.Body.String(), `hx-trigger="every 2s"`) ||
+	if installing.Code != http.StatusOK || !strings.Contains(installing.Body.String(), `sse:provisioning_changed`) ||
+		strings.Contains(installing.Body.String(), `every 2s`) ||
 		!strings.Contains(installing.Body.String(), `disabled>Provisioning…`) {
 		t.Fatalf("expected live installing fragment, got %d %q", installing.Code, installing.Body.String())
 	}
 
 	api.jobs[0].State = "ready"
 	ready := request(app, http.MethodGet, "/projects/project-1/provisioning", "", cookie)
-	if ready.Code != http.StatusOK || strings.Contains(ready.Body.String(), `hx-trigger="every 2s"`) ||
+	if ready.Code != http.StatusOK || !strings.Contains(ready.Body.String(), `sse:provisioning_changed`) ||
+		strings.Contains(ready.Body.String(), `every 2s`) ||
 		!strings.Contains(ready.Body.String(), `>Retry provisioning</button>`) {
 		t.Fatalf("expected completed fragment without polling, got %d %q", ready.Code, ready.Body.String())
 	}
@@ -154,7 +181,7 @@ func TestHTMXRetryReturnsInstallingFragment(t *testing.T) {
 	app.Handler().ServeHTTP(response, req)
 
 	if !api.retried || response.Code != http.StatusOK || response.Header().Get("HX-Redirect") != "" ||
-		!strings.Contains(response.Body.String(), `hx-trigger="every 2s"`) {
+		!strings.Contains(response.Body.String(), `sse:provisioning_changed`) {
 		t.Fatalf("expected HTMX retry fragment, got retried=%t status=%d headers=%v body=%q",
 			api.retried, response.Code, response.Header(), response.Body.String())
 	}
@@ -178,11 +205,70 @@ func TestAdminHTMXPersonFlow(t *testing.T) {
 	req.AddCookie(&http.Cookie{Name: sessionCookie, Value: token})
 	response := httptest.NewRecorder()
 	app.Handler().ServeHTTP(response, req)
-	if response.Code != http.StatusNoContent || response.Header().Get("HX-Redirect") != "/people" {
+	if response.Code != http.StatusOK || response.Header().Get("HX-Redirect") != "" ||
+		!strings.Contains(response.Body.String(), "Person added.") {
 		t.Fatalf("unexpected HTMX response: %d %#v", response.Code, response.Header())
 	}
 	if api.created == nil || api.created.Username != "bob" {
 		t.Fatalf("person request was not forwarded: %#v", api.created)
+	}
+}
+
+func TestProjectSSEForwardsAllowedEvents(t *testing.T) {
+	developer := soda.Person{ID: "person-1", Username: "alice", DisplayName: "Alice", Role: soda.RoleDeveloper}
+	project := soda.Project{ID: "project-1", Name: "Live project"}
+	events := make(chan soda.Event, 1)
+	projectID := project.ID
+	events <- soda.Event{Kind: "git_changed", ProjectID: &projectID, Sequence: 2}
+	api := &fakeAPI{people: []soda.Person{developer}, projects: []soda.Project{project}, events: events}
+	app := testServer(t, api, fakeAuth{})
+	token, err := app.sessions.create(developer)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	req := httptest.NewRequest(http.MethodGet, "/events?project_id=project-1", nil).WithContext(ctx)
+	req.AddCookie(&http.Cookie{Name: sessionCookie, Value: token})
+	response := httptest.NewRecorder()
+	done := make(chan struct{})
+	go func() {
+		app.Handler().ServeHTTP(response, req)
+		close(done)
+	}()
+	time.Sleep(25 * time.Millisecond)
+	cancel()
+	<-done
+	if api.eventProject != project.ID || !strings.Contains(response.Body.String(), "event: git_changed") {
+		t.Fatalf("project event was not streamed: project=%q body=%q", api.eventProject, response.Body.String())
+	}
+}
+
+func TestSessionFragmentRedactsClientForDevelopers(t *testing.T) {
+	developer := soda.Person{ID: "person-1", Username: "alice", DisplayName: "Alice", Role: soda.RoleDeveloper}
+	admin := soda.Person{ID: "admin-1", Username: "admin", DisplayName: "Admin", Role: soda.RoleAdmin}
+	project := soda.Project{ID: "project-1", Name: "Live project"}
+	api := &fakeAPI{
+		people:   []soda.Person{developer, admin},
+		projects: []soda.Project{project},
+		active: []soda.ActiveSSHConnection{{
+			ProjectID: project.ID, PersonID: developer.ID, ConnectedAt: 1,
+			ClientAddress: "192.0.2.10", ClientPort: 54321,
+		}},
+	}
+	app := testServer(t, api, fakeAuth{})
+	for _, test := range []struct {
+		user       soda.Person
+		wantClient bool
+	}{{developer, false}, {admin, true}} {
+		token, err := app.sessions.create(test.user)
+		if err != nil {
+			t.Fatal(err)
+		}
+		response := request(app, http.MethodGet, "/projects/project-1/sessions", "", &http.Cookie{Name: sessionCookie, Value: token})
+		contains := strings.Contains(response.Body.String(), "192.0.2.10:54321")
+		if response.Code != http.StatusOK || contains != test.wantClient || !strings.Contains(response.Body.String(), "Alice") {
+			t.Fatalf("unexpected session visibility for %s: %d %q", test.user.Role, response.Code, response.Body.String())
+		}
 	}
 }
 

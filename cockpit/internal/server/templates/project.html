@@ -6,31 +6,66 @@
   <div><dt>SSH</dt><dd><code>ssh {{.Project.UnixUser}}@soda.local</code></dd></div>
 </dl>
 {{template "provisioning" .}}
-<section class="panel">
+{{template "collaboration" .}}
+<section id="git-status" class="panel" aria-live="polite" hx-get="/projects/{{.Project.ID}}/git" hx-trigger="load, sse:git_changed, sse:worktrees_changed, sse:refresh" hx-swap="outerHTML">
+  <h2>Git worktrees</h2><p class="muted">Loading Git status…</p>
+</section>
+<section id="sessions" class="panel" aria-live="polite" hx-get="/projects/{{.Project.ID}}/sessions" hx-trigger="load, sse:sessions_changed, sse:refresh" hx-swap="outerHTML">
+  <h2>Active development sessions</h2><p class="muted">Loading SSH presence…</p>
+</section>
+{{if .Admin}}<section class="panel"><h2>Project deploy key</h2><p>Add this public key to a private SSH remote, then retry provisioning.</p><pre>{{.DeployKey}}</pre></section>{{end}}
+{{template "footer" .}}{{end}}
+
+{{define "collaboration"}}
+<section id="collaboration" aria-live="polite" hx-get="/projects/{{.Project.ID}}/collaboration" hx-trigger="sse:worktrees_changed, sse:people_changed, sse:refresh" hx-swap="outerHTML">
+{{if .Message}}<p class="success" role="status">{{.Message}}</p>{{end}}
+{{if .Error}}<p class="error" role="alert">{{.Error}}</p>{{end}}
+<div class="panel">
   <h2>Worktrees</h2>
   {{if .Worktrees}}<table><thead><tr><th>Person</th><th>Name</th><th>Branch</th><th>Path</th></tr></thead><tbody>
   {{range .Worktrees}}<tr><td>{{index $.PersonNames .PersonID}}</td><td>{{.Name}}</td><td><code>{{.Branch}}</code></td><td><code>{{.Path}}</code></td></tr>{{end}}
   </tbody></table>{{else}}<p>No worktrees yet.</p>{{end}}
-</section>
+</div>
 {{if .Admin}}
 <section class="grid">
-  <div class="panel"><h2>Add collaborator</h2><form method="post" action="/projects/{{.Project.ID}}/collaborators" hx-post="/projects/{{.Project.ID}}/collaborators">
+  <div class="panel"><h2>Add collaborator</h2><form method="post" action="/projects/{{.Project.ID}}/collaborators" hx-post="/projects/{{.Project.ID}}/collaborators" hx-target="#collaboration" hx-swap="outerHTML" hx-disabled-elt="button">
     <label>Person <select name="person_id">{{range .People}}<option value="{{.ID}}">{{.DisplayName}}</option>{{end}}</select></label><button type="submit">Add collaborator</button>
   </form></div>
-  <div class="panel"><h2>Add worktree</h2><form method="post" action="/projects/{{.Project.ID}}/worktrees" hx-post="/projects/{{.Project.ID}}/worktrees">
+  <div class="panel"><h2>Add worktree</h2><form method="post" action="/projects/{{.Project.ID}}/worktrees" hx-post="/projects/{{.Project.ID}}/worktrees" hx-target="#collaboration" hx-swap="outerHTML" hx-disabled-elt="button">
     <label>Person <select name="person_id">{{range .People}}<option value="{{.ID}}">{{.DisplayName}}</option>{{end}}</select></label>
     <label>Name <input name="name" required></label><label>Base ref <input name="base_ref" value="main" required></label><button type="submit">Create worktree</button>
   </form></div>
 </section>
-<section class="panel"><h2>Project deploy key</h2><p>Add this public key to a private SSH remote, then retry provisioning.</p><pre>{{.DeployKey}}</pre></section>
 {{end}}
-{{template "footer" .}}{{end}}
+</section>
+{{end}}
 
 {{define "provisioning"}}
-<section id="provisioning" class="panel" aria-live="polite" aria-busy="{{if .ProvisioningActive}}true{{else}}false{{end}}"{{if .ProvisioningActive}} hx-get="/projects/{{.Project.ID}}/provisioning" hx-trigger="every 2s" hx-swap="outerHTML"{{end}}>
+<section id="provisioning" class="panel" aria-live="polite" aria-busy="{{if .ProvisioningActive}}true{{else}}false{{end}}" hx-get="/projects/{{.Project.ID}}/provisioning" hx-trigger="sse:provisioning_changed, sse:refresh" hx-swap="outerHTML">
   <h2>Provisioning</h2>
+  {{if .Error}}<p class="error" role="alert">{{.Error}}</p>{{end}}
   {{if .Toolchain}}<p><strong>{{.Toolchain.State}}</strong> · {{.Toolchain.Version}}</p>{{else}}<p>Toolchain not ready.</p>{{end}}
   {{if .Jobs}}<ul>{{range .Jobs}}<li>{{.State}}{{if .Error}} · <span class="error">{{.Error}}</span>{{end}}</li>{{end}}</ul>{{end}}
   {{if .Admin}}<form method="post" action="/projects/{{.Project.ID}}/provisioning" hx-post="/projects/{{.Project.ID}}/provisioning" hx-target="#provisioning" hx-swap="outerHTML" hx-disabled-elt="button"><button type="submit"{{if .ProvisioningActive}} disabled{{end}}>{{if .ProvisioningActive}}Provisioning…{{else}}Retry provisioning{{end}}</button></form>{{end}}
+</section>
+{{end}}
+
+{{define "git-status"}}
+<section id="git-status" class="panel" aria-live="polite" hx-get="/projects/{{.Project.ID}}/git" hx-trigger="sse:git_changed, sse:worktrees_changed, sse:refresh" hx-swap="outerHTML">
+  <h2>Git worktrees</h2>
+  {{if .Error}}<p class="error" role="alert">{{.Error}}</p>{{else if .WorktreeStatuses}}
+  <table><thead><tr><th>Person</th><th>Worktree</th><th>Branch / commit</th><th>Upstream</th><th>Changes</th><th>State</th></tr></thead><tbody>
+  {{range .WorktreeStatuses}}<tr><td>{{.Person}}</td><td>{{.Name}}</td><td><code>{{.Status.Branch}}</code><br><span class="muted">{{.Status.Head}}</span></td><td>{{if .Status.Upstream}}<code>{{.Status.Upstream}}</code><br><span class="muted">↑{{.Status.Ahead}} ↓{{.Status.Behind}}</span>{{else}}—{{end}}</td><td>S {{.Status.Staged}} · M {{.Status.Modified}} · ? {{.Status.Untracked}} · C {{.Status.Conflicted}}</td><td><span class="state state-{{.Status.State}}">{{.Status.State}}</span>{{if .Status.Error}}<br><span class="error">{{.Status.Error}}</span>{{end}}</td></tr>{{end}}
+  </tbody></table>{{else}}<p>No worktrees yet.</p>{{end}}
+</section>
+{{end}}
+
+{{define "sessions"}}
+<section id="sessions" class="panel" aria-live="polite" hx-get="/projects/{{.Project.ID}}/sessions" hx-trigger="sse:sessions_changed, sse:refresh" hx-swap="outerHTML">
+  <h2>Active development sessions</h2>
+  {{if .Error}}<p class="error" role="alert">{{.Error}}</p>{{end}}{{if .Sessions}}
+  <table><thead><tr><th>Person</th><th>Connected</th>{{if .Admin}}<th>Client</th>{{end}}<th>Channels</th></tr></thead><tbody>
+  {{range .Sessions}}<tr><td>{{.Person}}</td><td>{{time .ConnectedAt}}</td>{{if $.Admin}}<td><code>{{.Client}}</code></td>{{end}}<td>{{range $index, $channel := .Channels}}{{if $index}}<br>{{end}}{{$channel}}{{end}}</td></tr>{{end}}
+  </tbody></table>{{else}}<p>No active project SSH connections.</p>{{end}}
 </section>
 {{end}}

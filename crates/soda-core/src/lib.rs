@@ -7,7 +7,9 @@ pub use api::{
     ImportPersonRequest,
 };
 pub use model::{
-    DeployKey, JobState, Membership, Person, Project, ProjectSource, ProvisioningJob, Role,
-    ToolchainInstallation, ToolchainProfile, Worktree,
+    ActiveSshConnection, DeployKey, EventKind, FilesystemStatus, HostStatus, JobState, Membership,
+    NetworkInterface, Person, Project, ProjectSource, ProvisioningJob, Role, RuntimeState,
+    ServiceStatus, SodaEvent, SshChannel, SshChannelKind, ToolchainInstallation, ToolchainProfile,
+    Worktree, WorktreeState, WorktreeStatus,
 };
 pub use spec::{DistroSpec, ProfileSpec, SpecError};

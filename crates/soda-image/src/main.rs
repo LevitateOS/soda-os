@@ -460,6 +460,10 @@ impl Builder {
                 sources.join("sodad.service"),
             ),
             (
+                self.root.join("packaging/sshd/40-soda-observability.conf"),
+                sources.join("40-soda-observability.conf"),
+            ),
+            (
                 self.root.join("packaging/systemd/soda-cockpit.service"),
                 sources.join("soda-cockpit.service"),
             ),

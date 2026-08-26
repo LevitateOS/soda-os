@@ -1,13 +1,16 @@
 {{define "projects.html"}}{{template "header" .}}
 <h1>Projects</h1>
-<section class="panel">
-  {{if .Projects}}<ul class="items">{{range .Projects}}<li><a href="/projects/{{.ID}}">{{.Name}}</a><span>{{.Profile}} · <code>{{.UnixUser}}</code></span></li>{{end}}</ul>
-  {{else}}<p>No projects are available.</p>{{end}}
-</section>
+{{template "project-list" .}}
 {{if .Admin}}
-<section class="panel">
+{{template "project-create" .}}
+{{end}}
+{{template "footer" .}}{{end}}
+
+{{define "project-create"}}
+<section id="project-create" class="panel" aria-live="polite">
   <h2>Create project</h2>
-  <form method="post" action="/projects" hx-post="/projects">
+  {{if .Error}}<p class="error" role="alert">{{.Error}}</p>{{end}}
+  <form method="post" action="/projects" hx-post="/projects" hx-target="#project-create" hx-swap="outerHTML" hx-disabled-elt="button">
     <label>Slug <input name="slug" placeholder="my-project" required></label>
     <label>Name <input name="name" required></label>
     <label>Toolchain <select name="profile"><option value="web">Web · Node + Bun</option><option value="python">Python · CPython + uv</option><option value="rust">Rust</option><option value="go">Go</option></select></label>
@@ -16,4 +19,3 @@
   </form>
 </section>
 {{end}}
-{{template "footer" .}}{{end}}

@@ -34,6 +34,17 @@ th, td { border-bottom: 1px solid #8885; padding: .6rem; text-align: left; verti
 .items li { align-items: baseline; border-bottom: 1px solid #8885; display: flex; justify-content: space-between; padding: .75rem 0; }
 .items span { color: #777; }
 .error { color: #c33; }
+.success { color: #087d55; font-weight: 700; }
+.live-warning { background: #7d2d00; color: #fff; margin: 0; padding: .65rem 1rem; text-align: center; }
+.sr-only { height: 1px; margin: -1px; overflow: hidden; padding: 0; position: absolute; width: 1px; clip: rect(0, 0, 0, 0); white-space: nowrap; }
+.status-grid { display: grid; gap: .5rem 1rem; grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr)); list-style: none; padding: 0; }
+.status-grid li { align-items: baseline; display: flex; justify-content: space-between; }
+.state { font-weight: 700; text-transform: capitalize; }
+.state-ready, .state-clean { color: #087d55; }
+.state-degraded, .state-dirty { color: #ad6500; }
+.state-unavailable, .state-failed { color: #c33; }
+.htmx-request { opacity: .65; }
+button:disabled { cursor: wait; }
 pre { overflow-wrap: anywhere; white-space: pre-wrap; }
 code { overflow-wrap: anywhere; }
 

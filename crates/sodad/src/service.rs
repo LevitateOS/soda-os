@@ -1,13 +1,14 @@
 use std::{fs, path::PathBuf, sync::Arc};
 
 use soda_core::{
-    CreatePersonRequest, CreateProjectRequest, DeployKey, ImportPersonRequest, JobState,
+    CreatePersonRequest, CreateProjectRequest, DeployKey, EventKind, ImportPersonRequest, JobState,
     Membership, Person, Project, ProvisioningJob, ToolchainInstallation, Worktree,
 };
 use uuid::Uuid;
 
 use crate::{
     error::{AppError, Result},
+    events::EventBroker,
     store::Store,
     system::SystemOps,
     toolchains::ToolchainManager,
@@ -18,6 +19,7 @@ pub struct Service {
     system: Arc<dyn SystemOps>,
     toolchains: Arc<ToolchainManager>,
     projects_root: PathBuf,
+    events: EventBroker,
 }
 
 impl Service {
@@ -32,7 +34,12 @@ impl Service {
             system,
             toolchains,
             projects_root,
+            events: EventBroker::new(),
         }
+    }
+
+    pub fn events(&self) -> EventBroker {
+        self.events.clone()
     }
 
     pub fn create_person(&self, request: CreatePersonRequest) -> Result<Person> {
@@ -50,6 +57,7 @@ impl Service {
         };
         self.system.create_person(&person, &request.password)?;
         self.store.create_person(&person)?;
+        self.events.publish(EventKind::PeopleChanged, None);
         Ok(person)
     }
 
@@ -65,6 +73,7 @@ impl Service {
         };
         self.system.import_person(&person)?;
         self.store.create_person(&person)?;
+        self.events.publish(EventKind::PeopleChanged, None);
         Ok(person)
     }
 
@@ -87,6 +96,7 @@ impl Service {
         };
         self.system.create_project(&project)?;
         self.store.create_project(&project)?;
+        self.events.publish(EventKind::ProjectsChanged, None);
         Ok(project)
     }
 
@@ -131,6 +141,8 @@ impl Service {
             person_id,
         })?;
         self.store.create_worktree(&worktree)?;
+        self.events
+            .publish(EventKind::WorktreesChanged, Some(project_id));
         Ok(worktree)
     }
 
@@ -154,6 +166,8 @@ impl Service {
         self.system
             .create_worktree(&project, &person, &worktree, base_ref)?;
         self.store.create_worktree(&worktree)?;
+        self.events
+            .publish(EventKind::WorktreesChanged, Some(project_id));
         Ok(worktree)
     }
 
@@ -170,6 +184,8 @@ impl Service {
             error: None,
         };
         self.store.create_job(&job)?;
+        self.events
+            .publish(EventKind::ProvisioningChanged, Some(project_id));
         Ok(job)
     }
 
@@ -192,6 +208,8 @@ impl Service {
         if let Err(error) = self.store.update_job(&job) {
             tracing::error!(%error, %job_id, "failed to update provisioning job");
         }
+        self.events
+            .publish(EventKind::ProvisioningChanged, Some(project_id));
     }
 
     pub fn list_jobs(&self, project_id: Uuid) -> Result<Vec<ProvisioningJob>> {

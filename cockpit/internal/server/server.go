@@ -5,11 +5,13 @@ import (
 	"crypto/rand"
 	"embed"
 	"encoding/base64"
+	"fmt"
 	"html/template"
 	"io/fs"
 	"net/http"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/LevitateOS/soda-os/cockpit/internal/auth"
 	"github.com/LevitateOS/soda-os/cockpit/internal/soda"
@@ -48,12 +50,34 @@ type pageData struct {
 	Error              string
 	Admin              bool
 	ProvisioningActive bool
+	Host               *soda.HostStatus
+	WorktreeStatuses   []worktreeStatusView
+	Sessions           []sessionView
+	EventProjectID     string
+	Message            string
+}
+
+type worktreeStatusView struct {
+	Person string
+	Name   string
+	Status soda.WorktreeStatus
+}
+
+type sessionView struct {
+	Person      string
+	ConnectedAt uint64
+	Client      string
+	Channels    []string
 }
 
 type userContextKey struct{}
 
 func New(api soda.API, authenticator auth.Authenticator) (*Server, error) {
-	templates, err := template.ParseFS(content, "templates/*.html")
+	templates, err := template.New("root").Funcs(template.FuncMap{
+		"bytes":    humanBytes,
+		"duration": humanDuration,
+		"time":     humanTime,
+	}).ParseFS(content, "templates/*.html")
 	if err != nil {
 		return nil, err
 	}
@@ -79,6 +103,10 @@ func (s *Server) Handler() http.Handler {
 
 	protected := http.NewServeMux()
 	protected.HandleFunc("GET /", s.home)
+	protected.HandleFunc("GET /events", s.events)
+	protected.HandleFunc("GET /fragments/host", s.hostFragment)
+	protected.HandleFunc("GET /fragments/projects", s.projectsFragment)
+	protected.HandleFunc("GET /fragments/people", s.peopleFragment)
 	protected.HandleFunc("POST /logout", s.logout)
 	protected.HandleFunc("GET /people", s.people)
 	protected.HandleFunc("POST /people", s.createPerson)
@@ -86,6 +114,9 @@ func (s *Server) Handler() http.Handler {
 	protected.HandleFunc("POST /projects", s.createProject)
 	protected.HandleFunc("GET /projects/{project_id}", s.project)
 	protected.HandleFunc("GET /projects/{project_id}/provisioning", s.provisioning)
+	protected.HandleFunc("GET /projects/{project_id}/collaboration", s.collaboration)
+	protected.HandleFunc("GET /projects/{project_id}/git", s.gitStatus)
+	protected.HandleFunc("GET /projects/{project_id}/sessions", s.sessionsFragment)
 	protected.HandleFunc("POST /projects/{project_id}/collaborators", s.addCollaborator)
 	protected.HandleFunc("POST /projects/{project_id}/worktrees", s.createWorktree)
 	protected.HandleFunc("POST /projects/{project_id}/provisioning", s.retryProvisioning)
@@ -158,7 +189,130 @@ func (s *Server) home(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "load projects", http.StatusBadGateway)
 		return
 	}
-	s.render(w, http.StatusOK, "index.html", pageData{Title: "Soda OS", Version: "0.1.0", User: user, Projects: projects})
+	host, _ := s.api.HostStatus(r.Context())
+	s.render(w, http.StatusOK, "index.html", pageData{Title: "Soda OS", Version: "0.1.0", User: user, Projects: projects, Host: &host})
+}
+
+func (s *Server) events(w http.ResponseWriter, r *http.Request) {
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		http.Error(w, "streaming unavailable", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("X-Accel-Buffering", "no")
+	user := currentUser(r)
+	projectID := r.URL.Query().Get("project_id")
+	if projectID != "" {
+		if _, allowed, err := s.visibleProject(r.Context(), user, projectID); err != nil || !allowed {
+			http.Error(w, "forbidden", http.StatusForbidden)
+			return
+		}
+	}
+	backoff := time.Second
+	for {
+		stream, err := s.api.Events(r.Context(), projectID)
+		if err != nil {
+			writeSSE(w, "backend_down", `<p class="live-warning" role="alert">Soda service unavailable; displayed information may be stale.</p>`)
+			writeSSE(w, "host_changed", "refresh")
+			flusher.Flush()
+			select {
+			case <-r.Context().Done():
+				return
+			case <-time.After(backoff):
+			}
+			if backoff < 5*time.Second {
+				backoff *= 2
+			}
+			continue
+		}
+		backoff = time.Second
+		writeSSE(w, "backend_up", `<span class="sr-only">Live updates connected.</span>`)
+		writeSSE(w, "refresh", "refresh")
+		flusher.Flush()
+		keepalive := time.NewTicker(15 * time.Second)
+		connected := true
+		for connected {
+			select {
+			case <-r.Context().Done():
+				keepalive.Stop()
+				return
+			case <-keepalive.C:
+				_, _ = fmt.Fprint(w, ": keepalive\n\n")
+				flusher.Flush()
+			case event, open := <-stream:
+				if !open {
+					connected = false
+					continue
+				}
+				if s.eventAllowed(r.Context(), user, event) {
+					writeSSE(w, event.Kind, "refresh")
+					flusher.Flush()
+				}
+			}
+		}
+		keepalive.Stop()
+		writeSSE(w, "backend_down", `<p class="live-warning" role="alert">Soda service unavailable; displayed information may be stale.</p>`)
+		flusher.Flush()
+	}
+}
+
+func (s *Server) eventAllowed(ctx context.Context, user soda.Person, event soda.Event) bool {
+	if event.ProjectID == nil || user.Role == soda.RoleAdmin {
+		return event.Kind != "people_changed" || user.Role == soda.RoleAdmin
+	}
+	projects, err := s.visibleProjects(ctx, user)
+	if err != nil {
+		return false
+	}
+	for _, project := range projects {
+		if project.ID == *event.ProjectID {
+			return true
+		}
+	}
+	return false
+}
+
+func writeSSE(w http.ResponseWriter, event, data string) {
+	_, _ = fmt.Fprintf(w, "event: %s\ndata: %s\n\n", event, strings.ReplaceAll(data, "\n", " "))
+}
+
+func (s *Server) hostFragment(w http.ResponseWriter, r *http.Request) {
+	host, err := s.api.HostStatus(r.Context())
+	data := pageData{User: currentUser(r)}
+	if err != nil {
+		data.Error = "Host status is temporarily unavailable."
+	} else {
+		data.Host = &host
+	}
+	s.render(w, http.StatusOK, "host", data)
+}
+
+func (s *Server) projectsFragment(w http.ResponseWriter, r *http.Request) {
+	user := currentUser(r)
+	projects, err := s.visibleProjects(r.Context(), user)
+	data := pageData{User: user}
+	if err != nil {
+		data.Error = "Projects are temporarily unavailable."
+	} else {
+		data.Projects = projects
+	}
+	s.render(w, http.StatusOK, "project-list", data)
+}
+
+func (s *Server) peopleFragment(w http.ResponseWriter, r *http.Request) {
+	if !requireAdmin(w, r) {
+		return
+	}
+	people, err := s.api.People(r.Context())
+	data := pageData{User: currentUser(r)}
+	if err != nil {
+		data.Error = "People are temporarily unavailable."
+	} else {
+		data.People = people
+	}
+	s.render(w, http.StatusOK, "people-list", data)
 }
 
 func (s *Server) people(w http.ResponseWriter, r *http.Request) {
@@ -187,7 +341,25 @@ func (s *Server) createPerson(w http.ResponseWriter, r *http.Request) {
 		SSHPublicKey: r.FormValue("ssh_public_key"), Password: r.FormValue("password"),
 	})
 	if err != nil {
+		if isHTMX(r) {
+			people, _ := s.api.People(r.Context())
+			s.render(w, http.StatusUnprocessableEntity, "people-management", pageData{
+				User: currentUser(r), People: people, Error: err.Error(),
+			})
+			return
+		}
 		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	if isHTMX(r) {
+		people, loadErr := s.api.People(r.Context())
+		if loadErr != nil {
+			http.Error(w, "load people", http.StatusBadGateway)
+			return
+		}
+		s.render(w, http.StatusOK, "people-management", pageData{
+			User: currentUser(r), People: people, Message: "Person added.",
+		})
 		return
 	}
 	redirect(w, r, "/people")
@@ -219,6 +391,12 @@ func (s *Server) createProject(w http.ResponseWriter, r *http.Request) {
 		Slug: r.FormValue("slug"), Name: r.FormValue("name"), Profile: r.FormValue("profile"), Source: source,
 	})
 	if err != nil {
+		if isHTMX(r) {
+			s.render(w, http.StatusUnprocessableEntity, "project-create", pageData{
+				User: currentUser(r), Error: err.Error(),
+			})
+			return
+		}
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -253,7 +431,7 @@ func (s *Server) project(w http.ResponseWriter, r *http.Request) {
 	}
 	data := pageData{Title: "Project · Soda OS", Version: "0.1.0", User: user, Project: &project,
 		People: people, Worktrees: worktrees, Jobs: jobs, Toolchain: installation,
-		PersonNames: personNames(people), ProvisioningActive: provisioningActive(jobs)}
+		PersonNames: personNames(people), ProvisioningActive: provisioningActive(jobs), EventProjectID: project.ID}
 	if user.Role == soda.RoleAdmin {
 		key, err := s.api.DeployKey(r.Context(), project.ID)
 		if err != nil {
@@ -263,6 +441,120 @@ func (s *Server) project(w http.ResponseWriter, r *http.Request) {
 		data.DeployKey = key.PublicKey
 	}
 	s.render(w, http.StatusOK, "project.html", data)
+}
+
+func (s *Server) collaboration(w http.ResponseWriter, r *http.Request) {
+	data, status, ok := s.collaborationData(w, r)
+	if !ok {
+		return
+	}
+	s.render(w, status, "collaboration", data)
+}
+
+func (s *Server) collaborationData(w http.ResponseWriter, r *http.Request) (pageData, int, bool) {
+	user := currentUser(r)
+	project, allowed, err := s.visibleProject(r.Context(), user, r.PathValue("project_id"))
+	if err != nil {
+		http.Error(w, "load project", http.StatusBadGateway)
+		return pageData{}, 0, false
+	}
+	if !allowed {
+		http.Error(w, "forbidden", http.StatusForbidden)
+		return pageData{}, 0, false
+	}
+	worktrees, err := s.api.Worktrees(r.Context(), project.ID)
+	if err != nil {
+		http.Error(w, "load worktrees", http.StatusBadGateway)
+		return pageData{}, 0, false
+	}
+	people, err := s.api.People(r.Context())
+	if err != nil {
+		http.Error(w, "load people", http.StatusBadGateway)
+		return pageData{}, 0, false
+	}
+	return pageData{
+		User: user, Project: &project, People: people, Worktrees: worktrees,
+		PersonNames: personNames(people), EventProjectID: project.ID,
+	}, http.StatusOK, true
+}
+
+func (s *Server) gitStatus(w http.ResponseWriter, r *http.Request) {
+	user := currentUser(r)
+	project, allowed, err := s.visibleProject(r.Context(), user, r.PathValue("project_id"))
+	if err != nil {
+		http.Error(w, "load project", http.StatusBadGateway)
+		return
+	}
+	if !allowed {
+		http.Error(w, "forbidden", http.StatusForbidden)
+		return
+	}
+	statuses, err := s.api.WorktreeStatuses(r.Context(), project.ID)
+	if err != nil {
+		s.render(w, http.StatusOK, "git-status", pageData{User: user, Project: &project, Error: "Git status is temporarily unavailable."})
+		return
+	}
+	worktrees, _ := s.api.Worktrees(r.Context(), project.ID)
+	people, _ := s.api.People(r.Context())
+	worktreeByID := make(map[string]soda.Worktree, len(worktrees))
+	for _, worktree := range worktrees {
+		worktreeByID[worktree.ID] = worktree
+	}
+	names := personNames(people)
+	views := make([]worktreeStatusView, 0, len(statuses))
+	for _, status := range statuses {
+		worktree := worktreeByID[status.WorktreeID]
+		views = append(views, worktreeStatusView{Person: names[worktree.PersonID], Name: worktree.Name, Status: status})
+	}
+	s.render(w, http.StatusOK, "git-status", pageData{User: user, Project: &project, WorktreeStatuses: views})
+}
+
+func (s *Server) sessionsFragment(w http.ResponseWriter, r *http.Request) {
+	user := currentUser(r)
+	project, allowed, err := s.visibleProject(r.Context(), user, r.PathValue("project_id"))
+	if err != nil {
+		http.Error(w, "load project", http.StatusBadGateway)
+		return
+	}
+	if !allowed {
+		http.Error(w, "forbidden", http.StatusForbidden)
+		return
+	}
+	sessions, err := s.api.ActiveSessions(r.Context())
+	if err != nil {
+		s.render(w, http.StatusOK, "sessions", pageData{User: user, Project: &project, Error: "SSH presence is temporarily unavailable."})
+		return
+	}
+	people, _ := s.api.People(r.Context())
+	worktrees, _ := s.api.Worktrees(r.Context(), project.ID)
+	names := personNames(people)
+	worktreeNames := make(map[string]string, len(worktrees))
+	for _, worktree := range worktrees {
+		worktreeNames[worktree.ID] = worktree.Name
+	}
+	views := make([]sessionView, 0)
+	for _, session := range sessions {
+		if session.ProjectID != project.ID {
+			continue
+		}
+		channels := make([]string, 0, len(session.Channels))
+		for _, channel := range session.Channels {
+			channels = append(channels, channel.Kind+" · "+worktreeNames[channel.WorktreeID])
+		}
+		if len(channels) == 0 {
+			channels = append(channels, "transport only")
+		}
+		client := ""
+		if user.Role == soda.RoleAdmin {
+			client = fmt.Sprintf("%s:%d", session.ClientAddress, session.ClientPort)
+		}
+		views = append(views, sessionView{Person: names[session.PersonID], ConnectedAt: session.ConnectedAt, Client: client, Channels: channels})
+	}
+	data := pageData{User: user, Project: &project, Sessions: views}
+	if host, hostErr := s.api.HostStatus(r.Context()); hostErr == nil && host.SSHObserver != "ready" {
+		data.Error = "SSH presence is degraded; displayed sessions may be incomplete."
+	}
+	s.render(w, http.StatusOK, "sessions", data)
 }
 
 func (s *Server) provisioning(w http.ResponseWriter, r *http.Request) {
@@ -297,7 +589,23 @@ func (s *Server) addCollaborator(w http.ResponseWriter, r *http.Request) {
 	}
 	projectID := r.PathValue("project_id")
 	if _, err := s.api.AddCollaborator(r.Context(), projectID, r.FormValue("person_id")); err != nil {
+		if isHTMX(r) {
+			data, _, ok := s.collaborationData(w, r)
+			if ok {
+				data.Error = err.Error()
+				s.render(w, http.StatusUnprocessableEntity, "collaboration", data)
+			}
+			return
+		}
 		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	if isHTMX(r) {
+		data, _, ok := s.collaborationData(w, r)
+		if ok {
+			data.Message = "Collaborator added."
+			s.render(w, http.StatusOK, "collaboration", data)
+		}
 		return
 	}
 	redirect(w, r, "/projects/"+projectID)
@@ -313,7 +621,23 @@ func (s *Server) createWorktree(w http.ResponseWriter, r *http.Request) {
 	}
 	projectID := r.PathValue("project_id")
 	if _, err := s.api.CreateWorktree(r.Context(), projectID, r.FormValue("person_id"), r.FormValue("name"), r.FormValue("base_ref")); err != nil {
+		if isHTMX(r) {
+			data, _, ok := s.collaborationData(w, r)
+			if ok {
+				data.Error = err.Error()
+				s.render(w, http.StatusUnprocessableEntity, "collaboration", data)
+			}
+			return
+		}
 		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	if isHTMX(r) {
+		data, _, ok := s.collaborationData(w, r)
+		if ok {
+			data.Message = "Worktree created."
+			s.render(w, http.StatusOK, "collaboration", data)
+		}
 		return
 	}
 	redirect(w, r, "/projects/"+projectID)
@@ -325,6 +649,20 @@ func (s *Server) retryProvisioning(w http.ResponseWriter, r *http.Request) {
 	}
 	projectID := r.PathValue("project_id")
 	if _, err := s.api.RetryProvisioning(r.Context(), projectID); err != nil {
+		if isHTMX(r) {
+			user := currentUser(r)
+			project, allowed, loadErr := s.visibleProject(r.Context(), user, projectID)
+			if loadErr != nil || !allowed {
+				http.Error(w, "load project", http.StatusBadGateway)
+				return
+			}
+			jobs, installation, _ := s.provisioningState(r.Context(), projectID)
+			s.render(w, http.StatusUnprocessableEntity, "provisioning", pageData{
+				User: user, Project: &project, Jobs: jobs, Toolchain: installation,
+				ProvisioningActive: provisioningActive(jobs), Error: err.Error(),
+			})
+			return
+		}
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -432,12 +770,45 @@ func (s *Server) render(w http.ResponseWriter, status int, name string, data pag
 }
 
 func redirect(w http.ResponseWriter, r *http.Request, location string) {
-	if r.Header.Get("HX-Request") == "true" {
+	if isHTMX(r) {
 		w.Header().Set("HX-Redirect", location)
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}
 	http.Redirect(w, r, location, http.StatusSeeOther)
+}
+
+func isHTMX(r *http.Request) bool {
+	return r.Header.Get("HX-Request") == "true"
+}
+
+func humanBytes(value uint64) string {
+	const unit = uint64(1024)
+	if value < unit {
+		return fmt.Sprintf("%d B", value)
+	}
+	divisor := unit
+	exponent := 0
+	for remaining := value / unit; remaining >= unit && exponent < 5; remaining /= unit {
+		divisor *= unit
+		exponent++
+	}
+	return fmt.Sprintf("%.1f %ciB", float64(value)/float64(divisor), "KMGTPE"[exponent])
+}
+
+func humanDuration(seconds uint64) string {
+	duration := time.Duration(seconds) * time.Second
+	if duration >= 24*time.Hour {
+		return fmt.Sprintf("%dd %dh", int(duration/(24*time.Hour)), int(duration/time.Hour)%24)
+	}
+	return duration.Round(time.Minute).String()
+}
+
+func humanTime(seconds uint64) string {
+	if seconds == 0 {
+		return "unknown"
+	}
+	return time.Unix(int64(seconds), 0).Format("2006-01-02 15:04:05")
 }
 
 func securityHeaders(next http.Handler) http.Handler {

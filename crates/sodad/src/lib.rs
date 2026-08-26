@@ -1,5 +1,7 @@
 mod api;
 mod error;
+mod events;
+mod observability;
 mod service;
 mod store;
 mod system;

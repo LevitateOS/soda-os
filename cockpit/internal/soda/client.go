@@ -1,6 +1,7 @@
 package soda
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -8,6 +9,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/url"
 	"strings"
 )
 
@@ -71,6 +73,79 @@ type DeployKey struct {
 	PublicKey string `json:"public_key"`
 }
 
+type RuntimeState string
+
+type ServiceStatus struct {
+	Name  string       `json:"name"`
+	State RuntimeState `json:"state"`
+}
+
+type NetworkInterface struct {
+	Name      string   `json:"name"`
+	Addresses []string `json:"addresses"`
+}
+
+type FilesystemStatus struct {
+	Path           string `json:"path"`
+	TotalBytes     uint64 `json:"total_bytes"`
+	AvailableBytes uint64 `json:"available_bytes"`
+}
+
+type HostStatus struct {
+	SampledAt            uint64             `json:"sampled_at"`
+	Overall              RuntimeState       `json:"overall"`
+	Services             []ServiceStatus    `json:"services"`
+	SSHFirewallReady     bool               `json:"ssh_firewall_ready"`
+	CockpitFirewallReady bool               `json:"cockpit_firewall_ready"`
+	Interfaces           []NetworkInterface `json:"interfaces"`
+	CPUPercent           *float64           `json:"cpu_percent"`
+	LoadAverage          [3]float64         `json:"load_average"`
+	UptimeSeconds        uint64             `json:"uptime_seconds"`
+	MemoryTotalBytes     uint64             `json:"memory_total_bytes"`
+	MemoryAvailableBytes uint64             `json:"memory_available_bytes"`
+	Filesystems          []FilesystemStatus `json:"filesystems"`
+	SSHObserver          RuntimeState       `json:"ssh_observer"`
+	GitObserver          RuntimeState       `json:"git_observer"`
+}
+
+type WorktreeStatus struct {
+	WorktreeID string  `json:"worktree_id"`
+	Branch     string  `json:"branch"`
+	Head       string  `json:"head"`
+	Upstream   *string `json:"upstream"`
+	Ahead      uint64  `json:"ahead"`
+	Behind     uint64  `json:"behind"`
+	Staged     uint64  `json:"staged"`
+	Modified   uint64  `json:"modified"`
+	Untracked  uint64  `json:"untracked"`
+	Conflicted uint64  `json:"conflicted"`
+	State      string  `json:"state"`
+	Error      *string `json:"error"`
+}
+
+type SSHChannel struct {
+	Kind       string `json:"kind"`
+	WorktreeID string `json:"worktree_id"`
+}
+
+type ActiveSSHConnection struct {
+	ID            string       `json:"id"`
+	ProjectID     string       `json:"project_id"`
+	PersonID      string       `json:"person_id"`
+	ConnectedAt   uint64       `json:"connected_at"`
+	ClientAddress string       `json:"client_address"`
+	ClientPort    uint16       `json:"client_port"`
+	ServerAddress string       `json:"server_address"`
+	ServerPort    uint16       `json:"server_port"`
+	Channels      []SSHChannel `json:"channels"`
+}
+
+type Event struct {
+	Kind      string  `json:"kind"`
+	ProjectID *string `json:"project_id"`
+	Sequence  uint64  `json:"sequence"`
+}
+
 type CreatePersonRequest struct {
 	Username     string `json:"username"`
 	DisplayName  string `json:"display_name"`
@@ -100,6 +175,10 @@ type API interface {
 	RetryProvisioning(context.Context, string) (ProvisioningJob, error)
 	Toolchain(context.Context, string) (*ToolchainInstallation, error)
 	DeployKey(context.Context, string) (DeployKey, error)
+	HostStatus(context.Context) (HostStatus, error)
+	WorktreeStatuses(context.Context, string) ([]WorktreeStatus, error)
+	ActiveSessions(context.Context) ([]ActiveSSHConnection, error)
+	Events(context.Context, string) (<-chan Event, error)
 }
 
 type Client struct {
@@ -169,6 +248,73 @@ func (c *Client) Toolchain(ctx context.Context, projectID string) (*ToolchainIns
 
 func (c *Client) DeployKey(ctx context.Context, projectID string) (DeployKey, error) {
 	return get[DeployKey](ctx, c, "/v1/projects/"+projectID+"/deploy-key")
+}
+
+func (c *Client) HostStatus(ctx context.Context) (HostStatus, error) {
+	return get[HostStatus](ctx, c, "/v1/host-status")
+}
+
+func (c *Client) WorktreeStatuses(ctx context.Context, projectID string) ([]WorktreeStatus, error) {
+	return get[[]WorktreeStatus](ctx, c, "/v1/projects/"+projectID+"/worktree-status")
+}
+
+func (c *Client) ActiveSessions(ctx context.Context) ([]ActiveSSHConnection, error) {
+	return get[[]ActiveSSHConnection](ctx, c, "/v1/ssh-sessions")
+}
+
+func (c *Client) Events(ctx context.Context, projectID string) (<-chan Event, error) {
+	path := "http://sodad/v1/events"
+	if projectID != "" {
+		path += "?project_id=" + url.QueryEscape(projectID)
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, path, nil)
+	if err != nil {
+		return nil, err
+	}
+	response, err := c.http.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	if response.StatusCode < 200 || response.StatusCode >= 300 {
+		defer response.Body.Close()
+		payload, _ := io.ReadAll(response.Body)
+		return nil, StatusError{Code: response.StatusCode, Body: strings.TrimSpace(string(payload))}
+	}
+	events := make(chan Event, 32)
+	go func() {
+		defer close(events)
+		defer response.Body.Close()
+		scanner := bufio.NewScanner(response.Body)
+		var name string
+		var data strings.Builder
+		for scanner.Scan() {
+			line := scanner.Text()
+			switch {
+			case strings.HasPrefix(line, "event:"):
+				name = strings.TrimSpace(strings.TrimPrefix(line, "event:"))
+			case strings.HasPrefix(line, "data:"):
+				if data.Len() > 0 {
+					data.WriteByte('\n')
+				}
+				data.WriteString(strings.TrimSpace(strings.TrimPrefix(line, "data:")))
+			case line == "":
+				event := Event{Kind: name}
+				if data.Len() > 0 && data.String() != "refresh" {
+					_ = json.Unmarshal([]byte(data.String()), &event)
+				}
+				if event.Kind != "" {
+					select {
+					case events <- event:
+					case <-ctx.Done():
+						return
+					}
+				}
+				name = ""
+				data.Reset()
+			}
+		}
+	}()
+	return events, nil
 }
 
 type StatusError struct {

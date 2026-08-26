@@ -1,23 +1,26 @@
-use std::sync::Arc;
+use std::{convert::Infallible, sync::Arc, time::Duration};
 
 use axum::{
     Json, Router,
-    extract::{Path, State},
+    extract::{Path, Query, State},
+    response::sse::{Event, KeepAlive, Sse},
     routing::{get, post},
 };
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use soda_core::{
-    AddCollaboratorRequest, CreatePersonRequest, CreateProjectRequest, CreateWorktreeRequest,
-    DeployKey, ImportPersonRequest, Person, Project, ProvisioningJob, ToolchainInstallation,
-    Worktree,
+    ActiveSshConnection, AddCollaboratorRequest, CreatePersonRequest, CreateProjectRequest,
+    CreateWorktreeRequest, DeployKey, EventKind, HostStatus, ImportPersonRequest, Person, Project,
+    ProvisioningJob, SodaEvent, ToolchainInstallation, Worktree, WorktreeStatus,
 };
+use tokio_stream::{StreamExt, wrappers::BroadcastStream};
 use uuid::Uuid;
 
-use crate::{error::Result, service::Service};
+use crate::{error::Result, observability::Observability, service::Service};
 
 #[derive(Clone)]
 struct AppState {
     service: Arc<Service>,
+    observability: Arc<Observability>,
 }
 
 #[derive(Serialize)]
@@ -27,9 +30,18 @@ struct Health {
     version: &'static str,
 }
 
+#[derive(Deserialize)]
+struct EventQuery {
+    project_id: Option<Uuid>,
+}
+
 pub fn router(service: Arc<Service>) -> Router {
+    let observability = Observability::start(service.clone());
     Router::new()
         .route("/v1/health", get(health))
+        .route("/v1/events", get(events))
+        .route("/v1/host-status", get(host_status))
+        .route("/v1/ssh-sessions", get(active_sessions))
         .route("/v1/people", get(list_people).post(create_person))
         .route("/v1/people/import", post(import_person))
         .route(
@@ -55,7 +67,14 @@ pub fn router(service: Arc<Service>) -> Router {
             "/v1/projects/{project_id}/provisioning",
             get(list_jobs).post(start_provisioning),
         )
-        .with_state(AppState { service })
+        .route(
+            "/v1/projects/{project_id}/worktree-status",
+            get(worktree_status),
+        )
+        .with_state(AppState {
+            service,
+            observability,
+        })
 }
 
 async fn health() -> Json<Health> {
@@ -64,6 +83,63 @@ async fn health() -> Json<Health> {
         service: "sodad",
         version: env!("CARGO_PKG_VERSION"),
     })
+}
+
+async fn events(
+    State(state): State<AppState>,
+    Query(query): Query<EventQuery>,
+) -> Sse<impl tokio_stream::Stream<Item = std::result::Result<Event, Infallible>>> {
+    let interest = state.observability.interest(query.project_id);
+    let initial = tokio_stream::once(Ok(Event::default().event("refresh").data("refresh")));
+    let stream =
+        BroadcastStream::new(state.service.events().subscribe()).filter_map(move |result| {
+            let _keep_interest_alive = &interest;
+            Some(Ok(match result {
+                Ok(event) => event_for(event),
+                Err(_) => Event::default().event("refresh").data("refresh"),
+            }))
+        });
+    Sse::new(initial.chain(stream)).keep_alive(
+        KeepAlive::new()
+            .interval(Duration::from_secs(15))
+            .text("keepalive"),
+    )
+}
+
+fn event_for(event: SodaEvent) -> Event {
+    Event::default()
+        .event(event_name(event.kind))
+        .id(event.sequence.to_string())
+        .json_data(event)
+        .expect("Soda events serialize")
+}
+
+const fn event_name(kind: EventKind) -> &'static str {
+    match kind {
+        EventKind::HostChanged => "host_changed",
+        EventKind::PeopleChanged => "people_changed",
+        EventKind::ProjectsChanged => "projects_changed",
+        EventKind::WorktreesChanged => "worktrees_changed",
+        EventKind::ProvisioningChanged => "provisioning_changed",
+        EventKind::GitChanged => "git_changed",
+        EventKind::SessionsChanged => "sessions_changed",
+    }
+}
+
+async fn host_status(State(state): State<AppState>) -> Json<HostStatus> {
+    Json(state.observability.host())
+}
+
+async fn active_sessions(State(state): State<AppState>) -> Json<Vec<ActiveSshConnection>> {
+    Json(state.observability.sessions())
+}
+
+async fn worktree_status(
+    State(state): State<AppState>,
+    Path(project_id): Path<Uuid>,
+) -> Result<Json<Vec<WorktreeStatus>>> {
+    state.service.list_worktrees(project_id)?;
+    Ok(Json(state.observability.worktrees(project_id)))
 }
 
 async fn create_person(

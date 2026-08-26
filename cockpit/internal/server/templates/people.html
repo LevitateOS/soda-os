@@ -1,14 +1,16 @@
 {{define "people.html"}}{{template "header" .}}
 <h1>People</h1>
-<section class="panel">
-  <h2>Registered accounts</h2>
-  {{if .People}}<table><thead><tr><th>Name</th><th>Username</th><th>Email</th><th>Role</th></tr></thead><tbody>
-  {{range .People}}<tr><td>{{.DisplayName}}</td><td><code>{{.Username}}</code></td><td>{{.Email}}</td><td>{{.Role}}</td></tr>{{end}}
-  </tbody></table>{{else}}<p>No people are registered.</p>{{end}}
-</section>
+{{template "people-management" .}}
+{{template "footer" .}}{{end}}
+
+{{define "people-management"}}
+<div id="people-management">
+{{if .Message}}<p class="success" role="status">{{.Message}}</p>{{end}}
+{{if .Error}}<p class="error" role="alert">{{.Error}}</p>{{end}}
+{{template "people-list" .}}
 <section class="panel">
   <h2>Add person</h2>
-  <form method="post" action="/people" hx-post="/people">
+  <form method="post" action="/people" hx-post="/people" hx-target="#people-management" hx-swap="outerHTML" hx-disabled-elt="button">
     <label>Username <input name="username" required></label>
     <label>Display name <input name="display_name" required></label>
     <label>Email <input type="email" name="email" required></label>
@@ -18,4 +20,14 @@
     <button type="submit">Add person</button>
   </form>
 </section>
-{{template "footer" .}}{{end}}
+</div>
+{{end}}
+
+{{define "people-list"}}
+<section id="people-list" class="panel" aria-live="polite" hx-get="/fragments/people" hx-trigger="sse:people_changed, sse:refresh" hx-swap="outerHTML">
+  <h2>Registered accounts</h2>
+  {{if .Error}}<p class="error" role="alert">{{.Error}}</p>{{else if .People}}<table><thead><tr><th>Name</th><th>Username</th><th>Email</th><th>Role</th></tr></thead><tbody>
+  {{range .People}}<tr><td>{{.DisplayName}}</td><td><code>{{.Username}}</code></td><td>{{.Email}}</td><td>{{.Role}}</td></tr>{{end}}
+  </tbody></table>{{else}}<p>No people are registered.</p>{{end}}
+</section>
+{{end}}
