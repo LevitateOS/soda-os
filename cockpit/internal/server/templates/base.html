@@ -10,7 +10,10 @@
   </head>
   <body>
     <header class="topbar">
-      <div><a class="brand" href="/">Soda OS</a><span class="muted">0.1.0</span></div>
+      <div class="identity">
+        <a class="brand" href="/" aria-label="Soda OS home"><img src="/static/soda-logo.svg" alt="soda os"></a>
+        <span class="muted">0.1.0</span>
+      </div>
       {{if .User.Username}}
       <nav aria-label="Primary">
         <a href="/projects">Projects</a>

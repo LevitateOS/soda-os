@@ -1,0 +1,155 @@
+schema_version = 1
+anaconda_gui_nevra = "anaconda-gui-40.22.3.46-1.el10.rocky.0.6.aarch64"
+anaconda_gui_rpm = "AppStream/Packages/a/anaconda-gui-40.22.3.46-1.el10.rocky.0.6.aarch64.rpm"
+
+[spokes]
+visible = [
+  "WelcomeLanguageSpoke",
+  "KeyboardSpoke",
+  "DatetimeSpoke",
+  "StorageSpoke",
+  "NetworkSpoke",
+  "UserSpoke",
+]
+hidden = [
+  "LangsupportSpoke",
+  "SourceSpoke",
+  "SoftwareSelectionSpoke",
+  "KdumpSpoke",
+  "PasswordSpoke",
+  "CustomPartitioningSpoke",
+  "BlivetGuiSpoke",
+  "FilterSpoke",
+]
+
+[[glade]]
+path = "usr/share/anaconda/ui/spokes/storage.glade"
+sha256 = "e601b5eb01382a8fced1dafc3bc09df373f95c6edcc913009577e883bc636351"
+
+[[glade.override]]
+object_id = "storageWindow"
+property = "window-name"
+value = "SODA OS — TARGET DISK"
+
+[[glade.override]]
+object_id = "specializedLabel"
+property = "visible"
+value = "False"
+
+[[glade.override]]
+object_id = "specializedLabel"
+property = "no-show-all"
+value = "True"
+
+[[glade.override]]
+object_id = "specializedScrolledWindow"
+property = "visible"
+value = "False"
+
+[[glade.override]]
+object_id = "specializedScrolledWindow"
+property = "no-show-all"
+value = "True"
+
+[[glade.override]]
+object_id = "special_untouched_label_revealer"
+property = "visible"
+value = "False"
+
+[[glade.override]]
+object_id = "special_untouched_label_revealer"
+property = "no-show-all"
+value = "True"
+
+[[glade.override]]
+object_id = "reclaim_checkbox_revealer"
+property = "visible"
+value = "False"
+
+[[glade.override]]
+object_id = "reclaim_checkbox_revealer"
+property = "no-show-all"
+value = "True"
+
+[[glade.override]]
+object_id = "encryption_revealer"
+property = "visible"
+value = "False"
+
+[[glade.override]]
+object_id = "encryption_revealer"
+property = "no-show-all"
+value = "True"
+
+[[glade]]
+path = "usr/share/anaconda/ui/spokes/network.glade"
+sha256 = "8c578e00c25613c6db4d01133d6615673b9823381470a863faeefdf1ad370f2e"
+
+[[glade.override]]
+object_id = "networkWindow"
+property = "window_name"
+value = "SODA OS — NETWORK"
+
+[[glade.override]]
+object_id = "devices_toolbar"
+property = "visible"
+value = "False"
+
+[[glade.override]]
+object_id = "devices_toolbar"
+property = "no_show_all"
+value = "True"
+
+[[glade.override]]
+object_id = "button_wired_options"
+property = "visible"
+value = "False"
+
+[[glade.override]]
+object_id = "button_wired_options"
+property = "no_show_all"
+value = "True"
+
+[[glade.override]]
+object_id = "button_wireless_options"
+property = "visible"
+value = "False"
+
+[[glade.override]]
+object_id = "button_wireless_options"
+property = "no_show_all"
+value = "True"
+
+[[glade]]
+path = "usr/share/anaconda/ui/spokes/user.glade"
+sha256 = "facd328d9ad9beb580c614ccbc4f911950c4e417946601a2ed35d1ec5278f93f"
+
+[[glade.override]]
+object_id = "userCreationWindow"
+property = "window-name"
+value = "CREATE SODA ADMINISTRATOR"
+
+[[glade.override]]
+object_id = "userCreationWindow-atkobject"
+property = "AtkObject::accessible-name"
+value = "CREATE SODA ADMINISTRATOR"
+
+[[glade.override]]
+object_id = "admin_checkbox"
+property = "visible"
+value = "False"
+
+[[glade.override]]
+object_id = "admin_checkbox"
+property = "no-show-all"
+value = "True"
+
+[[glade.override]]
+object_id = "advanced_button"
+property = "visible"
+value = "False"
+
+[[glade.override]]
+object_id = "advanced_button"
+property = "no-show-all"
+value = "True"

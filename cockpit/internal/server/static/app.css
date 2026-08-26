@@ -2,15 +2,19 @@
   color-scheme: light dark;
   font-family: ui-sans-serif, system-ui, sans-serif;
   line-height: 1.5;
+  --soda-cyan: #10d7e8;
+  --soda-navy: #06245b;
 }
 
 body { margin: 0 auto; max-width: 76rem; padding: 0 1.5rem 4rem; }
-.topbar { align-items: center; border-bottom: 1px solid #8886; display: flex; justify-content: space-between; padding: 1rem 0; }
-.brand { font-size: 1.25rem; font-weight: 750; margin-right: .75rem; }
+.topbar { align-items: center; border-bottom: 3px solid var(--soda-cyan); display: flex; justify-content: space-between; padding: 1rem 0; }
+.identity { align-items: center; display: flex; gap: .75rem; }
+.brand { display: inline-flex; }
+.brand img { display: block; height: 2.5rem; width: auto; }
 nav { align-items: center; display: flex; gap: 1rem; }
 nav form { margin: 0; }
 main { padding-top: 2rem; }
-a { color: #2f78d0; }
+a { color: #087d99; }
 .muted { color: #777; }
 .panel { border: 1px solid #8886; border-radius: .5rem; margin: 1rem 0; padding: 1rem 1.25rem; }
 .narrow { margin: 5rem auto; max-width: 28rem; }
@@ -23,6 +27,7 @@ form { display: grid; gap: .75rem; }
 label { display: grid; gap: .25rem; }
 input, select, textarea, button { font: inherit; padding: .5rem; }
 button { cursor: pointer; width: fit-content; }
+button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 3px solid var(--soda-cyan); outline-offset: 2px; }
 table { border-collapse: collapse; width: 100%; }
 th, td { border-bottom: 1px solid #8885; padding: .6rem; text-align: left; vertical-align: top; }
 .items { list-style: none; padding: 0; }
@@ -31,3 +36,7 @@ th, td { border-bottom: 1px solid #8885; padding: .6rem; text-align: left; verti
 .error { color: #c33; }
 pre { overflow-wrap: anywhere; white-space: pre-wrap; }
 code { overflow-wrap: anywhere; }
+
+@media (prefers-color-scheme: dark) {
+  a { color: var(--soda-cyan); }
+}

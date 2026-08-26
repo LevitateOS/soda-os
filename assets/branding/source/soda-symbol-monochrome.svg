@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="title">
+  <title id="title">Monochrome Soda OS symbol</title>
+  <circle cx="128" cy="128" r="116" fill="#000"/>
+  <path d="M20 164c28-22 55-23 82-4 30 21 61 20 92-3 14-10 28-13 42-10v65c-26 21-62 32-108 32-46 0-82-11-108-32z" fill="#fff"/>
+  <circle cx="58" cy="78" r="13" fill="#fff"/>
+  <circle cx="83" cy="113" r="8" fill="#fff"/>
+  <circle cx="173" cy="143" r="10" fill="#fff"/>
+  <path d="M82 58l42 39-42 39M145 117h47" fill="none" stroke="#fff" stroke-linecap="round" stroke-linejoin="round" stroke-width="18"/>
+</svg>

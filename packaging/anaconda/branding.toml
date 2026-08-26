@@ -1,0 +1,36 @@
+schema_version = 1
+
+[[asset]]
+source = "assets/branding/source/soda-logo-horizontal.svg"
+output = "assets/branding/installer/sidebar-logo.png"
+width = 114
+height = 36
+sha256 = "21652cdedcc483021abf7f874a96407fe10cbc05acf3208ab0dac28aa7a22848"
+
+[[asset]]
+source = "assets/branding/source/sidebar-bg.svg"
+output = "assets/branding/installer/sidebar-bg.png"
+width = 240
+height = 1200
+sha256 = "61bfbbe06f2919e32bb3da8554dc77c0e6dde7897014d10db213bb694e9a02fd"
+
+[[asset]]
+source = "assets/branding/source/topbar-bg.svg"
+output = "assets/branding/installer/topbar-bg.png"
+width = 1920
+height = 132
+sha256 = "eb176f4aa5ea596ddf2896e5165e2486b944e3e733abbb48c6a609687251337a"
+
+[[asset]]
+source = "assets/branding/source/grub-background.svg"
+output = "assets/branding/installer/grub-background.png"
+width = 1024
+height = 768
+sha256 = "012402121d004e681fc3d84e2750438d5e8b484862a91335624eebe47bcdfc12"
+
+[[asset]]
+source = "assets/branding/source/soda-symbol.svg"
+output = "assets/branding/installer/soda-symbol-256.png"
+width = 256
+height = 256
+sha256 = "6d97ebdece55aab2f68b6c19180bf28153dc331ed5939f9db82c4779f6ffde71"
