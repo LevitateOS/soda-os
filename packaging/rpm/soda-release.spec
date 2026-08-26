@@ -9,7 +9,10 @@ BuildArch:      noarch
 Release identity and defaults for the Soda OS Rocky Linux derivative.
 
 %install
-mkdir -p %{buildroot}%{_sysconfdir} %{buildroot}%{_prefix}/lib/soda %{buildroot}%{_datadir}/doc/soda-release %{buildroot}%{_datadir}/pixmaps %{buildroot}%{_datadir}/icons/hicolor/256x256/apps
+mkdir -p %{buildroot}%{_sysconfdir} %{buildroot}%{_prefix}/lib/soda %{buildroot}%{_datadir}/doc/soda-release %{buildroot}%{_datadir}/pixmaps
+for size in 16 24 32 48 64 128 256 512; do
+  mkdir -p %{buildroot}%{_datadir}/icons/hicolor/${size}x${size}/apps
+done
 cat > %{buildroot}%{_sysconfdir}/soda-release <<'EOF'
 Soda OS release 0.1.0
 EOF
@@ -35,7 +38,9 @@ Soda OS release 0.1.0
 EOF
 install -m 0644 %{_sourcedir}/BASE_SYSTEM.md %{buildroot}%{_datadir}/doc/soda-release/BASE_SYSTEM.md
 install -m 0644 %{_sourcedir}/soda-symbol.svg %{buildroot}%{_datadir}/pixmaps/soda-os.svg
-install -m 0644 %{_sourcedir}/soda-symbol-256.png %{buildroot}%{_datadir}/icons/hicolor/256x256/apps/soda-os.png
+for size in 16 24 32 48 64 128 256 512; do
+  install -m 0644 %{_sourcedir}/soda-os-${size}.png %{buildroot}%{_datadir}/icons/hicolor/${size}x${size}/apps/soda-os.png
+done
 
 %post
 cp -f %{_prefix}/lib/soda/os-release %{_sysconfdir}/os-release
@@ -58,4 +63,4 @@ cp -f %{_prefix}/lib/soda/system-release %{_sysconfdir}/redhat-release
 %{_prefix}/lib/soda
 %{_datadir}/doc/soda-release/BASE_SYSTEM.md
 %{_datadir}/pixmaps/soda-os.svg
-%{_datadir}/icons/hicolor/256x256/apps/soda-os.png
+%{_datadir}/icons/hicolor/*/apps/soda-os.png

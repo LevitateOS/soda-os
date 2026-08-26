@@ -5,13 +5,16 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{{.Title}}</title>
+    <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+    <link rel="icon" href="/static/favicon-32.png" sizes="32x32" type="image/png">
+    <link rel="apple-touch-icon" href="/static/apple-touch-icon.png" sizes="180x180">
     <link rel="stylesheet" href="/static/app.css">
     <script src="/static/htmx.min.js" defer></script>
   </head>
   <body>
     <header class="topbar">
       <div class="identity">
-        <a class="brand" href="/" aria-label="Soda OS home"><img src="/static/soda-logo.svg" alt="soda os"></a>
+        <a class="brand" href="/" aria-label="Soda OS home"><picture><source media="(prefers-color-scheme: dark)" srcset="/static/soda-logo-dark.svg"><img src="/static/soda-logo.svg" alt="soda os"></picture></a>
         <span class="muted">0.1.0</span>
       </div>
       {{if .User.Username}}

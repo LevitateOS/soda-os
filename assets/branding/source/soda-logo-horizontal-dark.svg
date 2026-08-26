@@ -1,16 +1,15 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 256" role="img" aria-labelledby="title">
   <title id="title">soda os</title>
-  <g transform="translate(0)">
+  <g>
     <circle cx="128" cy="128" r="116" fill="#06245B"/>
     <path d="M20 164c28-22 55-23 82-4 30 21 61 20 92-3 14-10 28-13 42-10v65c-26 21-62 32-108 32-46 0-82-11-108-32z" fill="#10D7E8"/>
     <circle cx="58" cy="78" r="13" fill="#10D7E8"/>
     <circle cx="83" cy="113" r="8" fill="#10D7E8"/>
     <circle cx="173" cy="143" r="10" fill="#10D7E8"/>
-    <path d="M82 58l42 39-42 39" fill="none" stroke="#fff" stroke-linecap="round" stroke-linejoin="round" stroke-width="18"/>
-    <path d="M145 117h47" fill="none" stroke="#10D7E8" stroke-linecap="round" stroke-width="16"/>
+    <path d="M82 58l42 39-42 39M145 117h47" fill="none" stroke="#fff" stroke-linecap="round" stroke-linejoin="round" stroke-width="18"/>
   </g>
   <g transform="translate(-3.4 11) scale(8.2 7)" fill-rule="evenodd">
-    <g fill="#06245B">
+    <g fill="#fff">
       <path d="M48.5 11.8c-1.4-1.2-3.1-1.8-5-1.8-3.1 0-5.2 1.6-5.2 4 0 2.6 2.2 3.4 4.9 4 1.6.4 2.3.7 2.3 1.5 0 .7-.8 1.3-2.1 1.3-1.8 0-3.4-.7-4.7-2l-1.6 2.2c1.7 1.6 3.9 2.4 6.3 2.4 3.4 0 5.6-1.7 5.6-4.3 0-2.7-2.3-3.5-5.1-4.2-1.7-.4-2.4-.7-2.4-1.4 0-.7.7-1.1 1.9-1.1 1.4 0 2.7.5 3.8 1.5z"/>
       <path d="M56.4 10a6.7 6.7 0 1 1 0 13.4 6.7 6.7 0 0 1 0-13.4zm0 3.7a3 3 0 1 0 0 6 3 3 0 0 0 0-6z"/>
       <path d="M72.2 10a6.7 6.7 0 1 1 0 13.4 6.7 6.7 0 0 1 0-13.4zm0 3.7a3 3 0 1 0 0 6 3 3 0 0 0 0-6z"/>

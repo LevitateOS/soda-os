@@ -1,36 +1,98 @@
 schema_version = 1
 
 [[asset]]
-source = "assets/branding/source/soda-logo-white.svg"
+source = "assets/branding/source/soda-logo-sidebar.svg"
 output = "assets/branding/installer/sidebar-logo.png"
 width = 114
 height = 36
-sha256 = "7d81cc6abafc6e3f7b82bf925b31dc39500f6f8e1ed6290b6bea8dd067a62835"
-
+sha256 = "3253f4f496e54f2a551e4678af9e25167fb2f5dc9099fd54aa3930c4756ac583"
 [[asset]]
 source = "assets/branding/source/sidebar-bg.svg"
 output = "assets/branding/installer/sidebar-bg.png"
 width = 240
 height = 1200
-sha256 = "61bfbbe06f2919e32bb3da8554dc77c0e6dde7897014d10db213bb694e9a02fd"
-
+sha256 = "9b501e08832bc19933de51fd03b1f4a3c671b7c30e07b0a563ce65faf9a0dacb"
 [[asset]]
 source = "assets/branding/source/topbar-bg.svg"
 output = "assets/branding/installer/topbar-bg.png"
 width = 1920
 height = 132
-sha256 = "eb176f4aa5ea596ddf2896e5165e2486b944e3e733abbb48c6a609687251337a"
-
+sha256 = "951854875059af77ce8f52425888b234e7b51da6ca3db464a1a097a03ebc1896"
 [[asset]]
 source = "assets/branding/source/grub-background.svg"
 output = "assets/branding/installer/grub-background.png"
 width = 1024
 height = 768
-sha256 = "012402121d004e681fc3d84e2750438d5e8b484862a91335624eebe47bcdfc12"
-
+sha256 = "19fd36e59de96cce85e64db04c5f1fc6aa3039d8f27d2a727ddd15f4b15cb167"
 [[asset]]
 source = "assets/branding/source/soda-symbol.svg"
 output = "assets/branding/installer/soda-symbol-256.png"
 width = 256
 height = 256
-sha256 = "6d97ebdece55aab2f68b6c19180bf28153dc331ed5939f9db82c4779f6ffde71"
+sha256 = "6c3d81a56917de5c0f605df35523139b1b7be25f913608bb65a3d470bd9034c5"
+[[asset]]
+source = "assets/branding/source/soda-symbol-small.svg"
+output = "assets/branding/icons/hicolor/16x16/apps/soda-os.png"
+width = 16
+height = 16
+sha256 = "1e46dd81f1cd560554f9cf7716b6d1d9899167d8e0bb6a2274bfa865e19fa162"
+[[asset]]
+source = "assets/branding/source/soda-symbol-small.svg"
+output = "assets/branding/icons/hicolor/24x24/apps/soda-os.png"
+width = 24
+height = 24
+sha256 = "f3de27677bb46bd6f259c6a547d3a102485da912c9f1d9fbecac6f4fe53a8117"
+[[asset]]
+source = "assets/branding/source/soda-symbol-small.svg"
+output = "assets/branding/icons/hicolor/32x32/apps/soda-os.png"
+width = 32
+height = 32
+sha256 = "82d8e70bd4b96a642adeccd04ca490a4fcd835be9c67b32c19e628caa4443c09"
+[[asset]]
+source = "assets/branding/source/soda-symbol.svg"
+output = "assets/branding/icons/hicolor/48x48/apps/soda-os.png"
+width = 48
+height = 48
+sha256 = "22163f0a3a5afb44fd2e23482a302fefc33aa1b6dd67dbe61638a8ec594246bb"
+[[asset]]
+source = "assets/branding/source/soda-symbol.svg"
+output = "assets/branding/icons/hicolor/64x64/apps/soda-os.png"
+width = 64
+height = 64
+sha256 = "e1607d2c31ba7cf8b7eaa814f92a68e8cf5101b9497ebe9a65ea149812440e5f"
+[[asset]]
+source = "assets/branding/source/soda-symbol.svg"
+output = "assets/branding/icons/hicolor/128x128/apps/soda-os.png"
+width = 128
+height = 128
+sha256 = "073b5d22e797afaa064688be317edc5553eb8f2ffce0679aa415119daf0c8799"
+[[asset]]
+source = "assets/branding/source/soda-symbol.svg"
+output = "assets/branding/icons/hicolor/256x256/apps/soda-os.png"
+width = 256
+height = 256
+sha256 = "6c3d81a56917de5c0f605df35523139b1b7be25f913608bb65a3d470bd9034c5"
+[[asset]]
+source = "assets/branding/source/soda-symbol.svg"
+output = "assets/branding/icons/hicolor/512x512/apps/soda-os.png"
+width = 512
+height = 512
+sha256 = "40fb7f390b6ffaf4aa06fb34d7c4c39575fcc284ede5190bd725c4b2fa0b38f0"
+[[asset]]
+source = "assets/branding/source/soda-symbol-small.svg"
+output = "assets/branding/web/favicon-16.png"
+width = 16
+height = 16
+sha256 = "1e46dd81f1cd560554f9cf7716b6d1d9899167d8e0bb6a2274bfa865e19fa162"
+[[asset]]
+source = "assets/branding/source/soda-symbol-small.svg"
+output = "assets/branding/web/favicon-32.png"
+width = 32
+height = 32
+sha256 = "82d8e70bd4b96a642adeccd04ca490a4fcd835be9c67b32c19e628caa4443c09"
+[[asset]]
+source = "assets/branding/source/soda-symbol.svg"
+output = "assets/branding/web/apple-touch-icon.png"
+width = 180
+height = 180
+sha256 = "59b0d57b403ffc6c7896cc97065c921983c77f4ec6cde5cab6d29bbd2b7421a4"
