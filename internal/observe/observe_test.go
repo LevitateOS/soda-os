@@ -131,6 +131,24 @@ func TestManagerPreservesSessionsOnObserverFailure(t *testing.T) {
 	}
 }
 
+func TestManagerDoesNotPublishSessionChangeForConsecutiveEmptySnapshots(t *testing.T) {
+	manager := managerFor(t, fakeStore{}, &fakeHost{}, &fakeGit{}, &fakeSessions{observation: SessionObservation{Connections: []domain.ActiveSSHConnection{}}})
+	manager.sshState = domain.RuntimeReady
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	subscription := manager.Broker().Subscribe(ctx, "")
+	<-subscription.C
+
+	manager.RefreshSessions(ctx)
+	manager.RefreshSessions(ctx)
+
+	select {
+	case message := <-subscription.C:
+		t.Fatalf("empty session snapshots must not emit an event: %#v", message)
+	case <-time.After(CoalesceInterval + 100*time.Millisecond):
+	}
+}
+
 func TestManagerHostPublishesOnlyOnRenderedChange(t *testing.T) {
 	host := &fakeHost{status: domain.HostStatus{SampledAt: time.Now(), Overall: domain.RuntimeReady}}
 	manager := managerFor(t, fakeStore{}, host, &fakeGit{}, &fakeSessions{})

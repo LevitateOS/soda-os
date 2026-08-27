@@ -280,10 +280,11 @@ func (m *Manager) RefreshSessions(ctx context.Context) {
 		m.setSSHState(domain.RuntimeDegraded)
 		return
 	}
+	nextSessions := append([]domain.ActiveSSHConnection(nil), observation.Connections...)
 	m.mu.Lock()
-	changed := !reflect.DeepEqual(m.activeSessions, observation.Connections)
+	changed := !reflect.DeepEqual(m.activeSessions, nextSessions)
 	previousState := m.sshState
-	m.activeSessions = append([]domain.ActiveSSHConnection(nil), observation.Connections...)
+	m.activeSessions = nextSessions
 	m.sshState = domain.RuntimeReady
 	if observation.Degraded {
 		m.sshState = domain.RuntimeDegraded
