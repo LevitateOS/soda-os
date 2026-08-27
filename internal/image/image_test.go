@@ -394,6 +394,27 @@ func TestStageReleaseTrustAcceptsExplicitCAAndPublicKey(t *testing.T) {
 	require.Contains(t, string(registries), "use-sigstore-attachments: true")
 }
 
+func TestStageReleaseTrustPreservesInputsAlreadyAtDestination(t *testing.T) {
+	root := t.TempDir()
+	trustDir := filepath.Join(root, ".artifacts", "bootc", "trust")
+	require.NoError(t, os.MkdirAll(trustDir, 0o755))
+	caPath, publicKeyPath := writeTestReleaseTrust(t, trustDir)
+	wantCA, err := os.ReadFile(caPath)
+	require.NoError(t, err)
+	wantKey, err := os.ReadFile(publicKeyPath)
+	require.NoError(t, err)
+
+	builder := &Builder{Root: root, RegistryCA: caPath, SigningPublicKey: publicKeyPath}
+	require.NoError(t, builder.stageReleaseTrust())
+
+	stagedCA, err := os.ReadFile(caPath)
+	require.NoError(t, err)
+	require.Equal(t, wantCA, stagedCA)
+	stagedKey, err := os.ReadFile(publicKeyPath)
+	require.NoError(t, err)
+	require.Equal(t, wantKey, stagedKey)
+}
+
 func TestBuildImageStagesTrustAfterLockedBootcInputs(t *testing.T) {
 	source, err := os.ReadFile("image.go")
 	require.NoError(t, err)

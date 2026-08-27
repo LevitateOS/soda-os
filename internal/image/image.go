@@ -390,10 +390,10 @@ func (b *Builder) stageReleaseTrust() error {
 	if err := recreate(destination); err != nil {
 		return err
 	}
-	if err := copyFile(b.RegistryCA, filepath.Join(destination, "registry-ca.crt")); err != nil {
+	if err := os.WriteFile(filepath.Join(destination, "registry-ca.crt"), ca, 0o644); err != nil {
 		return err
 	}
-	if err := copyFile(b.SigningPublicKey, filepath.Join(destination, "cosign.pub")); err != nil {
+	if err := os.WriteFile(filepath.Join(destination, "cosign.pub"), publicKey, 0o644); err != nil {
 		return err
 	}
 	return nil
