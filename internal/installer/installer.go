@@ -162,6 +162,10 @@ func (b *Builder) Build(ctx context.Context, options Options) (Result, error) {
 	if err := verifyArchiveDigest(options.ArchivePath, options.ImageReference); err != nil {
 		return Result{}, err
 	}
+	baseTag, err := imagebuild.PrepareLocalBootcBase(ctx, b.Root, b.runner, b.Spec.Base.Reference)
+	if err != nil {
+		return Result{}, err
+	}
 	work := filepath.Join(b.Root, ".artifacts", "installer")
 	contextDir := filepath.Join(work, "context")
 	inspectDir := filepath.Join(work, "inspect")
@@ -198,7 +202,9 @@ func (b *Builder) Build(ctx context.Context, options Options) (Result, error) {
 	installerTag := "localhost/soda-installer:" + b.Spec.Identity.Version
 	payloadTag := payloadStagingReference(options.ImageReference)
 	if err := b.runner.Run(ctx, imagebuild.Command{Dir: b.Root, Name: "docker", Args: []string{
-		"buildx", "build", "--platform", Platform, "--file", "packaging/installer/Containerfile",
+		"buildx", "build", "--platform", Platform,
+		"--build-context", "fedora-base=docker-image://" + baseTag,
+		"--file", "packaging/installer/Containerfile",
 		"--tag", installerTag, "--provenance=false", "--output", "type=oci,dest=" + installerArchive + ",oci-mediatypes=true", ".",
 	}}); err != nil {
 		return Result{}, fmt.Errorf("build installer environment: %w", err)

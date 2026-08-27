@@ -207,6 +207,7 @@ func TestRuntimeImageEnablesServicesAndMasksAutomaticUpdates(t *testing.T) {
 	contents, err := os.ReadFile(filepath.Join("..", "..", "packaging", "bootc", "Containerfile"))
 	require.NoError(t, err)
 	containerfile := string(contents)
+	require.True(t, strings.HasPrefix(containerfile, "FROM fedora-base\n"))
 	for _, expected := range []string{
 		bootcBaseReference,
 		"systemd-sysusers /usr/lib/sysusers.d/soda.conf",
@@ -334,6 +335,17 @@ func TestRuntimeImageEnablesServicesAndMasksAutomaticUpdates(t *testing.T) {
 	cockpitUnit, err := os.ReadFile(filepath.Join("..", "..", "packaging", "systemd", "soda-cockpit.service"))
 	require.NoError(t, err)
 	require.Contains(t, string(cockpitUnit), "ReadWritePaths=/var/lib/soda/certs /var/log/soda/soda-cockpit")
+}
+
+func TestPrepareLocalBootcBaseUsesExactDigestDerivedLocalTag(t *testing.T) {
+	runner := &RecordingRunner{}
+	tag, err := PrepareLocalBootcBase(context.Background(), "/workspace", runner, bootcBaseReference)
+	require.NoError(t, err)
+	require.Equal(t, "soda-fedora-bootc:sha256-85677d47c03b2e1f8f9a3a19d838023ea154229817d579d4b4da5b87a21c9c1a", tag)
+	require.Equal(t, "docker image tag sha256:85677d47c03b2e1f8f9a3a19d838023ea154229817d579d4b4da5b87a21c9c1a "+tag, runner.Commands[0].String())
+
+	_, err = PrepareLocalBootcBase(context.Background(), "/workspace", runner, "quay.io/fedora/fedora-bootc:44")
+	require.EqualError(t, err, "local Fedora bootc base differs from the approved digest")
 }
 
 func TestSodaRPMsAreScriptletFree(t *testing.T) {

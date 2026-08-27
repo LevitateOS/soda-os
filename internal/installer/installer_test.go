@@ -82,6 +82,12 @@ func TestInstallerEnvironmentUsesAnacondaGeneratorCompatibleDefaultTarget(t *tes
 	require.NotContains(t, string(contents), "ln -sf /usr/lib/systemd/system/anaconda.target /etc/systemd/system/default.target")
 }
 
+func TestInstallerEnvironmentUsesVerifiedLocalFedoraBaseContext(t *testing.T) {
+	contents, err := os.ReadFile(filepath.Join("..", "..", "packaging", "installer", "Containerfile"))
+	require.NoError(t, err)
+	require.True(t, strings.HasPrefix(string(contents), "FROM fedora-base\n"))
+}
+
 func TestPayloadStagingReferenceUsesFullExactDigestOnlyForImageBuilderStorage(t *testing.T) {
 	expected := Repository + ":payload-" + strings.TrimPrefix(testExactImage, Repository+"@sha256:")
 	require.Equal(t, expected, payloadStagingReference(testExactImage))
@@ -202,7 +208,7 @@ platform = "linux/arm64"
 		require.NoError(t, os.WriteFile(path, []byte("input"), 0o644))
 	}
 	runner := &imagebuild.RecordingRunner{Outputs: map[string]string{options.CosignPath + " version": "GitVersion: v3.1.2\n"}}
-	builder := NewBuilder(root, config.DistroSpec{Identity: config.IdentitySpec{Architecture: "aarch64", Hostname: "soda", Version: "0.2.0"}, Base: config.BaseSpec{Platform: Platform}}, runner)
+	builder := NewBuilder(root, config.DistroSpec{Identity: config.IdentitySpec{Architecture: "aarch64", Hostname: "soda", Version: "0.2.0"}, Base: config.BaseSpec{Reference: "quay.io/fedora/fedora-bootc@sha256:85677d47c03b2e1f8f9a3a19d838023ea154229817d579d4b4da5b87a21c9c1a", Platform: Platform}}, runner)
 	_, err := builder.Build(context.Background(), options)
 	require.ErrorContains(t, err, "image-builder did not create")
 	require.FileExists(t, archive)
@@ -215,6 +221,7 @@ platform = "linux/arm64"
 	require.Contains(t, commands, "docker volume rm --force "+volumeName)
 	payloadTag := payloadStagingReference(options.ImageReference)
 	require.Contains(t, strings.Join(commands, "\n"), "containers-storage:"+payloadTag)
+	require.Contains(t, strings.Join(commands, "\n"), "--build-context fedora-base=docker-image://soda-fedora-bootc:sha256-85677d47c03b2e1f8f9a3a19d838023ea154229817d579d4b4da5b87a21c9c1a")
 	require.Contains(t, strings.Join(commands, "\n"), "--bootc-installer-payload-ref "+payloadTag)
 	require.NotContains(t, strings.Join(commands, "\n"), "--bootc-installer-payload-ref "+options.ImageReference)
 	require.NotContains(t, strings.Join(commands, "\n"), root+"/.artifacts/installer/containers-storage:/var/lib/containers/storage")

@@ -1,4 +1,4 @@
-FROM quay.io/fedora/fedora-bootc@sha256:85677d47c03b2e1f8f9a3a19d838023ea154229817d579d4b4da5b87a21c9c1a
+FROM fedora-base
 
 ARG SODA_VERSION
 ARG SODA_SOURCE_REVISION

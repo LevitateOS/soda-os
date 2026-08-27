@@ -25,6 +25,7 @@ const (
 	bootcBaseReference   = "quay.io/fedora/fedora-bootc@sha256:85677d47c03b2e1f8f9a3a19d838023ea154229817d579d4b4da5b87a21c9c1a"
 	bootcPlatform        = "linux/arm64"
 	bootcRuntimeNEVRA    = "bootc-0:1.16.10-1.fc44.aarch64"
+	bootcBaseArchive     = "isos/Fedora-bootc-44-aarch64/Fedora-bootc-44.20260826.0-aarch64.oci-archive.tar"
 	builderBaseReference = "registry.fedoraproject.org/fedora@sha256:9c8b291e256262b91aac5b3da50ea323760d0a6b449c6d6ad5f01d9550d48d2a"
 	sodaRegistry         = "registry.soda.local/soda/os"
 	cosignVersion        = "v3.1.2"
@@ -328,6 +329,10 @@ func (b *Builder) BuildImage(ctx context.Context) error {
 	if _, err := b.sourceRevision(ctx); err != nil {
 		return err
 	}
+	baseTag, err := PrepareLocalBootcBase(ctx, b.Root, b.runner, b.Spec.Base.Reference)
+	if err != nil {
+		return err
+	}
 	if err := b.BuildRPMs(ctx); err != nil {
 		return err
 	}
@@ -349,6 +354,7 @@ func (b *Builder) BuildImage(ctx context.Context) error {
 	created := time.Unix(b.Spec.Build.SourceDateEpoch, 0).UTC().Format(time.RFC3339)
 	args := []string{
 		"buildx", "build", "--platform", b.Spec.Base.Platform,
+		"--build-context", "fedora-base=docker-image://" + baseTag,
 		"--file", "packaging/bootc/Containerfile",
 		"--tag", b.imageName(),
 		"--build-arg", "SODA_VERSION=" + b.Spec.Identity.Version,
@@ -364,6 +370,33 @@ func (b *Builder) BuildImage(ctx context.Context) error {
 	}
 	fmt.Printf("Built OCI archive %s from %s\n", output, b.Spec.Base.Reference)
 	return nil
+}
+
+// PrepareLocalBootcBase binds BuildKit's fedora-base context to the exact
+// pinned manifest retained in the repository reference-media area. Quay tags
+// and retention are not part of the reproducible Soda build contract.
+func PrepareLocalBootcBase(ctx context.Context, root string, runner Runner, reference string) (string, error) {
+	if reference != bootcBaseReference {
+		return "", errors.New("local Fedora bootc base differs from the approved digest")
+	}
+	digest := strings.TrimPrefix(reference, "quay.io/fedora/fedora-bootc@")
+	localTag := "soda-fedora-bootc:" + strings.ReplaceAll(digest, ":", "-")
+	tag := Command{Dir: root, Name: "docker", Args: []string{"image", "tag", digest, localTag}}
+	if err := runner.Run(ctx, tag); err == nil {
+		return localTag, nil
+	}
+	archive := filepath.Join(root, bootcBaseArchive)
+	info, err := os.Stat(archive)
+	if err != nil || !info.Mode().IsRegular() {
+		return "", fmt.Errorf("load pinned Fedora bootc base: %s is unavailable", archive)
+	}
+	if err := runner.Run(ctx, Command{Dir: root, Name: "docker", Args: []string{"load", "--input", archive}}); err != nil {
+		return "", fmt.Errorf("load pinned Fedora bootc base: %w", err)
+	}
+	if err := runner.Run(ctx, tag); err != nil {
+		return "", fmt.Errorf("bind pinned Fedora bootc base digest: %w", err)
+	}
+	return localTag, nil
 }
 
 func (b *Builder) stageReleaseTrust() error {

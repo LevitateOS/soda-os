@@ -1,4 +1,4 @@
-FROM quay.io/fedora/fedora-bootc@sha256:85677d47c03b2e1f8f9a3a19d838023ea154229817d579d4b4da5b87a21c9c1a
+FROM fedora-base
 
 # This image exists only while constructing installer media. It is not a Soda
 # runtime image and is never published as a Soda release.
