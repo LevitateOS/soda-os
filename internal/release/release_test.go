@@ -240,7 +240,7 @@ func TestCosignCommandsPinVersionAndExactDigest(t *testing.T) {
 	}
 	require.Equal(t, []string{
 		"cosign version",
-		"cosign sign --yes --use-signing-config=false --tlog-upload=false --registry-referrers-mode=legacy --key /keys/cosign.key --registry-cacert /keys/registry-ca.crt " + exact,
+		"cosign sign --yes --use-signing-config=false --tlog-upload=false --registry-referrers-mode=legacy --new-bundle-format=false --key /keys/cosign.key --registry-cacert /keys/registry-ca.crt " + exact,
 		"cosign verify --key /keys/cosign.pub --registry-cacert /keys/registry-ca.crt --insecure-ignore-tlog=true " + exact,
 		"cosign sign-blob --yes --use-signing-config=false --tlog-upload=false --key /keys/cosign.key --bundle release.sigstore.json release.json",
 		"cosign verify-blob --key /keys/cosign.pub --bundle release.sigstore.json --insecure-ignore-tlog=true release.json",

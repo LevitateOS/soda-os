@@ -333,7 +333,7 @@ func (s *cosignSigner) CheckVersion(ctx context.Context) error {
 
 func (s *cosignSigner) SignImage(ctx context.Context, reference string) error {
 	return s.runner.Run(ctx, imagebuild.Command{Name: s.executable, Args: []string{
-		"sign", "--yes", "--use-signing-config=false", "--tlog-upload=false", "--registry-referrers-mode=legacy",
+		"sign", "--yes", "--use-signing-config=false", "--tlog-upload=false", "--registry-referrers-mode=legacy", "--new-bundle-format=false",
 		"--key", s.privateKey, "--registry-cacert", s.ca, reference,
 	}})
 }
