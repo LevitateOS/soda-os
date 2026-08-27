@@ -45,6 +45,15 @@ func TestInstallerEnvironmentPinsLegacyGRUBHybridBootModule(t *testing.T) {
 	require.Contains(t, string(contents), "test -f /usr/lib/grub/i386-pc/boot_hybrid.img")
 }
 
+func TestInstallerEnvironmentUsesAnacondaGeneratorCompatibleDefaultTarget(t *testing.T) {
+	contents, err := os.ReadFile(filepath.Join("..", "..", "packaging", "installer", "Containerfile"))
+	require.NoError(t, err)
+
+	// Fedora 44's anaconda-generator compares readlink output literally with the /lib path.
+	require.Contains(t, string(contents), "ln -sf /lib/systemd/system/anaconda.target /etc/systemd/system/default.target")
+	require.NotContains(t, string(contents), "ln -sf /usr/lib/systemd/system/anaconda.target /etc/systemd/system/default.target")
+}
+
 func TestPayloadStagingReferenceUsesFullExactDigestOnlyForImageBuilderStorage(t *testing.T) {
 	expected := Repository + ":payload-" + strings.TrimPrefix(testExactImage, Repository+"@sha256:")
 	require.Equal(t, expected, payloadStagingReference(testExactImage))

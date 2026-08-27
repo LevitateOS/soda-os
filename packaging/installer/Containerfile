@@ -31,7 +31,7 @@ RUN mkdir -p /boot/efi /usr/lib/image-builder/bootc /usr/lib/systemd/logind.conf
     && passwd -d root \
     && mv /usr/share/anaconda/list-harddrives-stub /usr/bin/list-harddrives \
     && mv /etc/yum.repos.d /etc/anaconda.repos.d \
-    && ln -sf /usr/lib/systemd/system/anaconda.target /etc/systemd/system/default.target \
+    && ln -sf /lib/systemd/system/anaconda.target /etc/systemd/system/default.target \
     && rm -f /usr/lib/systemd/system-generators/systemd-gpt-auto-generator \
     && ln -sf /usr/lib/systemd/system/anaconda-shell@.service /usr/lib/systemd/system/autovt@.service \
     && mkdir -p /etc/systemd/user/pipewire.service.d /etc/systemd/user/pipewire.socket.d
