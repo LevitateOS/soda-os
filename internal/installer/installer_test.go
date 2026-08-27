@@ -29,12 +29,40 @@ func TestKickstartKeepsStockInteractiveFlowAndExactDigest(t *testing.T) {
 	require.Contains(t, contents, "network --bootproto=dhcp --device=link --activate --onboot=on --hostname=soda")
 	require.Contains(t, contents, `--source-imgref="containers-storage:`+testExactImage+`"`)
 	require.Contains(t, contents, `--target-imgref="`+testExactImage+`"`)
-	require.Contains(t, contents, "%pre-install --erroronfail\n")
-	require.Contains(t, contents, "install -d -m 0755 /mnt/sysimage/var/home\n")
+	require.NotContains(t, contents, "%pre-install")
+	require.NotContains(t, contents, "/mnt/sysimage/var/home")
 	require.NotContains(t, contents, "--enforce-container-sigpolicy")
 	require.NotContains(t, contents, "selinux=0")
 	require.NotContains(t, contents, "clearpart")
 	require.NotContains(t, contents, "user --name")
+}
+
+func TestInstallerStorageUsesOnePlainExt4Root(t *testing.T) {
+	root := filepath.Join("..", "..")
+	contents, err := os.ReadFile(filepath.Join(root, "packaging", "installer", "soda-storage.conf"))
+	require.NoError(t, err)
+	require.Equal(t, "# Soda OS automatic storage defaults for the trusted-LAN bootc appliance.\n[Storage]\nfile_system_type = ext4\ndefault_scheme = PLAIN\ndefault_partitioning =\n    / (min 1 GiB)\n", string(contents))
+	require.NotContains(t, string(contents), "/home")
+	require.NotContains(t, string(contents), "BTRFS")
+
+	containerfile, err := os.ReadFile(filepath.Join(root, "packaging", "installer", "Containerfile"))
+	require.NoError(t, err)
+	require.Contains(t, string(containerfile), "COPY packaging/installer/soda-storage.conf /etc/anaconda/conf.d/90-soda-storage.conf")
+}
+
+func TestStorageConfigRequiresExactPlainExt4RootOnlyContract(t *testing.T) {
+	expected := []byte("[Storage]\nfile_system_type = ext4\ndefault_scheme = PLAIN\ndefault_partitioning =\n    / (min 1 GiB)\n")
+	require.NoError(t, validateStorageConfig(expected, expected))
+
+	for name, malformed := range map[string]string{
+		"btrfs":         strings.ReplaceAll(string(expected), "ext4", "btrfs"),
+		"btrfs scheme":  strings.ReplaceAll(string(expected), "PLAIN", "BTRFS"),
+		"separate home": string(expected) + "    /home (min 500 MiB)\n",
+	} {
+		t.Run(name, func(t *testing.T) {
+			require.EqualError(t, validateStorageConfig([]byte(malformed), expected), "ISO storage configuration differs from the Soda ext4 root-only contract")
+		})
+	}
 }
 
 func TestInstallerEnvironmentPinsLegacyGRUBHybridBootModule(t *testing.T) {

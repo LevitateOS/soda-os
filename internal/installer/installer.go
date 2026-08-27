@@ -339,7 +339,8 @@ func (b *Builder) inspectISO(ctx context.Context, lock toolLock, volumeName, ins
 	}
 	args = append(append([]string{}, outer...), "unsquashfs",
 		"-f", "-d", "/inspect/root", "/inspect/squashfs.img",
-		"usr/share/anaconda/interactive-defaults.ks", "usr/lib/image-builder/bootc/iso.yaml", "var/lib/containers/storage/overlay-images/images.json")
+		"usr/share/anaconda/interactive-defaults.ks", "etc/anaconda/conf.d/90-soda-storage.conf",
+		"usr/lib/image-builder/bootc/iso.yaml", "var/lib/containers/storage/overlay-images/images.json")
 	if err := b.runner.Run(ctx, imagebuild.Command{Dir: b.Root, Name: "docker", Args: args}); err != nil {
 		return fmt.Errorf("inspect installer squashfs: %w", err)
 	}
@@ -367,6 +368,17 @@ func (b *Builder) inspectISO(ctx context.Context, lock toolLock, volumeName, ins
 		return fmt.Errorf("read expected ISO configuration: %w", err)
 	}
 	if err := validateISOConfig(isoConfig, expectedISOConfig); err != nil {
+		return err
+	}
+	storageConfig, err := os.ReadFile(filepath.Join(inspectDir, "root", "etc/anaconda/conf.d/90-soda-storage.conf"))
+	if err != nil {
+		return fmt.Errorf("read ISO storage configuration: %w", err)
+	}
+	expectedStorageConfig, err := os.ReadFile(filepath.Join(b.Root, "packaging", "installer", "soda-storage.conf"))
+	if err != nil {
+		return fmt.Errorf("read expected installer storage configuration: %w", err)
+	}
+	if err := validateStorageConfig(storageConfig, expectedStorageConfig); err != nil {
 		return err
 	}
 	return nil
@@ -409,14 +421,18 @@ func validateISOConfig(actual, expected []byte) error {
 	return nil
 }
 
+func validateStorageConfig(actual, expected []byte) error {
+	if !bytes.Equal(actual, expected) {
+		return errors.New("ISO storage configuration differs from the Soda ext4 root-only contract")
+	}
+	return nil
+}
+
 func kickstart(reference, hostname string) string {
 	return "# Soda OS stock interactive Anaconda defaults.\n" +
 		"text\n" +
 		"network --bootproto=dhcp --device=link --activate --onboot=on --hostname=" + hostname + "\n" +
-		"bootc --source-imgref=\"containers-storage:" + reference + "\" --target-imgref=\"" + reference + "\"\n" +
-		"%pre-install --erroronfail\n" +
-		"install -d -m 0755 /mnt/sysimage/var/home\n" +
-		"%end\n"
+		"bootc --source-imgref=\"containers-storage:" + reference + "\" --target-imgref=\"" + reference + "\"\n"
 }
 
 func regularFile(path string) bool {
