@@ -34,6 +34,14 @@ func TestKickstartKeepsStockInteractiveFlowAndExactDigest(t *testing.T) {
 	require.NotContains(t, contents, "user --name")
 }
 
+func TestInstallerEnvironmentPinsLegacyGRUBHybridBootModule(t *testing.T) {
+	contents, err := os.ReadFile(filepath.Join("..", "..", "packaging", "installer", "Containerfile"))
+	require.NoError(t, err)
+	require.Contains(t, string(contents), "grub2-pc-modules-1:2.12-64.fc44.noarch")
+	require.Contains(t, string(contents), "rpm -q shim-aa64 grub2-efi-aa64 grub2-efi-aa64-cdboot grub2-pc-modules")
+	require.Contains(t, string(contents), "test -f /usr/lib/grub/i386-pc/boot_hybrid.img")
+}
+
 func TestPayloadStagingReferenceUsesFullExactDigestOnlyForImageBuilderStorage(t *testing.T) {
 	expected := Repository + ":payload-" + strings.TrimPrefix(testExactImage, Repository+"@sha256:")
 	require.Equal(t, expected, payloadStagingReference(testExactImage))

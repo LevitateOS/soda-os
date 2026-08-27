@@ -10,6 +10,7 @@ RUN dnf -y install --setopt=install_weak_deps=False \
       dracut-network-108-7.fc44.aarch64 \
       net-tools-2.0-0.77.20160912git.fc44.aarch64 \
       grub2-efi-aa64-cdboot-1:2.12-64.fc44.aarch64 \
+      grub2-pc-modules-1:2.12-64.fc44.noarch \
       plymouth-24.004.60-24.fc44.aarch64 \
       default-fonts-core-sans-4.3-1.fc44.noarch \
       default-fonts-other-sans-4.3-1.fc44.noarch \
@@ -19,7 +20,8 @@ RUN dnf -y install --setopt=install_weak_deps=False \
     && dnf clean all \
     && test "$(find /usr/lib/modules -mindepth 1 -maxdepth 1 -type d | wc -l)" -eq 1 \
     && test "$(find /usr/lib/efi/shim -mindepth 3 -maxdepth 3 -type d ! -name BOOT | wc -l)" -eq 1 \
-    && rpm -q shim-aa64 grub2-efi-aa64 grub2-efi-aa64-cdboot
+    && rpm -q shim-aa64 grub2-efi-aa64 grub2-efi-aa64-cdboot grub2-pc-modules \
+    && test -f /usr/lib/grub/i386-pc/boot_hybrid.img
 
 RUN mkdir -p /boot/efi /usr/lib/image-builder/bootc /usr/lib/systemd/logind.conf.d \
     && mkdir -p "$(realpath /root)" \
