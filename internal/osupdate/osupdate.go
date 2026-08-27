@@ -340,13 +340,13 @@ func parseBootcStatus(contents []byte) (Status, error) {
 	if document.Status.Booted == nil {
 		return Status{}, errors.New("host has no booted bootc deployment")
 	}
-	booted, err := deployment(document.Status.Booted)
+	booted, err := deployment(document.Status.Booted, false)
 	if err != nil {
 		return Status{}, fmt.Errorf("decode booted deployment: %w", err)
 	}
 	result := Status{Booted: &booted, ReadOnly: document.Status.ReadOnly}
 	if document.Status.Staged != nil {
-		staged, err := deployment(document.Status.Staged)
+		staged, err := deployment(document.Status.Staged, true)
 		if err != nil {
 			return Status{}, fmt.Errorf("decode staged deployment: %w", err)
 		}
@@ -355,7 +355,7 @@ func parseBootcStatus(contents []byte) (Status, error) {
 	return result, nil
 }
 
-func deployment(value *bootcDeployment) (Deployment, error) {
+func deployment(value *bootcDeployment, requireSignature bool) (Deployment, error) {
 	digest := strings.TrimSpace(value.Image.ImageDigest)
 	if !validSHA256(digest) {
 		return Deployment{}, errors.New("deployment has no valid image digest")
@@ -364,8 +364,11 @@ func deployment(value *bootcDeployment) (Deployment, error) {
 	if err != nil || ref.Context().Name() != Repository {
 		return Deployment{}, errors.New("deployment is not a Soda OS image")
 	}
-	if value.Image.Image.Transport != "registry" || value.Image.Image.Signature != "containerPolicy" {
-		return Deployment{}, errors.New("deployment does not enforce the Soda container signature policy")
+	if value.Image.Image.Transport != "registry" {
+		return Deployment{}, errors.New("deployment is not registry-backed")
+	}
+	if requireSignature && value.Image.Image.Signature != "containerPolicy" {
+		return Deployment{}, errors.New("staged deployment does not enforce the Soda container signature policy")
 	}
 	if value.Image.Architecture != "arm64" {
 		return Deployment{}, errors.New("deployment is not AArch64")

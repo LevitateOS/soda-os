@@ -62,6 +62,7 @@ func TestStatusComesOnlyFromBootcAndPreservesDownloadLock(t *testing.T) {
 	status, err := manager.Status(context.Background())
 	require.NoError(t, err)
 	require.Equal(t, Repository+"@"+testBootedDigest, status.Booted.ImageReference)
+	require.Empty(t, status.Booted.Signature)
 	require.Equal(t, Repository+"@"+testUpdateDigest, status.Staged.ImageReference)
 	require.True(t, status.Staged.DownloadOnly)
 	require.False(t, status.ReadOnly)
@@ -206,14 +207,18 @@ func validMetadata(digest string) imageMetadata {
 }
 
 func bootcStatusJSON(bootedDigest, stagedDigest string, downloadOnly bool) string {
-	deployment := func(digest, version string, locked bool) string {
-		return `{"image":{"image":{"image":"` + Repository + `@` + digest + `","transport":"registry","signature":"containerPolicy"},"version":"` + version + `","imageDigest":"` + digest + `","architecture":"arm64"},"incompatible":false,"downloadOnly":` + strconvBool(locked) + `}`
+	deployment := func(digest, version string, downloadOnly, signed bool) string {
+		signature := ""
+		if signed {
+			signature = `,"signature":"containerPolicy"`
+		}
+		return `{"image":{"image":{"image":"` + Repository + `@` + digest + `","transport":"registry"` + signature + `},"version":"` + version + `","imageDigest":"` + digest + `","architecture":"arm64"},"incompatible":false,"downloadOnly":` + strconvBool(downloadOnly) + `}`
 	}
 	staged := "null"
 	if stagedDigest != "" {
-		staged = deployment(stagedDigest, "0.3.0", downloadOnly)
+		staged = deployment(stagedDigest, "0.3.0", downloadOnly, true)
 	}
-	return `{"status":{"readOnly":false,"booted":` + deployment(bootedDigest, "0.2.0", false) + `,"staged":` + staged + `}}`
+	return `{"status":{"readOnly":false,"booted":` + deployment(bootedDigest, "0.2.0", false, false) + `,"staged":` + staged + `}}`
 }
 
 func strconvBool(value bool) string {
