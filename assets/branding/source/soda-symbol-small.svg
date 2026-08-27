@@ -1,8 +1,48 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="title">
-  <title id="title">Small Soda OS terminal and bubbles symbol</title>
-  <circle cx="128" cy="128" r="116" fill="#06245B"/>
-  <circle cx="59" cy="78" r="14" fill="#10D7E8"/>
-  <circle cx="88" cy="111" r="10" fill="#10D7E8"/>
-  <circle cx="177" cy="142" r="12" fill="#10D7E8"/>
-  <path d="M71 78l42 39-42 39M137 117h48" fill="none" stroke="#fff" stroke-linecap="round" stroke-linejoin="round" stroke-width="20"/>
+<svg xmlns="http://www.w3.org/2000/svg"
+     viewBox="0 0 256 256"
+     role="img"
+     aria-labelledby="soda-os-symbol-title">
+  <title id="soda-os-symbol-title">
+    Soda OS terminal and bubbles symbol
+  </title>
+
+  <circle
+    cx="128"
+    cy="128"
+    r="116"
+    fill="#06245B"
+  />
+
+  <path
+    d="M21.5106 174
+       C49 154 77 151 105 171
+       C134 191 164 196 195 174
+       C212 162 224 161 234.4894 174
+       A116 116 0 0 1 21.5106 174
+       Z"
+    fill="#10D7E8"
+  />
+
+  <g fill="#10D7E8">
+    <circle cx="193" cy="65" r="11"/>
+    <circle cx="213" cy="96" r="7"/>
+    <circle cx="217" cy="131" r="9"/>
+  </g>
+
+  <path
+    d="M79 62L118 98L79 134"
+    fill="none"
+    stroke="#FFFFFF"
+    stroke-width="18"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+
+  <path
+    d="M145 138H187"
+    fill="none"
+    stroke="#10D7E8"
+    stroke-width="16"
+    stroke-linecap="round"
+  />
 </svg>

@@ -2,6 +2,8 @@
 
 Soda OS uses the approved terminal-and-bubbles symbol and lowercase `soda os`
 wordmark. The source-of-truth artwork is SVG under `assets/branding/source`.
+`assets/branding/soda-os-logo-concept-v3.png` is the approved visual reference;
+the earlier concept PNGs are retained only as historical exploration.
 Tracked PNGs under `assets/branding` and copies in Cockpit
 consumers are deterministic derivatives; do not edit them by hand.
 
@@ -9,7 +11,7 @@ consumers are deterministic derivatives; do not edit them by hand.
 
 Use `soda-logo-horizontal.svg` as the primary mark on white or very light
 backgrounds. Use `soda-logo-horizontal-dark.svg` on midnight-navy or other
-dark backgrounds. `soda-logo-white.svg` is the all-white reverse mark;
+dark backgrounds. `soda-logo-white.svg` is the reverse-wordmark variant;
 `soda-logo-navy.svg` and `soda-logo-black.svg` are single-colour marks for
 restricted reproduction. Use `soda-symbol.svg` whenever the name is already
 visible or space is square. Its white, navy, and black counterparts have
@@ -18,15 +20,14 @@ black-symbol filename for compatibility.
 
 There is intentionally no stacked lockup: no shipped Soda OS surface needs one
 and the horizontal mark remains more legible at the available Cockpit widths.
-`soda-symbol-small.svg` is only for 16, 24, and 32 px icons and
-favicons. It omits the lower liquid wave so the terminal prompt and bubbles
-remain distinct; all larger uses retain the approved geometry.
+`soda-symbol-small.svg` is the approved master symbol for 16,
+24, and 32 px icons and favicons; it retains the same geometry as larger uses.
 
 Keep clear space equal to one bubble diameter around every mark. Do not use the
 horizontal wordmark below 114 px wide or the standard symbol below 32 px. The
 small symbol is the only approved mark below 32 px. Do not recolour, outline,
 stretch, rotate, add effects, or place the full-colour mark on cyan or busy
-backgrounds. Customer-facing branding must say Soda OS only; Fedora attribution
+backgrounds. Customer-facing branding must say Soda OS only; Rocky attribution
 belongs in technical documentation.
 
 ## Outputs and regeneration

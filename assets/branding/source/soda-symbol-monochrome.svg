@@ -1,9 +1,52 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="title">
-  <title id="title">Monochrome Soda OS symbol</title>
-  <circle cx="128" cy="128" r="116" fill="#000"/>
-  <path d="M20 164c28-22 55-23 82-4 30 21 61 20 92-3 14-10 28-13 42-10v65c-26 21-62 32-108 32-46 0-82-11-108-32z" fill="#fff"/>
-  <circle cx="58" cy="78" r="13" fill="#fff"/>
-  <circle cx="83" cy="113" r="8" fill="#fff"/>
-  <circle cx="173" cy="143" r="10" fill="#fff"/>
-  <path d="M82 58l42 39-42 39M145 117h47" fill="none" stroke="#fff" stroke-linecap="round" stroke-linejoin="round" stroke-width="18"/>
+<svg xmlns="http://www.w3.org/2000/svg"
+     viewBox="0 0 256 256"
+     role="img"
+     aria-labelledby="soda-os-symbol-title">
+  <title id="soda-os-symbol-title">
+    Soda OS terminal and bubbles symbol
+  </title>
+  <style>
+    circle, path { fill: #000; }
+    path[stroke] { fill: none; stroke: #000; }
+  </style>
+
+  <circle
+    cx="128"
+    cy="128"
+    r="116"
+    fill="#06245B"
+  />
+
+  <path
+    d="M21.5106 174
+       C49 154 77 151 105 171
+       C134 191 164 196 195 174
+       C212 162 224 161 234.4894 174
+       A116 116 0 0 1 21.5106 174
+       Z"
+    fill="#10D7E8"
+  />
+
+  <g fill="#10D7E8">
+    <circle cx="193" cy="65" r="11"/>
+    <circle cx="213" cy="96" r="7"/>
+    <circle cx="217" cy="131" r="9"/>
+  </g>
+
+  <path
+    d="M79 62L118 98L79 134"
+    fill="none"
+    stroke="#FFFFFF"
+    stroke-width="18"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+
+  <path
+    d="M145 138H187"
+    fill="none"
+    stroke="#10D7E8"
+    stroke-width="16"
+    stroke-linecap="round"
+  />
 </svg>
