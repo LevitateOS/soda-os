@@ -16,7 +16,7 @@ import (
 	"gorm.io/gorm/logger"
 )
 
-func TestOpenCreatesSchemaVersionOneAndEnforcesConstraints(t *testing.T) {
+func TestOpenCreatesSchemaVersionTwoAndEnforcesConstraints(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "soda.db")
 	repository, err := Open(path)
 	if err != nil {
@@ -30,7 +30,7 @@ func TestOpenCreatesSchemaVersionOneAndEnforcesConstraints(t *testing.T) {
 		t.Fatalf("schema version = %d", version)
 	}
 	ctx := context.Background()
-	person := domain.Person{ID: uuid.NewString(), Username: "alice", DisplayName: "Alice", Email: "alice@example.test", Role: domain.RoleDeveloper, SSHPublicKey: "ssh-ed25519 AAAA alice"}
+	person := domain.Person{ID: uuid.NewString(), Username: "alice", DisplayName: "Alice", Email: "alice@example.test", Role: domain.RoleDeveloper}
 	if err = repository.CreatePerson(ctx, person); err != nil {
 		t.Fatal(err)
 	}
@@ -64,7 +64,7 @@ func TestOpenRejectsUnsupportedSchema(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err = repository.DB().Exec("PRAGMA user_version = 2").Error; err != nil {
+	if err = repository.DB().Exec("PRAGMA user_version = 1").Error; err != nil {
 		t.Fatal(err)
 	}
 	if err = sqlDB.Close(); err != nil {
@@ -98,49 +98,60 @@ func TestSchemaInitializationRollsBackTablesAndVersionTogether(t *testing.T) {
 	}
 }
 
-func TestPersonFingerprintUniquenessAllowsEmptyBootstrapKeys(t *testing.T) {
+func TestSSHDeviceKeyUniquenessAllowsKeylessPeople(t *testing.T) {
 	repository, err := Open(filepath.Join(t.TempDir(), "soda.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	ctx := context.Background()
-	key := "ssh-ed25519 AAAA"
-	first := domain.Person{ID: uuid.NewString(), Username: "alice", DisplayName: "Alice", Email: "alice@example.test", Role: domain.RoleDeveloper, SSHPublicKey: key + " first-comment"}
-	second := domain.Person{ID: uuid.NewString(), Username: "bob", DisplayName: "Bob", Email: "bob@example.test", Role: domain.RoleDeveloper, SSHPublicKey: key + " different-comment"}
-	if err = repository.CreatePerson(ctx, first); err != nil {
+	first := domain.Person{ID: uuid.NewString(), Username: "alice", DisplayName: "Alice", Email: "alice@example.test", Role: domain.RoleDeveloper}
+	second := domain.Person{ID: uuid.NewString(), Username: "bob", DisplayName: "Bob", Email: "bob@example.test", Role: domain.RoleDeveloper}
+	for _, person := range []domain.Person{first, second} {
+		if err = repository.CreatePerson(ctx, person); err != nil {
+			t.Fatal(err)
+		}
+	}
+	firstKey := domain.SSHDeviceKey{ID: uuid.NewString(), PersonID: first.ID, Label: "Laptop", PublicKey: "ssh-ed25519 AAAA first", Fingerprint: "SHA256:same", IdentityFileHint: "~/.ssh/id_ed25519"}
+	if err = repository.CreateSSHDeviceKey(ctx, firstKey); err != nil {
 		t.Fatal(err)
 	}
-	if err = repository.PreflightPerson(ctx, second.Username, second.SSHPublicKey); !errors.Is(err, ErrAlreadyExists) {
-		t.Fatalf("fingerprint preflight = %v", err)
+	duplicateFingerprint := domain.SSHDeviceKey{ID: uuid.NewString(), PersonID: second.ID, Label: "Laptop", PublicKey: "ssh-ed25519 AAAA second", Fingerprint: firstKey.Fingerprint, IdentityFileHint: "~/.ssh/work"}
+	if err = repository.CreateSSHDeviceKey(ctx, duplicateFingerprint); !errors.Is(err, ErrAlreadyExists) {
+		t.Fatalf("global fingerprint constraint = %v", err)
 	}
-	if err = repository.CreatePerson(ctx, second); !errors.Is(err, ErrAlreadyExists) {
-		t.Fatalf("fingerprint constraint = %v", err)
-	}
-	for i := 0; i < 2; i++ {
-		person := domain.Person{ID: uuid.NewString(), Username: fmt.Sprintf("bootstrap%d", i), DisplayName: "Bootstrap", Email: fmt.Sprintf("bootstrap%d@soda.local", i), Role: domain.RoleAdmin}
-		if err = repository.CreatePerson(ctx, person); err != nil {
-			t.Fatalf("empty key %d: %v", i, err)
-		}
+	duplicateLabel := firstKey
+	duplicateLabel.ID = uuid.NewString()
+	duplicateLabel.Fingerprint = "SHA256:other"
+	if err = repository.CreateSSHDeviceKey(ctx, duplicateLabel); !errors.Is(err, ErrAlreadyExists) {
+		t.Fatalf("per-person label constraint = %v", err)
 	}
 }
 
-func TestPersonFingerprintConstraintIsConcurrent(t *testing.T) {
+func TestSSHDeviceFingerprintConstraintIsConcurrent(t *testing.T) {
 	repository, err := Open(filepath.Join(t.TempDir(), "soda.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	ctx := context.Background()
-	key := "ssh-ed25519 AAAA"
+	people := []domain.Person{
+		{ID: uuid.NewString(), Username: "alice", DisplayName: "Alice", Email: "alice@example.test", Role: domain.RoleDeveloper},
+		{ID: uuid.NewString(), Username: "bob", DisplayName: "Bob", Email: "bob@example.test", Role: domain.RoleDeveloper},
+	}
+	for _, person := range people {
+		if err = repository.CreatePerson(ctx, person); err != nil {
+			t.Fatal(err)
+		}
+	}
 	start := make(chan struct{})
 	errorsByAttempt := make(chan error, 2)
 	var ready sync.WaitGroup
 	ready.Add(2)
-	for i, username := range []string{"alice", "bob"} {
-		go func(index int, name string) {
+	for i, person := range people {
+		go func(index int, person domain.Person) {
 			ready.Done()
 			<-start
-			errorsByAttempt <- repository.CreatePerson(ctx, domain.Person{ID: uuid.NewString(), Username: name, DisplayName: name, Email: name + "@example.test", Role: domain.RoleDeveloper, SSHPublicKey: fmt.Sprintf("%s comment-%d", key, index)})
-		}(i, username)
+			errorsByAttempt <- repository.CreateSSHDeviceKey(ctx, domain.SSHDeviceKey{ID: uuid.NewString(), PersonID: person.ID, Label: fmt.Sprintf("device-%d", index), PublicKey: fmt.Sprintf("ssh-ed25519 AAAA comment-%d", index), Fingerprint: "SHA256:shared", IdentityFileHint: "~/.ssh/id_ed25519"})
+		}(i, person)
 	}
 	ready.Wait()
 	close(start)
@@ -166,7 +177,7 @@ func TestMembershipWorktreeJobsAndToolchainResolution(t *testing.T) {
 		t.Fatal(err)
 	}
 	ctx := context.Background()
-	person := domain.Person{ID: uuid.NewString(), Username: "alice", DisplayName: "Alice", Email: "alice@example.test", Role: domain.RoleDeveloper, SSHPublicKey: "ssh-ed25519 AAAA alice"}
+	person := domain.Person{ID: uuid.NewString(), Username: "alice", DisplayName: "Alice", Email: "alice@example.test", Role: domain.RoleDeveloper}
 	project := domain.Project{ID: uuid.NewString(), Slug: "demo", Name: "Demo", UnixUser: "soda-p-demo", Profile: domain.ToolchainGo, Source: domain.GitProjectSource{RemoteURL: "git@example.com:team/demo.git"}}
 	if err = repository.CreatePerson(ctx, person); err != nil {
 		t.Fatal(err)
@@ -181,6 +192,11 @@ func TestMembershipWorktreeJobsAndToolchainResolution(t *testing.T) {
 	}
 	if err = repository.AddMembershipAndWorktree(ctx, membership, tree); !errors.Is(err, ErrAlreadyExists) {
 		t.Fatalf("duplicate membership = %v", err)
+	}
+	secondTree := tree
+	secondTree.ID, secondTree.Branch, secondTree.Path = uuid.NewString(), "people/alice-task", "/projects/demo/alice-task"
+	if err = repository.CreateWorktree(ctx, secondTree); !errors.Is(err, ErrAlreadyExists) {
+		t.Fatalf("second personal workspace = %v", err)
 	}
 	job := domain.ProvisioningJob{ID: uuid.NewString(), ProjectID: project.ID, State: domain.JobInstalling}
 	if err = repository.CreateJob(ctx, job); err != nil {

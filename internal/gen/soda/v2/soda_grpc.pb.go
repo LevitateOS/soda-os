@@ -23,12 +23,14 @@ const (
 	SodaService_CreatePerson_FullMethodName             = "/soda.v2.SodaService/CreatePerson"
 	SodaService_ImportPerson_FullMethodName             = "/soda.v2.SodaService/ImportPerson"
 	SodaService_ListPeople_FullMethodName               = "/soda.v2.SodaService/ListPeople"
+	SodaService_CreateSshDeviceKey_FullMethodName       = "/soda.v2.SodaService/CreateSshDeviceKey"
+	SodaService_ListSshDeviceKeys_FullMethodName        = "/soda.v2.SodaService/ListSshDeviceKeys"
+	SodaService_RevokeSshDeviceKey_FullMethodName       = "/soda.v2.SodaService/RevokeSshDeviceKey"
 	SodaService_CreateProject_FullMethodName            = "/soda.v2.SodaService/CreateProject"
 	SodaService_ListProjects_FullMethodName             = "/soda.v2.SodaService/ListProjects"
 	SodaService_ListProjectsForPerson_FullMethodName    = "/soda.v2.SodaService/ListProjectsForPerson"
 	SodaService_AddCollaborator_FullMethodName          = "/soda.v2.SodaService/AddCollaborator"
 	SodaService_ListCollaborators_FullMethodName        = "/soda.v2.SodaService/ListCollaborators"
-	SodaService_CreateWorktree_FullMethodName           = "/soda.v2.SodaService/CreateWorktree"
 	SodaService_ListWorktrees_FullMethodName            = "/soda.v2.SodaService/ListWorktrees"
 	SodaService_GetDeployKey_FullMethodName             = "/soda.v2.SodaService/GetDeployKey"
 	SodaService_GetProjectToolchain_FullMethodName      = "/soda.v2.SodaService/GetProjectToolchain"
@@ -48,12 +50,14 @@ type SodaServiceClient interface {
 	CreatePerson(ctx context.Context, in *CreatePersonRequest, opts ...grpc.CallOption) (*CreatePersonResponse, error)
 	ImportPerson(ctx context.Context, in *ImportPersonRequest, opts ...grpc.CallOption) (*ImportPersonResponse, error)
 	ListPeople(ctx context.Context, in *ListPeopleRequest, opts ...grpc.CallOption) (*ListPeopleResponse, error)
+	CreateSshDeviceKey(ctx context.Context, in *CreateSshDeviceKeyRequest, opts ...grpc.CallOption) (*CreateSshDeviceKeyResponse, error)
+	ListSshDeviceKeys(ctx context.Context, in *ListSshDeviceKeysRequest, opts ...grpc.CallOption) (*ListSshDeviceKeysResponse, error)
+	RevokeSshDeviceKey(ctx context.Context, in *RevokeSshDeviceKeyRequest, opts ...grpc.CallOption) (*RevokeSshDeviceKeyResponse, error)
 	CreateProject(ctx context.Context, in *CreateProjectRequest, opts ...grpc.CallOption) (*CreateProjectResponse, error)
 	ListProjects(ctx context.Context, in *ListProjectsRequest, opts ...grpc.CallOption) (*ListProjectsResponse, error)
 	ListProjectsForPerson(ctx context.Context, in *ListProjectsForPersonRequest, opts ...grpc.CallOption) (*ListProjectsForPersonResponse, error)
 	AddCollaborator(ctx context.Context, in *AddCollaboratorRequest, opts ...grpc.CallOption) (*AddCollaboratorResponse, error)
 	ListCollaborators(ctx context.Context, in *ListCollaboratorsRequest, opts ...grpc.CallOption) (*ListCollaboratorsResponse, error)
-	CreateWorktree(ctx context.Context, in *CreateWorktreeRequest, opts ...grpc.CallOption) (*CreateWorktreeResponse, error)
 	ListWorktrees(ctx context.Context, in *ListWorktreesRequest, opts ...grpc.CallOption) (*ListWorktreesResponse, error)
 	GetDeployKey(ctx context.Context, in *GetDeployKeyRequest, opts ...grpc.CallOption) (*GetDeployKeyResponse, error)
 	GetProjectToolchain(ctx context.Context, in *GetProjectToolchainRequest, opts ...grpc.CallOption) (*GetProjectToolchainResponse, error)
@@ -113,6 +117,36 @@ func (c *sodaServiceClient) ListPeople(ctx context.Context, in *ListPeopleReques
 	return out, nil
 }
 
+func (c *sodaServiceClient) CreateSshDeviceKey(ctx context.Context, in *CreateSshDeviceKeyRequest, opts ...grpc.CallOption) (*CreateSshDeviceKeyResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CreateSshDeviceKeyResponse)
+	err := c.cc.Invoke(ctx, SodaService_CreateSshDeviceKey_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *sodaServiceClient) ListSshDeviceKeys(ctx context.Context, in *ListSshDeviceKeysRequest, opts ...grpc.CallOption) (*ListSshDeviceKeysResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListSshDeviceKeysResponse)
+	err := c.cc.Invoke(ctx, SodaService_ListSshDeviceKeys_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *sodaServiceClient) RevokeSshDeviceKey(ctx context.Context, in *RevokeSshDeviceKeyRequest, opts ...grpc.CallOption) (*RevokeSshDeviceKeyResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RevokeSshDeviceKeyResponse)
+	err := c.cc.Invoke(ctx, SodaService_RevokeSshDeviceKey_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *sodaServiceClient) CreateProject(ctx context.Context, in *CreateProjectRequest, opts ...grpc.CallOption) (*CreateProjectResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(CreateProjectResponse)
@@ -157,16 +191,6 @@ func (c *sodaServiceClient) ListCollaborators(ctx context.Context, in *ListColla
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ListCollaboratorsResponse)
 	err := c.cc.Invoke(ctx, SodaService_ListCollaborators_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *sodaServiceClient) CreateWorktree(ctx context.Context, in *CreateWorktreeRequest, opts ...grpc.CallOption) (*CreateWorktreeResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(CreateWorktreeResponse)
-	err := c.cc.Invoke(ctx, SodaService_CreateWorktree_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -280,12 +304,14 @@ type SodaServiceServer interface {
 	CreatePerson(context.Context, *CreatePersonRequest) (*CreatePersonResponse, error)
 	ImportPerson(context.Context, *ImportPersonRequest) (*ImportPersonResponse, error)
 	ListPeople(context.Context, *ListPeopleRequest) (*ListPeopleResponse, error)
+	CreateSshDeviceKey(context.Context, *CreateSshDeviceKeyRequest) (*CreateSshDeviceKeyResponse, error)
+	ListSshDeviceKeys(context.Context, *ListSshDeviceKeysRequest) (*ListSshDeviceKeysResponse, error)
+	RevokeSshDeviceKey(context.Context, *RevokeSshDeviceKeyRequest) (*RevokeSshDeviceKeyResponse, error)
 	CreateProject(context.Context, *CreateProjectRequest) (*CreateProjectResponse, error)
 	ListProjects(context.Context, *ListProjectsRequest) (*ListProjectsResponse, error)
 	ListProjectsForPerson(context.Context, *ListProjectsForPersonRequest) (*ListProjectsForPersonResponse, error)
 	AddCollaborator(context.Context, *AddCollaboratorRequest) (*AddCollaboratorResponse, error)
 	ListCollaborators(context.Context, *ListCollaboratorsRequest) (*ListCollaboratorsResponse, error)
-	CreateWorktree(context.Context, *CreateWorktreeRequest) (*CreateWorktreeResponse, error)
 	ListWorktrees(context.Context, *ListWorktreesRequest) (*ListWorktreesResponse, error)
 	GetDeployKey(context.Context, *GetDeployKeyRequest) (*GetDeployKeyResponse, error)
 	GetProjectToolchain(context.Context, *GetProjectToolchainRequest) (*GetProjectToolchainResponse, error)
@@ -317,6 +343,15 @@ func (UnimplementedSodaServiceServer) ImportPerson(context.Context, *ImportPerso
 func (UnimplementedSodaServiceServer) ListPeople(context.Context, *ListPeopleRequest) (*ListPeopleResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListPeople not implemented")
 }
+func (UnimplementedSodaServiceServer) CreateSshDeviceKey(context.Context, *CreateSshDeviceKeyRequest) (*CreateSshDeviceKeyResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method CreateSshDeviceKey not implemented")
+}
+func (UnimplementedSodaServiceServer) ListSshDeviceKeys(context.Context, *ListSshDeviceKeysRequest) (*ListSshDeviceKeysResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListSshDeviceKeys not implemented")
+}
+func (UnimplementedSodaServiceServer) RevokeSshDeviceKey(context.Context, *RevokeSshDeviceKeyRequest) (*RevokeSshDeviceKeyResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RevokeSshDeviceKey not implemented")
+}
 func (UnimplementedSodaServiceServer) CreateProject(context.Context, *CreateProjectRequest) (*CreateProjectResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method CreateProject not implemented")
 }
@@ -331,9 +366,6 @@ func (UnimplementedSodaServiceServer) AddCollaborator(context.Context, *AddColla
 }
 func (UnimplementedSodaServiceServer) ListCollaborators(context.Context, *ListCollaboratorsRequest) (*ListCollaboratorsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListCollaborators not implemented")
-}
-func (UnimplementedSodaServiceServer) CreateWorktree(context.Context, *CreateWorktreeRequest) (*CreateWorktreeResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method CreateWorktree not implemented")
 }
 func (UnimplementedSodaServiceServer) ListWorktrees(context.Context, *ListWorktreesRequest) (*ListWorktreesResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListWorktrees not implemented")
@@ -455,6 +487,60 @@ func _SodaService_ListPeople_Handler(srv interface{}, ctx context.Context, dec f
 	return interceptor(ctx, in, info, handler)
 }
 
+func _SodaService_CreateSshDeviceKey_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateSshDeviceKeyRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SodaServiceServer).CreateSshDeviceKey(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SodaService_CreateSshDeviceKey_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SodaServiceServer).CreateSshDeviceKey(ctx, req.(*CreateSshDeviceKeyRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _SodaService_ListSshDeviceKeys_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListSshDeviceKeysRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SodaServiceServer).ListSshDeviceKeys(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SodaService_ListSshDeviceKeys_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SodaServiceServer).ListSshDeviceKeys(ctx, req.(*ListSshDeviceKeysRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _SodaService_RevokeSshDeviceKey_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RevokeSshDeviceKeyRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SodaServiceServer).RevokeSshDeviceKey(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SodaService_RevokeSshDeviceKey_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SodaServiceServer).RevokeSshDeviceKey(ctx, req.(*RevokeSshDeviceKeyRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _SodaService_CreateProject_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(CreateProjectRequest)
 	if err := dec(in); err != nil {
@@ -541,24 +627,6 @@ func _SodaService_ListCollaborators_Handler(srv interface{}, ctx context.Context
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(SodaServiceServer).ListCollaborators(ctx, req.(*ListCollaboratorsRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _SodaService_CreateWorktree_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(CreateWorktreeRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(SodaServiceServer).CreateWorktree(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: SodaService_CreateWorktree_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(SodaServiceServer).CreateWorktree(ctx, req.(*CreateWorktreeRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -742,6 +810,18 @@ var SodaService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _SodaService_ListPeople_Handler,
 		},
 		{
+			MethodName: "CreateSshDeviceKey",
+			Handler:    _SodaService_CreateSshDeviceKey_Handler,
+		},
+		{
+			MethodName: "ListSshDeviceKeys",
+			Handler:    _SodaService_ListSshDeviceKeys_Handler,
+		},
+		{
+			MethodName: "RevokeSshDeviceKey",
+			Handler:    _SodaService_RevokeSshDeviceKey_Handler,
+		},
+		{
 			MethodName: "CreateProject",
 			Handler:    _SodaService_CreateProject_Handler,
 		},
@@ -760,10 +840,6 @@ var SodaService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListCollaborators",
 			Handler:    _SodaService_ListCollaborators_Handler,
-		},
-		{
-			MethodName: "CreateWorktree",
-			Handler:    _SodaService_CreateWorktree_Handler,
 		},
 		{
 			MethodName: "ListWorktrees",

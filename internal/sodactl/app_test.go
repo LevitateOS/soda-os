@@ -38,15 +38,15 @@ func (s *recordingServer) Health(_ context.Context, request *sodav2.HealthReques
 }
 
 func (s *recordingServer) ListPeople(_ context.Context, request *sodav2.ListPeopleRequest) (*sodav2.ListPeopleResponse, error) {
-	return &sodav2.ListPeopleResponse{People: []*sodav2.Person{{Id: "person-1", Username: "vince", DisplayName: "Vince", Email: "vince@soda.local", Role: sodav2.Role_ROLE_ADMIN, SshPublicKey: "ssh-ed25519 AAAA"}}}, s.record(request)
+	return &sodav2.ListPeopleResponse{People: []*sodav2.Person{{Id: "person-1", Username: "vince", DisplayName: "Vince", Email: "vince@soda.local", Role: sodav2.Role_ROLE_ADMIN}}}, s.record(request)
 }
 
 func (s *recordingServer) CreatePerson(_ context.Context, request *sodav2.CreatePersonRequest) (*sodav2.CreatePersonResponse, error) {
-	return &sodav2.CreatePersonResponse{Person: &sodav2.Person{Id: "person-1", Username: request.Username, DisplayName: request.DisplayName, Email: request.Email, Role: request.Role, SshPublicKey: request.SshPublicKey}}, s.record(request)
+	return &sodav2.CreatePersonResponse{Person: &sodav2.Person{Id: "person-1", Username: request.Username, DisplayName: request.DisplayName, Email: request.Email, Role: request.Role}}, s.record(request)
 }
 
 func (s *recordingServer) ImportPerson(_ context.Context, request *sodav2.ImportPersonRequest) (*sodav2.ImportPersonResponse, error) {
-	return &sodav2.ImportPersonResponse{Person: &sodav2.Person{Id: "person-1", Username: request.Username, DisplayName: request.DisplayName, Email: request.Email, Role: request.Role, SshPublicKey: request.SshPublicKey}}, s.record(request)
+	return &sodav2.ImportPersonResponse{Person: &sodav2.Person{Id: "person-1", Username: request.Username, DisplayName: request.DisplayName, Email: request.Email, Role: request.Role}}, s.record(request)
 }
 
 func (s *recordingServer) ListProjects(_ context.Context, request *sodav2.ListProjectsRequest) (*sodav2.ListProjectsResponse, error) {
@@ -63,10 +63,6 @@ func (s *recordingServer) AddCollaborator(_ context.Context, request *sodav2.Add
 
 func (s *recordingServer) ListCollaborators(_ context.Context, request *sodav2.ListCollaboratorsRequest) (*sodav2.ListCollaboratorsResponse, error) {
 	return &sodav2.ListCollaboratorsResponse{Collaborators: []*sodav2.Collaborator{{Person: &sodav2.Person{Id: "person-1", Username: "vince", Role: sodav2.Role_ROLE_ADMIN}, Membership: &sodav2.Membership{ProjectId: request.ProjectId, PersonId: "person-1"}, Worktrees: []*sodav2.Worktree{testWorktree()}}}}, s.record(request)
-}
-
-func (s *recordingServer) CreateWorktree(_ context.Context, request *sodav2.CreateWorktreeRequest) (*sodav2.CreateWorktreeResponse, error) {
-	return &sodav2.CreateWorktreeResponse{Worktree: testWorktree()}, s.record(request)
 }
 
 func (s *recordingServer) ListWorktrees(_ context.Context, request *sodav2.ListWorktreesRequest) (*sodav2.ListWorktreesResponse, error) {
@@ -126,7 +122,6 @@ func testApp(t *testing.T, server *recordingServer) (*App, *string) {
 		}
 		return ""
 	}
-	app.ReadFile = func(string) ([]byte, error) { return []byte(" ssh-ed25519 AAAA test\n"), nil }
 	return app, &socket
 }
 
@@ -149,26 +144,25 @@ func TestCommandsUseGRPCAndWriteSnakeCaseJSON(t *testing.T) {
 	}{
 		{"health", []string{"--socket", "/tmp/soda.sock", "health"}, func(t *testing.T, got any) { require.IsType(t, &sodav2.HealthRequest{}, got) }},
 		{"people list", []string{"people", "list"}, func(t *testing.T, got any) { require.IsType(t, &sodav2.ListPeopleRequest{}, got) }},
-		{"people add", []string{"people", "add", "--username", "vince", "--display-name", "Vince", "--email", "vince@soda.local", "--role", "admin", "--ssh-key", "id.pub"}, func(t *testing.T, got any) {
+		{"people add", []string{"people", "add", "--username", "vince", "--display-name", "Vince", "--email", "vince@soda.local", "--role", "admin"}, func(t *testing.T, got any) {
 			request := got.(*sodav2.CreatePersonRequest)
 			require.Equal(t, sodav2.Role_ROLE_ADMIN, request.Role)
-			require.Equal(t, "ssh-ed25519 AAAA test", request.SshPublicKey)
 			require.Equal(t, "easy-password", request.Password)
 		}},
-		{"people import", []string{"people", "import", "--username", "vince", "--display-name", "Vince", "--email", "vince@soda.local", "--ssh-key", "id.pub"}, func(t *testing.T, got any) { require.IsType(t, &sodav2.ImportPersonRequest{}, got) }},
+		{"people import", []string{"people", "import", "--username", "vince", "--display-name", "Vince", "--email", "vince@soda.local"}, func(t *testing.T, got any) { require.IsType(t, &sodav2.ImportPersonRequest{}, got) }},
 		{"projects list", []string{"projects", "list"}, func(t *testing.T, got any) { require.IsType(t, &sodav2.ListProjectsRequest{}, got) }},
-		{"projects create empty", []string{"projects", "create", "--slug", "demo", "--name", "Demo", "--profile", "go"}, func(t *testing.T, got any) {
+		{"projects create empty", []string{"projects", "create", "--slug", "demo", "--name", "Demo", "--profile", "go", "--member", "person-1", "--member", "person-2"}, func(t *testing.T, got any) {
 			request := got.(*sodav2.CreateProjectRequest)
 			require.Equal(t, sodav2.ToolchainProfile_TOOLCHAIN_PROFILE_GO, request.Profile)
 			require.NotNil(t, request.Source.GetEmpty())
+			require.Equal(t, []string{"person-1", "person-2"}, request.InitialPersonIds)
 		}},
-		{"projects create git", []string{"projects", "create", "--slug", "demo", "--name", "Demo", "--profile", "rust", "--git", "ssh://git@example/demo.git"}, func(t *testing.T, got any) {
+		{"projects create git", []string{"projects", "create", "--slug", "demo", "--name", "Demo", "--profile", "rust", "--git", "ssh://git@example/demo.git", "--member", "person-1"}, func(t *testing.T, got any) {
 			require.Equal(t, "ssh://git@example/demo.git", got.(*sodav2.CreateProjectRequest).Source.GetGit().RemoteUrl)
 		}},
-		{"collaborators add", []string{"projects", "collaborators", "add", "--project", "project", "--person", "person"}, func(t *testing.T, got any) { require.IsType(t, &sodav2.AddCollaboratorRequest{}, got) }},
-		{"collaborators list", []string{"projects", "collaborators", "list", "--project", "project"}, func(t *testing.T, got any) { require.IsType(t, &sodav2.ListCollaboratorsRequest{}, got) }},
-		{"worktrees add", []string{"projects", "worktrees", "add", "--project", "project", "--person", "person", "--name", "feature", "--base", "main"}, func(t *testing.T, got any) { require.IsType(t, &sodav2.CreateWorktreeRequest{}, got) }},
-		{"worktrees list", []string{"projects", "worktrees", "list", "--project", "project"}, func(t *testing.T, got any) { require.IsType(t, &sodav2.ListWorktreesRequest{}, got) }},
+		{"members add", []string{"projects", "members", "add", "--project", "project", "--person", "person"}, func(t *testing.T, got any) { require.IsType(t, &sodav2.AddCollaboratorRequest{}, got) }},
+		{"members list", []string{"projects", "members", "list", "--project", "project"}, func(t *testing.T, got any) { require.IsType(t, &sodav2.ListCollaboratorsRequest{}, got) }},
+		{"workspaces list", []string{"projects", "workspaces", "list", "--project", "project"}, func(t *testing.T, got any) { require.IsType(t, &sodav2.ListWorktreesRequest{}, got) }},
 		{"provisioning retry", []string{"projects", "provisioning", "retry", "--project", "project"}, func(t *testing.T, got any) { require.IsType(t, &sodav2.StartProvisioningRequest{}, got) }},
 		{"provisioning list", []string{"projects", "provisioning", "list", "--project", "project"}, func(t *testing.T, got any) { require.IsType(t, &sodav2.ListProvisioningJobsRequest{}, got) }},
 		{"deploy key", []string{"projects", "deploy-key", "--project", "project"}, func(t *testing.T, got any) { require.IsType(t, &sodav2.GetDeployKeyRequest{}, got) }},
@@ -199,7 +193,7 @@ func TestPersonAddRequiresPasswordBeforeCallingDaemon(t *testing.T) {
 		return nil, nil, io.ErrUnexpectedEOF
 	}
 	app.Getenv = func(string) string { return "" }
-	_, err := execute(t, app, "people", "add", "--username", "vince", "--display-name", "Vince", "--email", "vince@soda.local", "--ssh-key", "id.pub")
+	_, err := execute(t, app, "people", "add", "--username", "vince", "--display-name", "Vince", "--email", "vince@soda.local")
 	require.EqualError(t, err, "SODA_PERSON_PASSWORD is required")
 	require.Zero(t, dials)
 }
@@ -230,14 +224,12 @@ func TestLocalValidationFailureNeverDials(t *testing.T) {
 		dials++
 		return nil, nil, io.ErrUnexpectedEOF
 	}
-	_, err := execute(t, app, "projects", "create", "--slug", "demo", "--name", "Demo", "--profile", "invalid")
+	_, err := execute(t, app, "projects", "create", "--slug", "demo", "--name", "Demo", "--profile", "invalid", "--member", "person-1")
 	require.EqualError(t, err, "invalid profile \"invalid\"; expected web, python, rust, or go")
 	require.Zero(t, dials)
 
-	app.Getenv = func(string) string { return "password" }
-	app.ReadFile = func(string) ([]byte, error) { return nil, io.ErrUnexpectedEOF }
-	_, err = execute(t, app, "people", "import", "--username", "vince", "--display-name", "Vince", "--email", "vince@soda.local", "--ssh-key", "missing")
-	require.ErrorContains(t, err, "read SSH public key")
+	_, err = execute(t, app, "projects", "create", "--slug", "demo", "--name", "Demo", "--profile", "go")
+	require.ErrorContains(t, err, "required flag(s) \"member\" not set")
 	require.Zero(t, dials)
 }
 
@@ -251,22 +243,21 @@ func TestMissingSocketReturnsUnavailableWithinDeadline(t *testing.T) {
 	require.Less(t, time.Since(started), time.Second)
 }
 
-func TestLegacyJSONShapes(t *testing.T) {
+func TestJSONShapes(t *testing.T) {
 	tests := []struct {
 		name     string
 		args     []string
 		expected string
 	}{
 		{"health", []string{"health"}, `{"status":"ready","service":"sodad","version":"0.2.0"}`},
-		{"people list is array", []string{"people", "list"}, `[{"id":"person-1","username":"vince","display_name":"Vince","email":"vince@soda.local","role":"admin","ssh_public_key":"ssh-ed25519 AAAA"}]`},
-		{"person is unwrapped", []string{"people", "add", "--username", "vince", "--display-name", "Vince", "--email", "vince@soda.local", "--role", "admin", "--ssh-key", "id.pub"}, `{"id":"person-1","username":"vince","display_name":"Vince","email":"vince@soda.local","role":"admin","ssh_public_key":"ssh-ed25519 AAAA test"}`},
-		{"imported person is unwrapped", []string{"people", "import", "--username", "vince", "--display-name", "Vince", "--email", "vince@soda.local", "--ssh-key", "id.pub"}, `{"id":"person-1","username":"vince","display_name":"Vince","email":"vince@soda.local","role":"developer","ssh_public_key":"ssh-ed25519 AAAA test"}`},
+		{"people list is array", []string{"people", "list"}, `[{"id":"person-1","username":"vince","display_name":"Vince","email":"vince@soda.local","role":"admin"}]`},
+		{"person is unwrapped", []string{"people", "add", "--username", "vince", "--display-name", "Vince", "--email", "vince@soda.local", "--role", "admin"}, `{"id":"person-1","username":"vince","display_name":"Vince","email":"vince@soda.local","role":"admin"}`},
+		{"imported person is unwrapped", []string{"people", "import", "--username", "vince", "--display-name", "Vince", "--email", "vince@soda.local"}, `{"id":"person-1","username":"vince","display_name":"Vince","email":"vince@soda.local","role":"developer"}`},
 		{"projects list is array", []string{"projects", "list"}, `[{"id":"project-1","slug":"demo","name":"Demo","unix_user":"soda-p-demo","profile":"go","source":{"kind":"empty"}}]`},
-		{"project is unwrapped", []string{"projects", "create", "--slug", "demo", "--name", "Demo", "--profile", "rust", "--git", "ssh://git@example/demo.git"}, `{"id":"project-1","slug":"demo","name":"Demo","unix_user":"soda-p-demo","profile":"rust","source":{"kind":"git","remote_url":"ssh://git@example/demo.git"}}`},
-		{"collaborator add returns worktree", []string{"projects", "collaborators", "add", "--project", "project", "--person", "person"}, `{"id":"worktree-1","project_id":"project","person_id":"person","name":"feature","branch":"people/vince","path":"/srv/soda/projects/demo/worktrees/vince"}`},
-		{"collaborators list is array", []string{"projects", "collaborators", "list", "--project", "project"}, `[{"person":{"id":"person-1","username":"vince","display_name":"","email":"","role":"admin","ssh_public_key":""},"membership":{"project_id":"project","person_id":"person-1"},"worktrees":[{"id":"worktree-1","project_id":"project","person_id":"person","name":"feature","branch":"people/vince","path":"/srv/soda/projects/demo/worktrees/vince"}]}]`},
-		{"worktree add is unwrapped", []string{"projects", "worktrees", "add", "--project", "project", "--person", "person", "--name", "feature"}, `{"id":"worktree-1","project_id":"project","person_id":"person","name":"feature","branch":"people/vince","path":"/srv/soda/projects/demo/worktrees/vince"}`},
-		{"worktrees list is array", []string{"projects", "worktrees", "list", "--project", "project"}, `[{"id":"worktree-1","project_id":"project","person_id":"person","name":"feature","branch":"people/vince","path":"/srv/soda/projects/demo/worktrees/vince"}]`},
+		{"project is unwrapped", []string{"projects", "create", "--slug", "demo", "--name", "Demo", "--profile", "rust", "--git", "ssh://git@example/demo.git", "--member", "person-1"}, `{"id":"project-1","slug":"demo","name":"Demo","unix_user":"soda-p-demo","profile":"rust","source":{"kind":"git","remote_url":"ssh://git@example/demo.git"}}`},
+		{"member add returns workspace", []string{"projects", "members", "add", "--project", "project", "--person", "person"}, `{"id":"worktree-1","project_id":"project","person_id":"person","name":"feature","branch":"people/vince","path":"/srv/soda/projects/demo/worktrees/vince"}`},
+		{"members list is array", []string{"projects", "members", "list", "--project", "project"}, `[{"person":{"id":"person-1","username":"vince","display_name":"","email":"","role":"admin"},"membership":{"project_id":"project","person_id":"person-1"},"workspaces":[{"id":"worktree-1","project_id":"project","person_id":"person","name":"feature","branch":"people/vince","path":"/srv/soda/projects/demo/worktrees/vince"}]}]`},
+		{"workspaces list is array", []string{"projects", "workspaces", "list", "--project", "project"}, `[{"id":"worktree-1","project_id":"project","person_id":"person","name":"feature","branch":"people/vince","path":"/srv/soda/projects/demo/worktrees/vince"}]`},
 		{"retry returns job", []string{"projects", "provisioning", "retry", "--project", "project"}, `{"id":"job-1","project_id":"project","state":"installing","error":null}`},
 		{"jobs list is array", []string{"projects", "provisioning", "list", "--project", "project"}, `[{"id":"job-1","project_id":"project","state":"installing","error":null}]`},
 		{"deploy key is unwrapped", []string{"projects", "deploy-key", "--project", "project"}, `{"project_id":"project","public_key":"ssh-ed25519 DEPLOY"}`},

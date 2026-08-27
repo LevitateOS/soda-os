@@ -38,9 +38,16 @@ type fakeHost struct {
 	personCleanups   int
 	projectCleanups  int
 	worktreeCleanups int
+	worktreeAttempts int
+	failWorktreeAt   int
+	baseRefs         []string
+	reconciliations  [][]domain.ProjectAccess
+	reconcileErr     error
 }
 
-func (*fakeHost) InstallerAdministrator(context.Context) (*domain.Person, error) { return nil, nil }
+func (*fakeHost) InstallerAdministrator(context.Context) (*domain.Person, *domain.SSHDeviceKey, error) {
+	return nil, nil, nil
+}
 func (h *fakeHost) CreatePerson(context.Context, domain.Person, string) (host.Cleanup, error) {
 	h.mu.Lock()
 	h.people++
@@ -74,10 +81,17 @@ func (h *fakeHost) CreateProject(_ context.Context, value domain.Project) (host.
 		return nil
 	}, nil
 }
-func (*fakeHost) EnsureRepository(context.Context, domain.Project) error { return nil }
-func (h *fakeHost) CreateWorktree(_ context.Context, _ domain.Project, _ domain.Person, value domain.Worktree, _ string) (host.Cleanup, error) {
+func (*fakeHost) EnsureRepository(context.Context, domain.Project) error        { return nil }
+func (*fakeHost) DefaultBranch(context.Context, domain.Project) (string, error) { return "trunk", nil }
+func (h *fakeHost) CreateWorktree(_ context.Context, _ domain.Project, _ domain.Person, value domain.Worktree, baseRef string) (host.Cleanup, error) {
 	h.mu.Lock()
+	h.worktreeAttempts++
+	if h.failWorktreeAt == h.worktreeAttempts {
+		h.mu.Unlock()
+		return nil, errors.New("injected personal workspace failure")
+	}
 	h.worktrees = append(h.worktrees, value)
+	h.baseRefs = append(h.baseRefs, baseRef)
 	h.mu.Unlock()
 	return func(context.Context) error {
 		h.mu.Lock()
@@ -85,6 +99,13 @@ func (h *fakeHost) CreateWorktree(_ context.Context, _ domain.Project, _ domain.
 		h.worktreeCleanups++
 		return nil
 	}, nil
+}
+func (h *fakeHost) ReconcileAuthorizedKeys(_ context.Context, _ domain.Project, access []domain.ProjectAccess) error {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	copyOfAccess := append([]domain.ProjectAccess(nil), access...)
+	h.reconciliations = append(h.reconciliations, copyOfAccess)
+	return h.reconcileErr
 }
 func (h *fakeHost) WriteProjectEnvironment(context.Context, domain.Project, string) error {
 	h.mu.Lock()
@@ -135,7 +156,7 @@ func (observeGit) Inspect(_ context.Context, _ domain.Project, tree domain.Workt
 
 type observeSessions struct{}
 
-func (observeSessions) Inspect(context.Context, []domain.Project, []domain.Person, []domain.Worktree) (observe.SessionObservation, error) {
+func (observeSessions) Inspect(context.Context, []domain.Project, []domain.Person, []domain.SSHDeviceKey, []domain.Worktree) (observe.SessionObservation, error) {
 	return observe.SessionObservation{Connections: []domain.ActiveSSHConnection{{ID: "connection", ConnectedAt: time.Now()}}}, nil
 }
 
@@ -164,30 +185,20 @@ func TestUnaryWorkflowOverBufconn(t *testing.T) {
 	defer connection.Close()
 	client := sodav2.NewSodaServiceClient(connection)
 	ctx := context.Background()
-	personResponse, err := client.CreatePerson(ctx, &sodav2.CreatePersonRequest{Username: "alice", DisplayName: "Alice", Email: "alice@example.test", Role: sodav2.Role_ROLE_DEVELOPER, SshPublicKey: "ssh-ed25519 AAAA alice", Password: "local"})
+	personResponse, err := client.CreatePerson(ctx, &sodav2.CreatePersonRequest{Username: "alice", DisplayName: "Alice", Email: "alice@example.test", Role: sodav2.Role_ROLE_DEVELOPER, Password: "simple"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	projectResponse, err := client.CreateProject(ctx, &sodav2.CreateProjectRequest{Slug: "demo", Name: "Demo", Profile: sodav2.ToolchainProfile_TOOLCHAIN_PROFILE_GO, Source: &sodav2.ProjectSource{Source: &sodav2.ProjectSource_Empty{Empty: &sodav2.EmptyProjectSource{}}}})
+	personID := personResponse.Person.Id
+	device, err := client.CreateSshDeviceKey(ctx, &sodav2.CreateSshDeviceKeyRequest{PersonId: personID, Label: "Laptop", PublicKey: "ssh-ed25519 AAAA alice", IdentityFileHint: "~/.ssh/id_ed25519"})
+	if err != nil || device.Key.GetFingerprint() == "" {
+		t.Fatalf("device key = %#v, %v", device, err)
+	}
+	projectResponse, err := client.CreateProject(ctx, &sodav2.CreateProjectRequest{Slug: "demo", Name: "Demo", Profile: sodav2.ToolchainProfile_TOOLCHAIN_PROFILE_GO, Source: &sodav2.ProjectSource{Source: &sodav2.ProjectSource_Empty{Empty: &sodav2.EmptyProjectSource{}}}, InitialPersonIds: []string{personID}})
 	if err != nil {
 		t.Fatal(err)
 	}
 	projectID := projectResponse.Project.Id
-	personID := personResponse.Person.Id
-	collaborator, err := client.AddCollaborator(ctx, &sodav2.AddCollaboratorRequest{ProjectId: projectID, PersonId: personID})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if collaborator.Worktree.Branch != "people/alice" {
-		t.Fatalf("branch = %q", collaborator.Worktree.Branch)
-	}
-	created, err := client.CreateWorktree(ctx, &sodav2.CreateWorktreeRequest{ProjectId: projectID, PersonId: personID, Name: "feature", BaseRef: "main"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if created.Worktree.Branch != "work/alice/feature" {
-		t.Fatalf("branch = %q", created.Worktree.Branch)
-	}
 	deadline := time.Now().Add(2 * time.Second)
 	for {
 		jobs, jobErr := client.ListProvisioningJobs(ctx, &sodav2.ListProvisioningJobsRequest{ProjectId: projectID})
@@ -210,8 +221,28 @@ func TestUnaryWorkflowOverBufconn(t *testing.T) {
 		t.Fatalf("toolchain = %#v", toolchainResponse.Installation)
 	}
 	collaborators, err := client.ListCollaborators(ctx, &sodav2.ListCollaboratorsRequest{ProjectId: projectID})
-	if err != nil || len(collaborators.Collaborators) != 1 || len(collaborators.Collaborators[0].Worktrees) != 2 {
+	if err != nil || len(collaborators.Collaborators) != 1 || len(collaborators.Collaborators[0].Worktrees) != 1 || collaborators.Collaborators[0].Worktrees[0].Branch != "people/alice" {
 		t.Fatalf("collaborators = %#v, %v", collaborators, err)
+	}
+}
+
+func TestProjectRequiresAtLeastOneInitialMember(t *testing.T) {
+	repository, err := store.Open(filepath.Join(t.TempDir(), "soda.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	hostSystem := &fakeHost{}
+	service := New(Options{Store: repository, Host: hostSystem, Toolchains: fakeInstaller{}, ProjectsRoot: t.TempDir()})
+	defer service.Close()
+	request := &sodav2.CreateProjectRequest{
+		Slug: "demo", Name: "Demo", Profile: sodav2.ToolchainProfile_TOOLCHAIN_PROFILE_GO,
+		Source: &sodav2.ProjectSource{Source: &sodav2.ProjectSource_Empty{Empty: &sodav2.EmptyProjectSource{}}},
+	}
+	if _, err = service.CreateProject(context.Background(), request); status.Code(err) != codes.InvalidArgument {
+		t.Fatalf("project without an initial member status = %s: %v", status.Code(err), err)
+	}
+	if len(hostSystem.projects) != 0 {
+		t.Fatalf("invalid project changed host state: %#v", hostSystem.projects)
 	}
 }
 
@@ -331,8 +362,12 @@ func TestDuplicatePreflightsDoNotExecuteHostMutations(t *testing.T) {
 	service := New(Options{Store: repository, Host: hostSystem, Toolchains: fakeInstaller{}, ProjectsRoot: filepath.Join(t.TempDir(), "projects")})
 	defer service.Close()
 	ctx := context.Background()
-	personRequest := &sodav2.CreatePersonRequest{Username: "alice", DisplayName: "Alice", Email: "alice@example.test", Role: sodav2.Role_ROLE_DEVELOPER, SshPublicKey: "ssh-ed25519 AAAA alice", Password: "local"}
-	person, err := service.CreatePerson(ctx, personRequest)
+	personRequest := &sodav2.CreatePersonRequest{Username: "alice", DisplayName: "Alice", Email: "alice@example.test", Role: sodav2.Role_ROLE_DEVELOPER, Password: "simple"}
+	alice, err := service.CreatePerson(ctx, personRequest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	bob, err := service.CreatePerson(ctx, &sodav2.CreatePersonRequest{Username: "bob", DisplayName: "Bob", Email: "bob@example.test", Role: sodav2.Role_ROLE_DEVELOPER, Password: "simple"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -342,7 +377,7 @@ func TestDuplicatePreflightsDoNotExecuteHostMutations(t *testing.T) {
 	if _, err = service.ImportPerson(ctx, &sodav2.ImportPersonRequest{Username: "alice", DisplayName: "Alice", Email: "alice@example.test", Role: sodav2.Role_ROLE_DEVELOPER}); status.Code(err) != codes.AlreadyExists {
 		t.Fatalf("duplicate import status = %s: %v", status.Code(err), err)
 	}
-	projectRequest := &sodav2.CreateProjectRequest{Slug: "demo", Name: "Demo", Profile: sodav2.ToolchainProfile_TOOLCHAIN_PROFILE_GO, Source: &sodav2.ProjectSource{Source: &sodav2.ProjectSource_Empty{Empty: &sodav2.EmptyProjectSource{}}}}
+	projectRequest := &sodav2.CreateProjectRequest{Slug: "demo", Name: "Demo", Profile: sodav2.ToolchainProfile_TOOLCHAIN_PROFILE_GO, Source: &sodav2.ProjectSource{Source: &sodav2.ProjectSource_Empty{Empty: &sodav2.EmptyProjectSource{}}}, InitialPersonIds: []string{alice.Person.Id}}
 	project, err := service.CreateProject(ctx, projectRequest)
 	if err != nil {
 		t.Fatal(err)
@@ -350,34 +385,26 @@ func TestDuplicatePreflightsDoNotExecuteHostMutations(t *testing.T) {
 	if _, err = service.CreateProject(ctx, projectRequest); status.Code(err) != codes.AlreadyExists {
 		t.Fatalf("duplicate project status = %s: %v", status.Code(err), err)
 	}
-	if _, err = service.CreateWorktree(ctx, &sodav2.CreateWorktreeRequest{ProjectId: project.Project.Id, PersonId: person.Person.Id, Name: "premature", BaseRef: "main"}); status.Code(err) != codes.FailedPrecondition {
-		t.Fatalf("missing membership status = %s: %v", status.Code(err), err)
+	waitForJobState(t, repository, project.Project.Id, domain.JobReady)
+	if _, err = service.AddCollaborator(ctx, &sodav2.AddCollaboratorRequest{ProjectId: project.Project.Id, PersonId: alice.Person.Id}); status.Code(err) != codes.AlreadyExists {
+		t.Fatalf("duplicate membership status = %s: %v", status.Code(err), err)
 	}
-	collaboratorRequest := &sodav2.AddCollaboratorRequest{ProjectId: project.Project.Id, PersonId: person.Person.Id}
+	collaboratorRequest := &sodav2.AddCollaboratorRequest{ProjectId: project.Project.Id, PersonId: bob.Person.Id}
 	if _, err = service.AddCollaborator(ctx, collaboratorRequest); err != nil {
 		t.Fatal(err)
 	}
 	if _, err = service.AddCollaborator(ctx, collaboratorRequest); status.Code(err) != codes.AlreadyExists {
-		t.Fatalf("duplicate membership status = %s: %v", status.Code(err), err)
-	}
-	branchConflict := domain.Worktree{ID: uuid.NewString(), ProjectID: project.Project.Id, PersonID: person.Person.Id, Name: "legacy", Branch: "work/alice/feature", Path: filepath.Join(t.TempDir(), "legacy")}
-	if err = repository.CreateWorktree(ctx, branchConflict); err != nil {
-		t.Fatal(err)
-	}
-	if _, err = service.CreateWorktree(ctx, &sodav2.CreateWorktreeRequest{ProjectId: project.Project.Id, PersonId: person.Person.Id, Name: "feature", BaseRef: "main"}); status.Code(err) != codes.AlreadyExists {
-		t.Fatalf("duplicate branch status = %s: %v", status.Code(err), err)
-	}
-	worktreeRequest := &sodav2.CreateWorktreeRequest{ProjectId: project.Project.Id, PersonId: person.Person.Id, Name: "second", BaseRef: "main"}
-	if _, err = service.CreateWorktree(ctx, worktreeRequest); err != nil {
-		t.Fatal(err)
-	}
-	if _, err = service.CreateWorktree(ctx, worktreeRequest); status.Code(err) != codes.AlreadyExists {
-		t.Fatalf("duplicate worktree status = %s: %v", status.Code(err), err)
+		t.Fatalf("duplicate later membership status = %s: %v", status.Code(err), err)
 	}
 	hostSystem.mu.Lock()
 	defer hostSystem.mu.Unlock()
-	if hostSystem.people != 1 || hostSystem.imports != 0 || len(hostSystem.projects) != 1 || len(hostSystem.worktrees) != 2 {
+	if hostSystem.people != 2 || hostSystem.imports != 0 || len(hostSystem.projects) != 1 || len(hostSystem.worktrees) != 2 {
 		t.Fatalf("host mutations: people=%d imports=%d projects=%d worktrees=%d", hostSystem.people, hostSystem.imports, len(hostSystem.projects), len(hostSystem.worktrees))
+	}
+	for _, baseRef := range hostSystem.baseRefs {
+		if baseRef != "trunk" {
+			t.Fatalf("workspace base ref = %q, want symbolic default branch trunk", baseRef)
+		}
 	}
 }
 
@@ -444,7 +471,48 @@ func TestProvisioningAdmissionIsAtomicAndFailedJobsCanRetry(t *testing.T) {
 	waitForJobState(t, repository, project.ID, domain.JobReady)
 }
 
-func TestCreatePersonRejectsPasswordDelimitersWithoutComplexityPolicy(t *testing.T) {
+func TestProvisioningRetryKeepsSuccessfulPersonalWorkspaces(t *testing.T) {
+	repository, err := store.Open(filepath.Join(t.TempDir(), "soda.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	alice := persistedPerson(t, repository, "alice")
+	bob := persistedPerson(t, repository, "bob")
+	project := domain.Project{ID: uuid.NewString(), Slug: "demo", Name: "Demo", UnixUser: "soda-p-demo", Profile: domain.ToolchainGo, Source: domain.EmptyProjectSource{}}
+	if err = repository.CreateProjectWithMemberships(ctx, project, []string{alice.ID, bob.ID}); err != nil {
+		t.Fatal(err)
+	}
+	hostSystem := &fakeHost{failWorktreeAt: 2}
+	service := New(Options{Store: repository, Host: hostSystem, Toolchains: fakeInstaller{}, ProjectsRoot: t.TempDir()})
+	defer service.Close()
+	if _, err = service.StartProvisioning(ctx, &sodav2.StartProvisioningRequest{ProjectId: project.ID}); err != nil {
+		t.Fatal(err)
+	}
+	waitForJobState(t, repository, project.ID, domain.JobFailed)
+	workspaces, err := repository.Worktrees(ctx, project.ID)
+	if err != nil || len(workspaces) != 1 || workspaces[0].PersonID != alice.ID {
+		t.Fatalf("workspaces after partial setup = %#v, %v", workspaces, err)
+	}
+	hostSystem.mu.Lock()
+	hostSystem.failWorktreeAt = 0
+	hostSystem.mu.Unlock()
+	if _, err = service.StartProvisioning(ctx, &sodav2.StartProvisioningRequest{ProjectId: project.ID}); err != nil {
+		t.Fatal(err)
+	}
+	waitForJobState(t, repository, project.ID, domain.JobReady)
+	workspaces, err = repository.Worktrees(ctx, project.ID)
+	if err != nil || len(workspaces) != 2 {
+		t.Fatalf("workspaces after retry = %#v, %v", workspaces, err)
+	}
+	hostSystem.mu.Lock()
+	defer hostSystem.mu.Unlock()
+	if len(hostSystem.worktrees) != 2 || hostSystem.worktrees[0].PersonID == hostSystem.worktrees[1].PersonID {
+		t.Fatalf("retry replaced or duplicated a successful workspace: %#v", hostSystem.worktrees)
+	}
+}
+
+func TestCreatePersonUsesRelaxedSixCharacterPasswordPolicy(t *testing.T) {
 	repository, err := store.Open(filepath.Join(t.TempDir(), "soda.db"))
 	if err != nil {
 		t.Fatal(err)
@@ -452,25 +520,27 @@ func TestCreatePersonRejectsPasswordDelimitersWithoutComplexityPolicy(t *testing
 	hostSystem := &fakeHost{}
 	service := New(Options{Store: repository, Host: hostSystem, Toolchains: fakeInstaller{}, ProjectsRoot: t.TempDir()})
 	defer service.Close()
-	request := &sodav2.CreatePersonRequest{Username: "alice", DisplayName: "Alice", Email: "alice@example.test", Role: sodav2.Role_ROLE_DEVELOPER, SshPublicKey: "ssh-ed25519 AAAA alice"}
-	for index, password := range []string{"short", "with spaces", "colon:allowed"} {
+	request := &sodav2.CreatePersonRequest{Username: "alice", DisplayName: "Alice", Email: "alice@example.test", Role: sodav2.Role_ROLE_DEVELOPER}
+	for index, password := range []string{"simple", "with spaces", "colon:allowed"} {
 		username := request.Username + string(rune('a'+index))
-		candidate := &sodav2.CreatePersonRequest{Username: username, DisplayName: request.DisplayName, Email: username + "@example.test", Role: request.Role, SshPublicKey: []string{"ssh-ed25519 AAAA first", "ssh-ed25519 AQID second", "ssh-ed25519 BAUG third"}[index], Password: password}
+		candidate := &sodav2.CreatePersonRequest{Username: username, DisplayName: request.DisplayName, Email: username + "@example.test", Role: request.Role, Password: password}
 		if _, err = service.CreatePerson(context.Background(), candidate); err != nil {
 			t.Fatalf("password %q: %v", password, err)
 		}
 	}
 	before := hostSystem.people
-	request.Password = "bad\x00password"
-	if _, err = service.CreatePerson(context.Background(), request); status.Code(err) != codes.InvalidArgument {
-		t.Fatalf("NUL password status = %s: %v", status.Code(err), err)
+	for _, password := range []string{"short", "bad\x00password"} {
+		request.Password = password
+		if _, err = service.CreatePerson(context.Background(), request); status.Code(err) != codes.InvalidArgument {
+			t.Fatalf("invalid password %q status = %s: %v", password, status.Code(err), err)
+		}
 	}
 	if hostSystem.people != before {
 		t.Fatalf("delimiter reached host: people=%d before=%d", hostSystem.people, before)
 	}
 }
 
-func TestDuplicateSSHKeyFingerprintPreflightSkipsHost(t *testing.T) {
+func TestDuplicateSSHDeviceFingerprintIsRejectedGlobally(t *testing.T) {
 	repository, err := store.Open(filepath.Join(t.TempDir(), "soda.db"))
 	if err != nil {
 		t.Fatal(err)
@@ -479,15 +549,92 @@ func TestDuplicateSSHKeyFingerprintPreflightSkipsHost(t *testing.T) {
 	service := New(Options{Store: repository, Host: hostSystem, Toolchains: fakeInstaller{}, ProjectsRoot: t.TempDir()})
 	defer service.Close()
 	key := "ssh-ed25519 AAAA"
-	if _, err = service.CreatePerson(context.Background(), &sodav2.CreatePersonRequest{Username: "alice", DisplayName: "Alice", Email: "alice@example.test", Role: sodav2.Role_ROLE_DEVELOPER, SshPublicKey: key + " first", Password: "local"}); err != nil {
+	alice, err := service.CreatePerson(context.Background(), &sodav2.CreatePersonRequest{Username: "alice", DisplayName: "Alice", Email: "alice@example.test", Role: sodav2.Role_ROLE_DEVELOPER, Password: "simple"})
+	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = service.CreatePerson(context.Background(), &sodav2.CreatePersonRequest{Username: "bob", DisplayName: "Bob", Email: "bob@example.test", Role: sodav2.Role_ROLE_DEVELOPER, SshPublicKey: key + " second", Password: "local"})
+	bob, err := service.CreatePerson(context.Background(), &sodav2.CreatePersonRequest{Username: "bob", DisplayName: "Bob", Email: "bob@example.test", Role: sodav2.Role_ROLE_DEVELOPER, Password: "simple"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = service.CreateSshDeviceKey(context.Background(), &sodav2.CreateSshDeviceKeyRequest{PersonId: alice.Person.Id, Label: "Laptop", PublicKey: key + " first", IdentityFileHint: "~/.ssh/id_ed25519"}); err != nil {
+		t.Fatal(err)
+	}
+	_, err = service.CreateSshDeviceKey(context.Background(), &sodav2.CreateSshDeviceKeyRequest{PersonId: bob.Person.Id, Label: "Workstation", PublicKey: key + " second", IdentityFileHint: "~/.ssh/work"})
 	if status.Code(err) != codes.AlreadyExists {
 		t.Fatalf("duplicate fingerprint status = %s: %v", status.Code(err), err)
 	}
-	if hostSystem.people != 1 {
-		t.Fatalf("duplicate fingerprint reached host: people=%d", hostSystem.people)
+	if hostSystem.people != 2 {
+		t.Fatalf("device-key conflict changed person provisioning: people=%d", hostSystem.people)
+	}
+}
+
+func TestSSHDeviceChangesReconcileAccessAndRollbackOnFilesystemFailure(t *testing.T) {
+	repository, err := store.Open(filepath.Join(t.TempDir(), "soda.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	person := persistedPerson(t, repository, "alice")
+	project := domain.Project{ID: uuid.NewString(), Slug: "demo", Name: "Demo", UnixUser: "soda-p-demo", Profile: domain.ToolchainGo, Source: domain.EmptyProjectSource{}}
+	if err = repository.CreateProjectWithMemberships(ctx, project, []string{person.ID}); err != nil {
+		t.Fatal(err)
+	}
+	workspace := domain.Worktree{ID: uuid.NewString(), ProjectID: project.ID, PersonID: person.ID, Name: "default", Branch: "people/alice", Path: filepath.Join(t.TempDir(), "alice")}
+	if err = repository.CreateWorktree(ctx, workspace); err != nil {
+		t.Fatal(err)
+	}
+	hostSystem := &fakeHost{}
+	service := New(Options{Store: repository, Host: hostSystem, Toolchains: fakeInstaller{}, ProjectsRoot: t.TempDir()})
+	defer service.Close()
+	created, err := service.CreateSshDeviceKey(ctx, &sodav2.CreateSshDeviceKeyRequest{PersonId: person.ID, Label: "Laptop", PublicKey: "ssh-ed25519 AAAA alice", IdentityFileHint: "~/.ssh/id_ed25519"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(hostSystem.reconciliations) != 1 || len(hostSystem.reconciliations[0]) != 1 || len(hostSystem.reconciliations[0][0].Keys) != 1 {
+		t.Fatalf("create reconciliation = %#v", hostSystem.reconciliations)
+	}
+	hostSystem.reconcileErr = errors.New("authorized_keys unavailable")
+	if _, err = service.RevokeSshDeviceKey(ctx, &sodav2.RevokeSshDeviceKeyRequest{PersonId: person.ID, KeyId: created.Key.Id}); status.Code(err) != codes.Internal {
+		t.Fatalf("revoke status = %s: %v", status.Code(err), err)
+	}
+	keys, err := repository.SSHDeviceKeys(ctx, person.ID)
+	if err != nil || len(keys) != 1 || keys[0].ID != created.Key.Id {
+		t.Fatalf("failed revoke did not restore device key: %#v, %v", keys, err)
+	}
+}
+
+func TestStartupReconciliationRepairsProjectAccessFromStoredState(t *testing.T) {
+	repository, err := store.Open(filepath.Join(t.TempDir(), "soda.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	person := persistedPerson(t, repository, "alice")
+	project := domain.Project{ID: uuid.NewString(), Slug: "demo", Name: "Demo", UnixUser: "soda-p-demo", Profile: domain.ToolchainGo, Source: domain.EmptyProjectSource{}}
+	if err = repository.CreateProjectWithMemberships(ctx, project, []string{person.ID}); err != nil {
+		t.Fatal(err)
+	}
+	workspace := domain.Worktree{ID: uuid.NewString(), ProjectID: project.ID, PersonID: person.ID, Name: "default", Branch: "people/alice", Path: filepath.Join(t.TempDir(), "alice")}
+	if err = repository.CreateWorktree(ctx, workspace); err != nil {
+		t.Fatal(err)
+	}
+	key := domain.SSHDeviceKey{ID: uuid.NewString(), PersonID: person.ID, Label: "Laptop", PublicKey: "ssh-ed25519 AAAA alice", Fingerprint: "SHA256:test", IdentityFileHint: "~/.ssh/id_ed25519", CreatedAt: time.Now().UTC()}
+	if err = repository.CreateSSHDeviceKey(ctx, key); err != nil {
+		t.Fatal(err)
+	}
+	hostSystem := &fakeHost{}
+	service := New(Options{Store: repository, Host: hostSystem, Toolchains: fakeInstaller{}, ProjectsRoot: t.TempDir()})
+	defer service.Close()
+	if err = service.ReconcileAllAuthorizedKeys(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if len(hostSystem.reconciliations) != 1 || len(hostSystem.reconciliations[0]) != 1 {
+		t.Fatalf("startup reconciliation = %#v", hostSystem.reconciliations)
+	}
+	access := hostSystem.reconciliations[0][0]
+	if access.Person.ID != person.ID || access.Worktree.ID != workspace.ID || len(access.Keys) != 1 || access.Keys[0].ID != key.ID {
+		t.Fatalf("startup access = %#v", access)
 	}
 }
 
@@ -501,7 +648,7 @@ func TestFailedPersistenceCompensatesFreshHostResources(t *testing.T) {
 		hostSystem := &fakeHost{}
 		service := New(Options{Store: repository, Host: hostSystem, Toolchains: fakeInstaller{}, ProjectsRoot: t.TempDir()})
 		defer service.Close()
-		_, err = service.CreatePerson(context.Background(), &sodav2.CreatePersonRequest{Username: "alice", DisplayName: "Alice", Email: "alice@example.test", Role: sodav2.Role_ROLE_DEVELOPER, SshPublicKey: "ssh-ed25519 AAAA alice", Password: "local"})
+		_, err = service.CreatePerson(context.Background(), &sodav2.CreatePersonRequest{Username: "alice", DisplayName: "Alice", Email: "alice@example.test", Role: sodav2.Role_ROLE_DEVELOPER, Password: "simple"})
 		if err == nil || hostSystem.personCleanups != 1 {
 			t.Fatalf("error=%v cleanups=%d", err, hostSystem.personCleanups)
 		}
@@ -513,11 +660,12 @@ func TestFailedPersistenceCompensatesFreshHostResources(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		person := persistedPerson(t, repository, "alice")
 		injectCreateFailure(t, repository, "ProvisioningJob")
 		hostSystem := &fakeHost{}
 		service := New(Options{Store: repository, Host: hostSystem, Toolchains: fakeInstaller{}, ProjectsRoot: t.TempDir()})
 		defer service.Close()
-		_, err = service.CreateProject(context.Background(), &sodav2.CreateProjectRequest{Slug: "demo", Name: "Demo", Profile: sodav2.ToolchainProfile_TOOLCHAIN_PROFILE_GO, Source: &sodav2.ProjectSource{Source: &sodav2.ProjectSource_Empty{Empty: &sodav2.EmptyProjectSource{}}}})
+		_, err = service.CreateProject(context.Background(), emptyProjectRequest(person.ID))
 		if err == nil || hostSystem.projectCleanups != 1 {
 			t.Fatalf("error=%v cleanups=%d", err, hostSystem.projectCleanups)
 		}
@@ -529,12 +677,13 @@ func TestFailedPersistenceCompensatesFreshHostResources(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		person := persistedPerson(t, repository, "alice")
 		injectCreateFailure(t, repository, "ProvisioningJob")
 		injectDeleteFailure(t, repository, "Project")
 		hostSystem := &fakeHost{}
 		service := New(Options{Store: repository, Host: hostSystem, Toolchains: fakeInstaller{}, ProjectsRoot: t.TempDir()})
 		defer service.Close()
-		_, err = service.CreateProject(context.Background(), &sodav2.CreateProjectRequest{Slug: "demo", Name: "Demo", Profile: sodav2.ToolchainProfile_TOOLCHAIN_PROFILE_GO, Source: &sodav2.ProjectSource{Source: &sodav2.ProjectSource_Empty{Empty: &sodav2.EmptyProjectSource{}}}})
+		_, err = service.CreateProject(context.Background(), emptyProjectRequest(person.ID))
 		if status.Code(err) != codes.Internal {
 			t.Fatalf("status = %s, error = %v", status.Code(err), err)
 		}
@@ -549,11 +698,12 @@ func TestFailedPersistenceCompensatesFreshHostResources(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		person := persistedPerson(t, repository, "alice")
 		injectCreateFailure(t, repository, "Project")
 		hostSystem := &fakeHost{}
 		service := New(Options{Store: repository, Host: hostSystem, Toolchains: fakeInstaller{}, ProjectsRoot: t.TempDir()})
 		defer service.Close()
-		_, err = service.CreateProject(context.Background(), &sodav2.CreateProjectRequest{Slug: "demo", Name: "Demo", Profile: sodav2.ToolchainProfile_TOOLCHAIN_PROFILE_GO, Source: &sodav2.ProjectSource{Source: &sodav2.ProjectSource_Empty{Empty: &sodav2.EmptyProjectSource{}}}})
+		_, err = service.CreateProject(context.Background(), emptyProjectRequest(person.ID))
 		if err == nil || hostSystem.projectCleanups != 1 {
 			t.Fatalf("error=%v cleanups=%d", err, hostSystem.projectCleanups)
 		}
@@ -577,12 +727,15 @@ func TestFailedMembershipAndWorktreePersistenceCompensatesHostWorktrees(t *testi
 		t.Fatal(err)
 	}
 	ctx := context.Background()
-	person := domain.Person{ID: uuid.NewString(), Username: "alice", DisplayName: "Alice", Email: "alice@example.test", Role: domain.RoleDeveloper, SSHPublicKey: "ssh-ed25519 AAAA alice"}
+	person := domain.Person{ID: uuid.NewString(), Username: "alice", DisplayName: "Alice", Email: "alice@example.test", Role: domain.RoleDeveloper}
 	project := domain.Project{ID: uuid.NewString(), Slug: "demo", Name: "Demo", UnixUser: "soda-p-demo", Profile: domain.ToolchainGo, Source: domain.EmptyProjectSource{}}
 	if err = repository.CreatePerson(ctx, person); err != nil {
 		t.Fatal(err)
 	}
 	if err = repository.CreateProject(ctx, project); err != nil {
+		t.Fatal(err)
+	}
+	if err = repository.CreateJob(ctx, domain.ProvisioningJob{ID: uuid.NewString(), ProjectID: project.ID, State: domain.JobReady}); err != nil {
 		t.Fatal(err)
 	}
 	injectCreateFailure(t, repository, "Membership")
@@ -597,37 +750,6 @@ func TestFailedMembershipAndWorktreePersistenceCompensatesHostWorktrees(t *testi
 	}
 	assertTableCount(t, repository, "memberships", 0)
 	assertTableCount(t, repository, "worktrees", 0)
-}
-
-func TestFailedAdditionalWorktreePersistenceCompensatesHostWorktree(t *testing.T) {
-	repository, err := store.Open(filepath.Join(t.TempDir(), "soda.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	ctx := context.Background()
-	person := domain.Person{ID: uuid.NewString(), Username: "alice", DisplayName: "Alice", Email: "alice@example.test", Role: domain.RoleDeveloper, SSHPublicKey: "ssh-ed25519 AAAA alice"}
-	project := domain.Project{ID: uuid.NewString(), Slug: "demo", Name: "Demo", UnixUser: "soda-p-demo", Profile: domain.ToolchainGo, Source: domain.EmptyProjectSource{}}
-	if err = repository.CreatePerson(ctx, person); err != nil {
-		t.Fatal(err)
-	}
-	if err = repository.CreateProject(ctx, project); err != nil {
-		t.Fatal(err)
-	}
-	defaultTree := domain.Worktree{ID: uuid.NewString(), ProjectID: project.ID, PersonID: person.ID, Name: "default", Branch: "people/alice", Path: filepath.Join(t.TempDir(), "default")}
-	if err = repository.AddMembershipAndWorktree(ctx, domain.Membership{ProjectID: project.ID, PersonID: person.ID}, defaultTree); err != nil {
-		t.Fatal(err)
-	}
-	injectCreateFailure(t, repository, "Worktree")
-	hostSystem := &fakeHost{}
-	service := New(Options{Store: repository, Host: hostSystem, Toolchains: fakeInstaller{}, ProjectsRoot: t.TempDir()})
-	defer service.Close()
-	if _, err = service.CreateWorktree(ctx, &sodav2.CreateWorktreeRequest{ProjectId: project.ID, PersonId: person.ID, Name: "feature", BaseRef: "main"}); err == nil {
-		t.Fatal("expected worktree persistence failure")
-	}
-	if hostSystem.worktreeCleanups != 1 {
-		t.Fatalf("worktree cleanups = %d", hostSystem.worktreeCleanups)
-	}
-	assertTableCount(t, repository, "worktrees", 1)
 }
 
 func TestProvisioningDeadlineMarksFailedAndAllowsManualRetry(t *testing.T) {
@@ -667,6 +789,23 @@ func injectCreateFailure(t *testing.T, repository *store.Store, model string) {
 		}
 	}); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func persistedPerson(t *testing.T, repository *store.Store, username string) domain.Person {
+	t.Helper()
+	person := domain.Person{ID: uuid.NewString(), Username: username, DisplayName: strings.ToUpper(username[:1]) + username[1:], Email: username + "@example.test", Role: domain.RoleDeveloper}
+	if err := repository.CreatePerson(context.Background(), person); err != nil {
+		t.Fatal(err)
+	}
+	return person
+}
+
+func emptyProjectRequest(personID string) *sodav2.CreateProjectRequest {
+	return &sodav2.CreateProjectRequest{
+		Slug: "demo", Name: "Demo", Profile: sodav2.ToolchainProfile_TOOLCHAIN_PROFILE_GO,
+		Source:           &sodav2.ProjectSource{Source: &sodav2.ProjectSource_Empty{Empty: &sodav2.EmptyProjectSource{}}},
+		InitialPersonIds: []string{personID},
 	}
 }
 

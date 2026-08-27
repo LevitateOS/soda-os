@@ -34,15 +34,25 @@ without operator input. Boot only the installed disk and require:
 
 ## Collaboration gate
 
-Create two people and one empty project, then add both collaborators. Require:
+Create Alice and Bob, have each activate their account and register a separate
+device key, then create one empty project with both as initial team members.
+Require:
 
-- one locked `soda-p-<slug>` account owns the repository and both worktrees;
-- each person's SSH key enters only that person's default worktree;
+- one locked `soda-p-<slug>` account owns the repository and both personal
+  workspaces;
+- the same `soda-<slug>` client alias uses each person's device key to enter
+  that person's personal workspace directly;
+- both sessions share the project UID while retaining separate Git attribution,
+  HOME, XDG state, and editor state;
 - interactive shells, direct commands, SFTP/remote-IDE bootstrap, and port
   forwarding remain available through the forced-command gateway;
-- commits in the two worktrees use each person's configured name and email;
+- interactive shells show the friendly person/project context while `whoami`
+  truthfully returns the shared project account;
+- commits in the two workspaces use each person's configured name and email;
+- revoking one device blocks a new connection without terminating existing
+  sessions or affecting another device;
 - Web, Python, Rust, and Go profiles reach `ready` with recorded versions;
-- a failed provisioning job is visible and changes state only after an
+- a failed project-setup job is visible and changes state only after an
   explicit retry.
 
 The graphical release-image equivalent is performed in UTM using

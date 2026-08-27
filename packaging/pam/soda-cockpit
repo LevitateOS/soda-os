@@ -1,3 +1,4 @@
 auth       substack     system-auth
 account    required     pam_nologin.so
 account    include      system-auth
+password   required     pam_unix.so sha512 shadow

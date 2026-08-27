@@ -9,9 +9,11 @@ import (
 	"html/template"
 	"io/fs"
 	"net/http"
+	"sort"
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/LevitateOS/soda-os/cockpit/internal/auth"
 	"github.com/LevitateOS/soda-os/cockpit/internal/soda"
@@ -37,31 +39,63 @@ type sessionStore struct {
 }
 
 type pageData struct {
-	Title              string
-	Version            string
-	User               soda.Person
-	People             []soda.Person
-	Projects           []soda.Project
-	Project            *soda.Project
-	Worktrees          []soda.Worktree
-	Jobs               []soda.ProvisioningJob
-	Toolchain          *soda.ToolchainInstallation
-	DeployKey          string
-	PersonNames        map[string]string
-	Error              string
-	Admin              bool
-	ProvisioningActive bool
-	Host               *soda.HostStatus
-	WorktreeStatuses   []worktreeStatusView
-	Sessions           []sessionView
-	EventProjectID     string
-	Message            string
+	Title                  string
+	Version                string
+	User                   soda.Person
+	People                 []soda.Person
+	AvailablePeople        []soda.Person
+	Projects               []soda.Project
+	ProjectCards           []projectCardView
+	Project                *soda.Project
+	Worktrees              []soda.Worktree
+	MemberWorkspaces       []memberWorkspaceView
+	Jobs                   []soda.ProvisioningJob
+	Toolchain              *soda.ToolchainInstallation
+	DeployKey              string
+	PersonNames            map[string]string
+	Error                  string
+	HostError              string
+	ProjectsError          string
+	Admin                  bool
+	ProvisioningActive     bool
+	Host                   *soda.HostStatus
+	WorktreeStatuses       []worktreeStatusView
+	Sessions               []sessionView
+	EventProjectID         string
+	Message                string
+	DeviceKeys             []soda.SSHDeviceKey
+	SelectedDeviceKey      *soda.SSHDeviceKey
+	PersonalWorkspace      *soda.Worktree
+	SSHConfig              string
+	SSHCommand             string
+	ConnectError           string
+	ProjectState           string
+	ProjectStateClass      string
+	ProjectReady           bool
+	PasswordChangeRequired bool
+	Username               string
+}
+
+type projectCardView struct {
+	Project             soda.Project
+	State               string
+	StateClass          string
+	SSHHost             string
+	ActiveCollaborators []string
+	Member              bool
+	CanConnect          bool
+	NeedsKey            bool
 }
 
 type worktreeStatusView struct {
 	Person string
 	Name   string
 	Status soda.WorktreeStatus
+}
+
+type memberWorkspaceView struct {
+	Person    soda.Person
+	Workspace *soda.Worktree
 }
 
 type sessionView struct {
@@ -101,25 +135,32 @@ func (s *Server) Handler() http.Handler {
 	public.HandleFunc("GET /healthz", health)
 	public.HandleFunc("GET /login", s.loginPage)
 	public.HandleFunc("POST /login", s.login)
+	public.HandleFunc("POST /activate-password", s.activatePassword)
 
 	protected := http.NewServeMux()
 	protected.HandleFunc("GET /", s.home)
 	protected.HandleFunc("GET /events", s.events)
 	protected.HandleFunc("GET /fragments/host", s.hostFragment)
 	protected.HandleFunc("GET /fragments/projects", s.projectsFragment)
-	protected.HandleFunc("GET /fragments/people", s.peopleFragment)
+	protected.HandleFunc("GET /fragments/team", s.peopleFragment)
+	protected.HandleFunc("GET /fragments/ssh-keys", s.sshKeysFragment)
 	protected.HandleFunc("POST /logout", s.logout)
-	protected.HandleFunc("GET /people", s.people)
-	protected.HandleFunc("POST /people", s.createPerson)
+	protected.HandleFunc("GET /account", s.account)
+	protected.HandleFunc("POST /account/password", s.changePassword)
+	protected.HandleFunc("POST /account/ssh-keys", s.createSSHDeviceKey)
+	protected.HandleFunc("POST /account/ssh-keys/{key_id}/revoke", s.revokeSSHDeviceKey)
+	protected.HandleFunc("GET /team", s.people)
+	protected.HandleFunc("POST /team", s.createPerson)
 	protected.HandleFunc("GET /projects", s.projects)
 	protected.HandleFunc("POST /projects", s.createProject)
 	protected.HandleFunc("GET /projects/{project_id}", s.project)
+	protected.HandleFunc("GET /projects/{project_id}/connect", s.connectFragment)
+	protected.HandleFunc("GET /projects/{project_id}/ssh-config", s.sshConfig)
 	protected.HandleFunc("GET /projects/{project_id}/provisioning", s.provisioning)
 	protected.HandleFunc("GET /projects/{project_id}/collaboration", s.collaboration)
 	protected.HandleFunc("GET /projects/{project_id}/git", s.gitStatus)
 	protected.HandleFunc("GET /projects/{project_id}/sessions", s.sessionsFragment)
-	protected.HandleFunc("POST /projects/{project_id}/collaborators", s.addCollaborator)
-	protected.HandleFunc("POST /projects/{project_id}/worktrees", s.createWorktree)
+	protected.HandleFunc("POST /projects/{project_id}/members", s.addCollaborator)
 	protected.HandleFunc("POST /projects/{project_id}/provisioning", s.retryProvisioning)
 	protected.HandleFunc("GET /profiles", s.profiles)
 
@@ -146,10 +187,42 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	username := r.FormValue("username")
-	if err := s.auth.Authenticate(username, r.FormValue("password")); err != nil {
+	result, err := s.auth.Authenticate(username, r.FormValue("password"))
+	if err != nil {
 		s.render(w, http.StatusUnauthorized, "login.html", pageData{Title: "Sign in · Soda OS", Version: version.Version, Error: "Invalid username or password."})
 		return
 	}
+	if result == auth.PasswordChangeRequired {
+		s.render(w, http.StatusOK, "login.html", pageData{Title: "Activate account · Soda OS", Version: version.Version, PasswordChangeRequired: true, Username: username})
+		return
+	}
+	s.finishLogin(w, r, username, "/")
+}
+
+func (s *Server) activatePassword(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "invalid password change", http.StatusBadRequest)
+		return
+	}
+	username := r.FormValue("username")
+	current := r.FormValue("current_password")
+	newPassword := r.FormValue("new_password")
+	if newPassword != r.FormValue("confirm_password") {
+		s.render(w, http.StatusUnprocessableEntity, "login.html", pageData{Title: "Activate account · Soda OS", Version: version.Version, PasswordChangeRequired: true, Username: username, Error: "New passwords do not match."})
+		return
+	}
+	if err := validatePassword(newPassword); err != nil {
+		s.render(w, http.StatusUnprocessableEntity, "login.html", pageData{Title: "Activate account · Soda OS", Version: version.Version, PasswordChangeRequired: true, Username: username, Error: err.Error()})
+		return
+	}
+	if err := s.auth.ChangePassword(username, current, newPassword); err != nil {
+		s.render(w, http.StatusUnauthorized, "login.html", pageData{Title: "Activate account · Soda OS", Version: version.Version, PasswordChangeRequired: true, Username: username, Error: "The current password was invalid or the password could not be changed."})
+		return
+	}
+	s.finishLogin(w, r, username, "/account")
+}
+
+func (s *Server) finishLogin(w http.ResponseWriter, r *http.Request, username, destination string) {
 	people, err := s.api.People(r.Context())
 	if err != nil {
 		http.Error(w, "Soda service unavailable", http.StatusBadGateway)
@@ -172,7 +245,7 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	http.SetCookie(w, &http.Cookie{Name: sessionCookie, Value: token, Path: "/", HttpOnly: true, Secure: true, SameSite: http.SameSiteStrictMode})
-	http.Redirect(w, r, "/", http.StatusSeeOther)
+	http.Redirect(w, r, destination, http.StatusSeeOther)
 }
 
 func (s *Server) logout(w http.ResponseWriter, r *http.Request) {
@@ -190,8 +263,20 @@ func (s *Server) home(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "load projects", http.StatusBadGateway)
 		return
 	}
-	host, _ := s.api.HostStatus(r.Context())
-	s.render(w, http.StatusOK, "index.html", pageData{Title: "Soda OS", Version: version.Version, User: user, Projects: projects, Host: &host})
+	data := pageData{Title: "Soda OS", Version: version.Version, User: user, Projects: projects}
+	data.ProjectCards, err = s.projectCards(r.Context(), user, projects)
+	if err != nil {
+		data.ProjectsError = "Projects are temporarily unavailable."
+	}
+	if user.Role == soda.RoleAdmin {
+		host, hostErr := s.api.HostStatus(r.Context())
+		if hostErr != nil {
+			data.HostError = "Host status is temporarily unavailable."
+		} else {
+			data.Host = &host
+		}
+	}
+	s.render(w, http.StatusOK, "index.html", data)
 }
 
 func (s *Server) events(w http.ResponseWriter, r *http.Request) {
@@ -283,7 +368,7 @@ func (s *Server) hostFragment(w http.ResponseWriter, r *http.Request) {
 	host, err := s.api.HostStatus(r.Context())
 	data := pageData{User: currentUser(r)}
 	if err != nil {
-		data.Error = "Host status is temporarily unavailable."
+		data.HostError = "Host status is temporarily unavailable."
 	} else {
 		data.Host = &host
 	}
@@ -295,11 +380,96 @@ func (s *Server) projectsFragment(w http.ResponseWriter, r *http.Request) {
 	projects, err := s.visibleProjects(r.Context(), user)
 	data := pageData{User: user}
 	if err != nil {
-		data.Error = "Projects are temporarily unavailable."
+		data.ProjectsError = "Projects are temporarily unavailable."
 	} else {
 		data.Projects = projects
+		data.ProjectCards, err = s.projectCards(r.Context(), user, projects)
+		if err != nil {
+			data.ProjectsError = "Projects are temporarily unavailable."
+		}
 	}
 	s.render(w, http.StatusOK, "project-list", data)
+}
+
+func (s *Server) account(w http.ResponseWriter, r *http.Request) {
+	user := currentUser(r)
+	keys, err := s.api.SSHDeviceKeys(r.Context(), user.ID)
+	if err != nil {
+		http.Error(w, "load SSH devices", http.StatusBadGateway)
+		return
+	}
+	s.render(w, http.StatusOK, "account.html", pageData{Title: "My account · Soda OS", Version: version.Version, User: user, DeviceKeys: keys, Admin: user.Role == soda.RoleAdmin})
+}
+
+func (s *Server) sshKeysFragment(w http.ResponseWriter, r *http.Request) {
+	user := currentUser(r)
+	keys, err := s.api.SSHDeviceKeys(r.Context(), user.ID)
+	data := pageData{User: user, Admin: user.Role == soda.RoleAdmin}
+	if err != nil {
+		data.Error = "SSH devices are temporarily unavailable."
+	} else {
+		data.DeviceKeys = keys
+	}
+	s.render(w, http.StatusOK, "ssh-keys", data)
+}
+
+func (s *Server) createSSHDeviceKey(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "invalid SSH device", http.StatusBadRequest)
+		return
+	}
+	user := currentUser(r)
+	_, err := s.api.CreateSSHDeviceKey(r.Context(), user.ID, r.FormValue("label"), r.FormValue("public_key"), r.FormValue("identity_file_hint"))
+	if err != nil {
+		s.renderSSHKeysResult(w, r, http.StatusUnprocessableEntity, "", err.Error())
+		return
+	}
+	if isHTMX(r) {
+		s.renderSSHKeysResult(w, r, http.StatusOK, "SSH device added.", "")
+		return
+	}
+	redirect(w, r, "/account")
+}
+
+func (s *Server) revokeSSHDeviceKey(w http.ResponseWriter, r *http.Request) {
+	user := currentUser(r)
+	if _, err := s.api.RevokeSSHDeviceKey(r.Context(), user.ID, r.PathValue("key_id")); err != nil {
+		s.renderSSHKeysResult(w, r, http.StatusUnprocessableEntity, "", err.Error())
+		return
+	}
+	if isHTMX(r) {
+		s.renderSSHKeysResult(w, r, http.StatusOK, "SSH device revoked. Existing sessions remain connected.", "")
+		return
+	}
+	redirect(w, r, "/account")
+}
+
+func (s *Server) renderSSHKeysResult(w http.ResponseWriter, r *http.Request, status int, message, errorMessage string) {
+	user := currentUser(r)
+	keys, _ := s.api.SSHDeviceKeys(r.Context(), user.ID)
+	s.render(w, status, "ssh-keys", pageData{User: user, DeviceKeys: keys, Message: message, Error: errorMessage, Admin: user.Role == soda.RoleAdmin})
+}
+
+func (s *Server) changePassword(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "invalid password change", http.StatusBadRequest)
+		return
+	}
+	user := currentUser(r)
+	newPassword := r.FormValue("new_password")
+	if newPassword != r.FormValue("confirm_password") {
+		s.render(w, http.StatusUnprocessableEntity, "password-change", pageData{User: user, Error: "New passwords do not match."})
+		return
+	}
+	if err := validatePassword(newPassword); err != nil {
+		s.render(w, http.StatusUnprocessableEntity, "password-change", pageData{User: user, Error: err.Error()})
+		return
+	}
+	if err := s.auth.ChangePassword(user.Username, r.FormValue("current_password"), newPassword); err != nil {
+		s.render(w, http.StatusUnprocessableEntity, "password-change", pageData{User: user, Error: "The current password was invalid or the password could not be changed."})
+		return
+	}
+	s.render(w, http.StatusOK, "password-change", pageData{User: user, Message: "Password changed."})
 }
 
 func (s *Server) peopleFragment(w http.ResponseWriter, r *http.Request) {
@@ -325,7 +495,7 @@ func (s *Server) people(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "load people", http.StatusBadGateway)
 		return
 	}
-	s.render(w, http.StatusOK, "people.html", pageData{Title: "People · Soda OS", Version: version.Version, User: currentUser(r), People: people})
+	s.render(w, http.StatusOK, "people.html", pageData{Title: "Team · Soda OS", Version: version.Version, User: currentUser(r), People: people})
 }
 
 func (s *Server) createPerson(w http.ResponseWriter, r *http.Request) {
@@ -339,7 +509,7 @@ func (s *Server) createPerson(w http.ResponseWriter, r *http.Request) {
 	_, err := s.api.CreatePerson(r.Context(), soda.CreatePersonRequest{
 		Username: r.FormValue("username"), DisplayName: r.FormValue("display_name"),
 		Email: r.FormValue("email"), Role: soda.Role(r.FormValue("role")),
-		SSHPublicKey: r.FormValue("ssh_public_key"), Password: r.FormValue("password"),
+		Password: r.FormValue("password"),
 	})
 	if err != nil {
 		if isHTMX(r) {
@@ -359,11 +529,11 @@ func (s *Server) createPerson(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		s.render(w, http.StatusOK, "people-management", pageData{
-			User: currentUser(r), People: people, Message: "Person added.",
+			User: currentUser(r), People: people, Message: "Team member added.",
 		})
 		return
 	}
-	redirect(w, r, "/people")
+	redirect(w, r, "/team")
 }
 
 func (s *Server) projects(w http.ResponseWriter, r *http.Request) {
@@ -373,7 +543,19 @@ func (s *Server) projects(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "load projects", http.StatusBadGateway)
 		return
 	}
-	s.render(w, http.StatusOK, "projects.html", pageData{Title: "Projects · Soda OS", Version: version.Version, User: user, Projects: projects})
+	data := pageData{Title: "Projects · Soda OS", Version: version.Version, User: user, Projects: projects}
+	data.ProjectCards, err = s.projectCards(r.Context(), user, projects)
+	if err != nil {
+		data.ProjectsError = "Projects are temporarily unavailable."
+	}
+	if user.Role == soda.RoleAdmin {
+		data.People, err = s.api.People(r.Context())
+		if err != nil {
+			http.Error(w, "load team", http.StatusBadGateway)
+			return
+		}
+	}
+	s.render(w, http.StatusOK, "projects.html", data)
 }
 
 func (s *Server) createProject(w http.ResponseWriter, r *http.Request) {
@@ -388,13 +570,15 @@ func (s *Server) createProject(w http.ResponseWriter, r *http.Request) {
 	if remote := strings.TrimSpace(r.FormValue("remote_url")); remote != "" {
 		source = soda.ProjectSource{Kind: "git", RemoteURL: remote}
 	}
+	members := append([]string(nil), r.Form["member_ids"]...)
 	project, err := s.api.CreateProject(r.Context(), soda.CreateProjectRequest{
-		Slug: r.FormValue("slug"), Name: r.FormValue("name"), Profile: r.FormValue("profile"), Source: source,
+		Slug: r.FormValue("slug"), Name: r.FormValue("name"), Profile: r.FormValue("profile"), Source: source, InitialPersonIDs: members,
 	})
 	if err != nil {
 		if isHTMX(r) {
+			people, _ := s.api.People(r.Context())
 			s.render(w, http.StatusUnprocessableEntity, "project-create", pageData{
-				User: currentUser(r), Error: err.Error(),
+				User: currentUser(r), People: people, Error: err.Error(),
 			})
 			return
 		}
@@ -430,9 +614,19 @@ func (s *Server) project(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "load people", http.StatusBadGateway)
 		return
 	}
+	members, err := s.api.Members(r.Context(), project.ID)
+	if err != nil {
+		http.Error(w, "load project members", http.StatusBadGateway)
+		return
+	}
 	data := pageData{Title: "Project · Soda OS", Version: version.Version, User: user, Project: &project,
 		People: people, Worktrees: worktrees, Jobs: jobs, Toolchain: installation,
-		PersonNames: personNames(people), ProvisioningActive: provisioningActive(jobs), EventProjectID: project.ID}
+		MemberWorkspaces: memberWorkspaceViews(members, worktrees), PersonNames: personNames(people),
+		ProvisioningActive: provisioningActive(jobs), EventProjectID: project.ID}
+	data.ProjectState, data.ProjectStateClass = projectState(jobs)
+	data.ProjectReady = data.ProjectStateClass == "ready"
+	data.AvailablePeople = peopleWithoutMembers(people, members)
+	s.addConnectData(r.Context(), &data)
 	if user.Role == soda.RoleAdmin {
 		key, err := s.api.DeployKey(r.Context(), project.ID)
 		if err != nil {
@@ -442,6 +636,105 @@ func (s *Server) project(w http.ResponseWriter, r *http.Request) {
 		data.DeployKey = key.PublicKey
 	}
 	s.render(w, http.StatusOK, "project.html", data)
+}
+
+func (s *Server) connectFragment(w http.ResponseWriter, r *http.Request) {
+	user := currentUser(r)
+	project, allowed, err := s.visibleProject(r.Context(), user, r.PathValue("project_id"))
+	if err != nil {
+		http.Error(w, "load project", http.StatusBadGateway)
+		return
+	}
+	if !allowed {
+		http.Error(w, "forbidden", http.StatusForbidden)
+		return
+	}
+	data := pageData{User: user, Project: &project, EventProjectID: project.ID}
+	if err = s.loadConnectData(r.Context(), &data, r.URL.Query().Get("key_id")); err != nil {
+		data.ConnectError = "Connection details are temporarily unavailable."
+	}
+	s.render(w, http.StatusOK, "connect", data)
+}
+
+func (s *Server) sshConfig(w http.ResponseWriter, r *http.Request) {
+	user := currentUser(r)
+	project, allowed, err := s.visibleProject(r.Context(), user, r.PathValue("project_id"))
+	if err != nil {
+		http.Error(w, "load project", http.StatusBadGateway)
+		return
+	}
+	if !allowed {
+		http.Error(w, "forbidden", http.StatusForbidden)
+		return
+	}
+	data := pageData{User: user, Project: &project}
+	if err = s.loadConnectData(r.Context(), &data, r.URL.Query().Get("key_id")); err != nil {
+		http.Error(w, "load connection details", http.StatusBadGateway)
+		return
+	}
+	if data.SSHConfig == "" {
+		http.Error(w, "a ready personal workspace and SSH device are required", http.StatusPreconditionFailed)
+		return
+	}
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="soda-%s.sshconfig"`, project.Slug))
+	_, _ = fmt.Fprint(w, data.SSHConfig)
+}
+
+func (s *Server) addConnectData(ctx context.Context, data *pageData) {
+	if err := s.loadConnectData(ctx, data, ""); err != nil {
+		data.ConnectError = "Connection details are temporarily unavailable."
+	}
+}
+
+func (s *Server) loadConnectData(ctx context.Context, data *pageData, selectedKeyID string) error {
+	if data.Project == nil {
+		return fmt.Errorf("project is required")
+	}
+	worktrees := data.Worktrees
+	if worktrees == nil {
+		var err error
+		worktrees, err = s.api.Worktrees(ctx, data.Project.ID)
+		if err != nil {
+			return err
+		}
+		data.Worktrees = worktrees
+	}
+	for i := range worktrees {
+		if worktrees[i].PersonID == data.User.ID {
+			workspace := worktrees[i]
+			data.PersonalWorkspace = &workspace
+			break
+		}
+	}
+	keys, err := s.api.SSHDeviceKeys(ctx, data.User.ID)
+	if err != nil {
+		return err
+	}
+	data.DeviceKeys = keys
+	for i := range keys {
+		if selectedKeyID == "" || keys[i].ID == selectedKeyID {
+			selected := keys[i]
+			data.SelectedDeviceKey = &selected
+			break
+		}
+	}
+	if selectedKeyID != "" && data.SelectedDeviceKey == nil {
+		return fmt.Errorf("SSH device is not registered to this account")
+	}
+	if data.ProjectState == "" {
+		jobs, _, jobsErr := s.provisioningState(ctx, data.Project.ID)
+		if jobsErr != nil {
+			return jobsErr
+		}
+		data.ProjectState, data.ProjectStateClass = projectState(jobs)
+		data.ProjectReady = data.ProjectStateClass == "ready"
+	}
+	if data.ProjectReady && data.PersonalWorkspace != nil && data.SelectedDeviceKey != nil {
+		data.SSHConfig = personalizedSSHConfig(*data.Project, *data.SelectedDeviceKey)
+		data.SSHCommand = personalizedSSHCommand(*data.Project, *data.SelectedDeviceKey)
+	}
+	return nil
 }
 
 func (s *Server) collaboration(w http.ResponseWriter, r *http.Request) {
@@ -473,10 +766,22 @@ func (s *Server) collaborationData(w http.ResponseWriter, r *http.Request) (page
 		http.Error(w, "load people", http.StatusBadGateway)
 		return pageData{}, 0, false
 	}
-	return pageData{
+	members, err := s.api.Members(r.Context(), project.ID)
+	if err != nil {
+		http.Error(w, "load project members", http.StatusBadGateway)
+		return pageData{}, 0, false
+	}
+	data := pageData{
 		User: user, Project: &project, People: people, Worktrees: worktrees,
+		MemberWorkspaces: memberWorkspaceViews(members, worktrees), AvailablePeople: peopleWithoutMembers(people, members),
 		PersonNames: personNames(people), EventProjectID: project.ID,
-	}, http.StatusOK, true
+	}
+	jobs, _, setupErr := s.provisioningState(r.Context(), project.ID)
+	if setupErr == nil {
+		_, stateClass := projectState(jobs)
+		data.ProjectReady = stateClass == "ready"
+	}
+	return data, http.StatusOK, true
 }
 
 func (s *Server) gitStatus(w http.ResponseWriter, r *http.Request) {
@@ -574,9 +879,10 @@ func (s *Server) provisioning(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "load provisioning", http.StatusBadGateway)
 		return
 	}
+	state, stateClass := projectState(jobs)
 	s.render(w, http.StatusOK, "provisioning", pageData{
 		User: user, Project: &project, Jobs: jobs, Toolchain: installation,
-		ProvisioningActive: provisioningActive(jobs),
+		ProvisioningActive: provisioningActive(jobs), ProjectState: state, ProjectStateClass: stateClass,
 	})
 }
 
@@ -585,7 +891,7 @@ func (s *Server) addCollaborator(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := r.ParseForm(); err != nil {
-		http.Error(w, "invalid collaborator", http.StatusBadRequest)
+		http.Error(w, "invalid team member", http.StatusBadRequest)
 		return
 	}
 	projectID := r.PathValue("project_id")
@@ -604,39 +910,7 @@ func (s *Server) addCollaborator(w http.ResponseWriter, r *http.Request) {
 	if isHTMX(r) {
 		data, _, ok := s.collaborationData(w, r)
 		if ok {
-			data.Message = "Collaborator added."
-			s.render(w, http.StatusOK, "collaboration", data)
-		}
-		return
-	}
-	redirect(w, r, "/projects/"+projectID)
-}
-
-func (s *Server) createWorktree(w http.ResponseWriter, r *http.Request) {
-	if !requireAdmin(w, r) {
-		return
-	}
-	if err := r.ParseForm(); err != nil {
-		http.Error(w, "invalid worktree", http.StatusBadRequest)
-		return
-	}
-	projectID := r.PathValue("project_id")
-	if _, err := s.api.CreateWorktree(r.Context(), projectID, r.FormValue("person_id"), r.FormValue("name"), r.FormValue("base_ref")); err != nil {
-		if isHTMX(r) {
-			data, _, ok := s.collaborationData(w, r)
-			if ok {
-				data.Error = err.Error()
-				s.render(w, http.StatusUnprocessableEntity, "collaboration", data)
-			}
-			return
-		}
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-	if isHTMX(r) {
-		data, _, ok := s.collaborationData(w, r)
-		if ok {
-			data.Message = "Worktree created."
+			data.Message = "Team member and personal workspace added."
 			s.render(w, http.StatusOK, "collaboration", data)
 		}
 		return
@@ -658,9 +932,10 @@ func (s *Server) retryProvisioning(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			jobs, installation, _ := s.provisioningState(r.Context(), projectID)
+			state, stateClass := projectState(jobs)
 			s.render(w, http.StatusUnprocessableEntity, "provisioning", pageData{
 				User: user, Project: &project, Jobs: jobs, Toolchain: installation,
-				ProvisioningActive: provisioningActive(jobs), Error: err.Error(),
+				ProvisioningActive: provisioningActive(jobs), ProjectState: state, ProjectStateClass: stateClass, Error: err.Error(),
 			})
 			return
 		}
@@ -681,7 +956,7 @@ func (s *Server) profiles(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "load profiles", http.StatusBadGateway)
 		return
 	}
-	s.render(w, http.StatusOK, "profiles.html", pageData{Title: "Toolchains · Soda OS", Version: version.Version, User: user, Projects: projects})
+	s.render(w, http.StatusOK, "profiles.html", pageData{Title: "Development environments · Soda OS", Version: version.Version, User: user, Projects: projects})
 }
 
 func (s *Server) visibleProjects(ctx context.Context, user soda.Person) ([]soda.Project, error) {
@@ -710,6 +985,147 @@ func provisioningActive(jobs []soda.ProvisioningJob) bool {
 		}
 	}
 	return false
+}
+
+func projectState(jobs []soda.ProvisioningJob) (string, string) {
+	if len(jobs) == 0 {
+		return "Preparing", "preparing"
+	}
+	switch jobs[0].State {
+	case "ready":
+		return "Ready", "ready"
+	case "failed":
+		return "Needs attention", "failed"
+	default:
+		return "Preparing", "preparing"
+	}
+}
+
+func (s *Server) projectCards(ctx context.Context, user soda.Person, projects []soda.Project) ([]projectCardView, error) {
+	keys, err := s.api.SSHDeviceKeys(ctx, user.ID)
+	if err != nil {
+		return nil, err
+	}
+	activeSessions, _ := s.api.ActiveSessions(ctx)
+	cards := make([]projectCardView, 0, len(projects))
+	for _, project := range projects {
+		jobs, _, loadErr := s.provisioningState(ctx, project.ID)
+		if loadErr != nil {
+			return nil, loadErr
+		}
+		state, stateClass := projectState(jobs)
+		worktrees, loadErr := s.api.Worktrees(ctx, project.ID)
+		if loadErr != nil {
+			return nil, loadErr
+		}
+		members, loadErr := s.api.Members(ctx, project.ID)
+		if loadErr != nil {
+			return nil, loadErr
+		}
+		member := false
+		memberNames := make(map[string]string, len(members))
+		for _, person := range members {
+			memberNames[person.ID] = person.DisplayName
+			if person.ID == user.ID {
+				member = true
+			}
+		}
+		hasWorkspace := false
+		for _, worktree := range worktrees {
+			if worktree.PersonID == user.ID {
+				hasWorkspace = true
+				break
+			}
+		}
+		activeNames := make([]string, 0)
+		activePeople := make(map[string]struct{})
+		for _, session := range activeSessions {
+			name, belongs := memberNames[session.PersonID]
+			if session.ProjectID != project.ID || !belongs {
+				continue
+			}
+			if _, seen := activePeople[session.PersonID]; seen {
+				continue
+			}
+			activePeople[session.PersonID] = struct{}{}
+			activeNames = append(activeNames, name)
+		}
+		sort.Strings(activeNames)
+		cards = append(cards, projectCardView{
+			Project: project, State: state, StateClass: stateClass, SSHHost: "soda-" + project.Slug,
+			ActiveCollaborators: activeNames, Member: member, NeedsKey: member && len(keys) == 0,
+			CanConnect: member && hasWorkspace && len(keys) > 0 && stateClass == "ready",
+		})
+	}
+	return cards, nil
+}
+
+func peopleWithoutMembers(people, projectMembers []soda.Person) []soda.Person {
+	members := make(map[string]struct{}, len(projectMembers))
+	for _, person := range projectMembers {
+		members[person.ID] = struct{}{}
+	}
+	available := make([]soda.Person, 0, len(people))
+	for _, person := range people {
+		if _, exists := members[person.ID]; !exists {
+			available = append(available, person)
+		}
+	}
+	return available
+}
+
+func memberWorkspaceViews(members []soda.Person, worktrees []soda.Worktree) []memberWorkspaceView {
+	workspaceByPerson := make(map[string]soda.Worktree, len(worktrees))
+	for _, worktree := range worktrees {
+		workspaceByPerson[worktree.PersonID] = worktree
+	}
+	views := make([]memberWorkspaceView, 0, len(members))
+	for _, person := range members {
+		view := memberWorkspaceView{Person: person}
+		if workspace, exists := workspaceByPerson[person.ID]; exists {
+			workspaceCopy := workspace
+			view.Workspace = &workspaceCopy
+		}
+		views = append(views, view)
+	}
+	return views
+}
+
+func validatePassword(password string) error {
+	if strings.ContainsAny(password, "\r\n\x00") {
+		return fmt.Errorf("password cannot contain line breaks")
+	}
+	if utf8.RuneCountInString(password) < 6 {
+		return fmt.Errorf("password must be at least six characters")
+	}
+	return nil
+}
+
+func personalizedSSHConfig(project soda.Project, key soda.SSHDeviceKey) string {
+	return fmt.Sprintf("Host soda-%s\n    HostName soda.local\n    User %s\n    IdentityFile %s\n    IdentitiesOnly yes\n", project.Slug, project.UnixUser, sshConfigValue(key.IdentityFileHint))
+}
+
+func personalizedSSHCommand(project soda.Project, key soda.SSHDeviceKey) string {
+	return fmt.Sprintf("ssh -i %s %s@soda.local", shellPath(key.IdentityFileHint), project.UnixUser)
+}
+
+func sshConfigValue(value string) string {
+	escaped := strings.NewReplacer(`\`, `\\`, `"`, `\"`).Replace(value)
+	return `"` + escaped + `"`
+}
+
+func shellPath(value string) string {
+	if value == "~" {
+		return `"$HOME"`
+	}
+	if strings.HasPrefix(value, "~/") {
+		return `"$HOME"/` + shellQuote(strings.TrimPrefix(value, "~/"))
+	}
+	return shellQuote(value)
+}
+
+func shellQuote(value string) string {
+	return `'` + strings.ReplaceAll(value, `'`, `'"'"'`) + `'`
 }
 
 func (s *Server) visibleProject(ctx context.Context, user soda.Person, projectID string) (soda.Project, bool, error) {

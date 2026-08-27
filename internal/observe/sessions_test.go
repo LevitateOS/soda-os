@@ -81,7 +81,13 @@ func TestSessionInspectorDegradesOnSocketFailureButRetainsJournalState(t *testin
 		socketErr: errors.New("ss unavailable"),
 	}
 	inspector := NewSystemSessionInspector(system)
-	observation, err := inspector.Inspect(context.Background(), []domain.Project{{ID: "p", UnixUser: "soda-p-demo"}}, []domain.Person{{ID: "a", SSHPublicKey: key}}, nil)
+	observation, err := inspector.Inspect(
+		context.Background(),
+		[]domain.Project{{ID: "p", UnixUser: "soda-p-demo"}},
+		[]domain.Person{{ID: "a", Username: "alice"}},
+		[]domain.SSHDeviceKey{{ID: "key", PersonID: "a", PublicKey: key, Fingerprint: fingerprint}},
+		nil,
+	)
 	if err != nil || !observation.Degraded || len(observation.Connections) != 1 {
 		t.Fatalf("socket failure must preserve journal connection as degraded telemetry: %#v %v", observation, err)
 	}

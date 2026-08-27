@@ -22,27 +22,31 @@ installer fails, preserve `/tmp/anaconda.log`, `/tmp/program.log`,
 `/tmp/storage.log`, and `/tmp/packaging.log` under
 `.artifacts/installer-logs/` before discarding the VM.
 
-The installed system is headless. First connect using the Anaconda account,
-create an Ed25519 key if that account does not have one, and import it into
-Soda:
+The installed system is headless. First connect using the Anaconda account and
+import it into Soda:
 
 ```sh
-ssh-keygen -t ed25519
 sudo sodactl people import \
   --username "$USER" \
   --display-name "Your Name" \
   --email you@example.test \
-  --role admin \
-  --ssh-key "$HOME/.ssh/id_ed25519.pub"
+  --role admin
 ```
 
 After import, sign in to `https://soda.local:9090` with the same Linux username
 and password. The cockpit creates its self-signed certificate on first start.
 Confirm the certificate exception only for the expected local `soda` host.
+Open **My Account** and add the public key and private-key path hint for the
+client device. Generate an Ed25519 key on that client first when needed:
 
-SSH instructions shown by the cockpit use each project's `soda-p-<slug>`
-account. A collaborator's own key selects their worktree; collaborators do not
-share the project account's password (the project account is locked).
+```sh
+ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519
+```
+
+SSH instructions shown by the cockpit use a `soda-<slug>` alias and each
+project's locked `soda-p-<slug>` account. The alias selects the project and the
+registered device key identifies the team member, who lands directly in their
+personal workspace. Team members never share a project-account password.
 
 The unattended `.artifacts/images/SodaOS-0.2.0-aarch64-test.iso` is strictly a
 disposable test artifact. It uses username and password `soda-test`, powers off

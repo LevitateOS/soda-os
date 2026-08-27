@@ -61,6 +61,9 @@ func run(logger *slog.Logger) error {
 	if err = service.BootstrapInstallerAdministrator(runContext); err != nil {
 		return err
 	}
+	if err = service.ReconcileAllAuthorizedKeys(runContext); err != nil {
+		return err
+	}
 	server, err := daemon.ListenUnix(socket, "soda-api", service, logger)
 	if err != nil {
 		return err

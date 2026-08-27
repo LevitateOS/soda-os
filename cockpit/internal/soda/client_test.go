@@ -26,7 +26,15 @@ type fakeSodaService struct {
 }
 
 func (s *fakeSodaService) ListPeople(context.Context, *sodav2.ListPeopleRequest) (*sodav2.ListPeopleResponse, error) {
-	return &sodav2.ListPeopleResponse{People: []*sodav2.Person{{Id: "person-1", Username: "alice", DisplayName: "Alice", Email: "alice@soda.local", Role: sodav2.Role_ROLE_ADMIN, SshPublicKey: "ssh-ed25519 AAAA"}}}, nil
+	return &sodav2.ListPeopleResponse{People: []*sodav2.Person{{Id: "person-1", Username: "alice", DisplayName: "Alice", Email: "alice@soda.local", Role: sodav2.Role_ROLE_ADMIN}}}, nil
+}
+
+func (s *fakeSodaService) ListSshDeviceKeys(context.Context, *sodav2.ListSshDeviceKeysRequest) (*sodav2.ListSshDeviceKeysResponse, error) {
+	return &sodav2.ListSshDeviceKeysResponse{Keys: []*sodav2.SshDeviceKey{{Id: "key-1", PersonId: "person-1", Label: "Laptop", PublicKey: "ssh-ed25519 AAAA", Fingerprint: "SHA256:test", IdentityFileHint: "~/.ssh/id_ed25519", CreatedAt: timestamppb.New(time.Unix(1_700_000_000, 0))}}}, nil
+}
+
+func (s *fakeSodaService) ListCollaborators(context.Context, *sodav2.ListCollaboratorsRequest) (*sodav2.ListCollaboratorsResponse, error) {
+	return &sodav2.ListCollaboratorsResponse{Collaborators: []*sodav2.Collaborator{{Person: &sodav2.Person{Id: "person-1", Username: "alice", DisplayName: "Alice", Role: sodav2.Role_ROLE_ADMIN}}}}, nil
 }
 
 func (s *fakeSodaService) CreateProject(_ context.Context, request *sodav2.CreateProjectRequest) (*sodav2.CreateProjectResponse, error) {
@@ -64,12 +72,20 @@ func TestClientMapsGRPCResourcesAndOptionalValues(t *testing.T) {
 	if len(people) != 1 || people[0].Role != RoleAdmin || people[0].Username != "alice" {
 		t.Fatalf("People() = %#v", people)
 	}
+	keys, err := client.SSHDeviceKeys(context.Background(), "person-1")
+	if err != nil || len(keys) != 1 || keys[0].Label != "Laptop" || keys[0].Type != "ssh-ed25519" || keys[0].CreatedAt != 1_700_000_000 {
+		t.Fatalf("SSHDeviceKeys() = %#v, %v", keys, err)
+	}
+	members, err := client.Members(context.Background(), "project-1")
+	if err != nil || len(members) != 1 || members[0].Username != "alice" {
+		t.Fatalf("Members() = %#v, %v", members, err)
+	}
 
-	project, err := client.CreateProject(context.Background(), CreateProjectRequest{Slug: "demo", Name: "Demo", Profile: "go", Source: ProjectSource{Kind: "git", RemoteURL: "ssh://git@example/demo.git"}})
+	project, err := client.CreateProject(context.Background(), CreateProjectRequest{Slug: "demo", Name: "Demo", Profile: "go", Source: ProjectSource{Kind: "git", RemoteURL: "ssh://git@example/demo.git"}, InitialPersonIDs: []string{"person-1"}})
 	if err != nil {
 		t.Fatalf("CreateProject() error = %v", err)
 	}
-	if service.projectRequest.GetSource().GetGit().GetRemoteUrl() != "ssh://git@example/demo.git" || project.Profile != "go" || project.Source.Kind != "git" {
+	if service.projectRequest.GetSource().GetGit().GetRemoteUrl() != "ssh://git@example/demo.git" || len(service.projectRequest.GetInitialPersonIds()) != 1 || project.Profile != "go" || project.Source.Kind != "git" {
 		t.Fatalf("project mapping failed: request=%#v result=%#v", service.projectRequest, project)
 	}
 

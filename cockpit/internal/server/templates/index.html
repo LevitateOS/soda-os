@@ -1,13 +1,18 @@
 {{define "index.html"}}{{template "header" .}}
+{{if .Admin}}
 <h1>Development host</h1>
 {{template "host" .}}
+{{else}}
+<h1>Your Soda projects</h1>
+<p>Choose a project to connect directly to your personal workspace.</p>
+{{end}}
 {{template "project-list" .}}
 {{template "footer" .}}{{end}}
 
 {{define "host"}}
 <section id="host-status" class="panel" aria-live="polite" hx-get="/fragments/host" hx-trigger="sse:host_changed, sse:refresh" hx-swap="outerHTML">
   <h2>Development host</h2>
-  {{if .Error}}<p class="error" role="alert">{{.Error}}</p>{{else if .Host}}
+  {{if .HostError}}<p class="error" role="alert">{{.HostError}}</p>{{else if .Host}}
   <dl class="summary">
     <div><dt>Status</dt><dd><span class="state state-{{.Host.Overall}}">{{.Host.Overall}}</span></dd></div>
     <div><dt>Address</dt><dd><code>https://soda.local:9090</code></dd></div>
@@ -30,10 +35,20 @@
 {{end}}
 
 {{define "project-list"}}
-<section id="project-list" class="panel" aria-live="polite" hx-get="/fragments/projects" hx-trigger="sse:projects_changed, sse:worktrees_changed, sse:refresh" hx-swap="outerHTML">
-  <h2>Your projects</h2>
-  {{if .Error}}<p class="error" role="alert">{{.Error}}</p>{{else if .Projects}}
-  <ul class="items">{{range .Projects}}<li><a href="/projects/{{.ID}}">{{.Name}}</a><span>{{.Profile}} · <code>{{.UnixUser}}</code></span></li>{{end}}</ul>
+<section id="project-list" class="panel" aria-live="polite" hx-get="/fragments/projects" hx-trigger="sse:projects_changed, sse:worktrees_changed, sse:provisioning_changed, sse:access_changed, sse:sessions_changed, sse:refresh" hx-swap="outerHTML">
+  <h2>{{if .Admin}}Projects{{else}}Your projects{{end}}</h2>
+  {{if .ProjectsError}}<p class="error" role="alert">{{.ProjectsError}}</p>{{else if .ProjectCards}}
+  <div class="project-cards">{{range .ProjectCards}}
+    <article class="project-card">
+      <div><h3><a href="/projects/{{.Project.ID}}">{{.Project.Name}}</a></h3><span class="state state-{{.StateClass}}">{{.State}}</span></div>
+      <p>{{.Project.Profile}} development environment · <code>{{.Project.UnixUser}}</code></p>
+      {{if .ActiveCollaborators}}<p><strong>Active now:</strong> {{range $index, $name := .ActiveCollaborators}}{{if $index}}, {{end}}{{$name}}{{end}}</p>{{end}}
+      {{if .CanConnect}}<p><strong>Connect:</strong> <code>ssh {{.SSHHost}}</code></p>
+      {{else if .NeedsKey}}<p><a href="/account">Add an SSH device</a> to connect.</p>
+      {{else if .Member}}<p class="muted">Your personal workspace is being prepared.</p>
+      {{else}}<p class="muted">You are viewing this project as an administrator.</p>{{end}}
+    </article>
+  {{end}}</div>
   {{else}}<p>No projects are assigned.</p>{{end}}
 </section>
 {{end}}

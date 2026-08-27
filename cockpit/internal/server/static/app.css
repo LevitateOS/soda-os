@@ -19,14 +19,26 @@ a { color: #087d99; }
 .panel { border: 1px solid #8886; border-radius: .5rem; margin: 1rem 0; padding: 1rem 1.25rem; }
 .narrow { margin: 5rem auto; max-width: 28rem; }
 .grid { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr)); }
+.page-heading { align-items: center; display: flex; gap: 1rem; justify-content: space-between; }
+.page-heading h1, .page-heading p { margin-bottom: 0; }
+.primary-panel { border-color: var(--soda-cyan); border-width: 2px; }
+.project-cards { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr)); }
+.project-card { border: 1px solid #8886; border-radius: .4rem; padding: 1rem; }
+.project-card > div { align-items: baseline; display: flex; gap: 1rem; justify-content: space-between; }
+.project-card h3 { margin: 0; }
 .summary { display: flex; flex-wrap: wrap; gap: 1rem; }
 .summary div { min-width: 12rem; }
 dt { font-weight: 700; }
 dd { margin: .25rem 0 0; }
 form { display: grid; gap: .75rem; }
+fieldset { border: 1px solid #8886; display: grid; gap: .75rem; }
+.checks { display: grid; gap: .5rem; }
+.checks label { align-items: center; display: flex; gap: .5rem; }
 label { display: grid; gap: .25rem; }
 input, select, textarea, button { font: inherit; padding: .5rem; }
 button { cursor: pointer; width: fit-content; }
+.actions { align-items: center; display: flex; flex-wrap: wrap; gap: .75rem; }
+.button-link { border: 1px solid currentColor; border-radius: .25rem; display: inline-block; padding: .45rem .7rem; text-decoration: none; }
 button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 3px solid var(--soda-cyan); outline-offset: 2px; }
 table { border-collapse: collapse; width: 100%; }
 th, td { border-bottom: 1px solid #8885; padding: .6rem; text-align: left; vertical-align: top; }
@@ -41,7 +53,7 @@ th, td { border-bottom: 1px solid #8885; padding: .6rem; text-align: left; verti
 .status-grid li { align-items: baseline; display: flex; justify-content: space-between; }
 .state { font-weight: 700; text-transform: capitalize; }
 .state-ready, .state-clean { color: #087d55; }
-.state-degraded, .state-dirty { color: #ad6500; }
+.state-degraded, .state-dirty, .state-preparing { color: #ad6500; }
 .state-unavailable, .state-failed { color: #c33; }
 .htmx-request { opacity: .65; }
 button:disabled { cursor: wait; }

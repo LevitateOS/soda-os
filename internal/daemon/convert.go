@@ -3,10 +3,14 @@ package daemon
 import (
 	"github.com/LevitateOS/soda-os/internal/domain"
 	sodav2 "github.com/LevitateOS/soda-os/internal/gen/soda/v2"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 func personProto(v domain.Person) *sodav2.Person {
-	return &sodav2.Person{Id: v.ID, Username: v.Username, DisplayName: v.DisplayName, Email: v.Email, Role: roleProto(v.Role), SshPublicKey: v.SSHPublicKey}
+	return &sodav2.Person{Id: v.ID, Username: v.Username, DisplayName: v.DisplayName, Email: v.Email, Role: roleProto(v.Role)}
+}
+func sshDeviceKeyProto(v domain.SSHDeviceKey) *sodav2.SshDeviceKey {
+	return &sodav2.SshDeviceKey{Id: v.ID, PersonId: v.PersonID, Label: v.Label, PublicKey: v.PublicKey, Fingerprint: v.Fingerprint, IdentityFileHint: v.IdentityFileHint, CreatedAt: timestamppb.New(v.CreatedAt)}
 }
 func roleProto(v domain.Role) sodav2.Role {
 	if v == domain.RoleAdmin {

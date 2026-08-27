@@ -22,7 +22,9 @@ const (
 // session environment used to build a gateway invocation.
 type Options struct {
 	Actor           string
+	Project         string
 	Worktree        string
+	Home            string
 	ProjectsRoot    string
 	OriginalCommand string
 	Shell           string
@@ -32,10 +34,11 @@ type Options struct {
 // Invocation is the fully validated process replacement requested by a Soda
 // SSH session.
 type Invocation struct {
-	Path string
-	Argv []string
-	Env  []string
-	Dir  string
+	Path   string
+	Argv   []string
+	Env    []string
+	Dir    string
+	Banner string
 }
 
 // Executor replaces the gateway process with the requested session process.
@@ -51,6 +54,11 @@ type UnixExecutor struct{}
 func (UnixExecutor) Exec(invocation Invocation) error {
 	if err := os.Chdir(invocation.Dir); err != nil {
 		return fmt.Errorf("change to Soda worktree: %w", err)
+	}
+	if invocation.Banner != "" {
+		if _, err := fmt.Fprint(os.Stdout, invocation.Banner); err != nil {
+			return fmt.Errorf("write Soda session banner: %w", err)
+		}
 	}
 	return unix.Exec(invocation.Path, invocation.Argv, invocation.Env)
 }
@@ -75,6 +83,9 @@ func BuildInvocation(options Options) (Invocation, error) {
 	if err := validateActor(options.Actor); err != nil {
 		return Invocation{}, err
 	}
+	if err := validateActor(options.Project); err != nil {
+		return Invocation{}, errors.New("invalid Soda project")
+	}
 
 	projectsRoot := options.ProjectsRoot
 	if projectsRoot == "" {
@@ -91,6 +102,22 @@ func BuildInvocation(options Options) (Invocation, error) {
 	if !containedBy(root, worktree) {
 		return Invocation{}, errors.New("worktree is outside the Soda projects root")
 	}
+	projectRoot, err := canonicalDirectory(filepath.Join(root, options.Project), "project root")
+	if err != nil {
+		return Invocation{}, err
+	}
+	expectedWorktree := filepath.Join(projectRoot, "worktrees", options.Actor)
+	if worktree != expectedWorktree {
+		return Invocation{}, errors.New("worktree does not match the Soda actor and project")
+	}
+	home, err := canonicalDirectory(options.Home, "session home")
+	if err != nil {
+		return Invocation{}, err
+	}
+	expectedHome := filepath.Join(projectRoot, ".soda", "people", options.Actor, "home")
+	if home != expectedHome {
+		return Invocation{}, errors.New("session home does not match the Soda actor and project")
+	}
 	if _, err := os.Stat(filepath.Join(worktree, ".git")); err != nil {
 		if os.IsNotExist(err) {
 			return Invocation{}, errors.New("worktree is not a Git worktree")
@@ -103,12 +130,16 @@ func BuildInvocation(options Options) (Invocation, error) {
 		return Invocation{}, err
 	}
 	environment := mergeEnvironment(options.Environment, map[string]string{
-		"SODA_ACTOR":    options.Actor,
-		"SODA_WORKTREE": worktree,
+		"HOME":            home,
+		"PWD":             worktree,
+		"SODA_ACTOR":      options.Actor,
+		"SODA_PROJECT":    options.Project,
+		"SODA_WORKTREE":   worktree,
+		"XDG_CACHE_HOME":  filepath.Join(home, ".cache"),
+		"XDG_CONFIG_HOME": filepath.Join(home, ".config"),
+		"XDG_DATA_HOME":   filepath.Join(home, ".local", "share"),
+		"XDG_STATE_HOME":  filepath.Join(home, ".local", "state"),
 	})
-	if options.OriginalCommand != "" && options.OriginalCommand != "internal-sftp" {
-		environment = mergeEnvironment(environment, map[string]string{"PWD": worktree})
-	}
 
 	profile, err := projectEnvironment(worktree, root)
 	if err != nil {
@@ -122,7 +153,11 @@ func BuildInvocation(options Options) (Invocation, error) {
 		environment = mergeEnvironment(environment, profile)
 	}
 
-	return Invocation{Path: path, Argv: argv, Env: environment, Dir: worktree}, nil
+	banner := ""
+	if options.OriginalCommand == "" && environmentValue(options.Environment, "SSH_TTY") != "" {
+		banner = fmt.Sprintf("Soda OS\nPerson: %s\nProject: %s\nBranch: people/%s\nWorkspace: %s\n\n", options.Actor, options.Project, options.Actor, worktree)
+	}
+	return Invocation{Path: path, Argv: argv, Env: environment, Dir: worktree, Banner: banner}, nil
 }
 
 func validateActor(actor string) error {

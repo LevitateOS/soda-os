@@ -12,6 +12,9 @@ service SodaService {
   rpc CreatePerson(CreatePersonRequest) returns (CreatePersonResponse);
   rpc ImportPerson(ImportPersonRequest) returns (ImportPersonResponse);
   rpc ListPeople(ListPeopleRequest) returns (ListPeopleResponse);
+  rpc CreateSshDeviceKey(CreateSshDeviceKeyRequest) returns (CreateSshDeviceKeyResponse);
+  rpc ListSshDeviceKeys(ListSshDeviceKeysRequest) returns (ListSshDeviceKeysResponse);
+  rpc RevokeSshDeviceKey(RevokeSshDeviceKeyRequest) returns (RevokeSshDeviceKeyResponse);
 
   rpc CreateProject(CreateProjectRequest) returns (CreateProjectResponse);
   rpc ListProjects(ListProjectsRequest) returns (ListProjectsResponse);
@@ -20,7 +23,6 @@ service SodaService {
   rpc AddCollaborator(AddCollaboratorRequest) returns (AddCollaboratorResponse);
   rpc ListCollaborators(ListCollaboratorsRequest) returns (ListCollaboratorsResponse);
 
-  rpc CreateWorktree(CreateWorktreeRequest) returns (CreateWorktreeResponse);
   rpc ListWorktrees(ListWorktreesRequest) returns (ListWorktreesResponse);
 
   rpc GetDeployKey(GetDeployKeyRequest) returns (GetDeployKeyResponse);
@@ -87,6 +89,7 @@ enum EventKind {
   EVENT_KIND_PROVISIONING_CHANGED = 5;
   EVENT_KIND_GIT_CHANGED = 6;
   EVENT_KIND_SESSIONS_CHANGED = 7;
+  EVENT_KIND_ACCESS_CHANGED = 8;
 }
 
 enum StreamControl {
@@ -95,12 +98,24 @@ enum StreamControl {
 }
 
 message Person {
+  reserved 6;
+  reserved "ssh_public_key";
+
   string id = 1;
   string username = 2;
   string display_name = 3;
   string email = 4;
   Role role = 5;
-  string ssh_public_key = 6;
+}
+
+message SshDeviceKey {
+  string id = 1;
+  string person_id = 2;
+  string label = 3;
+  string public_key = 4;
+  string fingerprint = 5;
+  string identity_file_hint = 6;
+  google.protobuf.Timestamp created_at = 7;
 }
 
 message EmptyProjectSource {}
@@ -251,11 +266,13 @@ message HealthResponse {
 }
 
 message CreatePersonRequest {
+  reserved 5;
+  reserved "ssh_public_key";
+
   string username = 1;
   string display_name = 2;
   string email = 3;
   Role role = 4;
-  string ssh_public_key = 5;
   string password = 6;
 }
 
@@ -264,11 +281,13 @@ message CreatePersonResponse {
 }
 
 message ImportPersonRequest {
+  reserved 5;
+  reserved "ssh_public_key";
+
   string username = 1;
   string display_name = 2;
   string email = 3;
   Role role = 4;
-  string ssh_public_key = 5;
 }
 
 message ImportPersonResponse {
@@ -281,11 +300,40 @@ message ListPeopleResponse {
   repeated Person people = 1;
 }
 
+message CreateSshDeviceKeyRequest {
+  string person_id = 1;
+  string label = 2;
+  string public_key = 3;
+  string identity_file_hint = 4;
+}
+
+message CreateSshDeviceKeyResponse {
+  SshDeviceKey key = 1;
+}
+
+message ListSshDeviceKeysRequest {
+  string person_id = 1;
+}
+
+message ListSshDeviceKeysResponse {
+  repeated SshDeviceKey keys = 1;
+}
+
+message RevokeSshDeviceKeyRequest {
+  string person_id = 1;
+  string key_id = 2;
+}
+
+message RevokeSshDeviceKeyResponse {
+  SshDeviceKey key = 1;
+}
+
 message CreateProjectRequest {
   string slug = 1;
   string name = 2;
   ToolchainProfile profile = 3;
   ProjectSource source = 4;
+  repeated string initial_person_ids = 5;
 }
 
 message CreateProjectResponse {
@@ -328,17 +376,6 @@ message Collaborator {
 
 message ListCollaboratorsResponse {
   repeated Collaborator collaborators = 1;
-}
-
-message CreateWorktreeRequest {
-  string project_id = 1;
-  string person_id = 2;
-  string name = 3;
-  string base_ref = 4;
-}
-
-message CreateWorktreeResponse {
-  Worktree worktree = 1;
 }
 
 message ListWorktreesRequest {

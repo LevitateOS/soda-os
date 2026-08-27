@@ -24,6 +24,7 @@ var ErrJournalFormat = errors.New("OpenSSH journal format is not recognized")
 type ProjectStore interface {
 	ListProjects(context.Context) ([]domain.Project, error)
 	ListPeople(context.Context) ([]domain.Person, error)
+	ListSSHDeviceKeys(context.Context) ([]domain.SSHDeviceKey, error)
 	ListWorktrees(context.Context, string) ([]domain.Worktree, error)
 }
 
@@ -36,7 +37,7 @@ type GitInspector interface {
 }
 
 type SessionInspector interface {
-	Inspect(context.Context, []domain.Project, []domain.Person, []domain.Worktree) (SessionObservation, error)
+	Inspect(context.Context, []domain.Project, []domain.Person, []domain.SSHDeviceKey, []domain.Worktree) (SessionObservation, error)
 }
 
 // SessionObservation can carry usable data and degraded telemetry together.
@@ -258,6 +259,11 @@ func (m *Manager) RefreshSessions(ctx context.Context) {
 		m.setSSHState(domain.RuntimeUnavailable)
 		return
 	}
+	keys, err := m.store.ListSSHDeviceKeys(ctx)
+	if err != nil {
+		m.setSSHState(domain.RuntimeUnavailable)
+		return
+	}
 	var worktrees []domain.Worktree
 	for _, project := range projects {
 		items, listErr := m.store.ListWorktrees(ctx, project.ID)
@@ -267,7 +273,7 @@ func (m *Manager) RefreshSessions(ctx context.Context) {
 		}
 		worktrees = append(worktrees, items...)
 	}
-	observation, err := m.sessions.Inspect(ctx, projects, people, worktrees)
+	observation, err := m.sessions.Inspect(ctx, projects, people, keys, worktrees)
 	if err != nil {
 		// An unknown journal format is intentionally not turned into an empty
 		// connection list: the last known snapshot remains useful and honest.

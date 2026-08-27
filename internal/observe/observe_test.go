@@ -13,6 +13,7 @@ import (
 type fakeStore struct {
 	projects   []domain.Project
 	people     []domain.Person
+	keys       []domain.SSHDeviceKey
 	worktrees  map[string][]domain.Worktree
 	projectErr error
 	peopleErr  error
@@ -23,6 +24,9 @@ func (s fakeStore) ListProjects(context.Context) ([]domain.Project, error) {
 	return s.projects, s.projectErr
 }
 func (s fakeStore) ListPeople(context.Context) ([]domain.Person, error) { return s.people, s.peopleErr }
+func (s fakeStore) ListSSHDeviceKeys(context.Context) ([]domain.SSHDeviceKey, error) {
+	return s.keys, nil
+}
 func (s fakeStore) ListWorktrees(_ context.Context, id string) ([]domain.Worktree, error) {
 	return s.worktrees[id], s.treeErr
 }
@@ -62,7 +66,7 @@ type fakeSessions struct {
 	calls       int
 }
 
-func (f *fakeSessions) Inspect(context.Context, []domain.Project, []domain.Person, []domain.Worktree) (SessionObservation, error) {
+func (f *fakeSessions) Inspect(context.Context, []domain.Project, []domain.Person, []domain.SSHDeviceKey, []domain.Worktree) (SessionObservation, error) {
 	f.calls++
 	return f.observation, f.err
 }

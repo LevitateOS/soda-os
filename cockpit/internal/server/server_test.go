@@ -10,25 +10,44 @@ import (
 	"testing"
 	"time"
 
+	"github.com/LevitateOS/soda-os/cockpit/internal/auth"
 	"github.com/LevitateOS/soda-os/cockpit/internal/soda"
 )
 
-type fakeAuth struct{ err error }
+type fakeAuth struct {
+	result    auth.Result
+	err       error
+	changeErr error
+}
 
-func (a fakeAuth) Authenticate(_, _ string) error { return a.err }
+func (a fakeAuth) Authenticate(_, _ string) (auth.Result, error) {
+	if a.err != nil {
+		return "", a.err
+	}
+	if a.result == "" {
+		return auth.Authenticated, nil
+	}
+	return a.result, nil
+}
+func (a fakeAuth) ChangePassword(_, _, _ string) error { return a.changeErr }
 
 type fakeAPI struct {
-	people       []soda.Person
-	projects     []soda.Project
-	worktrees    []soda.Worktree
-	jobs         []soda.ProvisioningJob
-	toolchain    *soda.ToolchainInstallation
-	statuses     []soda.WorktreeStatus
-	active       []soda.ActiveSSHConnection
-	events       <-chan soda.Event
-	created      *soda.CreatePersonRequest
-	retried      bool
-	eventProject string
+	people         []soda.Person
+	projects       []soda.Project
+	members        []soda.Person
+	worktrees      []soda.Worktree
+	jobs           []soda.ProvisioningJob
+	toolchain      *soda.ToolchainInstallation
+	statuses       []soda.WorktreeStatus
+	active         []soda.ActiveSSHConnection
+	events         <-chan soda.Event
+	created        *soda.CreatePersonRequest
+	createdProject *soda.CreateProjectRequest
+	keys           []soda.SSHDeviceKey
+	keyPersonIDs   []string
+	retried        bool
+	eventProject   string
+	hostCalls      int
 }
 
 func (f *fakeAPI) People(context.Context) ([]soda.Person, error)    { return f.people, nil }
@@ -40,13 +59,45 @@ func (f *fakeAPI) CreatePerson(_ context.Context, request soda.CreatePersonReque
 	f.created = &request
 	return soda.Person{Username: request.Username}, nil
 }
-func (f *fakeAPI) CreateProject(context.Context, soda.CreateProjectRequest) (soda.Project, error) {
+func (f *fakeAPI) SSHDeviceKeys(_ context.Context, personID string) ([]soda.SSHDeviceKey, error) {
+	f.keyPersonIDs = append(f.keyPersonIDs, personID)
+	var keys []soda.SSHDeviceKey
+	for _, key := range f.keys {
+		if key.PersonID == personID {
+			keys = append(keys, key)
+		}
+	}
+	return keys, nil
+}
+func (f *fakeAPI) CreateSSHDeviceKey(_ context.Context, personID, label, publicKey, hint string) (soda.SSHDeviceKey, error) {
+	keyType := "unknown"
+	if fields := strings.Fields(publicKey); len(fields) != 0 {
+		keyType = fields[0]
+	}
+	key := soda.SSHDeviceKey{ID: "key-new", PersonID: personID, Label: label, Type: keyType, PublicKey: publicKey, Fingerprint: "SHA256:new", IdentityFileHint: hint}
+	f.keys = append(f.keys, key)
+	return key, nil
+}
+func (f *fakeAPI) RevokeSSHDeviceKey(_ context.Context, personID, keyID string) (soda.SSHDeviceKey, error) {
+	for index, key := range f.keys {
+		if key.PersonID == personID && key.ID == keyID {
+			f.keys = append(f.keys[:index], f.keys[index+1:]...)
+			return key, nil
+		}
+	}
+	return soda.SSHDeviceKey{}, errors.New("key not found")
+}
+func (f *fakeAPI) CreateProject(_ context.Context, request soda.CreateProjectRequest) (soda.Project, error) {
+	f.createdProject = &request
 	return soda.Project{ID: "project-1"}, nil
 }
-func (f *fakeAPI) AddCollaborator(context.Context, string, string) (soda.Worktree, error) {
-	return soda.Worktree{}, nil
+func (f *fakeAPI) Members(context.Context, string) ([]soda.Person, error) {
+	if f.members != nil {
+		return f.members, nil
+	}
+	return f.people, nil
 }
-func (f *fakeAPI) CreateWorktree(context.Context, string, string, string, string) (soda.Worktree, error) {
+func (f *fakeAPI) AddCollaborator(context.Context, string, string) (soda.Worktree, error) {
 	return soda.Worktree{}, nil
 }
 func (f *fakeAPI) Worktrees(context.Context, string) ([]soda.Worktree, error) {
@@ -68,6 +119,7 @@ func (f *fakeAPI) DeployKey(context.Context, string) (soda.DeployKey, error) {
 	return soda.DeployKey{}, nil
 }
 func (f *fakeAPI) HostStatus(context.Context) (soda.HostStatus, error) {
+	f.hostCalls++
 	return soda.HostStatus{Overall: "ready"}, nil
 }
 func (f *fakeAPI) WorktreeStatuses(context.Context, string) ([]soda.WorktreeStatus, error) {
@@ -116,10 +168,10 @@ func TestPAMLoginCreatesSessionForRegisteredPerson(t *testing.T) {
 		t.Fatalf("expected secure session cookie, got %#v", cookies)
 	}
 	home := request(app, http.MethodGet, "/", "", cookies[0])
-	if home.Code != http.StatusOK || !strings.Contains(home.Body.String(), "Alice") {
+	if home.Code != http.StatusOK || !strings.Contains(home.Body.String(), "Your Soda projects") {
 		t.Fatalf("unexpected home response: %d %q", home.Code, home.Body.String())
 	}
-	people := request(app, http.MethodGet, "/people", "", cookies[0])
+	people := request(app, http.MethodGet, "/team", "", cookies[0])
 	if people.Code != http.StatusForbidden {
 		t.Fatalf("developer accessed people page: %d", people.Code)
 	}
@@ -152,7 +204,8 @@ func TestProvisioningFragmentUsesEventsWhileInstalling(t *testing.T) {
 	installing := request(app, http.MethodGet, "/projects/project-1/provisioning", "", cookie)
 	if installing.Code != http.StatusOK || !strings.Contains(installing.Body.String(), `sse:provisioning_changed`) ||
 		strings.Contains(installing.Body.String(), `every 2s`) ||
-		!strings.Contains(installing.Body.String(), `disabled>Provisioning…`) {
+		!strings.Contains(installing.Body.String(), `aria-busy="true"`) ||
+		strings.Contains(installing.Body.String(), `Retry project setup`) {
 		t.Fatalf("expected live installing fragment, got %d %q", installing.Code, installing.Body.String())
 	}
 
@@ -160,7 +213,7 @@ func TestProvisioningFragmentUsesEventsWhileInstalling(t *testing.T) {
 	ready := request(app, http.MethodGet, "/projects/project-1/provisioning", "", cookie)
 	if ready.Code != http.StatusOK || !strings.Contains(ready.Body.String(), `sse:provisioning_changed`) ||
 		strings.Contains(ready.Body.String(), `every 2s`) ||
-		!strings.Contains(ready.Body.String(), `>Retry provisioning</button>`) {
+		strings.Contains(ready.Body.String(), `Retry project setup`) || !strings.Contains(ready.Body.String(), `>Ready<`) {
 		t.Fatalf("expected completed fragment without polling, got %d %q", ready.Code, ready.Body.String())
 	}
 }
@@ -197,16 +250,16 @@ func TestAdminHTMXPersonFlow(t *testing.T) {
 	}
 	form := url.Values{
 		"username": {"bob"}, "display_name": {"Bob"}, "email": {"bob@example.test"},
-		"role": {"developer"}, "password": {"temporary"}, "ssh_public_key": {"ssh-ed25519 test"},
+		"role": {"developer"}, "password": {"temporary"},
 	}.Encode()
-	req := httptest.NewRequest(http.MethodPost, "/people", strings.NewReader(form))
+	req := httptest.NewRequest(http.MethodPost, "/team", strings.NewReader(form))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.Header.Set("HX-Request", "true")
 	req.AddCookie(&http.Cookie{Name: sessionCookie, Value: token})
 	response := httptest.NewRecorder()
 	app.Handler().ServeHTTP(response, req)
 	if response.Code != http.StatusOK || response.Header().Get("HX-Redirect") != "" ||
-		!strings.Contains(response.Body.String(), "Person added.") {
+		!strings.Contains(response.Body.String(), "Team member added.") {
 		t.Fatalf("unexpected HTMX response: %d %#v", response.Code, response.Header())
 	}
 	if api.created == nil || api.created.Username != "bob" {
@@ -272,7 +325,153 @@ func TestSessionFragmentRedactsClientForDevelopers(t *testing.T) {
 	}
 }
 
-func testServer(t *testing.T, api soda.API, authenticator fakeAuth) *Server {
+type changingAuth struct {
+	result    auth.Result
+	changes   [][3]string
+	changeErr error
+}
+
+func (a *changingAuth) Authenticate(_, _ string) (auth.Result, error) { return a.result, nil }
+func (a *changingAuth) ChangePassword(username, current, replacement string) error {
+	a.changes = append(a.changes, [3]string{username, current, replacement})
+	return a.changeErr
+}
+
+func TestFirstLoginRequiresPasswordReplacementThenSignsIn(t *testing.T) {
+	alice := soda.Person{ID: "person-1", Username: "alice", DisplayName: "Alice", Role: soda.RoleDeveloper}
+	authenticator := &changingAuth{result: auth.PasswordChangeRequired}
+	app := testServer(t, &fakeAPI{people: []soda.Person{alice}}, authenticator)
+	login := request(app, http.MethodPost, "/login", url.Values{"username": {"alice"}, "password": {"temporary"}}.Encode(), nil)
+	if login.Code != http.StatusOK || !strings.Contains(login.Body.String(), "Activate your Soda account") || len(login.Result().Cookies()) != 0 {
+		t.Fatalf("unexpected activation response: %d %q", login.Code, login.Body.String())
+	}
+	short := request(app, http.MethodPost, "/activate-password", url.Values{
+		"username": {"alice"}, "current_password": {"temporary"}, "new_password": {"short"}, "confirm_password": {"short"},
+	}.Encode(), nil)
+	if short.Code != http.StatusUnprocessableEntity || len(authenticator.changes) != 0 {
+		t.Fatalf("short password reached PAM: %d %#v", short.Code, authenticator.changes)
+	}
+	activated := request(app, http.MethodPost, "/activate-password", url.Values{
+		"username": {"alice"}, "current_password": {"temporary"}, "new_password": {"simple"}, "confirm_password": {"simple"},
+	}.Encode(), nil)
+	if activated.Code != http.StatusSeeOther || activated.Header().Get("Location") != "/account" || len(activated.Result().Cookies()) != 1 {
+		t.Fatalf("unexpected activation completion: %d %v", activated.Code, activated.Header())
+	}
+	if len(authenticator.changes) != 1 || authenticator.changes[0] != [3]string{"alice", "temporary", "simple"} {
+		t.Fatalf("password change = %#v", authenticator.changes)
+	}
+}
+
+func TestMyAccountManagesOnlyCurrentUsersSSHDevices(t *testing.T) {
+	alice := soda.Person{ID: "person-1", Username: "alice", DisplayName: "Alice", Role: soda.RoleAdmin}
+	bob := soda.Person{ID: "person-2", Username: "bob", DisplayName: "Bob", Role: soda.RoleDeveloper}
+	api := &fakeAPI{people: []soda.Person{alice, bob}, keys: []soda.SSHDeviceKey{{ID: "bob-key", PersonID: bob.ID, Label: "Bob laptop"}}}
+	app := testServer(t, api, fakeAuth{})
+	token, err := app.sessions.create(alice)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cookie := &http.Cookie{Name: sessionCookie, Value: token}
+	form := url.Values{"label": {"Alice laptop"}, "public_key": {"ssh-ed25519 AAAA alice"}, "identity_file_hint": {"~/.ssh/id_ed25519"}}.Encode()
+	created := request(app, http.MethodPost, "/account/ssh-keys", form, cookie)
+	if created.Code != http.StatusSeeOther || len(api.keys) != 2 || api.keys[1].PersonID != alice.ID {
+		t.Fatalf("device creation = %d %#v", created.Code, api.keys)
+	}
+	revoked := request(app, http.MethodPost, "/account/ssh-keys/bob-key/revoke", "", cookie)
+	if revoked.Code != http.StatusUnprocessableEntity || len(api.keys) != 2 {
+		t.Fatalf("administrator revoked another account's key: %d %#v", revoked.Code, api.keys)
+	}
+}
+
+func TestProjectCreationForwardsInitialTeamAndHasNoWorktreeCreationRoute(t *testing.T) {
+	admin := soda.Person{ID: "admin-1", Username: "admin", DisplayName: "Admin", Role: soda.RoleAdmin}
+	bob := soda.Person{ID: "person-2", Username: "bob", DisplayName: "Bob", Role: soda.RoleDeveloper}
+	api := &fakeAPI{people: []soda.Person{admin, bob}}
+	app := testServer(t, api, fakeAuth{})
+	token, err := app.sessions.create(admin)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cookie := &http.Cookie{Name: sessionCookie, Value: token}
+	form := url.Values{"slug": {"demo"}, "name": {"Demo"}, "profile": {"go"}, "member_ids": {admin.ID, bob.ID}}.Encode()
+	response := request(app, http.MethodPost, "/projects", form, cookie)
+	if response.Code != http.StatusSeeOther || api.createdProject == nil || len(api.createdProject.InitialPersonIDs) != 2 {
+		t.Fatalf("project creation = %d %#v", response.Code, api.createdProject)
+	}
+	removed := request(app, http.MethodPost, "/projects/project-1/worktrees", "", cookie)
+	if removed.Code != http.StatusMethodNotAllowed {
+		t.Fatalf("removed worktree creation route returned %d", removed.Code)
+	}
+}
+
+func TestProjectShowsMembershipWhilePersonalWorkspaceIsPreparing(t *testing.T) {
+	admin := soda.Person{ID: "admin-1", Username: "admin", DisplayName: "Admin", Role: soda.RoleAdmin}
+	bob := soda.Person{ID: "person-2", Username: "bob", DisplayName: "Bob", Role: soda.RoleDeveloper}
+	project := soda.Project{ID: "project-1", Slug: "demo", Name: "Demo", UnixUser: "soda-p-demo", Profile: "go"}
+	api := &fakeAPI{
+		people: []soda.Person{admin, bob}, members: []soda.Person{bob}, projects: []soda.Project{project},
+		jobs: []soda.ProvisioningJob{{ID: "job-1", ProjectID: project.ID, State: "installing"}},
+	}
+	app := testServer(t, api, fakeAuth{})
+	token, err := app.sessions.create(admin)
+	if err != nil {
+		t.Fatal(err)
+	}
+	page := request(app, http.MethodGet, "/projects/project-1", "", &http.Cookie{Name: sessionCookie, Value: token})
+	if page.Code != http.StatusOK || !strings.Contains(page.Body.String(), "Bob <code>bob</code>") || !strings.Contains(page.Body.String(), ">Preparing<") {
+		t.Fatalf("pending member workspace was not visible: %d %q", page.Code, page.Body.String())
+	}
+}
+
+func TestConnectFragmentRendersPersonalizedSSHConfiguration(t *testing.T) {
+	alice := soda.Person{ID: "person-1", Username: "alice", DisplayName: "Alice", Role: soda.RoleDeveloper}
+	project := soda.Project{ID: "project-1", Slug: "storefront", Name: "Storefront", UnixUser: "soda-p-storefront", Profile: "go"}
+	key := soda.SSHDeviceKey{ID: "key-1", PersonID: alice.ID, Label: "Laptop", Fingerprint: "SHA256:test", IdentityFileHint: "~/.ssh/key with space"}
+	workspace := soda.Worktree{ID: "workspace-1", ProjectID: project.ID, PersonID: alice.ID, Branch: "people/alice", Path: "/srv/soda/projects/storefront/worktrees/alice"}
+	api := &fakeAPI{people: []soda.Person{alice}, projects: []soda.Project{project}, keys: []soda.SSHDeviceKey{key}, worktrees: []soda.Worktree{workspace}, jobs: []soda.ProvisioningJob{{ID: "job-1", ProjectID: project.ID, State: "ready"}}}
+	app := testServer(t, api, fakeAuth{})
+	token, err := app.sessions.create(alice)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cookie := &http.Cookie{Name: sessionCookie, Value: token}
+	fragment := request(app, http.MethodGet, "/projects/project-1/connect?key_id=key-1", "", cookie)
+	for _, expected := range []string{`Host soda-storefront`, `User soda-p-storefront`, `IdentityFile &#34;~/.ssh/key with space&#34;`, workspace.Path, `ssh soda-storefront`} {
+		if fragment.Code != http.StatusOK || !strings.Contains(fragment.Body.String(), expected) {
+			t.Fatalf("connect fragment missing %q: %d %q", expected, fragment.Code, fragment.Body.String())
+		}
+	}
+	download := request(app, http.MethodGet, "/projects/project-1/ssh-config?key_id=key-1", "", cookie)
+	if download.Code != http.StatusOK || download.Header().Get("Content-Type") != "text/plain; charset=utf-8" || !strings.Contains(download.Body.String(), `IdentityFile "~/.ssh/key with space"`) {
+		t.Fatalf("downloaded SSH config = %d %v %q", download.Code, download.Header(), download.Body.String())
+	}
+}
+
+func TestDeveloperHomeShowsActiveProjectCollaborators(t *testing.T) {
+	alice := soda.Person{ID: "person-1", Username: "alice", DisplayName: "Alice", Role: soda.RoleDeveloper}
+	bob := soda.Person{ID: "person-2", Username: "bob", DisplayName: "Bob", Role: soda.RoleDeveloper}
+	project := soda.Project{ID: "project-1", Slug: "storefront", Name: "Storefront", UnixUser: "soda-p-storefront", Profile: "go"}
+	workspace := soda.Worktree{ID: "workspace-1", ProjectID: project.ID, PersonID: alice.ID, Branch: "people/alice", Path: "/srv/soda/projects/storefront/worktrees/alice"}
+	api := &fakeAPI{
+		people: []soda.Person{alice, bob}, projects: []soda.Project{project}, worktrees: []soda.Worktree{workspace},
+		jobs: []soda.ProvisioningJob{{ID: "job-1", ProjectID: project.ID, State: "ready"}},
+		active: []soda.ActiveSSHConnection{
+			{ID: "session-bob-1", ProjectID: project.ID, PersonID: bob.ID},
+			{ID: "session-bob-2", ProjectID: project.ID, PersonID: bob.ID},
+		},
+	}
+	app := testServer(t, api, fakeAuth{})
+	token, err := app.sessions.create(alice)
+	if err != nil {
+		t.Fatal(err)
+	}
+	home := request(app, http.MethodGet, "/", "", &http.Cookie{Name: sessionCookie, Value: token})
+	if home.Code != http.StatusOK || !strings.Contains(home.Body.String(), "Active now:</strong> Bob") || strings.Count(home.Body.String(), "Bob") != 1 {
+		t.Fatalf("developer home did not show deduplicated active collaborators: %d %q", home.Code, home.Body.String())
+	}
+}
+
+func testServer(t *testing.T, api soda.API, authenticator auth.Authenticator) *Server {
 	t.Helper()
 	app, err := New(api, authenticator)
 	if err != nil {

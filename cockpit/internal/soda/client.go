@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"strings"
 
 	sodav2 "github.com/LevitateOS/soda-os/internal/gen/soda/v2"
 	"github.com/LevitateOS/soda-os/internal/grpcclient"
@@ -20,12 +21,21 @@ const (
 )
 
 type Person struct {
-	ID           string `json:"id"`
-	Username     string `json:"username"`
-	DisplayName  string `json:"display_name"`
-	Email        string `json:"email"`
-	Role         Role   `json:"role"`
-	SSHPublicKey string `json:"ssh_public_key"`
+	ID          string `json:"id"`
+	Username    string `json:"username"`
+	DisplayName string `json:"display_name"`
+	Email       string `json:"email"`
+	Role        Role   `json:"role"`
+}
+type SSHDeviceKey struct {
+	ID               string `json:"id"`
+	PersonID         string `json:"person_id"`
+	Label            string `json:"label"`
+	Type             string `json:"type"`
+	PublicKey        string `json:"public_key"`
+	Fingerprint      string `json:"fingerprint"`
+	IdentityFileHint string `json:"identity_file_hint"`
+	CreatedAt        uint64 `json:"created_at"`
 }
 type ProjectSource struct {
 	Kind      string `json:"kind"`
@@ -130,18 +140,18 @@ type Event struct {
 	Sequence  uint64  `json:"sequence"`
 }
 type CreatePersonRequest struct {
-	Username     string `json:"username"`
-	DisplayName  string `json:"display_name"`
-	Email        string `json:"email"`
-	Role         Role   `json:"role"`
-	SSHPublicKey string `json:"ssh_public_key"`
-	Password     string `json:"password"`
+	Username    string `json:"username"`
+	DisplayName string `json:"display_name"`
+	Email       string `json:"email"`
+	Role        Role   `json:"role"`
+	Password    string `json:"password"`
 }
 type CreateProjectRequest struct {
-	Slug    string        `json:"slug"`
-	Name    string        `json:"name"`
-	Profile string        `json:"profile"`
-	Source  ProjectSource `json:"source"`
+	Slug             string        `json:"slug"`
+	Name             string        `json:"name"`
+	Profile          string        `json:"profile"`
+	Source           ProjectSource `json:"source"`
+	InitialPersonIDs []string      `json:"initial_person_ids"`
 }
 
 type API interface {
@@ -149,9 +159,12 @@ type API interface {
 	Projects(context.Context) ([]Project, error)
 	ProjectsForPerson(context.Context, string) ([]Project, error)
 	CreatePerson(context.Context, CreatePersonRequest) (Person, error)
+	SSHDeviceKeys(context.Context, string) ([]SSHDeviceKey, error)
+	CreateSSHDeviceKey(context.Context, string, string, string, string) (SSHDeviceKey, error)
+	RevokeSSHDeviceKey(context.Context, string, string) (SSHDeviceKey, error)
 	CreateProject(context.Context, CreateProjectRequest) (Project, error)
+	Members(context.Context, string) ([]Person, error)
 	AddCollaborator(context.Context, string, string) (Worktree, error)
-	CreateWorktree(context.Context, string, string, string, string) (Worktree, error)
 	Worktrees(context.Context, string) ([]Worktree, error)
 	Jobs(context.Context, string) ([]ProvisioningJob, error)
 	RetryProvisioning(context.Context, string) (ProvisioningJob, error)
@@ -210,28 +223,57 @@ func (c *Client) ProjectsForPerson(ctx context.Context, personID string) ([]Proj
 	return projects(response.GetProjects()), nil
 }
 func (c *Client) CreatePerson(ctx context.Context, request CreatePersonRequest) (Person, error) {
-	response, err := c.service.CreatePerson(ctx, &sodav2.CreatePersonRequest{Username: request.Username, DisplayName: request.DisplayName, Email: request.Email, Role: roleToProto(request.Role), SshPublicKey: request.SSHPublicKey, Password: request.Password})
+	response, err := c.service.CreatePerson(ctx, &sodav2.CreatePersonRequest{Username: request.Username, DisplayName: request.DisplayName, Email: request.Email, Role: roleToProto(request.Role), Password: request.Password})
 	if err != nil {
 		return Person{}, rpcError(err)
 	}
 	return person(response.GetPerson()), nil
 }
+func (c *Client) SSHDeviceKeys(ctx context.Context, personID string) ([]SSHDeviceKey, error) {
+	response, err := c.service.ListSshDeviceKeys(ctx, &sodav2.ListSshDeviceKeysRequest{PersonId: personID})
+	if err != nil {
+		return nil, rpcError(err)
+	}
+	items := make([]SSHDeviceKey, 0, len(response.GetKeys()))
+	for _, item := range response.GetKeys() {
+		items = append(items, sshDeviceKey(item))
+	}
+	return items, nil
+}
+func (c *Client) CreateSSHDeviceKey(ctx context.Context, personID, label, publicKey, identityFileHint string) (SSHDeviceKey, error) {
+	response, err := c.service.CreateSshDeviceKey(ctx, &sodav2.CreateSshDeviceKeyRequest{PersonId: personID, Label: label, PublicKey: publicKey, IdentityFileHint: identityFileHint})
+	if err != nil {
+		return SSHDeviceKey{}, rpcError(err)
+	}
+	return sshDeviceKey(response.GetKey()), nil
+}
+func (c *Client) RevokeSSHDeviceKey(ctx context.Context, personID, keyID string) (SSHDeviceKey, error) {
+	response, err := c.service.RevokeSshDeviceKey(ctx, &sodav2.RevokeSshDeviceKeyRequest{PersonId: personID, KeyId: keyID})
+	if err != nil {
+		return SSHDeviceKey{}, rpcError(err)
+	}
+	return sshDeviceKey(response.GetKey()), nil
+}
 func (c *Client) CreateProject(ctx context.Context, request CreateProjectRequest) (Project, error) {
-	response, err := c.service.CreateProject(ctx, &sodav2.CreateProjectRequest{Slug: request.Slug, Name: request.Name, Profile: profileToProto(request.Profile), Source: sourceToProto(request.Source)})
+	response, err := c.service.CreateProject(ctx, &sodav2.CreateProjectRequest{Slug: request.Slug, Name: request.Name, Profile: profileToProto(request.Profile), Source: sourceToProto(request.Source), InitialPersonIds: request.InitialPersonIDs})
 	if err != nil {
 		return Project{}, rpcError(err)
 	}
 	return project(response.GetProject()), nil
 }
+func (c *Client) Members(ctx context.Context, projectID string) ([]Person, error) {
+	response, err := c.service.ListCollaborators(ctx, &sodav2.ListCollaboratorsRequest{ProjectId: projectID})
+	if err != nil {
+		return nil, rpcError(err)
+	}
+	items := make([]Person, 0, len(response.GetCollaborators()))
+	for _, collaborator := range response.GetCollaborators() {
+		items = append(items, person(collaborator.GetPerson()))
+	}
+	return items, nil
+}
 func (c *Client) AddCollaborator(ctx context.Context, projectID, personID string) (Worktree, error) {
 	response, err := c.service.AddCollaborator(ctx, &sodav2.AddCollaboratorRequest{ProjectId: projectID, PersonId: personID})
-	if err != nil {
-		return Worktree{}, rpcError(err)
-	}
-	return worktree(response.GetWorktree()), nil
-}
-func (c *Client) CreateWorktree(ctx context.Context, projectID, personID, name, baseRef string) (Worktree, error) {
-	response, err := c.service.CreateWorktree(ctx, &sodav2.CreateWorktreeRequest{ProjectId: projectID, PersonId: personID, Name: name, BaseRef: baseRef})
 	if err != nil {
 		return Worktree{}, rpcError(err)
 	}
@@ -377,7 +419,18 @@ func rpcError(err error) error {
 }
 
 func person(value *sodav2.Person) Person {
-	return Person{ID: value.GetId(), Username: value.GetUsername(), DisplayName: value.GetDisplayName(), Email: value.GetEmail(), Role: roleFromProto(value.GetRole()), SSHPublicKey: value.GetSshPublicKey()}
+	return Person{ID: value.GetId(), Username: value.GetUsername(), DisplayName: value.GetDisplayName(), Email: value.GetEmail(), Role: roleFromProto(value.GetRole())}
+}
+func sshDeviceKey(value *sodav2.SshDeviceKey) SSHDeviceKey {
+	keyType := "unknown"
+	if fields := strings.Fields(value.GetPublicKey()); len(fields) != 0 {
+		keyType = fields[0]
+	}
+	result := SSHDeviceKey{ID: value.GetId(), PersonID: value.GetPersonId(), Label: value.GetLabel(), Type: keyType, PublicKey: value.GetPublicKey(), Fingerprint: value.GetFingerprint(), IdentityFileHint: value.GetIdentityFileHint()}
+	if timestamp := value.GetCreatedAt(); timestamp != nil {
+		result.CreatedAt = uint64(timestamp.AsTime().Unix())
+	}
+	return result
 }
 func people(values []*sodav2.Person) []Person {
 	items := make([]Person, 0, len(values))
@@ -592,6 +645,8 @@ func eventKind(value sodav2.EventKind) string {
 		return "git_changed"
 	case sodav2.EventKind_EVENT_KIND_SESSIONS_CHANGED:
 		return "sessions_changed"
+	case sodav2.EventKind_EVENT_KIND_ACCESS_CHANGED:
+		return "access_changed"
 	default:
 		return ""
 	}

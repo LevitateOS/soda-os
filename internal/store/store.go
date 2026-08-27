@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/LevitateOS/soda-os/internal/domain"
 	"gorm.io/driver/sqlite"
@@ -12,7 +13,7 @@ import (
 	"gorm.io/gorm/logger"
 )
 
-const SchemaVersion = 1
+const SchemaVersion = 2
 
 var (
 	ErrNotFound           = errors.New("resource not found")
@@ -22,13 +23,22 @@ var (
 )
 
 type Person struct {
-	ID             string  `gorm:"primaryKey;size:36"`
-	Username       string  `gorm:"not null;uniqueIndex;size:24"`
-	DisplayName    string  `gorm:"not null"`
-	Email          string  `gorm:"not null"`
-	Role           string  `gorm:"not null;check:role IN ('admin','developer')"`
-	SSHPublicKey   string  `gorm:"not null"`
-	SSHFingerprint *string `gorm:"uniqueIndex"`
+	ID          string `gorm:"primaryKey;size:36"`
+	Username    string `gorm:"not null;uniqueIndex;size:24"`
+	DisplayName string `gorm:"not null"`
+	Email       string `gorm:"not null"`
+	Role        string `gorm:"not null;check:role IN ('admin','developer')"`
+}
+
+type SSHDeviceKey struct {
+	ID               string `gorm:"primaryKey;size:36"`
+	PersonID         string `gorm:"not null;uniqueIndex:ssh_device_label;size:36"`
+	Label            string `gorm:"not null;uniqueIndex:ssh_device_label;size:40"`
+	PublicKey        string `gorm:"not null"`
+	Fingerprint      string `gorm:"not null;uniqueIndex"`
+	IdentityFileHint string `gorm:"not null"`
+	CreatedAt        int64  `gorm:"autoCreateTime:nano;index"`
+	Person           Person `gorm:"constraint:OnDelete:RESTRICT;foreignKey:PersonID"`
 }
 
 type Project struct {
@@ -50,9 +60,9 @@ type Membership struct {
 
 type Worktree struct {
 	ID        string  `gorm:"primaryKey;size:36"`
-	ProjectID string  `gorm:"not null;uniqueIndex:worktree_identity;uniqueIndex:worktree_branch;size:36"`
-	PersonID  string  `gorm:"not null;uniqueIndex:worktree_identity;size:36"`
-	Name      string  `gorm:"not null;uniqueIndex:worktree_identity"`
+	ProjectID string  `gorm:"not null;uniqueIndex:worktree_person;uniqueIndex:worktree_branch;size:36"`
+	PersonID  string  `gorm:"not null;uniqueIndex:worktree_person;size:36"`
+	Name      string  `gorm:"not null"`
 	Branch    string  `gorm:"not null;uniqueIndex:worktree_branch"`
 	Path      string  `gorm:"not null;uniqueIndex"`
 	Project   Project `gorm:"constraint:OnDelete:RESTRICT;foreignKey:ProjectID"`
@@ -129,7 +139,7 @@ func Open(path string) (*Store, error) {
 
 func initializeSchema(db *gorm.DB, beforeVersion func(*gorm.DB) error) error {
 	err := db.Transaction(func(tx *gorm.DB) error {
-		if err := tx.AutoMigrate(&Person{}, &Project{}, &Membership{}, &Worktree{}, &ToolchainInstallation{}, &ProjectToolchainResolution{}, &ProvisioningJob{}); err != nil {
+		if err := tx.AutoMigrate(&Person{}, &SSHDeviceKey{}, &Project{}, &Membership{}, &Worktree{}, &ToolchainInstallation{}, &ProjectToolchainResolution{}, &ProvisioningJob{}); err != nil {
 			return fmt.Errorf("create Soda schema: %w", err)
 		}
 		if beforeVersion != nil {
@@ -151,11 +161,7 @@ func initializeSchema(db *gorm.DB, beforeVersion func(*gorm.DB) error) error {
 func (s *Store) DB() *gorm.DB { return s.db }
 
 func (s *Store) CreatePerson(ctx context.Context, value domain.Person) error {
-	fingerprint, err := personFingerprint(value.SSHPublicKey)
-	if err != nil {
-		return err
-	}
-	return classify(s.db.WithContext(ctx).Create(&Person{ID: value.ID, Username: value.Username, DisplayName: value.DisplayName, Email: value.Email, Role: string(value.Role), SSHPublicKey: value.SSHPublicKey, SSHFingerprint: fingerprint}).Error)
+	return classify(s.db.WithContext(ctx).Create(&Person{ID: value.ID, Username: value.Username, DisplayName: value.DisplayName, Email: value.Email, Role: string(value.Role)}).Error)
 }
 
 func (s *Store) People(ctx context.Context) ([]domain.Person, error) {
@@ -186,7 +192,7 @@ func (s *Store) PersonByUsername(ctx context.Context, username string) (domain.P
 	return personDomain(row), nil
 }
 
-func (s *Store) PreflightPerson(ctx context.Context, username, publicKey string) error {
+func (s *Store) PreflightPerson(ctx context.Context, username string) error {
 	var count int64
 	if err := s.db.WithContext(ctx).Model(&Person{}).Where("username = ?", username).Count(&count).Error; err != nil {
 		return err
@@ -194,41 +200,104 @@ func (s *Store) PreflightPerson(ctx context.Context, username, publicKey string)
 	if count != 0 {
 		return fmt.Errorf("%w: person %s", ErrAlreadyExists, username)
 	}
-	fingerprint, err := personFingerprint(publicKey)
-	if err != nil {
-		return err
-	}
-	if fingerprint == nil {
-		return nil
-	}
-	if err = s.db.WithContext(ctx).Model(&Person{}).Where("ssh_fingerprint = ?", *fingerprint).Count(&count).Error; err != nil {
-		return err
-	}
-	if count != 0 {
-		return fmt.Errorf("%w: SSH public key", ErrAlreadyExists)
-	}
 	return nil
 }
 
+func (s *Store) CreateSSHDeviceKey(ctx context.Context, value domain.SSHDeviceKey) error {
+	return classify(s.db.WithContext(ctx).Create(sshDeviceKeyRow(value)).Error)
+}
+
+func (s *Store) SSHDeviceKey(ctx context.Context, personID, keyID string) (domain.SSHDeviceKey, error) {
+	var row SSHDeviceKey
+	if err := s.db.WithContext(ctx).First(&row, "id = ? AND person_id = ?", keyID, personID).Error; err != nil {
+		return domain.SSHDeviceKey{}, classify(err)
+	}
+	return sshDeviceKeyDomain(row), nil
+}
+
+func (s *Store) SSHDeviceKeys(ctx context.Context, personID string) ([]domain.SSHDeviceKey, error) {
+	var rows []SSHDeviceKey
+	if err := s.db.WithContext(ctx).Where("person_id = ?", personID).Order("label, id").Find(&rows).Error; err != nil {
+		return nil, err
+	}
+	values := make([]domain.SSHDeviceKey, 0, len(rows))
+	for _, row := range rows {
+		values = append(values, sshDeviceKeyDomain(row))
+	}
+	return values, nil
+}
+
+func (s *Store) AllSSHDeviceKeys(ctx context.Context) ([]domain.SSHDeviceKey, error) {
+	var rows []SSHDeviceKey
+	if err := s.db.WithContext(ctx).Order("person_id, label, id").Find(&rows).Error; err != nil {
+		return nil, err
+	}
+	values := make([]domain.SSHDeviceKey, 0, len(rows))
+	for _, row := range rows {
+		values = append(values, sshDeviceKeyDomain(row))
+	}
+	return values, nil
+}
+
+// ListSSHDeviceKeys implements observe.ProjectStore without exposing GORM models.
+func (s *Store) ListSSHDeviceKeys(ctx context.Context) ([]domain.SSHDeviceKey, error) {
+	return s.AllSSHDeviceKeys(ctx)
+}
+
+func (s *Store) DeleteSSHDeviceKey(ctx context.Context, personID, keyID string) (domain.SSHDeviceKey, error) {
+	var removed domain.SSHDeviceKey
+	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var row SSHDeviceKey
+		if err := tx.First(&row, "id = ? AND person_id = ?", keyID, personID).Error; err != nil {
+			return err
+		}
+		if err := tx.Delete(&row).Error; err != nil {
+			return err
+		}
+		removed = sshDeviceKeyDomain(row)
+		return nil
+	})
+	return removed, classify(err)
+}
+
 func (s *Store) CreateProject(ctx context.Context, value domain.Project) error {
+	return s.CreateProjectWithMemberships(ctx, value, nil)
+}
+
+func (s *Store) CreateProjectWithMemberships(ctx context.Context, value domain.Project, personIDs []string) error {
 	kind, remote, err := sourceColumns(value.Source)
 	if err != nil {
 		return err
 	}
-	return classify(s.db.WithContext(ctx).Create(&Project{ID: value.ID, Slug: value.Slug, Name: value.Name, UnixUser: value.UnixUser, Profile: string(value.Profile), SourceKind: kind, SourceRemoteURL: remote}).Error)
+	return classify(s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(&Project{ID: value.ID, Slug: value.Slug, Name: value.Name, UnixUser: value.UnixUser, Profile: string(value.Profile), SourceKind: kind, SourceRemoteURL: remote}).Error; err != nil {
+			return err
+		}
+		for _, personID := range personIDs {
+			if err := tx.Create(&Membership{ProjectID: value.ID, PersonID: personID}).Error; err != nil {
+				return err
+			}
+		}
+		return nil
+	}))
 }
 
 // DeleteFreshProject is internal failed-create compensation. Foreign-key
 // restrictions ensure it cannot remove a project once related state exists.
 func (s *Store) DeleteFreshProject(ctx context.Context, id string) error {
-	result := s.db.WithContext(ctx).Where("id = ?", id).Delete(&Project{})
-	if result.Error != nil {
-		return classify(result.Error)
-	}
-	if result.RowsAffected != 1 {
-		return ErrNotFound
-	}
-	return nil
+	return classify(s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("project_id = ?", id).Delete(&Membership{}).Error; err != nil {
+			return err
+		}
+		result := tx.Where("id = ?", id).Delete(&Project{})
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected != 1 {
+			return ErrNotFound
+		}
+		return nil
+	}))
 }
 
 func (s *Store) Projects(ctx context.Context) ([]domain.Project, error) {
@@ -298,6 +367,22 @@ func (s *Store) AddMembershipAndWorktree(ctx context.Context, membership domain.
 	}))
 }
 
+func (s *Store) DeleteMembershipAndWorktree(ctx context.Context, projectID, personID string) error {
+	return classify(s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("project_id = ? AND person_id = ?", projectID, personID).Delete(&Worktree{}).Error; err != nil {
+			return err
+		}
+		result := tx.Where("project_id = ? AND person_id = ?", projectID, personID).Delete(&Membership{})
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected != 1 {
+			return ErrNotFound
+		}
+		return nil
+	}))
+}
+
 func (s *Store) Membership(ctx context.Context, projectID, personID string) (domain.Membership, error) {
 	var row Membership
 	if err := s.db.WithContext(ctx).First(&row, "project_id = ? AND person_id = ?", projectID, personID).Error; err != nil {
@@ -319,6 +404,18 @@ func (s *Store) Collaborators(ctx context.Context, projectID string) ([]domain.P
 	return values, nil
 }
 
+func (s *Store) Memberships(ctx context.Context, projectID string) ([]domain.Membership, error) {
+	var rows []Membership
+	if err := s.db.WithContext(ctx).Where("project_id = ?", projectID).Order("person_id").Find(&rows).Error; err != nil {
+		return nil, err
+	}
+	values := make([]domain.Membership, 0, len(rows))
+	for _, row := range rows {
+		values = append(values, domain.Membership{ProjectID: row.ProjectID, PersonID: row.PersonID})
+	}
+	return values, nil
+}
+
 func (s *Store) CreateWorktree(ctx context.Context, value domain.Worktree) error {
 	return classify(s.db.WithContext(ctx).Create(worktreeRow(value)).Error)
 }
@@ -326,7 +423,7 @@ func (s *Store) CreateWorktree(ctx context.Context, value domain.Worktree) error
 func (s *Store) PreflightWorktree(ctx context.Context, value domain.Worktree) error {
 	var count int64
 	err := s.db.WithContext(ctx).Model(&Worktree{}).
-		Where("path = ? OR (project_id = ? AND branch = ?) OR (project_id = ? AND person_id = ? AND name = ?)", value.Path, value.ProjectID, value.Branch, value.ProjectID, value.PersonID, value.Name).
+		Where("path = ? OR (project_id = ? AND branch = ?) OR (project_id = ? AND person_id = ?)", value.Path, value.ProjectID, value.Branch, value.ProjectID, value.PersonID).
 		Count(&count).Error
 	if err != nil {
 		return err
@@ -479,18 +576,19 @@ func classify(err error) error {
 	return err
 }
 func personDomain(r Person) domain.Person {
-	return domain.Person{ID: r.ID, Username: r.Username, DisplayName: r.DisplayName, Email: r.Email, Role: domain.Role(r.Role), SSHPublicKey: r.SSHPublicKey}
+	return domain.Person{ID: r.ID, Username: r.Username, DisplayName: r.DisplayName, Email: r.Email, Role: domain.Role(r.Role)}
 }
 
-func personFingerprint(publicKey string) (*string, error) {
-	if publicKey == "" {
-		return nil, nil
+func sshDeviceKeyRow(v domain.SSHDeviceKey) *SSHDeviceKey {
+	createdAt := v.CreatedAt
+	if createdAt.IsZero() {
+		createdAt = time.Now().UTC()
 	}
-	fingerprint, err := domain.SSHKeyFingerprint(publicKey)
-	if err != nil {
-		return nil, err
-	}
-	return &fingerprint, nil
+	return &SSHDeviceKey{ID: v.ID, PersonID: v.PersonID, Label: v.Label, PublicKey: v.PublicKey, Fingerprint: v.Fingerprint, IdentityFileHint: v.IdentityFileHint, CreatedAt: createdAt.UnixNano()}
+}
+
+func sshDeviceKeyDomain(r SSHDeviceKey) domain.SSHDeviceKey {
+	return domain.SSHDeviceKey{ID: r.ID, PersonID: r.PersonID, Label: r.Label, PublicKey: r.PublicKey, Fingerprint: r.Fingerprint, IdentityFileHint: r.IdentityFileHint, CreatedAt: time.Unix(0, r.CreatedAt)}
 }
 func sourceColumns(source domain.ProjectSource) (string, *string, error) {
 	switch value := source.(type) {

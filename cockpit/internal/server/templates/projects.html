@@ -1,9 +1,7 @@
 {{define "projects.html"}}{{template "header" .}}
 <h1>Projects</h1>
 {{template "project-list" .}}
-{{if .Admin}}
-{{template "project-create" .}}
-{{end}}
+{{if .Admin}}{{template "project-create" .}}{{end}}
 {{template "footer" .}}{{end}}
 
 {{define "project-create"}}
@@ -13,9 +11,14 @@
   <form method="post" action="/projects" hx-post="/projects" hx-target="#project-create" hx-swap="outerHTML" hx-disabled-elt="button">
     <label>Slug <input name="slug" placeholder="my-project" required></label>
     <label>Name <input name="name" required></label>
-    <label>Toolchain <select name="profile"><option value="web">Web · Node + Bun</option><option value="python">Python · CPython + uv</option><option value="rust">Rust</option><option value="go">Go</option></select></label>
+    <label>Development environment <select name="profile"><option value="web">Web · Node + Bun</option><option value="python">Python · CPython + uv</option><option value="rust">Rust</option><option value="go">Go</option></select></label>
     <label>Git URL <input name="remote_url" placeholder="Leave empty for a new repository"></label>
-    <button type="submit">Create project</button>
+    <fieldset>
+      <legend>Initial team</legend>
+      <p>Select at least one person. Soda creates one personal workspace for each selected member.</p>
+      <div class="checks">{{range .People}}<label><input type="checkbox" name="member_ids" value="{{.ID}}"{{if eq .ID $.User.ID}} checked{{end}}> {{.DisplayName}} <code>{{.Username}}</code></label>{{end}}</div>
+    </fieldset>
+    <button type="submit">Create and prepare project</button>
   </form>
 </section>
 {{end}}

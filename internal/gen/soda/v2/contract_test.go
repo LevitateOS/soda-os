@@ -16,12 +16,14 @@ func TestSodaServiceContract(t *testing.T) {
 		"CreatePerson",
 		"ImportPerson",
 		"ListPeople",
+		"CreateSshDeviceKey",
+		"ListSshDeviceKeys",
+		"RevokeSshDeviceKey",
 		"CreateProject",
 		"ListProjects",
 		"ListProjectsForPerson",
 		"AddCollaborator",
 		"ListCollaborators",
-		"CreateWorktree",
 		"ListWorktrees",
 		"GetDeployKey",
 		"GetProjectToolchain",
@@ -41,6 +43,14 @@ func TestSodaServiceContract(t *testing.T) {
 	require.True(t, subscribe.IsStreamingServer())
 	require.False(t, subscribe.IsStreamingClient())
 	require.True(t, (&SubscribeEventsRequest{}).ProtoReflect().Descriptor().Fields().ByName("project_id").HasOptionalKeyword())
+}
+
+func TestPersonalWorkspaceIdentityContract(t *testing.T) {
+	person := (&Person{}).ProtoReflect().Descriptor()
+	require.Nil(t, person.Fields().ByName("ssh_public_key"))
+	request := (&CreateProjectRequest{}).ProtoReflect().Descriptor()
+	require.True(t, request.Fields().ByName("initial_person_ids").IsList())
+	require.NotEqual(t, EventKind_EVENT_KIND_UNSPECIFIED, EventKind_EVENT_KIND_ACCESS_CHANGED)
 }
 
 func TestProjectSourceUsesOneofWithoutKindDiscriminator(t *testing.T) {

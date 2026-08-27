@@ -1,5 +1,18 @@
 {{define "login.html"}}{{template "header" .}}
 <section class="panel narrow">
+  {{if .PasswordChangeRequired}}
+  <h1>Activate your Soda account</h1>
+  <p>Choose a new password before continuing as <code>{{.Username}}</code>.</p>
+  {{if .Error}}<p class="error" role="alert">{{.Error}}</p>{{end}}
+  <form method="post" action="/activate-password">
+    <input type="hidden" name="username" value="{{.Username}}">
+    <label>Temporary password <input type="password" name="current_password" autocomplete="current-password" required></label>
+    <label>New password <input type="password" name="new_password" autocomplete="new-password" minlength="6" required></label>
+    <label>Repeat new password <input type="password" name="confirm_password" autocomplete="new-password" minlength="6" required></label>
+    <p class="muted">Use at least six characters. Soda does not require capitals, numbers, or symbols.</p>
+    <button type="submit">Set password and sign in</button>
+  </form>
+  {{else}}
   <h1>Sign in to Soda OS</h1>
   <p>Use your Soda OS Linux account.</p>
   {{if .Error}}<p class="error" role="alert">{{.Error}}</p>{{end}}
@@ -8,5 +21,6 @@
     <label>Password <input type="password" name="password" autocomplete="current-password" required></label>
     <button type="submit">Sign in</button>
   </form>
+  {{end}}
 </section>
 {{template "footer" .}}{{end}}

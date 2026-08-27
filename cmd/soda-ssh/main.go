@@ -10,7 +10,9 @@ import (
 
 func main() {
 	actor := flag.String("actor", "", "Soda person entering the worktree")
+	project := flag.String("project", "", "Soda project being entered")
 	worktree := flag.String("worktree", "", "Soda project worktree to enter")
+	home := flag.String("home", "", "Soda session home to use")
 	flag.Parse()
 	if flag.NArg() != 0 {
 		fmt.Fprintln(os.Stderr, "soda-ssh does not accept positional arguments")
@@ -19,7 +21,9 @@ func main() {
 
 	err := sshgateway.Run(sshgateway.Options{
 		Actor:           *actor,
+		Project:         *project,
 		Worktree:        *worktree,
+		Home:            *home,
 		ProjectsRoot:    os.Getenv("SODA_PROJECTS_ROOT"),
 		OriginalCommand: os.Getenv("SSH_ORIGINAL_COMMAND"),
 		Shell:           os.Getenv("SHELL"),

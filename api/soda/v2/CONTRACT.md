@@ -8,7 +8,8 @@ CLI clients translate these codes without exposing raw internal errors.
 
 - Invalid request fields, malformed UUIDs, and unsafe Git remotes:
   `InvalidArgument`.
-- Missing people, projects, worktrees, jobs, or installations: `NotFound`.
+- Missing people, SSH device keys, projects, worktrees, jobs, or installations:
+  `NotFound`.
 - Uniqueness conflicts: `AlreadyExists`.
 - Valid requests rejected by current resource or provisioning state:
   `FailedPrecondition`.
@@ -24,6 +25,19 @@ succeeds before persistence. HTTP and HTTPS remotes containing any URL userinfo
 are invalid. `ssh://` remotes may contain a username but never a password.
 SCP-like SSH remotes such as `git@example.com:team/project.git` are accepted.
 Daemon responses must never project an unvalidated stored Git URL.
+
+## Personal workspace access
+
+People do not contain SSH keys. A person may have multiple named
+`SshDeviceKey` resources; labels are unique for that person and fingerprints
+are globally unique. `CreateProject.initial_person_ids` must contain at least
+one unique, existing person. Every membership owns exactly one internal
+`Worktree`, presented to people as a personal workspace. Additional named
+worktree creation is not part of this API.
+
+Project SSH authorization is derived entirely from memberships, personal
+workspaces, and active device keys. The project account selects the project;
+the authenticated device-key fingerprint identifies the person.
 
 ## Event stream
 

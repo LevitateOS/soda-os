@@ -75,7 +75,7 @@ func NewSystemSessionInspector(system SessionSystem) *SystemSessionInspector {
 	return &SystemSessionInspector{System: system}
 }
 
-func (s *SystemSessionInspector) Inspect(ctx context.Context, projects []domain.Project, people []domain.Person, worktrees []domain.Worktree) (SessionObservation, error) {
+func (s *SystemSessionInspector) Inspect(ctx context.Context, projects []domain.Project, people []domain.Person, keys []domain.SSHDeviceKey, worktrees []domain.Worktree) (SessionObservation, error) {
 	journal, err := s.System.Journal(ctx)
 	if err != nil {
 		return SessionObservation{}, annotate(err, "read sshd journal")
@@ -84,10 +84,14 @@ func (s *SystemSessionInspector) Inspect(ctx context.Context, projects []domain.
 	for _, project := range projects {
 		projectByUser[project.UnixUser] = project
 	}
-	personByFingerprint := make(map[string]domain.Person, len(people))
+	personByID := make(map[string]domain.Person, len(people))
 	for _, person := range people {
-		if fingerprint, fingerprintErr := domain.SSHKeyFingerprint(person.SSHPublicKey); fingerprintErr == nil {
-			personByFingerprint[fingerprint] = person
+		personByID[person.ID] = person
+	}
+	personByFingerprint := make(map[string]domain.Person, len(keys))
+	for _, key := range keys {
+		if person, ok := personByID[key.PersonID]; ok {
+			personByFingerprint[key.Fingerprint] = person
 		}
 	}
 	active, malformed := ParseJournal(journal, projectByUser, personByFingerprint)

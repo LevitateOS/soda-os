@@ -22,8 +22,9 @@
       {{if .User.Username}}
       <nav aria-label="Primary">
         <a href="/projects">Projects</a>
-        <a href="/profiles">Toolchains</a>
-        {{if .Admin}}<a href="/people">People</a>{{end}}
+        <a href="/profiles">Development environments</a>
+        {{if .Admin}}<a href="/team">Team</a>{{end}}
+        <a href="/account">My account</a>
         <form method="post" action="/logout"><button type="submit">Sign out {{.User.Username}}</button></form>
       </nav>
       {{end}}

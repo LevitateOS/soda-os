@@ -15,12 +15,21 @@ const (
 )
 
 type Person struct {
-	ID           string
-	Username     string
-	DisplayName  string
-	Email        string
-	Role         Role
-	SSHPublicKey string
+	ID          string
+	Username    string
+	DisplayName string
+	Email       string
+	Role        Role
+}
+
+type SSHDeviceKey struct {
+	ID               string
+	PersonID         string
+	Label            string
+	PublicKey        string
+	Fingerprint      string
+	IdentityFileHint string
+	CreatedAt        time.Time
 }
 
 type ProjectSource interface {
@@ -67,6 +76,12 @@ type Worktree struct {
 	Name      string
 	Branch    string
 	Path      string
+}
+
+type ProjectAccess struct {
+	Person   Person
+	Worktree Worktree
+	Keys     []SSHDeviceKey
 }
 
 type JobState string
@@ -202,6 +217,7 @@ const (
 	EventProvisioningChanged EventKind = "provisioning_changed"
 	EventGitChanged          EventKind = "git_changed"
 	EventSessionsChanged     EventKind = "sessions_changed"
+	EventAccessChanged       EventKind = "access_changed"
 )
 
 type Event struct {

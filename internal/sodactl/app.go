@@ -24,10 +24,9 @@ const defaultCommandTimeout = 2 * time.Second
 type Dial func(context.Context, string) (sodav2.SodaServiceClient, io.Closer, error)
 
 type App struct {
-	Dial     Dial
-	Getenv   func(string) string
-	ReadFile func(string) ([]byte, error)
-	Timeout  time.Duration
+	Dial    Dial
+	Getenv  func(string) string
+	Timeout time.Duration
 }
 
 func New() *App {
@@ -39,9 +38,8 @@ func New() *App {
 			}
 			return sodav2.NewSodaServiceClient(conn), conn, nil
 		},
-		Getenv:   os.Getenv,
-		ReadFile: os.ReadFile,
-		Timeout:  defaultCommandTimeout,
+		Getenv:  os.Getenv,
+		Timeout: defaultCommandTimeout,
 	}
 }
 
@@ -89,7 +87,7 @@ func (a *App) peopleCommand(socket *string) *cobra.Command {
 }
 
 func (a *App) personCommand(socket *string, imported bool) *cobra.Command {
-	var username, displayName, email, role, keyPath string
+	var username, displayName, email, role string
 	use := "add"
 	if imported {
 		use = "import"
@@ -104,20 +102,16 @@ func (a *App) personCommand(socket *string, imported bool) *cobra.Command {
 					return errors.New("SODA_PERSON_PASSWORD is required")
 				}
 			}
-			key, err := a.readKey(keyPath)
-			if err != nil {
-				return err
-			}
 			parsedRole, err := roleValue(role)
 			if err != nil {
 				return err
 			}
 			return a.call(cmd, *socket, func(ctx context.Context, client sodav2.SodaServiceClient) (any, error) {
 				if imported {
-					response, callErr := client.ImportPerson(ctx, &sodav2.ImportPersonRequest{Username: username, DisplayName: displayName, Email: email, Role: parsedRole, SshPublicKey: key})
+					response, callErr := client.ImportPerson(ctx, &sodav2.ImportPersonRequest{Username: username, DisplayName: displayName, Email: email, Role: parsedRole})
 					return personJSON(response.GetPerson()), callErr
 				}
-				response, callErr := client.CreatePerson(ctx, &sodav2.CreatePersonRequest{Username: username, DisplayName: displayName, Email: email, Role: parsedRole, SshPublicKey: key, Password: password})
+				response, callErr := client.CreatePerson(ctx, &sodav2.CreatePersonRequest{Username: username, DisplayName: displayName, Email: email, Role: parsedRole, Password: password})
 				return personJSON(response.GetPerson()), callErr
 			})
 		},
@@ -126,17 +120,15 @@ func (a *App) personCommand(socket *string, imported bool) *cobra.Command {
 	command.Flags().StringVar(&displayName, "display-name", "", "display name")
 	command.Flags().StringVar(&email, "email", "", "email address")
 	command.Flags().StringVar(&role, "role", "developer", "role: admin or developer")
-	command.Flags().StringVar(&keyPath, "ssh-key", "", "SSH public key file")
 	_ = command.MarkFlagRequired("username")
 	_ = command.MarkFlagRequired("display-name")
 	_ = command.MarkFlagRequired("email")
-	_ = command.MarkFlagRequired("ssh-key")
 	return command
 }
 
 func (a *App) projectsCommand(socket *string) *cobra.Command {
 	projects := &cobra.Command{Use: "projects", Short: "Manage Soda projects"}
-	projects.AddCommand(a.projectListCommand(socket), a.projectCreateCommand(socket), a.collaboratorsCommand(socket), a.worktreesCommand(socket), a.provisioningCommand(socket), a.deployKeyCommand(socket), a.toolchainCommand(socket))
+	projects.AddCommand(a.projectListCommand(socket), a.projectCreateCommand(socket), a.membersCommand(socket), a.workspacesCommand(socket), a.provisioningCommand(socket), a.deployKeyCommand(socket), a.toolchainCommand(socket))
 	return projects
 }
 
@@ -151,6 +143,7 @@ func (a *App) projectListCommand(socket *string) *cobra.Command {
 
 func (a *App) projectCreateCommand(socket *string) *cobra.Command {
 	var slug, name, profile, remoteURL string
+	var memberIDs []string
 	command := &cobra.Command{Use: "create", RunE: func(cmd *cobra.Command, _ []string) error {
 		parsedProfile, err := profileValue(profile)
 		if err != nil {
@@ -161,7 +154,7 @@ func (a *App) projectCreateCommand(socket *string) *cobra.Command {
 			source = &sodav2.ProjectSource{Source: &sodav2.ProjectSource_Git{Git: &sodav2.GitProjectSource{RemoteUrl: remoteURL}}}
 		}
 		return a.call(cmd, *socket, func(ctx context.Context, client sodav2.SodaServiceClient) (any, error) {
-			response, callErr := client.CreateProject(ctx, &sodav2.CreateProjectRequest{Slug: slug, Name: name, Profile: parsedProfile, Source: source})
+			response, callErr := client.CreateProject(ctx, &sodav2.CreateProjectRequest{Slug: slug, Name: name, Profile: parsedProfile, Source: source, InitialPersonIds: memberIDs})
 			return projectJSON(response.GetProject()), callErr
 		})
 	}}
@@ -169,15 +162,17 @@ func (a *App) projectCreateCommand(socket *string) *cobra.Command {
 	command.Flags().StringVar(&name, "name", "", "project display name")
 	command.Flags().StringVar(&profile, "profile", "", "profile: web, python, rust, or go")
 	command.Flags().StringVar(&remoteURL, "git", "", "Git remote URL")
+	command.Flags().StringSliceVar(&memberIDs, "member", nil, "initial person ID (repeatable)")
 	_ = command.MarkFlagRequired("slug")
 	_ = command.MarkFlagRequired("name")
 	_ = command.MarkFlagRequired("profile")
+	_ = command.MarkFlagRequired("member")
 	return command
 }
 
-func (a *App) collaboratorsCommand(socket *string) *cobra.Command {
+func (a *App) membersCommand(socket *string) *cobra.Command {
 	var projectID, personID string
-	group := &cobra.Command{Use: "collaborators", Short: "Manage project collaborators"}
+	group := &cobra.Command{Use: "members", Short: "Manage project members"}
 	add := &cobra.Command{Use: "add", RunE: func(cmd *cobra.Command, _ []string) error {
 		return a.call(cmd, *socket, func(ctx context.Context, client sodav2.SodaServiceClient) (any, error) {
 			response, err := client.AddCollaborator(ctx, &sodav2.AddCollaboratorRequest{ProjectId: projectID, PersonId: personID})
@@ -201,8 +196,8 @@ func (a *App) collaboratorsCommand(socket *string) *cobra.Command {
 	return group
 }
 
-func (a *App) worktreesCommand(socket *string) *cobra.Command {
-	group := &cobra.Command{Use: "worktrees", Short: "Manage project worktrees"}
+func (a *App) workspacesCommand(socket *string) *cobra.Command {
+	group := &cobra.Command{Use: "workspaces", Short: "Inspect personal workspaces"}
 	var listProjectID string
 	list := &cobra.Command{Use: "list", RunE: func(cmd *cobra.Command, _ []string) error {
 		return a.call(cmd, *socket, func(ctx context.Context, client sodav2.SodaServiceClient) (any, error) {
@@ -212,21 +207,7 @@ func (a *App) worktreesCommand(socket *string) *cobra.Command {
 	}}
 	list.Flags().StringVar(&listProjectID, "project", "", "project ID")
 	_ = list.MarkFlagRequired("project")
-	var projectID, personID, name, baseRef string
-	add := &cobra.Command{Use: "add", RunE: func(cmd *cobra.Command, _ []string) error {
-		return a.call(cmd, *socket, func(ctx context.Context, client sodav2.SodaServiceClient) (any, error) {
-			response, err := client.CreateWorktree(ctx, &sodav2.CreateWorktreeRequest{ProjectId: projectID, PersonId: personID, Name: name, BaseRef: baseRef})
-			return worktreeJSON(response.GetWorktree()), err
-		})
-	}}
-	add.Flags().StringVar(&projectID, "project", "", "project ID")
-	add.Flags().StringVar(&personID, "person", "", "person ID")
-	add.Flags().StringVar(&name, "name", "", "worktree name")
-	add.Flags().StringVar(&baseRef, "base", "main", "base Git ref")
-	_ = add.MarkFlagRequired("project")
-	_ = add.MarkFlagRequired("person")
-	_ = add.MarkFlagRequired("name")
-	group.AddCommand(list, add)
+	group.AddCommand(list)
 	return group
 }
 
@@ -300,14 +281,6 @@ func (a *App) call(command *cobra.Command, socket string, operation func(context
 	return err
 }
 
-func (a *App) readKey(path string) (string, error) {
-	contents, err := a.ReadFile(path)
-	if err != nil {
-		return "", fmt.Errorf("read SSH public key: %w", err)
-	}
-	return strings.TrimSpace(string(contents)), nil
-}
-
 func roleValue(input string) (sodav2.Role, error) {
 	switch input {
 	case "admin":
@@ -374,7 +347,7 @@ func personJSON(person *sodav2.Person) any {
 	}
 	return map[string]any{
 		"id": person.Id, "username": person.Username, "display_name": person.DisplayName,
-		"email": person.Email, "role": roleName(person.Role), "ssh_public_key": person.SshPublicKey,
+		"email": person.Email, "role": roleName(person.Role),
 	}
 }
 
@@ -427,7 +400,7 @@ func collaboratorJSON(collaborator *sodav2.Collaborator) any {
 	}
 	return map[string]any{
 		"person": personJSON(collaborator.Person), "membership": membershipJSON(collaborator.Membership),
-		"worktrees": worktreesJSON(collaborator.Worktrees),
+		"workspaces": worktreesJSON(collaborator.Worktrees),
 	}
 }
 

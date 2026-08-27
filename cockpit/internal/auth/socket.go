@@ -11,12 +11,14 @@ import (
 )
 
 type socketRequest struct {
-	Username string `json:"username"`
-	Password string `json:"password"`
+	Operation   string `json:"operation"`
+	Username    string `json:"username"`
+	Password    string `json:"password"`
+	NewPassword string `json:"new_password,omitempty"`
 }
 
 type socketResponse struct {
-	Authenticated bool `json:"authenticated"`
+	Result string `json:"result"`
 }
 
 type Client struct {
@@ -27,26 +29,46 @@ func NewClient(socket string) Client {
 	return Client{socket: socket}
 }
 
-func (c Client) Authenticate(username, password string) error {
-	connection, err := net.DialTimeout("unix", c.socket, 5*time.Second)
+func (c Client) Authenticate(username, password string) (Result, error) {
+	response, err := c.call(socketRequest{Operation: "authenticate", Username: username, Password: password})
+	if err != nil {
+		return "", err
+	}
+	result := Result(response.Result)
+	if result != Authenticated && result != PasswordChangeRequired {
+		return "", errors.New("PAM authentication failed")
+	}
+	return result, nil
+}
+
+func (c Client) ChangePassword(username, currentPassword, newPassword string) error {
+	response, err := c.call(socketRequest{Operation: "change_password", Username: username, Password: currentPassword, NewPassword: newPassword})
 	if err != nil {
 		return err
 	}
+	if Result(response.Result) != Authenticated {
+		return errors.New("PAM password change failed")
+	}
+	return nil
+}
+
+func (c Client) call(request socketRequest) (socketResponse, error) {
+	connection, err := net.DialTimeout("unix", c.socket, 5*time.Second)
+	if err != nil {
+		return socketResponse{}, err
+	}
 	defer connection.Close()
 	if err := connection.SetDeadline(time.Now().Add(10 * time.Second)); err != nil {
-		return err
+		return socketResponse{}, err
 	}
-	if err := json.NewEncoder(connection).Encode(socketRequest{Username: username, Password: password}); err != nil {
-		return err
+	if err := json.NewEncoder(connection).Encode(request); err != nil {
+		return socketResponse{}, err
 	}
 	var response socketResponse
 	if err := json.NewDecoder(connection).Decode(&response); err != nil {
-		return err
+		return socketResponse{}, err
 	}
-	if !response.Authenticated {
-		return errors.New("PAM authentication failed")
-	}
-	return nil
+	return response, nil
 }
 
 func ListenAndServe(socket string, authenticator Authenticator) error {
@@ -84,10 +106,21 @@ func serveConnection(connection net.Conn, authenticator Authenticator) {
 	if err := json.NewDecoder(connection).Decode(&request); err != nil {
 		return
 	}
-	authenticationError := authenticator.Authenticate(request.Username, request.Password)
-	if authenticationError != nil {
-		log.Printf("authentication failed for %q: %v", request.Username, authenticationError)
+	result := Result("")
+	var operationError error
+	switch request.Operation {
+	case "authenticate":
+		result, operationError = authenticator.Authenticate(request.Username, request.Password)
+	case "change_password":
+		operationError = authenticator.ChangePassword(request.Username, request.Password, request.NewPassword)
+		if operationError == nil {
+			result = Authenticated
+		}
+	default:
+		operationError = errors.New("unsupported authentication operation")
 	}
-	authenticated := authenticationError == nil
-	_ = json.NewEncoder(connection).Encode(socketResponse{Authenticated: authenticated})
+	if operationError != nil {
+		log.Printf("authentication operation failed for %q: %v", request.Username, operationError)
+	}
+	_ = json.NewEncoder(connection).Encode(socketResponse{Result: string(result)})
 }

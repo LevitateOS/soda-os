@@ -49,9 +49,10 @@ func TestWorktreeContainment(t *testing.T) {
 		t.Fatalf("outside worktree error = %v", err)
 	}
 
-	notGit := filepath.Join(fixture.root, "project", "not-git")
-	mustMkdir(t, notGit)
-	options.Worktree = notGit
+	if err := os.RemoveAll(filepath.Join(fixture.worktree, ".git")); err != nil {
+		t.Fatal(err)
+	}
+	options = fixture.options()
 	if _, err := BuildInvocation(options); err == nil || !strings.Contains(err.Error(), "not a Git") {
 		t.Fatalf("non-Git worktree error = %v", err)
 	}
@@ -139,7 +140,13 @@ func TestSessionCommandsAndFinalEnvironment(t *testing.T) {
 				t.Fatalf("Dir = %q", invocation.Dir)
 			}
 			assertEnv(t, invocation.Env, "SODA_ACTOR", "alice-2")
+			assertEnv(t, invocation.Env, "SODA_PROJECT", "example")
 			assertEnv(t, invocation.Env, "SODA_WORKTREE", fixture.worktree)
+			assertEnv(t, invocation.Env, "HOME", fixture.home)
+			assertEnv(t, invocation.Env, "XDG_CONFIG_HOME", filepath.Join(fixture.home, ".config"))
+			assertEnv(t, invocation.Env, "XDG_CACHE_HOME", filepath.Join(fixture.home, ".cache"))
+			assertEnv(t, invocation.Env, "XDG_DATA_HOME", filepath.Join(fixture.home, ".local", "share"))
+			assertEnv(t, invocation.Env, "XDG_STATE_HOME", filepath.Join(fixture.home, ".local", "state"))
 			assertEnv(t, invocation.Env, "SODA_PROFILE", "rust")
 			assertEnv(t, invocation.Env, "RUSTUP_HOME", "/opt/soda/rustup")
 			assertEnv(t, invocation.Env, "CARGO_HOME", "/opt/soda/cargo")
@@ -162,6 +169,31 @@ func TestDefaultLoginShell(t *testing.T) {
 	}
 	if invocation.Path != "/bin/bash" || !reflect.DeepEqual(invocation.Argv, []string{"/bin/bash", "-l"}) {
 		t.Fatalf("default command = %q %#v", invocation.Path, invocation.Argv)
+	}
+}
+
+func TestInteractiveBannerAndSilentNoninteractiveSessions(t *testing.T) {
+	fixture := newFixture(t)
+	options := fixture.options()
+	options.Environment = append(options.Environment, "SSH_TTY=/dev/pts/1")
+	invocation, err := BuildInvocation(options)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, text := range []string{"Soda OS", "Person: alice-2", "Project: example", "Branch: people/alice-2", "Workspace: " + fixture.worktree} {
+		if !strings.Contains(invocation.Banner, text) {
+			t.Fatalf("banner %q does not contain %q", invocation.Banner, text)
+		}
+	}
+	for _, command := range []string{"printf hello", "internal-sftp"} {
+		options.OriginalCommand = command
+		invocation, err = BuildInvocation(options)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if invocation.Banner != "" {
+			t.Fatalf("%q session received banner %q", command, invocation.Banner)
+		}
 	}
 }
 
@@ -246,24 +278,30 @@ type fixture struct {
 	root     string
 	project  string
 	worktree string
+	home     string
 }
 
 func newFixture(t *testing.T) fixture {
 	t.Helper()
 	root := filepath.Join(t.TempDir(), "projects")
 	project := filepath.Join(root, "example")
-	worktree := filepath.Join(project, "worktrees", "alice")
+	worktree := filepath.Join(project, "worktrees", "alice-2")
+	home := filepath.Join(project, ".soda", "people", "alice-2", "home")
 	mustMkdir(t, filepath.Join(worktree, ".git"))
+	mustMkdir(t, home)
 	root = mustCanonical(t, root)
 	project = mustCanonical(t, project)
 	worktree = mustCanonical(t, worktree)
-	return fixture{root: root, project: project, worktree: worktree}
+	home = mustCanonical(t, home)
+	return fixture{root: root, project: project, worktree: worktree, home: home}
 }
 
 func (fixture fixture) options() Options {
 	return Options{
 		Actor:        "alice-2",
+		Project:      "example",
 		Worktree:     fixture.worktree,
+		Home:         fixture.home,
 		ProjectsRoot: fixture.root,
 		Environment:  []string{"PATH=/usr/bin"},
 	}

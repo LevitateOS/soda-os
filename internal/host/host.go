@@ -9,9 +9,11 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/LevitateOS/soda-os/internal/domain"
 )
@@ -23,12 +25,14 @@ const DefaultAuthorizedKeysRoot = "/etc/soda/authorized_keys"
 type Cleanup func(context.Context) error
 
 type Operations interface {
-	InstallerAdministrator(context.Context) (*domain.Person, error)
+	InstallerAdministrator(context.Context) (*domain.Person, *domain.SSHDeviceKey, error)
 	CreatePerson(context.Context, domain.Person, string) (Cleanup, error)
 	ImportPerson(context.Context, domain.Person) (Cleanup, error)
 	CreateProject(context.Context, domain.Project) (Cleanup, error)
 	EnsureRepository(context.Context, domain.Project) error
+	DefaultBranch(context.Context, domain.Project) (string, error)
 	CreateWorktree(context.Context, domain.Project, domain.Person, domain.Worktree, string) (Cleanup, error)
+	ReconcileAuthorizedKeys(context.Context, domain.Project, []domain.ProjectAccess) error
 	WriteProjectEnvironment(context.Context, domain.Project, string) error
 	DeployPublicKey(context.Context, domain.Project) (string, error)
 }
@@ -79,21 +83,21 @@ func New(projectsRoot string, manageAccounts bool) *System {
 	return &System{ProjectsRoot: projectsRoot, ManageAccounts: manageAccounts, Runner: ExecRunner{}, PasswdPath: "/etc/passwd", GroupPath: "/etc/group", AuthorizedKeysRoot: authorizedKeysRoot}
 }
 
-func (s *System) InstallerAdministrator(ctx context.Context) (*domain.Person, error) {
+func (s *System) InstallerAdministrator(ctx context.Context) (*domain.Person, *domain.SSHDeviceKey, error) {
 	if !s.ManageAccounts {
-		return nil, nil
+		return nil, nil, nil
 	}
 	passwd, err := os.ReadFile(s.PasswdPath)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	group, err := os.ReadFile(s.GroupPath)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	account := installerAdministrator(string(passwd), string(group))
 	if account == nil {
-		return nil, nil
+		return nil, nil, nil
 	}
 	key := ""
 	if contents, readErr := os.ReadFile(filepath.Join(account.home, ".ssh", "authorized_keys")); readErr == nil {
@@ -106,12 +110,24 @@ func (s *System) InstallerAdministrator(ctx context.Context) (*domain.Person, er
 			}
 		}
 	}
-	return &domain.Person{Username: account.username, DisplayName: account.displayName, Email: account.username + "@soda.local", Role: domain.RoleAdmin, SSHPublicKey: key}, nil
+	person := &domain.Person{Username: account.username, DisplayName: account.displayName, Email: account.username + "@soda.local", Role: domain.RoleAdmin}
+	if key == "" {
+		return person, nil, nil
+	}
+	fingerprint, err := domain.SSHKeyFingerprint(key)
+	if err != nil {
+		return nil, nil, err
+	}
+	device := &domain.SSHDeviceKey{Label: "Installer key", PublicKey: key, Fingerprint: fingerprint, IdentityFileHint: "~/.ssh/id_ed25519"}
+	return person, device, nil
 }
 
 func (s *System) CreatePerson(ctx context.Context, person domain.Person, password string) (Cleanup, error) {
-	if err := ValidatePublicKey(person.SSHPublicKey, false); err != nil {
-		return nil, err
+	if strings.ContainsAny(password, "\r\n\x00") {
+		return nil, errors.New("password contains a line or NUL delimiter")
+	}
+	if utf8.RuneCountInString(password) < 6 {
+		return nil, errors.New("password must contain at least 6 characters")
 	}
 	if !s.ManageAccounts {
 		return noopCleanup, nil
@@ -127,19 +143,16 @@ func (s *System) CreatePerson(ctx context.Context, person domain.Person, passwor
 		_, err := s.Runner.Run(cleanupContext, "userdel", []string{"--remove", person.Username}, nil, "")
 		return err
 	}
-	if strings.ContainsAny(password, "\r\n\x00") {
-		return nil, failWithCleanup(ctx, errors.New("password contains a line or NUL delimiter"), cleanup)
-	}
 	if _, err := s.Runner.Run(ctx, "chpasswd", nil, nil, person.Username+":"+password+"\n"); err != nil {
+		return nil, failWithCleanup(ctx, err, cleanup)
+	}
+	if _, err := s.Runner.Run(ctx, "chage", []string{"--lastday", "0", person.Username}, nil, ""); err != nil {
 		return nil, failWithCleanup(ctx, err, cleanup)
 	}
 	return cleanup, nil
 }
 
 func (s *System) ImportPerson(ctx context.Context, person domain.Person) (Cleanup, error) {
-	if err := ValidatePublicKey(person.SSHPublicKey, true); err != nil {
-		return nil, err
-	}
 	if !s.ManageAccounts {
 		return noopCleanup, nil
 	}
@@ -263,10 +276,19 @@ func (s *System) EnsureRepository(ctx context.Context, project domain.Project) e
 	return nil
 }
 
-func (s *System) CreateWorktree(ctx context.Context, project domain.Project, person domain.Person, tree domain.Worktree, baseRef string) (Cleanup, error) {
-	if err := ValidatePublicKey(person.SSHPublicKey, false); err != nil {
-		return nil, err
+func (s *System) DefaultBranch(ctx context.Context, project domain.Project) (string, error) {
+	output, err := s.Runner.Run(ctx, "git", []string{"--git-dir", s.repository(project), "symbolic-ref", "--quiet", "--short", "HEAD"}, nil, "")
+	if err != nil {
+		return "", fmt.Errorf("resolve repository default branch: %w", err)
 	}
+	branch := strings.TrimSpace(output)
+	if branch == "" || strings.ContainsAny(branch, "\r\n\x00") {
+		return "", errors.New("repository default branch is unavailable")
+	}
+	return branch, nil
+}
+
+func (s *System) CreateWorktree(ctx context.Context, project domain.Project, person domain.Person, tree domain.Worktree, baseRef string) (Cleanup, error) {
 	repository := s.repository(project)
 	if err := os.MkdirAll(filepath.Dir(tree.Path), 0o755); err != nil {
 		return nil, err
@@ -290,20 +312,80 @@ func (s *System) CreateWorktree(ctx context.Context, project domain.Project, per
 			})
 		}
 	}
-	keyFile := s.authorizedKeysPath(project)
-	line := fmt.Sprintf("command=\"/usr/libexec/soda/soda-ssh --actor %s --worktree %s\" %s", person.Username, tree.Path, person.SSHPublicKey)
-	if err := s.appendAuthorizedLine(ctx, keyFile, line); err != nil {
+	homeCleanup, err := s.createSessionHome(ctx, project, person, tree)
+	if err != nil {
 		return nil, failWithCleanups(ctx, err, cleanupSteps)
 	}
-	cleanupSteps = append(cleanupSteps, func(cleanupContext context.Context) error {
-		return s.removeAuthorizedLine(cleanupContext, keyFile, line)
-	})
+	cleanupSteps = append(cleanupSteps, homeCleanup)
 	for _, path := range []string{repository, tree.Path} {
 		if err := s.chown(ctx, project, path); err != nil {
 			return nil, failWithCleanups(ctx, err, cleanupSteps)
 		}
 	}
 	return combineCleanups(cleanupSteps), nil
+}
+
+func (s *System) ReconcileAuthorizedKeys(ctx context.Context, project domain.Project, access []domain.ProjectAccess) error {
+	s.authorizedKeysMu.Lock()
+	defer s.authorizedKeysMu.Unlock()
+	sort.Slice(access, func(i, j int) bool { return access[i].Person.Username < access[j].Person.Username })
+	lines := make([]string, 0)
+	for _, entry := range access {
+		keys := append([]domain.SSHDeviceKey(nil), entry.Keys...)
+		sort.Slice(keys, func(i, j int) bool {
+			if keys[i].Label == keys[j].Label {
+				return keys[i].Fingerprint < keys[j].Fingerprint
+			}
+			return keys[i].Label < keys[j].Label
+		})
+		for _, key := range keys {
+			if err := ValidatePublicKey(key.PublicKey, false); err != nil {
+				return fmt.Errorf("device key %s: %w", key.ID, err)
+			}
+			fields := strings.Fields(key.PublicKey)
+			home := s.sessionHome(project, entry.Person)
+			command := fmt.Sprintf("/usr/libexec/soda/soda-ssh --actor %s --project %s --worktree %s --home %s", entry.Person.Username, project.Slug, entry.Worktree.Path, home)
+			lines = append(lines, fmt.Sprintf("command=\"%s\" %s %s", command, fields[0], fields[1]))
+		}
+	}
+	contents := ""
+	if len(lines) != 0 {
+		contents = strings.Join(lines, "\n") + "\n"
+	}
+	return s.writeAuthorizedKeys(ctx, s.authorizedKeysPath(project), contents)
+}
+
+func (s *System) createSessionHome(ctx context.Context, project domain.Project, person domain.Person, tree domain.Worktree) (Cleanup, error) {
+	personRoot := filepath.Dir(s.sessionHome(project, person))
+	home := s.sessionHome(project, person)
+	for _, path := range []string{home, filepath.Join(home, ".config"), filepath.Join(home, ".cache"), filepath.Join(home, ".local", "share"), filepath.Join(home, ".local", "state")} {
+		if err := os.MkdirAll(path, 0o750); err != nil {
+			_ = os.RemoveAll(personRoot)
+			return nil, err
+		}
+	}
+	profile := "if [ -f \"$HOME/.bashrc\" ]; then . \"$HOME/.bashrc\"; fi\n"
+	rc := fmt.Sprintf("case $- in *i*) ;; *) return;; esac\nPS1='%s@%s workspace \\$ '\n", person.Username, project.Slug)
+	for path, contents := range map[string]string{filepath.Join(home, ".bash_profile"): profile, filepath.Join(home, ".bashrc"): rc} {
+		if err := os.WriteFile(path, []byte(contents), 0o640); err != nil {
+			_ = os.RemoveAll(personRoot)
+			return nil, err
+		}
+	}
+	workspace := filepath.Join(home, "workspace")
+	if err := os.Symlink(tree.Path, workspace); err != nil && !errors.Is(err, os.ErrExist) {
+		_ = os.RemoveAll(personRoot)
+		return nil, err
+	}
+	if err := s.chown(ctx, project, personRoot); err != nil {
+		_ = os.RemoveAll(personRoot)
+		return nil, err
+	}
+	return func(context.Context) error { return os.RemoveAll(personRoot) }, nil
+}
+
+func (s *System) sessionHome(project domain.Project, person domain.Person) string {
+	return filepath.Join(s.projectRoot(project), ".soda", "people", person.Username, "home")
 }
 
 func (s *System) WriteProjectEnvironment(ctx context.Context, project domain.Project, contents string) error {
@@ -384,54 +466,6 @@ func (s *System) initializeEmptyRepository(ctx context.Context, repository strin
 	return err
 }
 
-func (s *System) removeAuthorizedLine(ctx context.Context, path, line string) error {
-	s.authorizedKeysMu.Lock()
-	defer s.authorizedKeysMu.Unlock()
-	contents, err := os.ReadFile(path)
-	if err != nil {
-		return err
-	}
-	lines := strings.Split(strings.TrimSuffix(string(contents), "\n"), "\n")
-	kept := lines[:0]
-	for _, candidate := range lines {
-		if candidate != line && candidate != "" {
-			kept = append(kept, candidate)
-		}
-	}
-	updated := ""
-	if len(kept) != 0 {
-		updated = strings.Join(kept, "\n") + "\n"
-	}
-	if err = s.writeAuthorizedKeys(ctx, path, updated); err != nil {
-		if restoreErr := s.writeAuthorizedKeys(ctx, path, string(contents)); restoreErr != nil {
-			return errors.Join(err, fmt.Errorf("restore authorized keys: %w", restoreErr))
-		}
-		return err
-	}
-	return nil
-}
-
-func (s *System) appendAuthorizedLine(ctx context.Context, path, line string) error {
-	s.authorizedKeysMu.Lock()
-	defer s.authorizedKeysMu.Unlock()
-	contents, err := os.ReadFile(path)
-	if err != nil {
-		return err
-	}
-	updated := string(contents)
-	if updated != "" && !strings.HasSuffix(updated, "\n") {
-		updated += "\n"
-	}
-	updated += line + "\n"
-	if err = s.writeAuthorizedKeys(ctx, path, updated); err != nil {
-		if restoreErr := s.writeAuthorizedKeys(ctx, path, string(contents)); restoreErr != nil {
-			return errors.Join(err, fmt.Errorf("restore authorized keys: %w", restoreErr))
-		}
-		return err
-	}
-	return nil
-}
-
 func (s *System) writeAuthorizedKeys(ctx context.Context, path, contents string) error {
 	temporary, err := os.CreateTemp(filepath.Dir(path), ".authorized-keys-")
 	if err != nil {
@@ -452,7 +486,9 @@ func (s *System) writeAuthorizedKeys(ctx context.Context, path, contents string)
 		return err
 	}
 	if s.ManageAccounts {
-		_, err = s.Runner.Run(ctx, "chown", []string{"root:root", path}, nil, "")
+		if _, err = s.Runner.Run(ctx, "chown", []string{"root:root", path}, nil, ""); err == nil {
+			_, err = s.Runner.Run(ctx, "restorecon", []string{path}, nil, "")
+		}
 	}
 	return err
 }

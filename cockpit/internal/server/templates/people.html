@@ -1,5 +1,5 @@
 {{define "people.html"}}{{template "header" .}}
-<h1>People</h1>
+<h1>Team</h1>
 {{template "people-management" .}}
 {{template "footer" .}}{{end}}
 
@@ -9,25 +9,26 @@
 {{if .Error}}<p class="error" role="alert">{{.Error}}</p>{{end}}
 {{template "people-list" .}}
 <section class="panel">
-  <h2>Add person</h2>
-  <form method="post" action="/people" hx-post="/people" hx-target="#people-management" hx-swap="outerHTML" hx-disabled-elt="button">
+  <h2>Add team member</h2>
+  <p>They will replace this temporary password when they first sign in.</p>
+  <form method="post" action="/team" hx-post="/team" hx-target="#people-management" hx-swap="outerHTML" hx-disabled-elt="button">
     <label>Username <input name="username" required></label>
     <label>Display name <input name="display_name" required></label>
     <label>Email <input type="email" name="email" required></label>
     <label>Role <select name="role"><option value="developer">Developer</option><option value="admin">Administrator</option></select></label>
-    <label>Initial password <input type="password" name="password" required></label>
-    <label>SSH public key <textarea name="ssh_public_key" rows="4" required></textarea></label>
-    <button type="submit">Add person</button>
+    <label>Temporary password <input type="password" name="password" minlength="6" required></label>
+    <p class="muted">Minimum six characters; no complexity rules.</p>
+    <button type="submit">Add team member</button>
   </form>
 </section>
 </div>
 {{end}}
 
 {{define "people-list"}}
-<section id="people-list" class="panel" aria-live="polite" hx-get="/fragments/people" hx-trigger="sse:people_changed, sse:refresh" hx-swap="outerHTML">
-  <h2>Registered accounts</h2>
-  {{if .Error}}<p class="error" role="alert">{{.Error}}</p>{{else if .People}}<table><thead><tr><th>Name</th><th>Username</th><th>Email</th><th>Role</th></tr></thead><tbody>
+<section id="people-list" class="panel" aria-live="polite" hx-get="/fragments/team" hx-trigger="sse:people_changed, sse:refresh" hx-swap="outerHTML">
+  <h2>Team members</h2>
+  {{if .Error}}<p class="error" role="alert">{{.Error}}</p>{{else if .People}}<table><thead><tr><th>Name</th><th>Linux username</th><th>Email</th><th>Role</th></tr></thead><tbody>
   {{range .People}}<tr><td>{{.DisplayName}}</td><td><code>{{.Username}}</code></td><td>{{.Email}}</td><td>{{.Role}}</td></tr>{{end}}
-  </tbody></table>{{else}}<p>No people are registered.</p>{{end}}
+  </tbody></table>{{else}}<p>No team members are registered.</p>{{end}}
 </section>
 {{end}}
