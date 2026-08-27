@@ -310,6 +310,7 @@ func TestRuntimeImageEnablesServicesAndMasksAutomaticUpdates(t *testing.T) {
 	stateDirectories, err := os.ReadFile(filepath.Join("..", "..", "packaging", "systemd", "soda-state-directories.service"))
 	require.NoError(t, err)
 	require.Contains(t, string(stateDirectories), "DefaultDependencies=no")
+	require.Contains(t, string(stateDirectories), "RequiresMountsFor=/var")
 	require.Contains(t, string(stateDirectories), "Before=local-fs.target var-srv-soda-projects.mount opt-soda-toolchains.mount")
 	require.Contains(t, string(stateDirectories), "ExecStart=/usr/bin/systemd-tmpfiles --create --prefix=/var/lib/soda --prefix=/var/srv/soda")
 

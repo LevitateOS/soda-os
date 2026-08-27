@@ -2,6 +2,7 @@
 Description=Soda OS persistent state directories
 Documentation=man:tmpfiles.d(5) man:systemd-tmpfiles(8)
 DefaultDependencies=no
+RequiresMountsFor=/var
 After=systemd-sysusers.service systemd-remount-fs.service
 Before=local-fs.target var-srv-soda-projects.mount opt-soda-toolchains.mount
 
