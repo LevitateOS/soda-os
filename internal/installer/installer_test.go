@@ -29,6 +29,8 @@ func TestKickstartKeepsStockInteractiveFlowAndExactDigest(t *testing.T) {
 	require.Contains(t, contents, "network --bootproto=dhcp --device=link --activate --onboot=on --hostname=soda")
 	require.Contains(t, contents, `--source-imgref="containers-storage:`+testExactImage+`"`)
 	require.Contains(t, contents, `--target-imgref="`+testExactImage+`"`)
+	require.Contains(t, contents, "%pre-install --erroronfail\n")
+	require.Contains(t, contents, "install -d -m 0755 /mnt/sysimage/var/home\n")
 	require.NotContains(t, contents, "--enforce-container-sigpolicy")
 	require.NotContains(t, contents, "selinux=0")
 	require.NotContains(t, contents, "clearpart")

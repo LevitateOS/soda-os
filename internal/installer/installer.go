@@ -413,7 +413,10 @@ func kickstart(reference, hostname string) string {
 	return "# Soda OS stock interactive Anaconda defaults.\n" +
 		"text\n" +
 		"network --bootproto=dhcp --device=link --activate --onboot=on --hostname=" + hostname + "\n" +
-		"bootc --source-imgref=\"containers-storage:" + reference + "\" --target-imgref=\"" + reference + "\"\n"
+		"bootc --source-imgref=\"containers-storage:" + reference + "\" --target-imgref=\"" + reference + "\"\n" +
+		"%pre-install --erroronfail\n" +
+		"install -d -m 0755 /mnt/sysimage/var/home\n" +
+		"%end\n"
 }
 
 func regularFile(path string) bool {

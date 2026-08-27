@@ -61,6 +61,12 @@ installer environment runs SELinux in permissive mode because its live overlay
 cannot be relabeled; this boot option does not change the installed Soda image,
 which retains enforcing SELinux.
 
+Before Anaconda creates the interactive administrator, the installer creates
+the persistent `/var/home` parent in the mounted target. Fedora bootc otherwise
+creates that parent only through `tmpfiles.d` on first boot, which is too late
+for Anaconda to create `/home/<administrator>` through the image-owned
+`/home -> var/home` compatibility symlink.
+
 The ISO embeds the exact signed image digest in local container storage. Fedora
 44's `bootc` Kickstart command accepts exact source and target image references
 but does not expose bootc's runtime signature-policy flag, so installer trust is
