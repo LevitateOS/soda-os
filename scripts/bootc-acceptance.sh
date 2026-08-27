@@ -98,11 +98,16 @@ workspace_ssh() {
 }
 
 qmp() {
-	need socat
 	qmp_socket=$(qmp_path)
 	[ -S "$qmp_socket" ] || die "QMP socket $qmp_socket is unavailable"
-	printf '%s\n%s\n' '{"execute":"qmp_capabilities"}' "$1" | \
-		socat -T 2 - "UNIX-CONNECT:$qmp_socket"
+	if command -v socat >/dev/null 2>&1; then
+		printf '%s\n%s\n' '{"execute":"qmp_capabilities"}' "$1" | \
+			socat -T 2 - "UNIX-CONNECT:$qmp_socket"
+	elif command -v nc >/dev/null 2>&1; then
+		printf '%s\n%s\n' '{"execute":"qmp_capabilities"}' "$1" | nc -U "$qmp_socket"
+	else
+		die "QMP requires socat or netcat with Unix-socket support"
+	fi
 }
 
 launch() {
