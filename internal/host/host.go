@@ -158,14 +158,14 @@ func (s *System) CreateProject(ctx context.Context, project domain.Project) (Cle
 		return nil, failWithCleanup(ctx, err, cleanup)
 	}
 	keyFile := s.authorizedKeysPath(project)
-	file, err := os.OpenFile(keyFile, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
+	file, err := os.OpenFile(keyFile, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o644)
 	if err != nil {
 		return nil, failWithCleanup(ctx, err, cleanup)
 	}
 	if err = file.Close(); err != nil {
 		return nil, failWithCleanup(ctx, err, cleanup)
 	}
-	if err = os.Chmod(keyFile, 0o600); err != nil {
+	if err = os.Chmod(keyFile, 0o644); err != nil {
 		return nil, failWithCleanup(ctx, err, cleanup)
 	}
 	if _, ok := project.Source.(domain.EmptyProjectSource); ok {
@@ -395,7 +395,9 @@ func (s *System) writeAuthorizedKeys(ctx context.Context, path, contents string)
 	}
 	temporaryPath := temporary.Name()
 	defer os.Remove(temporaryPath)
-	if err = temporary.Chmod(0o600); err == nil {
+	// OpenSSH reads this root-owned file after switching to the project account.
+	// Public keys are not secret; world-readability preserves root-only writes.
+	if err = temporary.Chmod(0o644); err == nil {
 		_, err = temporary.WriteString(contents)
 	}
 	if closeErr := temporary.Close(); err == nil {

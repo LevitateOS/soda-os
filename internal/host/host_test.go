@@ -206,7 +206,7 @@ func TestProjectAuthorizedKeysRemainRootOwnedOutsideProjectHome(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if info.Mode().Perm() != 0o600 {
+	if info.Mode().Perm() != 0o644 {
 		t.Fatalf("authorized key mode = %o", info.Mode().Perm())
 	}
 	if _, err = os.Stat(filepath.Join(root, project.Slug, ".ssh", "authorized_keys")); !errors.Is(err, os.ErrNotExist) {
