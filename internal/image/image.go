@@ -452,6 +452,7 @@ func (b *Builder) stageRPMSources(build, sources string) error {
 		{b.path("packaging/systemd/srv-soda-projects.mount"), filepath.Join(sources, "srv-soda-projects.mount")},
 		{b.path("packaging/systemd/opt-soda-toolchains.mount"), filepath.Join(sources, "opt-soda-toolchains.mount")},
 		{b.path("packaging/systemd/90-soda.preset"), filepath.Join(sources, "90-soda.preset")},
+		{b.path("packaging/tmpfiles.d/00-soda-var-srv.conf"), filepath.Join(sources, "00-soda-var-srv.conf")},
 		{b.path("packaging/tmpfiles.d/soda.conf"), filepath.Join(sources, "soda.conf")},
 		{b.path("packaging/sysusers.d/soda.conf"), filepath.Join(sources, "soda.sysusers")},
 		{b.path("packaging/sshd/41-soda-project-accounts.conf"), filepath.Join(sources, "41-soda-project-accounts.conf")},

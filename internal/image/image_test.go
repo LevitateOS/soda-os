@@ -11,6 +11,7 @@ import (
 	"math/big"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -211,6 +212,23 @@ func TestRuntimeImageEnablesServicesAndMasksAutomaticUpdates(t *testing.T) {
 		"systemd-sysusers /usr/lib/sysusers.d/soda.conf",
 		"systemctl enable sshd.service sodad.service soda-authd.service soda-cockpit.service avahi-daemon.service srv-soda-projects.mount opt-soda-toolchains.mount",
 		"systemctl mask bootc-fetch-apply-updates.timer",
+		"cp -f /usr/lib/soda/os-release /etc/os-release",
+		"cp -f /usr/lib/soda/os-release /usr/lib/os-release",
+		"cp -f /usr/lib/soda/issue /etc/issue",
+		"cp -f /usr/lib/soda/issue /etc/issue.net",
+		"cp -f /usr/lib/soda/system-release /etc/system-release",
+		"cp -f /usr/lib/soda/system-release /etc/redhat-release",
+		"semanage fcontext -a -t var_lib_t '/var/lib/soda(/.*)?'",
+		"semanage fcontext -a -e /home /var/lib/soda/projects",
+		"semanage fcontext -a -e /opt /var/lib/soda/toolchains",
+		"semanage fcontext -a -e /home /srv/soda/projects",
+		"semanage fcontext -a -e /opt /opt/soda/toolchains",
+		"semanage fcontext -a -t var_log_t '/var/log/soda(/.*)?'",
+		"semanage fcontext -a -t ssh_home_t '/etc/soda/authorized_keys(/.*)?'",
+		"restorecon -RF /etc/soda/authorized_keys",
+		"ssh-keygen -q -t ed25519 -N '' -f /run/soda-sshd-hostkey",
+		"/usr/sbin/sshd -t -h /run/soda-sshd-hostkey",
+		"rm -f /run/soda-sshd-hostkey /run/soda-sshd-hostkey.pub",
 		"--enablerepo=updates-testing",
 		`test "$(rpm -q --qf '%{NAME}-%{EPOCHNUM}:%{VERSION}-%{RELEASE}.%{ARCH}' bootc)" = "bootc-0:1.16.10-1.fc44.aarch64"`,
 		"rpm -q skopeo",
@@ -244,6 +262,42 @@ func TestRuntimeImageEnablesServicesAndMasksAutomaticUpdates(t *testing.T) {
 	require.NoError(t, err)
 	for _, unit := range []string{"sshd.service", "sodad.service", "soda-authd.service", "soda-cockpit.service", "avahi-daemon.service", "srv-soda-projects.mount", "opt-soda-toolchains.mount"} {
 		require.True(t, strings.Contains(string(preset), "enable "+unit))
+	}
+
+	tmpfiles, err := os.ReadFile(filepath.Join("..", "..", "packaging", "tmpfiles.d", "soda.conf"))
+	require.NoError(t, err)
+	for _, path := range []string{
+		"/var/lib/soda",
+		"/var/lib/soda/projects",
+		"/var/lib/soda/toolchains",
+		"/var/log/soda",
+		"/srv/soda/projects",
+		"/opt/soda/toolchains",
+	} {
+		require.Contains(t, string(tmpfiles), "d "+path+" ", "first-boot tmpfiles must create %s after the image installs its SELinux fcontext mapping", path)
+	}
+	earlyTmpfiles, err := os.ReadFile(filepath.Join("..", "..", "packaging", "tmpfiles.d", "00-soda-var-srv.conf"))
+	require.NoError(t, err)
+	require.Contains(t, string(earlyTmpfiles), "d /var/srv 0755 root root -")
+
+	staging, err := os.ReadFile("image.go")
+	require.NoError(t, err)
+	require.Contains(t, string(staging), `b.path("packaging/tmpfiles.d/00-soda-var-srv.conf"), filepath.Join(sources, "00-soda-var-srv.conf")`)
+
+	runtimeSpec, err := os.ReadFile(filepath.Join("..", "..", "packaging", "rpm", "soda-runtime.spec"))
+	require.NoError(t, err)
+	require.Contains(t, string(runtimeSpec), "install -m 0644 %{_sourcedir}/00-soda-var-srv.conf %{buildroot}%{_tmpfilesdir}/00-soda-var-srv.conf")
+	require.Contains(t, string(runtimeSpec), "%{_tmpfilesdir}/00-soda-var-srv.conf")
+}
+
+func TestSodaRPMsAreScriptletFree(t *testing.T) {
+	root, err := filepath.Abs(filepath.Join("..", ".."))
+	require.NoError(t, err)
+	scriptlet := regexp.MustCompile(`(?m)^%(?:pre(?:un|trans)?|post(?:un|trans)?|trigger\w*|filetrigger\w*|transfiletrigger\w*|verifyscript)(?:\s|$)`)
+	for _, name := range targetRPMs {
+		spec, err := os.ReadFile(filepath.Join(root, "packaging", "rpm", name+".spec"))
+		require.NoError(t, err)
+		require.NotRegexp(t, scriptlet, string(spec), "%s must be an image-build input without RPM lifecycle scriptlets", name)
 	}
 }
 

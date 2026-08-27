@@ -42,22 +42,6 @@ for size in 16 24 32 48 64 128 256 512; do
   install -m 0644 %{_sourcedir}/soda-os-${size}.png %{buildroot}%{_datadir}/icons/hicolor/${size}x${size}/apps/soda-os.png
 done
 
-%post
-cp -f %{_prefix}/lib/soda/os-release %{_sysconfdir}/os-release
-cp -f %{_prefix}/lib/soda/os-release %{_prefix}/lib/os-release
-cp -f %{_prefix}/lib/soda/issue %{_sysconfdir}/issue
-cp -f %{_prefix}/lib/soda/issue %{_sysconfdir}/issue.net
-cp -f %{_prefix}/lib/soda/system-release %{_sysconfdir}/system-release
-cp -f %{_prefix}/lib/soda/system-release %{_sysconfdir}/redhat-release
-
-%posttrans
-cp -f %{_prefix}/lib/soda/os-release %{_sysconfdir}/os-release
-cp -f %{_prefix}/lib/soda/os-release %{_prefix}/lib/os-release
-cp -f %{_prefix}/lib/soda/issue %{_sysconfdir}/issue
-cp -f %{_prefix}/lib/soda/issue %{_sysconfdir}/issue.net
-cp -f %{_prefix}/lib/soda/system-release %{_sysconfdir}/system-release
-cp -f %{_prefix}/lib/soda/system-release %{_sysconfdir}/redhat-release
-
 %files
 %{_sysconfdir}/soda-release
 %{_prefix}/lib/soda

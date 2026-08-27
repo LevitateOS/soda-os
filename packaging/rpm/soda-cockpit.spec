@@ -17,15 +17,6 @@ install -m 0644 %{_sourcedir}/soda-authd.service %{buildroot}%{_unitdir}/soda-au
 install -m 0644 %{_sourcedir}/soda-cockpit.avahi.service %{buildroot}%{_sysconfdir}/avahi/services/soda-cockpit.service
 install -m 0644 %{_sourcedir}/soda-cockpit.pam %{buildroot}%{_sysconfdir}/pam.d/soda-cockpit
 
-%post
-%systemd_post soda-authd.service soda-cockpit.service
-
-%preun
-%systemd_preun soda-authd.service soda-cockpit.service
-
-%postun
-%systemd_postun_with_restart soda-authd.service soda-cockpit.service
-
 %files
 %{_libexecdir}/soda/soda-cockpit
 %{_libexecdir}/soda/soda-authd

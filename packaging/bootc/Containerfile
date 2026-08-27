@@ -44,6 +44,23 @@ RUN dnf -y --setopt=install_weak_deps=False --enablerepo=updates-testing install
     && systemctl preset sshd.service sodad.service soda-authd.service soda-cockpit.service avahi-daemon.service srv-soda-projects.mount opt-soda-toolchains.mount \
     && systemctl enable sshd.service sodad.service soda-authd.service soda-cockpit.service avahi-daemon.service srv-soda-projects.mount opt-soda-toolchains.mount \
     && systemctl mask bootc-fetch-apply-updates.timer \
+    && cp -f /usr/lib/soda/os-release /etc/os-release \
+    && cp -f /usr/lib/soda/os-release /usr/lib/os-release \
+    && cp -f /usr/lib/soda/issue /etc/issue \
+    && cp -f /usr/lib/soda/issue /etc/issue.net \
+    && cp -f /usr/lib/soda/system-release /etc/system-release \
+    && cp -f /usr/lib/soda/system-release /etc/redhat-release \
+    && semanage fcontext -a -t var_lib_t '/var/lib/soda(/.*)?' \
+    && semanage fcontext -a -e /home /var/lib/soda/projects \
+    && semanage fcontext -a -e /opt /var/lib/soda/toolchains \
+    && semanage fcontext -a -e /home /srv/soda/projects \
+    && semanage fcontext -a -e /opt /opt/soda/toolchains \
+    && semanage fcontext -a -t var_log_t '/var/log/soda(/.*)?' \
+    && semanage fcontext -a -t ssh_home_t '/etc/soda/authorized_keys(/.*)?' \
+    && restorecon -RF /etc/soda/authorized_keys \
+    && ssh-keygen -q -t ed25519 -N '' -f /run/soda-sshd-hostkey \
+    && /usr/sbin/sshd -t -h /run/soda-sshd-hostkey \
+    && rm -f /run/soda-sshd-hostkey /run/soda-sshd-hostkey.pub \
     && test "$(rpm -q --qf '%{NAME}-%{EPOCHNUM}:%{VERSION}-%{RELEASE}.%{ARCH}' bootc)" = "bootc-0:1.16.10-1.fc44.aarch64" \
     && rpm -q skopeo \
     && /usr/libexec/soda/cosign version | grep -F 'GitVersion:    v3.1.2' \
