@@ -1,4 +1,4 @@
-# Soda bootc runtime image
+# Soda bootc runtime image and installer
 
 `distro/soda.toml` is the schema-version-2 runtime image contract. It pins the
 approved Fedora 44 bootc manifest digest, `linux/arm64` platform, Soda image
@@ -28,5 +28,58 @@ OCI labels record the Soda version, Git revision, creation time, pinned base,
 and runtime state schema. BuildKit rewrites image timestamps to the configured
 source-date epoch and omits provenance attestations from this local artifact.
 
-ISO generation, image signing, registry publication, and an update API are not
-implemented in this phase.
+## Release identity and installer media
+
+Soda has one trusted-LAN release repository:
+`registry.soda.local/soda/os`. Runtime images are AArch64 (`linux/arm64`) OCI
+images and are identified for installation and update by an exact digest, never
+by a tag. The registry CA certificate and Soda Cosign public key are explicit
+build inputs and are embedded in the runtime image. The release administrator
+holds the sole passphrase-protected Cosign private key outside the repository
+and image.
+
+The initial-install happy path is deliberately two-step:
+
+1. `soda-image publish --defer-current` pushes the versioned runtime image,
+   resolves its canonical registry digest, signs and verifies that exact digest,
+   and prints the reference for the installer. It writes no release record and
+   leaves `current` unchanged.
+2. `soda-image iso --image registry.soda.local/soda/os@sha256:...` verifies the
+   signed payload, embeds that exact digest in an AArch64 `bootc-generic-iso`,
+   uses ext4, and writes ISO checksum and payload-provenance sidecars. A final
+   `soda-image publish --iso ...` independently checks the ISO, signs the
+   release record, and updates `registry.soda.local/soda/os:current` last.
+
+The installer is for fresh installation only. It uses stock interactive
+Anaconda with DHCP, a default hostname of `soda`, and the normal interactive
+choices for storage, networking, hostname, and the first administrator. It
+does not preserve the former custom graphical overlay and does not perform an
+in-place Rocky conversion.
+
+## Persistent host state
+
+Bootc owns the image base. Soda keeps mutable state under `/var/lib/soda` so it
+survives replacement of the image: SQLite schema 2 state, Cockpit certificates,
+projects, and toolchains. Image-owned mount units retain the existing visible
+paths `/srv/soda/projects` and `/opt/soda/toolchains`; direct SSH workspaces and
+the forced-command gateway therefore keep their established paths. `tmpfiles.d`
+creates the persistent directories. Linux users and PAM passwords, SSH host
+keys, `/etc/soda/authorized_keys`, and `/var/log/soda` are likewise host state.
+
+## Manual OS updates
+
+The runtime masks Fedora's automatic bootc update timer. An administrator uses
+`sodactl os update status`, `check`, `stage`, and
+`activate --confirm-reboot`. Checking resolves `current` once and verifies the
+Cosign signature before inspecting immutable release metadata. It accepts only
+the Soda repository, `linux/arm64`, and state schema 2. Staging calls bootc with
+the exact `@sha256:` reference and download-only signature enforcement, so it
+does not restart Soda services or change the running deployment. Activation
+uses the already-downloaded deployment and requires the explicit reboot
+confirmation. There is no background polling, download, activation, or reboot.
+
+The signed release record binds Soda version and source revision, the Fedora
+base reference, exact Soda image reference, platform, state schema, RPM
+inventory checksum, and the installer ISO checksum when an ISO is produced.
+The state schema remains 2 for this MVP; cross-schema state rollback is not
+supported.
