@@ -130,7 +130,7 @@ launch() {
 		need_file "$iso"
 		[ ! -e "$disk" ] || die "refusing to install over existing disk $disk"
 		"$qemu_img" create -f qcow2 "$disk" "${SODA_ACCEPTANCE_DISK_SIZE:-40G}"
-		installer_args="-drive file=$iso,media=cdrom,if=virtio,format=raw,readonly=on -boot once=d"
+		installer_args="-drive file=$iso,media=cdrom,if=virtio,format=raw,readonly=on"
 	else
 		need_file "$disk"
 	fi
