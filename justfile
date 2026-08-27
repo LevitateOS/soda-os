@@ -24,3 +24,6 @@ release-tools:
 
 publish archive registry_ca public_key signing_key:
     go run ./cmd/soda-image publish --archive {{quote(archive)}} --registry-ca {{quote(registry_ca)}} --public-key {{quote(public_key)}} --signing-key {{quote(signing_key)}}
+
+iso image archive registry_ca public_key:
+    go run ./cmd/soda-image iso --image {{quote(image)}} --archive {{quote(archive)}} --registry-ca {{quote(registry_ca)}} --public-key {{quote(public_key)}}

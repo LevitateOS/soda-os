@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/LevitateOS/soda-os/internal/image"
+	"github.com/LevitateOS/soda-os/internal/installer"
 	"github.com/LevitateOS/soda-os/internal/release"
 	"github.com/spf13/cobra"
 )
@@ -38,10 +39,44 @@ func main() {
 	_ = oci.MarkFlagRequired("public-key")
 	root.AddCommand(oci)
 	root.AddCommand(releaseCommand(builder))
+	root.AddCommand(installerCommand(builder))
 	if err := root.Execute(); err != nil {
 		fmt.Fprintln(os.Stderr, "soda-image:", err)
 		os.Exit(1)
 	}
+}
+
+func installerCommand(builder func() (*image.Builder, error)) *cobra.Command {
+	var options installer.Options
+	command := &cobra.Command{
+		Use:   "iso",
+		Short: "build an AArch64 installer ISO from one signed exact Soda image",
+		Args:  cobra.NoArgs,
+		RunE: func(command *cobra.Command, _ []string) error {
+			imageBuilder, err := builder()
+			if err != nil {
+				return err
+			}
+			isoBuilder := installer.NewBuilder(imageBuilder.Root, imageBuilder.Spec, image.OSRunner{Stdout: os.Stdout, Stderr: os.Stderr})
+			result, err := isoBuilder.Build(command.Context(), options)
+			if err != nil {
+				return err
+			}
+			fmt.Printf("Built installer ISO: %s\nPayload provenance: %s\n", result.ISOPath, result.ProvenancePath)
+			return nil
+		},
+	}
+	command.Flags().StringVar(&options.ImageReference, "image", "", "signed exact registry.soda.local/soda/os@sha256 payload")
+	command.Flags().StringVar(&options.ArchivePath, "archive", "", "local OCI archive matching the exact payload")
+	command.Flags().StringVar(&options.RegistryCA, "registry-ca", "", "PEM CA certificate for registry.soda.local")
+	command.Flags().StringVar(&options.PublicKey, "public-key", "", "Soda Cosign public key")
+	command.Flags().StringVar(&options.CosignPath, "cosign", ".artifacts/tools/cosign", "pinned Cosign executable")
+	command.Flags().StringVar(&options.ToolLock, "tool-lock", "packaging/installer/image-builder.lock", "pinned Image Builder tool contract")
+	command.Flags().StringVar(&options.OutputDir, "output-dir", ".artifacts/images", "installer artifact directory")
+	for _, name := range []string{"image", "archive", "registry-ca", "public-key"} {
+		_ = command.MarkFlagRequired(name)
+	}
+	return command
 }
 
 func releaseCommand(builder func() (*image.Builder, error)) *cobra.Command {
@@ -75,6 +110,8 @@ func releaseCommand(builder func() (*image.Builder, error)) *cobra.Command {
 	command.Flags().StringVar(&options.OutputDir, "output-dir", ".artifacts/releases", "signed release record directory")
 	command.Flags().StringVar(&options.CosignPath, "cosign", ".artifacts/tools/cosign", "pinned Cosign executable")
 	command.Flags().StringVar(&options.ToolLock, "tool-lock", "packaging/release/tools.lock", "pinned release tool checksums")
+	command.Flags().StringVar(&options.InstallerArchive, "installer-archive", ".artifacts/installer/soda-installer-environment.oci.tar", "build-only installer environment used to inspect --iso")
+	command.Flags().StringVar(&options.InstallerToolLock, "installer-tool-lock", "packaging/installer/image-builder.lock", "pinned Image Builder contract used to inspect --iso")
 	for _, name := range []string{"archive", "registry-ca", "public-key", "signing-key"} {
 		_ = command.MarkFlagRequired(name)
 	}

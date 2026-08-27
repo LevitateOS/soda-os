@@ -23,6 +23,7 @@ import (
 	"github.com/BurntSushi/toml"
 	"github.com/LevitateOS/soda-os/internal/config"
 	imagebuild "github.com/LevitateOS/soda-os/internal/image"
+	"github.com/LevitateOS/soda-os/internal/installer"
 	"github.com/google/go-containerregistry/pkg/authn"
 	"github.com/google/go-containerregistry/pkg/name"
 	v1 "github.com/google/go-containerregistry/pkg/v1"
@@ -39,14 +40,16 @@ const (
 // Options are explicit operator inputs. The private key and passphrase are
 // never copied into output; cosign reads the passphrase interactively.
 type Options struct {
-	ArchivePath string
-	RegistryCA  string
-	PublicKey   string
-	PrivateKey  string
-	ISOPath     string
-	OutputDir   string
-	CosignPath  string
-	ToolLock    string
+	ArchivePath       string
+	RegistryCA        string
+	PublicKey         string
+	PrivateKey        string
+	ISOPath           string
+	OutputDir         string
+	CosignPath        string
+	ToolLock          string
+	InstallerArchive  string
+	InstallerToolLock string
 }
 
 // Record is the minimal signed identity shared by the OCI and installer.
@@ -81,12 +84,17 @@ type signer interface {
 	VerifyBlob(context.Context, string, string) error
 }
 
+type isoValidator interface {
+	ValidateISO(context.Context, string, string, string, string) (installer.Provenance, error)
+}
+
 // Publisher is injectable so ordering and exact-digest behavior can be tested
 // without contacting the production registry or using a production key.
 type Publisher struct {
-	Spec     config.DistroSpec
-	Registry registryClient
-	Signer   signer
+	Spec         config.DistroSpec
+	Registry     registryClient
+	Signer       signer
+	ISOValidator isoValidator
 }
 
 func NewPublisher(spec config.DistroSpec, options Options, runner imagebuild.Runner) (*Publisher, error) {
@@ -113,13 +121,18 @@ func NewPublisher(spec config.DistroSpec, options Options, runner imagebuild.Run
 	if runner == nil {
 		runner = imagebuild.OSRunner{Stdout: os.Stdout, Stderr: os.Stderr}
 	}
+	root, err := os.Getwd()
+	if err != nil {
+		return nil, fmt.Errorf("resolve workspace for ISO validation: %w", err)
+	}
 	return &Publisher{
 		Spec: spec,
 		Registry: &remoteRegistry{options: []remote.Option{
 			remote.WithAuthFromKeychain(authn.DefaultKeychain),
 			remote.WithTransport(transport),
 		}},
-		Signer: &cosignSigner{runner: runner, executable: options.CosignPath, ca: options.RegistryCA, publicKey: options.PublicKey, privateKey: options.PrivateKey},
+		Signer:       &cosignSigner{runner: runner, executable: options.CosignPath, ca: options.RegistryCA, publicKey: options.PublicKey, privateKey: options.PrivateKey},
+		ISOValidator: installer.NewBuilder(root, spec, runner),
 	}, nil
 }
 
@@ -155,6 +168,14 @@ func (p *Publisher) Publish(ctx context.Context, options Options) (Result, error
 	}
 
 	exactReference := Repository + "@" + digest.String()
+	if options.ISOPath != "" {
+		if p.ISOValidator == nil {
+			return Result{}, errors.New("release publisher requires independent ISO inspection")
+		}
+		if _, err := p.ISOValidator.ValidateISO(ctx, options.ISOPath, exactReference, options.InstallerArchive, options.InstallerToolLock); err != nil {
+			return Result{}, fmt.Errorf("independently inspect installer ISO: %w", err)
+		}
+	}
 	record, err := p.inspect(img, exactReference, options.ISOPath, options.RegistryCA, options.PublicKey)
 	if err != nil {
 		return Result{}, err
@@ -254,11 +275,11 @@ func (p *Publisher) inspect(img v1.Image, exactReference, isoPath, registryCAPat
 		RPMInventorySHA256: inventoryDigest,
 	}
 	if isoPath != "" {
-		digest, err := regularFileSHA256(isoPath)
+		provenance, err := installer.ValidateProvenance(isoPath, exactReference)
 		if err != nil {
-			return Record{}, fmt.Errorf("checksum installer ISO: %w", err)
+			return Record{}, fmt.Errorf("validate installer payload: %w", err)
 		}
-		record.ISOChecksum = digest
+		record.ISOChecksum = provenance.ISOSHA256
 	}
 	return record, nil
 }

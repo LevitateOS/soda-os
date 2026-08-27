@@ -1,0 +1,47 @@
+FROM quay.io/fedora/fedora-bootc@sha256:85677d47c03b2e1f8f9a3a19d838023ea154229817d579d4b4da5b87a21c9c1a
+
+# This image exists only while constructing installer media. It is not a Soda
+# runtime image and is never published as a Soda release.
+RUN dnf -y install --setopt=install_weak_deps=False \
+      anaconda-44.30-2.fc44.aarch64 \
+      anaconda-install-img-deps-44.30-2.fc44.aarch64 \
+      anaconda-dracut-44.30-2.fc44.aarch64 \
+      dracut-config-generic-108-7.fc44.aarch64 \
+      dracut-network-108-7.fc44.aarch64 \
+      net-tools-2.0-0.77.20160912git.fc44.aarch64 \
+      grub2-efi-aa64-cdboot-1:2.12-64.fc44.aarch64 \
+      plymouth-24.004.60-24.fc44.aarch64 \
+      default-fonts-core-sans-4.3-1.fc44.noarch \
+      default-fonts-other-sans-4.3-1.fc44.noarch \
+      google-noto-sans-cjk-fonts-1:2.004-11.fc44.noarch \
+      xorriso-1.5.8-2.fc44.aarch64 \
+      squashfs-tools-4.6.1-8.fc44.aarch64 \
+    && dnf clean all \
+    && test "$(find /usr/lib/modules -mindepth 1 -maxdepth 1 -type d | wc -l)" -eq 1 \
+    && test "$(find /usr/lib/efi/shim -mindepth 3 -maxdepth 3 -type d ! -name BOOT | wc -l)" -eq 1 \
+    && rpm -q shim-aa64 grub2-efi-aa64 grub2-efi-aa64-cdboot
+
+RUN mkdir -p /boot/efi /usr/lib/image-builder/bootc /usr/lib/systemd/logind.conf.d \
+    && mkdir -p "$(realpath /root)" \
+    && cp -ra /usr/lib/efi/*/*/EFI /boot/efi \
+    && echo "install:x:0:0:root:/root:/usr/libexec/anaconda/run-anaconda" >> /etc/passwd \
+    && echo "install::14438:0:99999:7:::" >> /etc/shadow \
+    && passwd -d root \
+    && mv /usr/share/anaconda/list-harddrives-stub /usr/bin/list-harddrives \
+    && mv /etc/yum.repos.d /etc/anaconda.repos.d \
+    && ln -sf /usr/lib/systemd/system/anaconda.target /etc/systemd/system/default.target \
+    && rm -f /usr/lib/systemd/system-generators/systemd-gpt-auto-generator \
+    && ln -sf /usr/lib/systemd/system/anaconda-shell@.service /usr/lib/systemd/system/autovt@.service \
+    && mkdir -p /etc/systemd/user/pipewire.service.d /etc/systemd/user/pipewire.socket.d
+
+COPY .artifacts/installer/context/interactive-defaults.ks /usr/share/anaconda/interactive-defaults.ks
+COPY packaging/installer/iso.yaml /usr/lib/image-builder/bootc/iso.yaml
+COPY packaging/installer/anaconda-shell.conf /usr/lib/systemd/logind.conf.d/anaconda-shell.conf
+COPY packaging/installer/pipewire-allow-root.conf /etc/systemd/user/pipewire.service.d/allowroot.conf
+COPY packaging/installer/pipewire-allow-root.conf /etc/systemd/user/pipewire.socket.d/allowroot.conf
+
+RUN kernel="$(find /usr/lib/modules -mindepth 2 -maxdepth 2 -name vmlinuz -printf '%h\n' | sed 's#.*/##')" \
+    && test -n "$kernel" \
+    && DRACUT_NO_XATTR=1 dracut --force --zstd --reproducible --no-hostonly \
+         --add anaconda "/usr/lib/modules/${kernel}/initramfs.img" "$kernel" \
+    && test -f "/usr/lib/modules/${kernel}/initramfs.img"

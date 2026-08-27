@@ -17,6 +17,7 @@ import (
 
 	"github.com/LevitateOS/soda-os/internal/config"
 	imagebuild "github.com/LevitateOS/soda-os/internal/image"
+	"github.com/LevitateOS/soda-os/internal/installer"
 	"github.com/google/go-containerregistry/pkg/registry"
 	"github.com/google/go-containerregistry/pkg/v1"
 	"github.com/google/go-containerregistry/pkg/v1/empty"
@@ -85,6 +86,26 @@ func TestPublishRejectsCanonicalRegistryDigestMismatchBeforeSigning(t *testing.T
 	require.Equal(t, []string{"cosign-version", "push:" + Repository + ":0.2.0", "resolve:" + Repository + ":0.2.0"}, events)
 }
 
+func TestPublishRejectsForgedISOSidecarWithoutIndependentInspection(t *testing.T) {
+	img := testImage(t, true)
+	events := []string{}
+	registry := &fakeRegistry{image: img, events: &events}
+	validator := &fakeISOValidator{err: fmt.Errorf("embedded container storage mismatch")}
+	publisher := &Publisher{Spec: testSpec(), Registry: registry, Signer: &fakeSigner{events: &events}, ISOValidator: validator}
+	options := testOptions(t, writeOCIArchive(t, img), t.TempDir())
+	options.ISOPath = filepath.Join(t.TempDir(), "forged.iso")
+	require.NoError(t, os.WriteFile(options.ISOPath, []byte("arbitrary bytes"), 0o644))
+
+	_, err := publisher.Publish(context.Background(), options)
+	require.ErrorContains(t, err, "independently inspect installer ISO")
+	require.Equal(t, 1, validator.calls)
+	require.Equal(t, []string{
+		"cosign-version",
+		"push:" + Repository + ":0.2.0",
+		"resolve:" + Repository + ":0.2.0",
+	}, events)
+}
+
 func TestInspectRejectsRPMInventorySidecarMismatch(t *testing.T) {
 	publisher := &Publisher{Spec: testSpec()}
 	options := testOptions(t, "", t.TempDir())
@@ -108,6 +129,35 @@ func TestInspectRejectsTrustInputMismatch(t *testing.T) {
 			require.EqualError(t, err, change.expected)
 		})
 	}
+}
+
+func TestInspectBindsISOOnlyWhenPayloadProvenanceMatchesExactImage(t *testing.T) {
+	publisher := &Publisher{Spec: testSpec()}
+	options := testOptions(t, "", t.TempDir())
+	exact := Repository + "@sha256:" + strings.Repeat("a", 64)
+	iso := filepath.Join(t.TempDir(), "SodaOS.iso")
+	require.NoError(t, os.WriteFile(iso, []byte("installer bytes"), 0o644))
+	provenance := installer.Provenance{
+		SchemaVersion: 1, ISOPath: filepath.Base(iso), ISOSHA256: sha256Hex([]byte("installer bytes")),
+		EmbeddedImageReference: exact, Platform: installer.Platform, Filesystem: "ext4",
+		ImageBuilderVersion:   "81.0.0",
+		ImageBuilderReference: "ghcr.io/osbuild/image-builder@sha256:704dc05d6033799248a33c415f7f7253ec20b40f0b2bff03b06d8687179e058a",
+	}
+	encoded, err := json.Marshal(provenance)
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(iso+".payload.json", encoded, 0o644))
+
+	record, err := publisher.inspect(testImage(t, true), exact, iso, options.RegistryCA, options.PublicKey)
+	require.NoError(t, err)
+	require.Equal(t, provenance.ISOSHA256, record.ISOChecksum)
+	require.Equal(t, exact, record.SodaImageReference)
+
+	provenance.EmbeddedImageReference = Repository + "@sha256:" + strings.Repeat("b", 64)
+	encoded, err = json.Marshal(provenance)
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(iso+".payload.json", encoded, 0o644))
+	_, err = publisher.inspect(testImage(t, true), exact, iso, options.RegistryCA, options.PublicKey)
+	require.ErrorContains(t, err, "installer payload provenance differs")
 }
 
 func TestCosignCommandsPinVersionAndExactDigest(t *testing.T) {
@@ -257,6 +307,16 @@ func (r *fakeRegistry) Resolve(_ context.Context, reference string) (v1.Hash, er
 }
 
 type fakeSigner struct{ events *[]string }
+
+type fakeISOValidator struct {
+	calls int
+	err   error
+}
+
+func (v *fakeISOValidator) ValidateISO(context.Context, string, string, string, string) (installer.Provenance, error) {
+	v.calls++
+	return installer.Provenance{}, v.err
+}
 
 func (s *fakeSigner) CheckVersion(context.Context) error {
 	*s.events = append(*s.events, "cosign-version")

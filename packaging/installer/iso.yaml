@@ -1,0 +1,8 @@
+label: "SodaOS-Installer"
+grub2:
+  default: 0
+  timeout: 10
+  entries:
+    - name: "Install Soda OS"
+      linux: "/images/pxeboot/vmlinuz inst.stage2=hd:LABEL=SodaOS-Installer console=tty0"
+      initrd: "/images/pxeboot/initrd.img"

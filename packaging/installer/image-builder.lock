@@ -1,0 +1,4 @@
+version = "81.0.0"
+commit = "3130fb87ee1f684b6e9d1909f354861c43d7a092"
+reference = "ghcr.io/osbuild/image-builder@sha256:704dc05d6033799248a33c415f7f7253ec20b40f0b2bff03b06d8687179e058a"
+platform = "linux/arm64"
