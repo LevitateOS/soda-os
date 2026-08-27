@@ -37,6 +37,10 @@ const (
 	SodaService_StartProvisioning_FullMethodName     = "/soda.v2.SodaService/StartProvisioning"
 	SodaService_ListProvisioningJobs_FullMethodName  = "/soda.v2.SodaService/ListProvisioningJobs"
 	SodaService_GetHostStatus_FullMethodName         = "/soda.v2.SodaService/GetHostStatus"
+	SodaService_GetOSUpdateStatus_FullMethodName     = "/soda.v2.SodaService/GetOSUpdateStatus"
+	SodaService_CheckOSUpdate_FullMethodName         = "/soda.v2.SodaService/CheckOSUpdate"
+	SodaService_StageOSUpdate_FullMethodName         = "/soda.v2.SodaService/StageOSUpdate"
+	SodaService_ActivateOSUpdate_FullMethodName      = "/soda.v2.SodaService/ActivateOSUpdate"
 )
 
 // SodaServiceClient is the client API for SodaService service.
@@ -61,6 +65,10 @@ type SodaServiceClient interface {
 	StartProvisioning(ctx context.Context, in *StartProvisioningRequest, opts ...grpc.CallOption) (*StartProvisioningResponse, error)
 	ListProvisioningJobs(ctx context.Context, in *ListProvisioningJobsRequest, opts ...grpc.CallOption) (*ListProvisioningJobsResponse, error)
 	GetHostStatus(ctx context.Context, in *GetHostStatusRequest, opts ...grpc.CallOption) (*GetHostStatusResponse, error)
+	GetOSUpdateStatus(ctx context.Context, in *GetOSUpdateStatusRequest, opts ...grpc.CallOption) (*GetOSUpdateStatusResponse, error)
+	CheckOSUpdate(ctx context.Context, in *CheckOSUpdateRequest, opts ...grpc.CallOption) (*CheckOSUpdateResponse, error)
+	StageOSUpdate(ctx context.Context, in *StageOSUpdateRequest, opts ...grpc.CallOption) (*StageOSUpdateResponse, error)
+	ActivateOSUpdate(ctx context.Context, in *ActivateOSUpdateRequest, opts ...grpc.CallOption) (*ActivateOSUpdateResponse, error)
 }
 
 type sodaServiceClient struct {
@@ -251,6 +259,46 @@ func (c *sodaServiceClient) GetHostStatus(ctx context.Context, in *GetHostStatus
 	return out, nil
 }
 
+func (c *sodaServiceClient) GetOSUpdateStatus(ctx context.Context, in *GetOSUpdateStatusRequest, opts ...grpc.CallOption) (*GetOSUpdateStatusResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetOSUpdateStatusResponse)
+	err := c.cc.Invoke(ctx, SodaService_GetOSUpdateStatus_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *sodaServiceClient) CheckOSUpdate(ctx context.Context, in *CheckOSUpdateRequest, opts ...grpc.CallOption) (*CheckOSUpdateResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CheckOSUpdateResponse)
+	err := c.cc.Invoke(ctx, SodaService_CheckOSUpdate_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *sodaServiceClient) StageOSUpdate(ctx context.Context, in *StageOSUpdateRequest, opts ...grpc.CallOption) (*StageOSUpdateResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(StageOSUpdateResponse)
+	err := c.cc.Invoke(ctx, SodaService_StageOSUpdate_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *sodaServiceClient) ActivateOSUpdate(ctx context.Context, in *ActivateOSUpdateRequest, opts ...grpc.CallOption) (*ActivateOSUpdateResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ActivateOSUpdateResponse)
+	err := c.cc.Invoke(ctx, SodaService_ActivateOSUpdate_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // SodaServiceServer is the server API for SodaService service.
 // All implementations must embed UnimplementedSodaServiceServer
 // for forward compatibility.
@@ -273,6 +321,10 @@ type SodaServiceServer interface {
 	StartProvisioning(context.Context, *StartProvisioningRequest) (*StartProvisioningResponse, error)
 	ListProvisioningJobs(context.Context, *ListProvisioningJobsRequest) (*ListProvisioningJobsResponse, error)
 	GetHostStatus(context.Context, *GetHostStatusRequest) (*GetHostStatusResponse, error)
+	GetOSUpdateStatus(context.Context, *GetOSUpdateStatusRequest) (*GetOSUpdateStatusResponse, error)
+	CheckOSUpdate(context.Context, *CheckOSUpdateRequest) (*CheckOSUpdateResponse, error)
+	StageOSUpdate(context.Context, *StageOSUpdateRequest) (*StageOSUpdateResponse, error)
+	ActivateOSUpdate(context.Context, *ActivateOSUpdateRequest) (*ActivateOSUpdateResponse, error)
 	mustEmbedUnimplementedSodaServiceServer()
 }
 
@@ -336,6 +388,18 @@ func (UnimplementedSodaServiceServer) ListProvisioningJobs(context.Context, *Lis
 }
 func (UnimplementedSodaServiceServer) GetHostStatus(context.Context, *GetHostStatusRequest) (*GetHostStatusResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetHostStatus not implemented")
+}
+func (UnimplementedSodaServiceServer) GetOSUpdateStatus(context.Context, *GetOSUpdateStatusRequest) (*GetOSUpdateStatusResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetOSUpdateStatus not implemented")
+}
+func (UnimplementedSodaServiceServer) CheckOSUpdate(context.Context, *CheckOSUpdateRequest) (*CheckOSUpdateResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method CheckOSUpdate not implemented")
+}
+func (UnimplementedSodaServiceServer) StageOSUpdate(context.Context, *StageOSUpdateRequest) (*StageOSUpdateResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method StageOSUpdate not implemented")
+}
+func (UnimplementedSodaServiceServer) ActivateOSUpdate(context.Context, *ActivateOSUpdateRequest) (*ActivateOSUpdateResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ActivateOSUpdate not implemented")
 }
 func (UnimplementedSodaServiceServer) mustEmbedUnimplementedSodaServiceServer() {}
 func (UnimplementedSodaServiceServer) testEmbeddedByValue()                     {}
@@ -682,6 +746,78 @@ func _SodaService_GetHostStatus_Handler(srv interface{}, ctx context.Context, de
 	return interceptor(ctx, in, info, handler)
 }
 
+func _SodaService_GetOSUpdateStatus_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetOSUpdateStatusRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SodaServiceServer).GetOSUpdateStatus(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SodaService_GetOSUpdateStatus_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SodaServiceServer).GetOSUpdateStatus(ctx, req.(*GetOSUpdateStatusRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _SodaService_CheckOSUpdate_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CheckOSUpdateRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SodaServiceServer).CheckOSUpdate(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SodaService_CheckOSUpdate_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SodaServiceServer).CheckOSUpdate(ctx, req.(*CheckOSUpdateRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _SodaService_StageOSUpdate_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(StageOSUpdateRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SodaServiceServer).StageOSUpdate(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SodaService_StageOSUpdate_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SodaServiceServer).StageOSUpdate(ctx, req.(*StageOSUpdateRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _SodaService_ActivateOSUpdate_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ActivateOSUpdateRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SodaServiceServer).ActivateOSUpdate(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SodaService_ActivateOSUpdate_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SodaServiceServer).ActivateOSUpdate(ctx, req.(*ActivateOSUpdateRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // SodaService_ServiceDesc is the grpc.ServiceDesc for SodaService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -760,6 +896,22 @@ var SodaService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetHostStatus",
 			Handler:    _SodaService_GetHostStatus_Handler,
+		},
+		{
+			MethodName: "GetOSUpdateStatus",
+			Handler:    _SodaService_GetOSUpdateStatus_Handler,
+		},
+		{
+			MethodName: "CheckOSUpdate",
+			Handler:    _SodaService_CheckOSUpdate_Handler,
+		},
+		{
+			MethodName: "StageOSUpdate",
+			Handler:    _SodaService_StageOSUpdate_Handler,
+		},
+		{
+			MethodName: "ActivateOSUpdate",
+			Handler:    _SodaService_ActivateOSUpdate_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

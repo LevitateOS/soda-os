@@ -30,9 +30,16 @@ func TestBootcContract(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, bootcBaseReference, lock.BaseReference)
 	require.Greater(t, len(lock.Package), len(targetRPMs))
+	foundBootc := false
 	for _, item := range lock.Package {
 		require.NotEmpty(t, item.NEVRA)
+		if item.Name == "bootc" {
+			foundBootc = true
+			require.Equal(t, bootcRuntimeNEVRA, item.NEVRA)
+			require.Equal(t, "fedora", item.Source)
+		}
 	}
+	require.True(t, foundBootc)
 }
 
 func TestDockerCommandUsesPinnedArm64Builder(t *testing.T) {
@@ -157,6 +164,12 @@ func TestRuntimeImageEnablesServicesAndMasksAutomaticUpdates(t *testing.T) {
 		"systemd-sysusers /usr/lib/sysusers.d/soda.conf",
 		"systemctl enable sshd.service sodad.service soda-authd.service soda-cockpit.service avahi-daemon.service srv-soda-projects.mount opt-soda-toolchains.mount",
 		"systemctl mask bootc-fetch-apply-updates.timer",
+		"--enablerepo=updates-testing",
+		`test "$(rpm -q --qf '%{NAME}-%{EPOCHNUM}:%{VERSION}-%{RELEASE}.%{ARCH}' bootc)" = "bootc-0:1.16.10-1.fc44.aarch64"`,
+		"rpm -q skopeo",
+		"/usr/libexec/soda/cosign version | grep -F 'GitVersion:    v3.1.2'",
+		"bootc switch --help | grep -F -- '--download-only'",
+		"bootc switch --help | grep -F -- '--from-downloaded'",
 		"rpm-inventory.sha256",
 		"sha256sum --check rpm-inventory.sha256",
 		"/usr/lib/sysimage/libdnf5/transaction_history.sqlite*",
@@ -183,6 +196,26 @@ func TestRuntimeImageEnablesServicesAndMasksAutomaticUpdates(t *testing.T) {
 	for _, unit := range []string{"sshd.service", "sodad.service", "soda-authd.service", "soda-cockpit.service", "avahi-daemon.service", "srv-soda-projects.mount", "opt-soda-toolchains.mount"} {
 		require.True(t, strings.Contains(string(preset), "enable "+unit))
 	}
+}
+
+func TestRuntimeCosignInputIsPinnedForLinuxAArch64(t *testing.T) {
+	script, err := os.ReadFile(filepath.Join("..", "..", "scripts", "fetch-release-tools.sh"))
+	require.NoError(t, err)
+	require.Contains(t, string(script), "cosign-linux-arm64")
+	require.Contains(t, string(script), cosignArm64SHA256)
+	require.Contains(t, string(script), "releases/download/v3.1.2")
+
+	spec, err := os.ReadFile(filepath.Join("..", "..", "packaging", "rpm", "soda-runtime.spec"))
+	require.NoError(t, err)
+	require.Contains(t, string(spec), "install -m 0755 %{_sourcedir}/cosign %{buildroot}%{_libexecdir}/soda/cosign")
+	require.Contains(t, string(spec), "%{_libexecdir}/soda/cosign")
+
+	root := t.TempDir()
+	tool := filepath.Join(root, ".artifacts", "tools", "cosign-linux-arm64")
+	require.NoError(t, os.MkdirAll(filepath.Dir(tool), 0o755))
+	require.NoError(t, os.WriteFile(tool, []byte("not the pinned binary"), 0o755))
+	err = (&Builder{Root: root}).verifyRuntimeCosign()
+	require.ErrorContains(t, err, "differs from pinned")
 }
 
 func TestStageReleaseTrustAcceptsExplicitCAAndPublicKey(t *testing.T) {

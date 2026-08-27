@@ -1,0 +1,33 @@
+{{define "os_update.html"}}{{template "header" .}}
+<h1>OS update</h1>
+<section class="panel" aria-live="polite">
+  {{if .Error}}<p class="error" role="alert">{{.Error}}</p>{{end}}
+  {{if .Message}}<p class="success" role="status">{{.Message}}</p>{{end}}
+  {{if .OSUpdate}}
+  <dl class="summary">
+    {{with .OSUpdate.Booted}}<div><dt>Running version</dt><dd>{{.Version}}</dd></div><div><dt>Running digest</dt><dd><code>{{.Digest}}</code></dd></div>{{end}}
+    {{with .OSUpdate.Staged}}<div><dt>Staged version</dt><dd>{{.Version}}</dd></div><div><dt>Staged digest</dt><dd><code>{{.Digest}}</code></dd></div>{{else}}<div><dt>Staged update</dt><dd>None</dd></div>{{end}}
+  </dl>
+  {{end}}
+  {{with .OSRelease}}
+  <h2>Checked release</h2>
+  <dl class="summary">
+    <div><dt>Version</dt><dd>{{.Version}}</dd></div>
+    <div><dt>Digest</dt><dd><code>{{.Digest}}</code></dd></div>
+    <div><dt>State schema</dt><dd>{{.StateSchema}}</dd></div>
+  </dl>
+  {{end}}
+  <div class="actions">
+    <form method="post" action="/os-update/check"><button type="submit">Check for signed update</button></form>
+    <form method="post" action="/os-update/stage"><button type="submit">Check and stage update</button></form>
+  </div>
+</section>
+<section class="panel">
+  <h2>Maintenance reboot</h2>
+  <p>Activation reboots immediately into the downloaded update. Checking and staging do not restart Soda services or active workspaces.</p>
+  <form method="post" action="/os-update/activate">
+    <label><input type="checkbox" name="confirm_reboot" value="yes" required> Reboot this appliance now</label>
+    <button type="submit">Activate staged update</button>
+  </form>
+</section>
+{{template "footer" .}}{{end}}

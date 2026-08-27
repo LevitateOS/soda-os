@@ -31,18 +31,22 @@ func (a fakeAuth) Authenticate(_, _ string) (auth.Result, error) {
 func (a fakeAuth) ChangePassword(_, _, _ string) error { return a.changeErr }
 
 type fakeAPI struct {
-	people         []soda.Person
-	projects       []soda.Project
-	members        []soda.Person
-	worktrees      []soda.Worktree
-	jobs           []soda.ProvisioningJob
-	toolchain      *soda.ToolchainInstallation
-	created        *soda.CreatePersonRequest
-	createdProject *soda.CreateProjectRequest
-	keys           []soda.SSHDeviceKey
-	keyPersonIDs   []string
-	retried        bool
-	hostCalls      int
+	people          []soda.Person
+	projects        []soda.Project
+	members         []soda.Person
+	worktrees       []soda.Worktree
+	jobs            []soda.ProvisioningJob
+	toolchain       *soda.ToolchainInstallation
+	created         *soda.CreatePersonRequest
+	createdProject  *soda.CreateProjectRequest
+	keys            []soda.SSHDeviceKey
+	keyPersonIDs    []string
+	retried         bool
+	hostCalls       int
+	osStatus        soda.OSUpdateStatus
+	osRelease       soda.OSRelease
+	stagedImage     string
+	activateConfirm bool
 }
 
 func (f *fakeAPI) People(context.Context) ([]soda.Person, error)    { return f.people, nil }
@@ -117,6 +121,23 @@ func (f *fakeAPI) HostStatus(context.Context) (soda.HostStatus, error) {
 	f.hostCalls++
 	return soda.HostStatus{Overall: "ready"}, nil
 }
+func (f *fakeAPI) OSUpdateStatus(context.Context) (soda.OSUpdateStatus, error) {
+	return f.osStatus, nil
+}
+func (f *fakeAPI) CheckOSUpdate(context.Context) (soda.OSRelease, error) {
+	return f.osRelease, nil
+}
+func (f *fakeAPI) StageOSUpdate(_ context.Context, imageReference string) (soda.OSUpdateStatus, error) {
+	f.stagedImage = imageReference
+	return f.osStatus, nil
+}
+func (f *fakeAPI) ActivateOSUpdate(_ context.Context, confirmed bool) error {
+	f.activateConfirm = confirmed
+	if !confirmed {
+		return errors.New("explicit maintenance reboot confirmation is required")
+	}
+	return nil
+}
 func TestHealthAndLoginPageArePublic(t *testing.T) {
 	app := testServer(t, &fakeAPI{}, fakeAuth{})
 	for path, expected := range map[string]string{"/healthz": "ok\n", "/login": "Sign in to Soda OS"} {
@@ -132,6 +153,49 @@ func TestProtectedPageRedirectsToLogin(t *testing.T) {
 	response := request(app, http.MethodGet, "/", "", nil)
 	if response.Code != http.StatusSeeOther || response.Header().Get("Location") != "/login" {
 		t.Fatalf("unexpected response: %d %q", response.Code, response.Header().Get("Location"))
+	}
+}
+
+func TestOSUpdateControlsAreAdministratorOnlyAndUseVerifiedExactRelease(t *testing.T) {
+	digest := "sha256:" + strings.Repeat("b", 64)
+	exact := "registry.soda.local/soda/os@" + digest
+	status := soda.OSUpdateStatus{Booted: &soda.OSDeployment{Version: "0.2.0", Digest: "sha256:" + strings.Repeat("a", 64), Architecture: "arm64", Signature: "containerPolicy"}}
+	release := soda.OSRelease{ImageReference: exact, Version: "0.3.0", Digest: digest, StateSchema: 2, Available: true}
+
+	developer := soda.Person{ID: "dev-1", Username: "dev", DisplayName: "Developer", Role: soda.RoleDeveloper}
+	developerAPI := &fakeAPI{people: []soda.Person{developer}, osStatus: status, osRelease: release}
+	developerServer := testServer(t, developerAPI, fakeAuth{})
+	developerToken, err := developerServer.sessions.create(developer)
+	if err != nil {
+		t.Fatal(err)
+	}
+	developerCookie := &http.Cookie{Name: sessionCookie, Value: developerToken}
+	response := request(developerServer, http.MethodGet, "/os-update", "", developerCookie)
+	if response.Code != http.StatusForbidden {
+		t.Fatalf("developer accessed OS updates: %d", response.Code)
+	}
+
+	admin := soda.Person{ID: "admin-1", Username: "admin", DisplayName: "Admin", Role: soda.RoleAdmin}
+	api := &fakeAPI{people: []soda.Person{admin}, osStatus: status, osRelease: release}
+	app := testServer(t, api, fakeAuth{})
+	token, err := app.sessions.create(admin)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cookie := &http.Cookie{Name: sessionCookie, Value: token}
+	response = request(app, http.MethodPost, "/os-update/stage", "", cookie)
+	if response.Code != http.StatusOK || api.stagedImage != exact || !strings.Contains(response.Body.String(), "downloaded and locked") {
+		t.Fatalf("unexpected stage result: %d %q exact=%q", response.Code, response.Body.String(), api.stagedImage)
+	}
+
+	response = request(app, http.MethodPost, "/os-update/activate", "", cookie)
+	if response.Code != http.StatusUnprocessableEntity || api.activateConfirm {
+		t.Fatalf("activation lacked confirmation gate: %d confirm=%v", response.Code, api.activateConfirm)
+	}
+	form := url.Values{"confirm_reboot": {"yes"}}.Encode()
+	response = request(app, http.MethodPost, "/os-update/activate", form, cookie)
+	if response.Code != http.StatusOK || !api.activateConfirm {
+		t.Fatalf("confirmed activation failed: %d confirm=%v", response.Code, api.activateConfirm)
 	}
 }
 

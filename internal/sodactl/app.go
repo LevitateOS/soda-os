@@ -19,7 +19,12 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-const defaultCommandTimeout = 2 * time.Second
+const (
+	defaultCommandTimeout    = 2 * time.Second
+	defaultOSReadTimeout     = 30 * time.Second
+	defaultOSStageTimeout    = 2 * time.Hour
+	defaultOSActivateTimeout = 5 * time.Minute
+)
 
 type Dial func(context.Context, string) (sodav2.SodaServiceClient, io.Closer, error)
 
@@ -55,8 +60,54 @@ func (a *App) Command() *cobra.Command {
 		a.healthCommand(&socket),
 		a.peopleCommand(&socket),
 		a.projectsCommand(&socket),
+		a.osCommand(&socket),
 	)
 	return root
+}
+
+func (a *App) osCommand(socket *string) *cobra.Command {
+	osCommand := &cobra.Command{Use: "os", Short: "Administer the Soda OS base image"}
+	update := &cobra.Command{Use: "update", Short: "Manually check, stage, and activate OS updates"}
+	update.AddCommand(
+		&cobra.Command{Use: "status", RunE: func(cmd *cobra.Command, _ []string) error {
+			return a.callWithTimeout(cmd, *socket, defaultOSReadTimeout, func(ctx context.Context, client sodav2.SodaServiceClient) (any, error) {
+				response, err := client.GetOSUpdateStatus(ctx, &sodav2.GetOSUpdateStatusRequest{})
+				return osUpdateStatusJSON(response.GetStatus()), err
+			})
+		}},
+		&cobra.Command{Use: "check", RunE: func(cmd *cobra.Command, _ []string) error {
+			return a.callWithTimeout(cmd, *socket, defaultOSReadTimeout, func(ctx context.Context, client sodav2.SodaServiceClient) (any, error) {
+				response, err := client.CheckOSUpdate(ctx, &sodav2.CheckOSUpdateRequest{})
+				return osReleaseJSON(response.GetRelease()), err
+			})
+		}},
+		&cobra.Command{Use: "stage", RunE: func(cmd *cobra.Command, _ []string) error {
+			return a.callWithTimeout(cmd, *socket, defaultOSStageTimeout, func(ctx context.Context, client sodav2.SodaServiceClient) (any, error) {
+				checked, err := client.CheckOSUpdate(ctx, &sodav2.CheckOSUpdateRequest{})
+				if err != nil {
+					return nil, err
+				}
+				release := checked.GetRelease()
+				if release == nil || !release.GetAvailable() {
+					return nil, status.Error(codes.FailedPrecondition, "no newer signed Soda OS release is available")
+				}
+				response, err := client.StageOSUpdate(ctx, &sodav2.StageOSUpdateRequest{ImageReference: release.GetImageReference()})
+				return osUpdateStatusJSON(response.GetStatus()), err
+			})
+		}},
+	)
+	var confirmReboot bool
+	activate := &cobra.Command{Use: "activate", RunE: func(cmd *cobra.Command, _ []string) error {
+		return a.callWithTimeout(cmd, *socket, defaultOSActivateTimeout, func(ctx context.Context, client sodav2.SodaServiceClient) (any, error) {
+			response, err := client.ActivateOSUpdate(ctx, &sodav2.ActivateOSUpdateRequest{ConfirmReboot: confirmReboot})
+			return map[string]any{"reboot_requested": response.GetRebootRequested()}, err
+		})
+	}}
+	activate.Flags().BoolVar(&confirmReboot, "confirm-reboot", false, "confirm immediate maintenance reboot into the staged image")
+	_ = activate.MarkFlagRequired("confirm-reboot")
+	update.AddCommand(activate)
+	osCommand.AddCommand(update)
+	return osCommand
 }
 
 func (a *App) healthCommand(socket *string) *cobra.Command {
@@ -262,7 +313,11 @@ func (a *App) toolchainCommand(socket *string) *cobra.Command {
 }
 
 func (a *App) call(command *cobra.Command, socket string, operation func(context.Context, sodav2.SodaServiceClient) (any, error)) error {
-	ctx, cancel := context.WithTimeout(command.Context(), a.Timeout)
+	return a.callWithTimeout(command, socket, a.Timeout, operation)
+}
+
+func (a *App) callWithTimeout(command *cobra.Command, socket string, timeout time.Duration, operation func(context.Context, sodav2.SodaServiceClient) (any, error)) error {
+	ctx, cancel := context.WithTimeout(command.Context(), timeout)
 	defer cancel()
 	client, closer, err := a.Dial(ctx, socket)
 	if err != nil {
@@ -463,6 +518,35 @@ func toolchainJSON(toolchain *sodav2.ToolchainInstallation) any {
 	return map[string]any{
 		"id": toolchain.Id, "profile": profileName(toolchain.Profile), "version": toolchain.Version,
 		"path": toolchain.Path, "checksum": toolchain.Checksum, "state": jobStateName(toolchain.State),
+	}
+}
+
+func osDeploymentJSON(deployment *sodav2.OSDeployment) any {
+	if deployment == nil {
+		return nil
+	}
+	return map[string]any{
+		"image_reference": deployment.ImageReference, "version": deployment.Version, "digest": deployment.Digest,
+		"architecture": deployment.Architecture, "signature": deployment.Signature,
+		"incompatible": deployment.Incompatible, "download_only": deployment.DownloadOnly,
+	}
+}
+
+func osUpdateStatusJSON(value *sodav2.OSUpdateStatus) any {
+	if value == nil {
+		return nil
+	}
+	return map[string]any{"booted": osDeploymentJSON(value.Booted), "staged": osDeploymentJSON(value.Staged), "read_only": value.ReadOnly}
+}
+
+func osReleaseJSON(value *sodav2.OSRelease) any {
+	if value == nil {
+		return nil
+	}
+	return map[string]any{
+		"image_reference": value.ImageReference, "version": value.Version,
+		"source_revision": value.SourceRevision, "fedora_base_reference": value.FedoraBaseReference,
+		"digest": value.Digest, "state_schema": value.StateSchema, "available": value.Available,
 	}
 }
 

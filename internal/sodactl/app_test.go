@@ -6,6 +6,7 @@ import (
 	"io"
 	"net"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -85,6 +86,22 @@ func (s *recordingServer) GetProjectToolchain(_ context.Context, request *sodav2
 	return &sodav2.GetProjectToolchainResponse{Installation: &sodav2.ToolchainInstallation{Id: "toolchain-1", Profile: sodav2.ToolchainProfile_TOOLCHAIN_PROFILE_GO, Version: "1.25.1", Path: "/opt/go", Checksum: "abc", State: sodav2.JobState_JOB_STATE_READY}, Resolution: &sodav2.ProjectToolchainResolution{ProjectId: request.ProjectId, ToolchainInstallationId: "toolchain-1"}}, s.record(request)
 }
 
+func (s *recordingServer) GetOSUpdateStatus(_ context.Context, request *sodav2.GetOSUpdateStatusRequest) (*sodav2.GetOSUpdateStatusResponse, error) {
+	return &sodav2.GetOSUpdateStatusResponse{Status: testOSUpdateStatus()}, s.record(request)
+}
+
+func (s *recordingServer) CheckOSUpdate(_ context.Context, request *sodav2.CheckOSUpdateRequest) (*sodav2.CheckOSUpdateResponse, error) {
+	return &sodav2.CheckOSUpdateResponse{Release: &sodav2.OSRelease{ImageReference: "registry.soda.local/soda/os@sha256:" + strings.Repeat("b", 64), Version: "0.3.0", Digest: "sha256:" + strings.Repeat("b", 64), StateSchema: 2, Available: true}}, s.record(request)
+}
+
+func (s *recordingServer) StageOSUpdate(_ context.Context, request *sodav2.StageOSUpdateRequest) (*sodav2.StageOSUpdateResponse, error) {
+	return &sodav2.StageOSUpdateResponse{Status: testOSUpdateStatus()}, s.record(request)
+}
+
+func (s *recordingServer) ActivateOSUpdate(_ context.Context, request *sodav2.ActivateOSUpdateRequest) (*sodav2.ActivateOSUpdateResponse, error) {
+	return &sodav2.ActivateOSUpdateResponse{RebootRequested: request.GetConfirmReboot()}, s.record(request)
+}
+
 func emptySource() *sodav2.ProjectSource {
 	return &sodav2.ProjectSource{Source: &sodav2.ProjectSource_Empty{Empty: &sodav2.EmptyProjectSource{}}}
 }
@@ -95,6 +112,11 @@ func testWorktree() *sodav2.Worktree {
 
 func testJob() *sodav2.ProvisioningJob {
 	return &sodav2.ProvisioningJob{Id: "job-1", ProjectId: "project", State: sodav2.JobState_JOB_STATE_INSTALLING}
+}
+
+func testOSUpdateStatus() *sodav2.OSUpdateStatus {
+	digest := "sha256:" + strings.Repeat("a", 64)
+	return &sodav2.OSUpdateStatus{ReadOnly: true, Booted: &sodav2.OSDeployment{ImageReference: "registry.soda.local/soda/os@" + digest, Version: "0.2.0", Digest: digest, Architecture: "arm64", Signature: "containerPolicy"}}
 }
 
 func testApp(t *testing.T, server *recordingServer) (*App, *string) {
@@ -167,6 +189,15 @@ func TestCommandsUseGRPCAndWriteSnakeCaseJSON(t *testing.T) {
 		{"provisioning list", []string{"projects", "provisioning", "list", "--project", "project"}, func(t *testing.T, got any) { require.IsType(t, &sodav2.ListProvisioningJobsRequest{}, got) }},
 		{"deploy key", []string{"projects", "deploy-key", "--project", "project"}, func(t *testing.T, got any) { require.IsType(t, &sodav2.GetDeployKeyRequest{}, got) }},
 		{"toolchain", []string{"projects", "toolchain", "--project", "project"}, func(t *testing.T, got any) { require.IsType(t, &sodav2.GetProjectToolchainRequest{}, got) }},
+		{"os update status", []string{"os", "update", "status"}, func(t *testing.T, got any) { require.IsType(t, &sodav2.GetOSUpdateStatusRequest{}, got) }},
+		{"os update check", []string{"os", "update", "check"}, func(t *testing.T, got any) { require.IsType(t, &sodav2.CheckOSUpdateRequest{}, got) }},
+		{"os update stage", []string{"os", "update", "stage"}, func(t *testing.T, got any) {
+			request := got.(*sodav2.StageOSUpdateRequest)
+			require.Equal(t, "registry.soda.local/soda/os@sha256:"+strings.Repeat("b", 64), request.GetImageReference())
+		}},
+		{"os update activate", []string{"os", "update", "activate", "--confirm-reboot"}, func(t *testing.T, got any) {
+			require.True(t, got.(*sodav2.ActivateOSUpdateRequest).GetConfirmReboot())
+		}},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -183,6 +214,18 @@ func TestCommandsUseGRPCAndWriteSnakeCaseJSON(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestOSActivationRequiresExplicitConfirmationFlagBeforeCallingDaemon(t *testing.T) {
+	app := New()
+	dials := 0
+	app.Dial = func(context.Context, string) (sodav2.SodaServiceClient, io.Closer, error) {
+		dials++
+		return nil, nil, io.ErrUnexpectedEOF
+	}
+	_, err := execute(t, app, "os", "update", "activate")
+	require.ErrorContains(t, err, "required flag(s) \"confirm-reboot\" not set")
+	require.Zero(t, dials)
 }
 
 func TestPersonAddRequiresPasswordBeforeCallingDaemon(t *testing.T) {

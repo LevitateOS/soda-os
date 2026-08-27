@@ -13,6 +13,7 @@ mkdir -p %{buildroot}%{_libexecdir}/soda %{buildroot}%{_bindir} %{buildroot}%{_u
 install -m 0755 %{_sourcedir}/sodad %{buildroot}%{_libexecdir}/soda/sodad
 install -m 0755 %{_sourcedir}/soda-ssh %{buildroot}%{_libexecdir}/soda/soda-ssh
 install -m 0755 %{_sourcedir}/sodactl %{buildroot}%{_bindir}/sodactl
+install -m 0755 %{_sourcedir}/cosign %{buildroot}%{_libexecdir}/soda/cosign
 install -m 0644 %{_sourcedir}/sodad.service %{buildroot}%{_unitdir}/sodad.service
 install -m 0644 %{_sourcedir}/srv-soda-projects.mount %{buildroot}%{_unitdir}/srv-soda-projects.mount
 install -m 0644 %{_sourcedir}/opt-soda-toolchains.mount %{buildroot}%{_unitdir}/opt-soda-toolchains.mount
@@ -45,6 +46,7 @@ systemctl try-reload-or-restart sshd.service >/dev/null 2>&1 || :
 %{_libexecdir}/soda/sodad
 %{_libexecdir}/soda/soda-ssh
 %{_bindir}/sodactl
+%{_libexecdir}/soda/cosign
 %{_unitdir}/sodad.service
 %{_unitdir}/srv-soda-projects.mount
 %{_unitdir}/opt-soda-toolchains.mount

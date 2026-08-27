@@ -24,7 +24,10 @@ import (
 const (
 	bootcBaseReference = "quay.io/fedora/fedora-bootc@sha256:85677d47c03b2e1f8f9a3a19d838023ea154229817d579d4b4da5b87a21c9c1a"
 	bootcPlatform      = "linux/arm64"
+	bootcRuntimeNEVRA  = "bootc-0:1.16.10-1.fc44.aarch64"
 	sodaRegistry       = "registry.soda.local/soda/os"
+	cosignVersion      = "v3.1.2"
+	cosignArm64SHA256  = "90e7ae0b5dfd60f20816b52c012addf7fc055ebcc7bea4ce81c428ca8518c302"
 )
 
 var targetRPMs = []string{"soda-release", "soda-runtime", "soda-cockpit"}
@@ -40,6 +43,17 @@ type lockedPackage struct {
 	NEVRA  string `toml:"nevra"`
 	Source string `toml:"source"`
 	File   string `toml:"file"`
+}
+
+type releaseToolLock struct {
+	Version string              `toml:"version"`
+	Binary  []releaseToolBinary `toml:"binary"`
+}
+
+type releaseToolBinary struct {
+	OS     string `toml:"os"`
+	Arch   string `toml:"arch"`
+	SHA256 string `toml:"sha256"`
 }
 
 type rpmInventory struct {
@@ -136,6 +150,7 @@ func (b *Builder) Check(_ context.Context) error {
 	}
 	seen := make(map[string]bool, len(lock.Package))
 	var local []string
+	bootcLocked := false
 	for _, item := range lock.Package {
 		if item.Name == "" || item.NEVRA == "" || seen[item.Name] {
 			return errors.New("package lock contains an empty or duplicate package")
@@ -146,6 +161,12 @@ func (b *Builder) Check(_ context.Context) error {
 			if item.File != "" {
 				return errors.New("Fedora package lock entries must not name local files")
 			}
+			if item.Name == "bootc" {
+				if item.NEVRA != bootcRuntimeNEVRA {
+					return fmt.Errorf("bootc package lock must pin %s", bootcRuntimeNEVRA)
+				}
+				bootcLocked = true
+			}
 		case "local-rpm":
 			if item.File == "" || filepath.Base(item.File) != item.File {
 				return errors.New("local package lock entries require a plain RPM filename")
@@ -154,6 +175,16 @@ func (b *Builder) Check(_ context.Context) error {
 		default:
 			return fmt.Errorf("unsupported package source %q", item.Source)
 		}
+	}
+	if !bootcLocked {
+		return fmt.Errorf("package lock must include %s from Fedora", bootcRuntimeNEVRA)
+	}
+	toolLock, err := b.releaseToolLock()
+	if err != nil {
+		return err
+	}
+	if toolLock.Version != cosignVersion || toolLock.checksum("linux", "arm64") != cosignArm64SHA256 {
+		return errors.New("release tool lock must pin the approved Cosign v3.1.2 Linux/AArch64 binary")
 	}
 	if strings.Join(local, ",") != strings.Join(targetRPMs, ",") {
 		return errors.New("package lock must contain exactly the three Soda RPM build inputs")
@@ -184,6 +215,9 @@ func (b *Builder) BuildRPMs(ctx context.Context) error {
 	}
 	revision, err := b.sourceRevision(ctx)
 	if err != nil {
+		return err
+	}
+	if err := b.verifyRuntimeCosign(); err != nil {
 		return err
 	}
 	if err := b.buildContainer(ctx); err != nil {
@@ -352,6 +386,7 @@ func (b *Builder) stageRPMSources(build, sources string) error {
 	files := [][2]string{
 		{filepath.Join(build, "sodad"), filepath.Join(sources, "sodad")},
 		{filepath.Join(build, "sodactl"), filepath.Join(sources, "sodactl")},
+		{b.artifactPath("tools", "cosign-linux-arm64"), filepath.Join(sources, "cosign")},
 		{filepath.Join(build, "soda-ssh"), filepath.Join(sources, "soda-ssh")},
 		{filepath.Join(build, "soda-cockpit"), filepath.Join(sources, "soda-cockpit")},
 		{filepath.Join(build, "soda-authd"), filepath.Join(sources, "soda-authd")},
@@ -458,6 +493,38 @@ func (b *Builder) packageLock() (packageLock, error) {
 		return packageLock{}, fmt.Errorf("parse package lock: %w", err)
 	}
 	return lock, nil
+}
+
+func (b *Builder) releaseToolLock() (releaseToolLock, error) {
+	var lock releaseToolLock
+	if _, err := toml.DecodeFile(b.path("packaging/release/tools.lock"), &lock); err != nil {
+		return releaseToolLock{}, fmt.Errorf("parse release tool lock: %w", err)
+	}
+	return lock, nil
+}
+
+func (l releaseToolLock) checksum(osName, architecture string) string {
+	for _, binary := range l.Binary {
+		if binary.OS == osName && binary.Arch == architecture {
+			return binary.SHA256
+		}
+	}
+	return ""
+}
+
+func (b *Builder) verifyRuntimeCosign() error {
+	path := b.artifactPath("tools", "cosign-linux-arm64")
+	if !isFile(path) {
+		return errors.New("pinned Linux/AArch64 Cosign input is missing; run just release-tools")
+	}
+	digest, err := sha256File(path)
+	if err != nil {
+		return err
+	}
+	if digest != cosignArm64SHA256 {
+		return fmt.Errorf("Linux/AArch64 Cosign SHA-256 %s differs from pinned %s", digest, cosignArm64SHA256)
+	}
+	return nil
 }
 
 func (b *Builder) buildContainer(ctx context.Context) error {

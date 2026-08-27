@@ -1,0 +1,232 @@
+package osupdate
+
+import (
+	"context"
+	"errors"
+	"strings"
+	"testing"
+
+	imagebuild "github.com/LevitateOS/soda-os/internal/image"
+	"github.com/stretchr/testify/require"
+)
+
+const (
+	testBootedDigest = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	testUpdateDigest = "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+)
+
+type fakeDiscovery struct {
+	reference string
+	err       error
+}
+
+func (d fakeDiscovery) ResolveCurrent(context.Context) (string, error) { return d.reference, d.err }
+
+type fakeInspector struct {
+	metadata imageMetadata
+	err      error
+	seen     *string
+	calls    *int
+}
+
+func (i fakeInspector) Inspect(_ context.Context, reference string) (imageMetadata, error) {
+	if i.seen != nil {
+		*i.seen = reference
+	}
+	if i.calls != nil {
+		*i.calls++
+	}
+	return i.metadata, i.err
+}
+
+type fakeVerifier struct {
+	err  error
+	seen *string
+}
+
+func (v fakeVerifier) Verify(_ context.Context, reference string) error {
+	if v.seen != nil {
+		*v.seen = reference
+	}
+	return v.err
+}
+
+func TestStatusComesOnlyFromBootcAndPreservesDownloadLock(t *testing.T) {
+	runner := &imagebuild.RecordingRunner{Outputs: map[string]string{
+		"bootc status --format=json --format-version=1": bootcStatusJSON(testBootedDigest, testUpdateDigest, true),
+	}}
+	manager := &Manager{
+		runner: runner, bootc: "bootc", verifier: fakeVerifier{},
+		inspector: fakeInspector{metadata: validMetadata(testUpdateDigest)},
+	}
+	status, err := manager.Status(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, Repository+"@"+testBootedDigest, status.Booted.ImageReference)
+	require.Equal(t, Repository+"@"+testUpdateDigest, status.Staged.ImageReference)
+	require.True(t, status.Staged.DownloadOnly)
+	require.False(t, status.ReadOnly)
+	require.Equal(t, "containerPolicy", status.Staged.Signature)
+	require.Equal(t, "arm64", status.Staged.Architecture)
+	require.Equal(t, []string{"bootc status --format=json --format-version=1"}, commandStrings(runner.Commands))
+}
+
+func TestCheckResolvesOnceVerifiesExactDigestAndRejectsWrongMetadata(t *testing.T) {
+	exact := Repository + "@" + testUpdateDigest
+	seen := ""
+	runner := &imagebuild.RecordingRunner{Outputs: map[string]string{
+		"bootc status --format=json --format-version=1": bootcStatusJSON(testBootedDigest, "", false),
+	}}
+	manager := &Manager{
+		runner: runner, bootc: "bootc", discovery: fakeDiscovery{reference: exact},
+		verifier:  fakeVerifier{seen: &seen},
+		inspector: fakeInspector{seen: &seen, metadata: validMetadata(testUpdateDigest)},
+	}
+	candidate, err := manager.Check(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, exact, seen)
+	require.Equal(t, exact, candidate.ImageReference)
+	require.True(t, candidate.Available)
+	require.Equal(t, StateSchema, candidate.StateSchema)
+
+	metadata := validMetadata(testUpdateDigest)
+	metadata.Architecture = "amd64"
+	manager.inspector = fakeInspector{metadata: metadata}
+	_, err = manager.Check(context.Background())
+	require.ErrorIs(t, err, ErrRejected)
+
+	inspectorCalls := 0
+	manager.verifier = fakeVerifier{err: errors.New("signature rejected")}
+	manager.inspector = fakeInspector{calls: &inspectorCalls, metadata: validMetadata(testUpdateDigest)}
+	_, err = manager.Check(context.Background())
+	require.ErrorIs(t, err, ErrRejected)
+	require.Zero(t, inspectorCalls)
+}
+
+func TestCosignVerifierUsesEmbeddedKeyAndCAForExactDigest(t *testing.T) {
+	exact := Repository + "@" + testUpdateDigest
+	runner := &imagebuild.RecordingRunner{}
+	verifier := cosignVerifier{runner: runner, executable: "/usr/libexec/soda/cosign", ca: DefaultCA, publicKey: DefaultKey}
+	require.NoError(t, verifier.Verify(context.Background(), exact))
+	require.Equal(t, []string{
+		"/usr/libexec/soda/cosign verify --key " + DefaultKey + " --registry-cacert " + DefaultCA + " --insecure-ignore-tlog=true " + exact,
+	}, commandStrings(runner.Commands))
+}
+
+func TestSkopeoInspectorReadsMetadataOnlyAfterVerification(t *testing.T) {
+	exact := Repository + "@" + testUpdateDigest
+	runner := &imagebuild.RecordingRunner{Outputs: map[string]string{
+		"skopeo --override-os linux --override-arch arm64 inspect --no-creds --no-tags --tls-verify=true docker://" + exact: `{"Digest":"` + testUpdateDigest + `","Architecture":"arm64","Os":"linux","Labels":{}}`,
+	}}
+	inspector := skopeoInspector{runner: runner, executable: "skopeo"}
+	metadata, err := inspector.Inspect(context.Background(), exact)
+	require.NoError(t, err)
+	require.Equal(t, testUpdateDigest, metadata.Digest)
+	require.Equal(t, []string{"skopeo --override-os linux --override-arch arm64 inspect --no-creds --no-tags --tls-verify=true docker://" + exact}, commandStrings(runner.Commands))
+}
+
+func TestStageUsesOnlyExactDigestAndRequiresLockedMatchingStatus(t *testing.T) {
+	exact := Repository + "@" + testUpdateDigest
+	runner := &imagebuild.RecordingRunner{Outputs: map[string]string{
+		"bootc status --format=json --format-version=1": bootcStatusJSON(testBootedDigest, testUpdateDigest, true),
+	}}
+	manager := &Manager{
+		runner: runner, bootc: "bootc", verifier: fakeVerifier{},
+		inspector: fakeInspector{metadata: validMetadata(testUpdateDigest)},
+	}
+	status, err := manager.Stage(context.Background(), exact)
+	require.NoError(t, err)
+	require.Equal(t, exact, status.Staged.ImageReference)
+	require.Equal(t, []string{
+		"bootc status --format=json --format-version=1",
+		"bootc switch --download-only --enforce-container-sigpolicy " + exact,
+		"bootc status --format=json --format-version=1",
+	}, commandStrings(runner.Commands))
+
+	for _, invalid := range []string{DiscoveryTag, "quay.io/example/os@" + testUpdateDigest, Repository + "@sha256:short"} {
+		runner.Commands = nil
+		_, err = manager.Stage(context.Background(), invalid)
+		require.ErrorIs(t, err, ErrInvalid)
+		require.Empty(t, runner.Commands)
+	}
+
+	runner.Commands = nil
+	runner.Outputs["bootc status --format=json --format-version=1"] = strings.Replace(bootcStatusJSON(testBootedDigest, testUpdateDigest, true), `"readOnly":false`, `"readOnly":true`, 1)
+	_, err = manager.Stage(context.Background(), exact)
+	require.ErrorIs(t, err, ErrPrecondition)
+	require.Equal(t, []string{"bootc status --format=json --format-version=1"}, commandStrings(runner.Commands))
+
+	runner.Commands = nil
+	runner.Outputs["bootc status --format=json --format-version=1"] = bootcStatusJSON(testBootedDigest, testUpdateDigest, true)
+	manager.verifier = fakeVerifier{err: errors.New("unsigned")}
+	_, err = manager.Stage(context.Background(), exact)
+	require.ErrorIs(t, err, ErrRejected)
+	require.Equal(t, []string{"bootc status --format=json --format-version=1"}, commandStrings(runner.Commands))
+	manager.verifier = fakeVerifier{}
+
+	runner.Commands = nil
+	runner.Outputs["bootc status --format=json --format-version=1"] = bootcStatusJSON(testBootedDigest, testUpdateDigest, false)
+	_, err = manager.Stage(context.Background(), exact)
+	require.ErrorIs(t, err, ErrPrecondition)
+}
+
+func TestActivateRequiresConfirmationAndDownloadedDeployment(t *testing.T) {
+	runner := &imagebuild.RecordingRunner{Outputs: map[string]string{
+		"bootc status --format=json --format-version=1": bootcStatusJSON(testBootedDigest, testUpdateDigest, true),
+	}}
+	manager := &Manager{runner: runner, bootc: "bootc"}
+	require.ErrorIs(t, manager.Activate(context.Background(), false), ErrInvalid)
+	require.Empty(t, runner.Commands)
+	require.NoError(t, manager.Activate(context.Background(), true))
+	require.Equal(t, []string{
+		"bootc status --format=json --format-version=1",
+		"bootc switch --from-downloaded --apply",
+	}, commandStrings(runner.Commands))
+
+	runner.Commands = nil
+	runner.Outputs["bootc status --format=json --format-version=1"] = bootcStatusJSON(testBootedDigest, "", false)
+	require.ErrorIs(t, manager.Activate(context.Background(), true), ErrPrecondition)
+	require.Equal(t, []string{"bootc status --format=json --format-version=1"}, commandStrings(runner.Commands))
+
+	runner.Commands = nil
+	runner.Outputs["bootc status --format=json --format-version=1"] = strings.Replace(bootcStatusJSON(testBootedDigest, testUpdateDigest, true), `"readOnly":false`, `"readOnly":true`, 1)
+	require.ErrorIs(t, manager.Activate(context.Background(), true), ErrPrecondition)
+	require.Equal(t, []string{"bootc status --format=json --format-version=1"}, commandStrings(runner.Commands))
+}
+
+func validMetadata(digest string) imageMetadata {
+	return imageMetadata{
+		Digest: digest, Architecture: "arm64", OS: "linux",
+		Labels: map[string]string{
+			"org.sodaos.state-schema":            "2",
+			"org.opencontainers.image.version":   "0.3.0",
+			"org.opencontainers.image.revision":  strings.Repeat("c", 40),
+			"org.opencontainers.image.base.name": "quay.io/fedora/fedora-bootc@sha256:" + strings.Repeat("d", 64),
+		},
+	}
+}
+
+func bootcStatusJSON(bootedDigest, stagedDigest string, downloadOnly bool) string {
+	deployment := func(digest, version string, locked bool) string {
+		return `{"image":{"image":{"image":"` + Repository + `@` + digest + `","transport":"registry","signature":"containerPolicy"},"version":"` + version + `","imageDigest":"` + digest + `","architecture":"arm64"},"incompatible":false,"downloadOnly":` + strconvBool(locked) + `}`
+	}
+	staged := "null"
+	if stagedDigest != "" {
+		staged = deployment(stagedDigest, "0.3.0", downloadOnly)
+	}
+	return `{"status":{"readOnly":false,"booted":` + deployment(bootedDigest, "0.2.0", false) + `,"staged":` + staged + `}}`
+}
+
+func strconvBool(value bool) string {
+	if value {
+		return "true"
+	}
+	return "false"
+}
+
+func commandStrings(commands []imagebuild.Command) []string {
+	result := make([]string, len(commands))
+	for index := range commands {
+		result[index] = commands[index].String()
+	}
+	return result
+}

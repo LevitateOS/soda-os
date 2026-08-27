@@ -102,6 +102,29 @@ type HostStatus struct {
 	MemoryAvailableBytes uint64             `json:"memory_available_bytes"`
 	Filesystems          []FilesystemStatus `json:"filesystems"`
 }
+type OSDeployment struct {
+	ImageReference string `json:"image_reference"`
+	Version        string `json:"version"`
+	Digest         string `json:"digest"`
+	Architecture   string `json:"architecture"`
+	Signature      string `json:"signature"`
+	Incompatible   bool   `json:"incompatible"`
+	DownloadOnly   bool   `json:"download_only"`
+}
+type OSUpdateStatus struct {
+	Booted   *OSDeployment `json:"booted"`
+	Staged   *OSDeployment `json:"staged"`
+	ReadOnly bool          `json:"read_only"`
+}
+type OSRelease struct {
+	ImageReference      string `json:"image_reference"`
+	Version             string `json:"version"`
+	SourceRevision      string `json:"source_revision"`
+	FedoraBaseReference string `json:"fedora_base_reference"`
+	Digest              string `json:"digest"`
+	StateSchema         uint32 `json:"state_schema"`
+	Available           bool   `json:"available"`
+}
 type CreatePersonRequest struct {
 	Username    string `json:"username"`
 	DisplayName string `json:"display_name"`
@@ -134,6 +157,10 @@ type API interface {
 	Toolchain(context.Context, string) (*ToolchainInstallation, error)
 	DeployKey(context.Context, string) (DeployKey, error)
 	HostStatus(context.Context) (HostStatus, error)
+	OSUpdateStatus(context.Context) (OSUpdateStatus, error)
+	CheckOSUpdate(context.Context) (OSRelease, error)
+	StageOSUpdate(context.Context, string) (OSUpdateStatus, error)
+	ActivateOSUpdate(context.Context, bool) error
 }
 
 type Client struct {
@@ -295,6 +322,42 @@ func (c *Client) HostStatus(ctx context.Context) (HostStatus, error) {
 	return hostStatus(response.GetHost()), nil
 }
 
+func (c *Client) OSUpdateStatus(ctx context.Context) (OSUpdateStatus, error) {
+	response, err := c.service.GetOSUpdateStatus(ctx, &sodav2.GetOSUpdateStatusRequest{})
+	if err != nil {
+		return OSUpdateStatus{}, rpcError(err)
+	}
+	return osUpdateStatus(response.GetStatus()), nil
+}
+
+func (c *Client) CheckOSUpdate(ctx context.Context) (OSRelease, error) {
+	response, err := c.service.CheckOSUpdate(ctx, &sodav2.CheckOSUpdateRequest{})
+	if err != nil {
+		return OSRelease{}, rpcError(err)
+	}
+	value := response.GetRelease()
+	if value == nil {
+		return OSRelease{}, fmt.Errorf("Soda service returned no OS release")
+	}
+	return OSRelease{
+		ImageReference: value.GetImageReference(), Version: value.GetVersion(), SourceRevision: value.GetSourceRevision(),
+		FedoraBaseReference: value.GetFedoraBaseReference(), Digest: value.GetDigest(), StateSchema: value.GetStateSchema(), Available: value.GetAvailable(),
+	}, nil
+}
+
+func (c *Client) StageOSUpdate(ctx context.Context, imageReference string) (OSUpdateStatus, error) {
+	response, err := c.service.StageOSUpdate(ctx, &sodav2.StageOSUpdateRequest{ImageReference: imageReference})
+	if err != nil {
+		return OSUpdateStatus{}, rpcError(err)
+	}
+	return osUpdateStatus(response.GetStatus()), nil
+}
+
+func (c *Client) ActivateOSUpdate(ctx context.Context, confirmReboot bool) error {
+	_, err := c.service.ActivateOSUpdate(ctx, &sodav2.ActivateOSUpdateRequest{ConfirmReboot: confirmReboot})
+	return rpcError(err)
+}
+
 type RPCError struct {
 	Code    codes.Code
 	Message string
@@ -365,6 +428,26 @@ func job(value *sodav2.ProvisioningJob) ProvisioningJob {
 }
 func toolchain(value *sodav2.ToolchainInstallation) ToolchainInstallation {
 	return ToolchainInstallation{ID: value.GetId(), Profile: profileFromProto(value.GetProfile()), Version: value.GetVersion(), Path: value.GetPath(), Checksum: value.GetChecksum(), State: jobState(value.GetState())}
+}
+func osUpdateStatus(value *sodav2.OSUpdateStatus) OSUpdateStatus {
+	if value == nil {
+		return OSUpdateStatus{}
+	}
+	result := OSUpdateStatus{ReadOnly: value.GetReadOnly()}
+	if value.Booted != nil {
+		result.Booted = osDeployment(value.Booted)
+	}
+	if value.Staged != nil {
+		result.Staged = osDeployment(value.Staged)
+	}
+	return result
+}
+func osDeployment(value *sodav2.OSDeployment) *OSDeployment {
+	return &OSDeployment{
+		ImageReference: value.GetImageReference(), Version: value.GetVersion(), Digest: value.GetDigest(),
+		Architecture: value.GetArchitecture(), Signature: value.GetSignature(),
+		Incompatible: value.GetIncompatible(), DownloadOnly: value.GetDownloadOnly(),
+	}
 }
 func hostStatus(value *sodav2.HostStatus) HostStatus {
 	result := HostStatus{Overall: runtimeState(value.GetOverall()), SSHFirewallReady: value.GetSshFirewallReady(), CockpitFirewallReady: value.GetCockpitFirewallReady(), UptimeSeconds: value.GetUptimeSeconds(), MemoryTotalBytes: value.GetMemoryTotalBytes(), MemoryAvailableBytes: value.GetMemoryAvailableBytes()}

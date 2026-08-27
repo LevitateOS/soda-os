@@ -9,14 +9,27 @@ case "$(uname -s):$(uname -m)" in
   *) echo "unsupported release host $(uname -s)/$(uname -m)" >&2; exit 1 ;;
 esac
 
-output=.artifacts/tools/cosign
-mkdir -p "$(dirname "$output")"
-curl --fail --location --output "$output.tmp" "https://github.com/sigstore/cosign/releases/download/v3.1.2/$asset"
-actual=$(shasum -a 256 "$output.tmp" | awk '{print $1}')
-if [ "$actual" != "$checksum" ]; then
-  echo "cosign checksum mismatch: got $actual, expected $checksum" >&2
-  exit 1
+fetch_cosign() {
+  fetch_asset=$1
+  fetch_checksum=$2
+  fetch_output=$3
+  mkdir -p "$(dirname "$fetch_output")"
+  curl --fail --location --output "$fetch_output.tmp" "https://github.com/sigstore/cosign/releases/download/v3.1.2/$fetch_asset"
+  actual=$(shasum -a 256 "$fetch_output.tmp" | awk '{print $1}')
+  if [ "$actual" != "$fetch_checksum" ]; then
+    echo "cosign checksum mismatch for $fetch_asset: got $actual, expected $fetch_checksum" >&2
+    exit 1
+  fi
+  chmod 0755 "$fetch_output.tmp"
+  mv "$fetch_output.tmp" "$fetch_output"
+}
+
+host_output=.artifacts/tools/cosign
+target_output=.artifacts/tools/cosign-linux-arm64
+fetch_cosign "$asset" "$checksum" "$host_output"
+if [ "$asset" = cosign-linux-arm64 ]; then
+  cp "$host_output" "$target_output"
+else
+  fetch_cosign cosign-linux-arm64 90e7ae0b5dfd60f20816b52c012addf7fc055ebcc7bea4ce81c428ca8518c302 "$target_output"
 fi
-chmod 0755 "$output.tmp"
-mv "$output.tmp" "$output"
-"$output" version
+"$host_output" version

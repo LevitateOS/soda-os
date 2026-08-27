@@ -30,6 +30,10 @@ func TestSodaServiceContract(t *testing.T) {
 		"StartProvisioning",
 		"ListProvisioningJobs",
 		"GetHostStatus",
+		"GetOSUpdateStatus",
+		"CheckOSUpdate",
+		"StageOSUpdate",
+		"ActivateOSUpdate",
 	}
 	require.Equal(t, len(wantMethods), service.Methods().Len())
 	for _, methodName := range wantMethods {

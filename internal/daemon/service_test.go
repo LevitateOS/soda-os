@@ -18,6 +18,7 @@ import (
 	"github.com/LevitateOS/soda-os/internal/grpcclient"
 	"github.com/LevitateOS/soda-os/internal/host"
 	"github.com/LevitateOS/soda-os/internal/observe"
+	"github.com/LevitateOS/soda-os/internal/osupdate"
 	"github.com/LevitateOS/soda-os/internal/store"
 	"github.com/google/uuid"
 	"google.golang.org/grpc"
@@ -27,6 +28,25 @@ import (
 	"google.golang.org/grpc/test/bufconn"
 	"gorm.io/gorm"
 )
+
+type fakeOSUpdater struct {
+	status          osupdate.Status
+	candidate       osupdate.Candidate
+	stagedReference string
+	confirmed       bool
+	err             error
+}
+
+func (u *fakeOSUpdater) Status(context.Context) (osupdate.Status, error)   { return u.status, u.err }
+func (u *fakeOSUpdater) Check(context.Context) (osupdate.Candidate, error) { return u.candidate, u.err }
+func (u *fakeOSUpdater) Stage(_ context.Context, reference string) (osupdate.Status, error) {
+	u.stagedReference = reference
+	return u.status, u.err
+}
+func (u *fakeOSUpdater) Activate(_ context.Context, confirmed bool) error {
+	u.confirmed = confirmed
+	return u.err
+}
 
 type fakeHost struct {
 	mu               sync.Mutex
@@ -310,6 +330,35 @@ func TestCommittedHostObservabilityBacksTelemetry(t *testing.T) {
 	}
 	if hostResponse.Host.GetOverall() != sodav2.RuntimeState_RUNTIME_STATE_READY {
 		t.Fatalf("host status = %#v", hostResponse.Host)
+	}
+}
+
+func TestOSUpdateRPCsPreserveExactIdentityAndRebootConfirmation(t *testing.T) {
+	digest := "sha256:" + strings.Repeat("b", 64)
+	exact := osupdate.Repository + "@" + digest
+	updates := &fakeOSUpdater{
+		status:    osupdate.Status{Booted: &osupdate.Deployment{ImageReference: osupdate.Repository + "@sha256:" + strings.Repeat("a", 64), Architecture: "arm64", Signature: "containerPolicy"}},
+		candidate: osupdate.Candidate{ImageReference: exact, Digest: digest, Version: "0.3.0", StateSchema: 2, Available: true},
+	}
+	service := New(Options{OSUpdates: updates})
+	defer service.Close()
+	ctx := context.Background()
+
+	checked, err := service.CheckOSUpdate(ctx, &sodav2.CheckOSUpdateRequest{})
+	if err != nil || checked.GetRelease().GetImageReference() != exact || checked.GetRelease().GetStateSchema() != 2 {
+		t.Fatalf("checked release = %#v, %v", checked, err)
+	}
+	if _, err = service.StageOSUpdate(ctx, &sodav2.StageOSUpdateRequest{ImageReference: exact}); err != nil || updates.stagedReference != exact {
+		t.Fatalf("staged reference = %q, %v", updates.stagedReference, err)
+	}
+	if _, err = service.ActivateOSUpdate(ctx, &sodav2.ActivateOSUpdateRequest{ConfirmReboot: true}); err != nil || !updates.confirmed {
+		t.Fatalf("activation confirmation = %v, %v", updates.confirmed, err)
+	}
+
+	updates.err = osupdate.ErrRejected
+	_, err = service.CheckOSUpdate(ctx, &sodav2.CheckOSUpdateRequest{})
+	if status.Code(err) != codes.FailedPrecondition {
+		t.Fatalf("rejected release status = %v", status.Code(err))
 	}
 }
 

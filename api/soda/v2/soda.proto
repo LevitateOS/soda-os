@@ -32,6 +32,11 @@ service SodaService {
   rpc ListProvisioningJobs(ListProvisioningJobsRequest) returns (ListProvisioningJobsResponse);
 
   rpc GetHostStatus(GetHostStatusRequest) returns (GetHostStatusResponse);
+
+  rpc GetOSUpdateStatus(GetOSUpdateStatusRequest) returns (GetOSUpdateStatusResponse);
+  rpc CheckOSUpdate(CheckOSUpdateRequest) returns (CheckOSUpdateResponse);
+  rpc StageOSUpdate(StageOSUpdateRequest) returns (StageOSUpdateResponse);
+  rpc ActivateOSUpdate(ActivateOSUpdateRequest) returns (ActivateOSUpdateResponse);
 }
 
 enum Role {
@@ -351,4 +356,58 @@ message GetHostStatusRequest {}
 
 message GetHostStatusResponse {
   HostStatus host = 1;
+}
+
+message OSDeployment {
+  string image_reference = 1;
+  string version = 2;
+  string digest = 3;
+  string architecture = 4;
+  string signature = 5;
+  bool incompatible = 6;
+  bool download_only = 7;
+}
+
+message OSUpdateStatus {
+  OSDeployment booted = 1;
+  optional OSDeployment staged = 2;
+  bool read_only = 3;
+}
+
+message OSRelease {
+  string image_reference = 1;
+  string version = 2;
+  string source_revision = 3;
+  string fedora_base_reference = 4;
+  string digest = 5;
+  uint32 state_schema = 6;
+  bool available = 7;
+}
+
+message GetOSUpdateStatusRequest {}
+
+message GetOSUpdateStatusResponse {
+  OSUpdateStatus status = 1;
+}
+
+message CheckOSUpdateRequest {}
+
+message CheckOSUpdateResponse {
+  OSRelease release = 1;
+}
+
+message StageOSUpdateRequest {
+  string image_reference = 1;
+}
+
+message StageOSUpdateResponse {
+  OSUpdateStatus status = 1;
+}
+
+message ActivateOSUpdateRequest {
+  bool confirm_reboot = 1;
+}
+
+message ActivateOSUpdateResponse {
+  bool reboot_requested = 1;
 }

@@ -25,7 +25,7 @@ COPY .artifacts/bootc/trust/cosign.pub /usr/share/soda/release/cosign.pub
 COPY packaging/release/policy.json /etc/containers/policy.json
 COPY packaging/release/registries.d.yaml /etc/containers/registries.d/soda.yaml
 
-RUN dnf -y --setopt=install_weak_deps=False install \
+RUN dnf -y --setopt=install_weak_deps=False --enablerepo=updates-testing install \
       $(cat /var/tmp/soda-lock/fedora-packages.txt) \
       /var/tmp/soda-rpms/*.rpm \
     && dnf clean all \
@@ -42,6 +42,11 @@ RUN dnf -y --setopt=install_weak_deps=False install \
     && systemctl preset sshd.service sodad.service soda-authd.service soda-cockpit.service avahi-daemon.service srv-soda-projects.mount opt-soda-toolchains.mount \
     && systemctl enable sshd.service sodad.service soda-authd.service soda-cockpit.service avahi-daemon.service srv-soda-projects.mount opt-soda-toolchains.mount \
     && systemctl mask bootc-fetch-apply-updates.timer \
+    && test "$(rpm -q --qf '%{NAME}-%{EPOCHNUM}:%{VERSION}-%{RELEASE}.%{ARCH}' bootc)" = "bootc-0:1.16.10-1.fc44.aarch64" \
+    && rpm -q skopeo \
+    && /usr/libexec/soda/cosign version | grep -F 'GitVersion:    v3.1.2' \
+    && bootc switch --help | grep -F -- '--download-only' \
+    && bootc switch --help | grep -F -- '--from-downloaded' \
     && update-ca-trust extract \
     && install -d -m 0755 /usr/share/soda \
     && rpm -qa --qf '%{NAME}-%{EPOCHNUM}:%{VERSION}-%{RELEASE}.%{ARCH}\n' | LC_ALL=C sort > /usr/share/soda/rpm-inventory.txt \

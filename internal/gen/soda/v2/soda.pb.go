@@ -3164,6 +3164,586 @@ func (x *GetHostStatusResponse) GetHost() *HostStatus {
 	return nil
 }
 
+type OSDeployment struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	ImageReference string                 `protobuf:"bytes,1,opt,name=image_reference,json=imageReference,proto3" json:"image_reference,omitempty"`
+	Version        string                 `protobuf:"bytes,2,opt,name=version,proto3" json:"version,omitempty"`
+	Digest         string                 `protobuf:"bytes,3,opt,name=digest,proto3" json:"digest,omitempty"`
+	Architecture   string                 `protobuf:"bytes,4,opt,name=architecture,proto3" json:"architecture,omitempty"`
+	Signature      string                 `protobuf:"bytes,5,opt,name=signature,proto3" json:"signature,omitempty"`
+	Incompatible   bool                   `protobuf:"varint,6,opt,name=incompatible,proto3" json:"incompatible,omitempty"`
+	DownloadOnly   bool                   `protobuf:"varint,7,opt,name=download_only,json=downloadOnly,proto3" json:"download_only,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *OSDeployment) Reset() {
+	*x = OSDeployment{}
+	mi := &file_soda_v2_soda_proto_msgTypes[54]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *OSDeployment) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*OSDeployment) ProtoMessage() {}
+
+func (x *OSDeployment) ProtoReflect() protoreflect.Message {
+	mi := &file_soda_v2_soda_proto_msgTypes[54]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use OSDeployment.ProtoReflect.Descriptor instead.
+func (*OSDeployment) Descriptor() ([]byte, []int) {
+	return file_soda_v2_soda_proto_rawDescGZIP(), []int{54}
+}
+
+func (x *OSDeployment) GetImageReference() string {
+	if x != nil {
+		return x.ImageReference
+	}
+	return ""
+}
+
+func (x *OSDeployment) GetVersion() string {
+	if x != nil {
+		return x.Version
+	}
+	return ""
+}
+
+func (x *OSDeployment) GetDigest() string {
+	if x != nil {
+		return x.Digest
+	}
+	return ""
+}
+
+func (x *OSDeployment) GetArchitecture() string {
+	if x != nil {
+		return x.Architecture
+	}
+	return ""
+}
+
+func (x *OSDeployment) GetSignature() string {
+	if x != nil {
+		return x.Signature
+	}
+	return ""
+}
+
+func (x *OSDeployment) GetIncompatible() bool {
+	if x != nil {
+		return x.Incompatible
+	}
+	return false
+}
+
+func (x *OSDeployment) GetDownloadOnly() bool {
+	if x != nil {
+		return x.DownloadOnly
+	}
+	return false
+}
+
+type OSUpdateStatus struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Booted        *OSDeployment          `protobuf:"bytes,1,opt,name=booted,proto3" json:"booted,omitempty"`
+	Staged        *OSDeployment          `protobuf:"bytes,2,opt,name=staged,proto3,oneof" json:"staged,omitempty"`
+	ReadOnly      bool                   `protobuf:"varint,3,opt,name=read_only,json=readOnly,proto3" json:"read_only,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *OSUpdateStatus) Reset() {
+	*x = OSUpdateStatus{}
+	mi := &file_soda_v2_soda_proto_msgTypes[55]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *OSUpdateStatus) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*OSUpdateStatus) ProtoMessage() {}
+
+func (x *OSUpdateStatus) ProtoReflect() protoreflect.Message {
+	mi := &file_soda_v2_soda_proto_msgTypes[55]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use OSUpdateStatus.ProtoReflect.Descriptor instead.
+func (*OSUpdateStatus) Descriptor() ([]byte, []int) {
+	return file_soda_v2_soda_proto_rawDescGZIP(), []int{55}
+}
+
+func (x *OSUpdateStatus) GetBooted() *OSDeployment {
+	if x != nil {
+		return x.Booted
+	}
+	return nil
+}
+
+func (x *OSUpdateStatus) GetStaged() *OSDeployment {
+	if x != nil {
+		return x.Staged
+	}
+	return nil
+}
+
+func (x *OSUpdateStatus) GetReadOnly() bool {
+	if x != nil {
+		return x.ReadOnly
+	}
+	return false
+}
+
+type OSRelease struct {
+	state               protoimpl.MessageState `protogen:"open.v1"`
+	ImageReference      string                 `protobuf:"bytes,1,opt,name=image_reference,json=imageReference,proto3" json:"image_reference,omitempty"`
+	Version             string                 `protobuf:"bytes,2,opt,name=version,proto3" json:"version,omitempty"`
+	SourceRevision      string                 `protobuf:"bytes,3,opt,name=source_revision,json=sourceRevision,proto3" json:"source_revision,omitempty"`
+	FedoraBaseReference string                 `protobuf:"bytes,4,opt,name=fedora_base_reference,json=fedoraBaseReference,proto3" json:"fedora_base_reference,omitempty"`
+	Digest              string                 `protobuf:"bytes,5,opt,name=digest,proto3" json:"digest,omitempty"`
+	StateSchema         uint32                 `protobuf:"varint,6,opt,name=state_schema,json=stateSchema,proto3" json:"state_schema,omitempty"`
+	Available           bool                   `protobuf:"varint,7,opt,name=available,proto3" json:"available,omitempty"`
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
+}
+
+func (x *OSRelease) Reset() {
+	*x = OSRelease{}
+	mi := &file_soda_v2_soda_proto_msgTypes[56]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *OSRelease) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*OSRelease) ProtoMessage() {}
+
+func (x *OSRelease) ProtoReflect() protoreflect.Message {
+	mi := &file_soda_v2_soda_proto_msgTypes[56]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use OSRelease.ProtoReflect.Descriptor instead.
+func (*OSRelease) Descriptor() ([]byte, []int) {
+	return file_soda_v2_soda_proto_rawDescGZIP(), []int{56}
+}
+
+func (x *OSRelease) GetImageReference() string {
+	if x != nil {
+		return x.ImageReference
+	}
+	return ""
+}
+
+func (x *OSRelease) GetVersion() string {
+	if x != nil {
+		return x.Version
+	}
+	return ""
+}
+
+func (x *OSRelease) GetSourceRevision() string {
+	if x != nil {
+		return x.SourceRevision
+	}
+	return ""
+}
+
+func (x *OSRelease) GetFedoraBaseReference() string {
+	if x != nil {
+		return x.FedoraBaseReference
+	}
+	return ""
+}
+
+func (x *OSRelease) GetDigest() string {
+	if x != nil {
+		return x.Digest
+	}
+	return ""
+}
+
+func (x *OSRelease) GetStateSchema() uint32 {
+	if x != nil {
+		return x.StateSchema
+	}
+	return 0
+}
+
+func (x *OSRelease) GetAvailable() bool {
+	if x != nil {
+		return x.Available
+	}
+	return false
+}
+
+type GetOSUpdateStatusRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetOSUpdateStatusRequest) Reset() {
+	*x = GetOSUpdateStatusRequest{}
+	mi := &file_soda_v2_soda_proto_msgTypes[57]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetOSUpdateStatusRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetOSUpdateStatusRequest) ProtoMessage() {}
+
+func (x *GetOSUpdateStatusRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_soda_v2_soda_proto_msgTypes[57]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetOSUpdateStatusRequest.ProtoReflect.Descriptor instead.
+func (*GetOSUpdateStatusRequest) Descriptor() ([]byte, []int) {
+	return file_soda_v2_soda_proto_rawDescGZIP(), []int{57}
+}
+
+type GetOSUpdateStatusResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Status        *OSUpdateStatus        `protobuf:"bytes,1,opt,name=status,proto3" json:"status,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetOSUpdateStatusResponse) Reset() {
+	*x = GetOSUpdateStatusResponse{}
+	mi := &file_soda_v2_soda_proto_msgTypes[58]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetOSUpdateStatusResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetOSUpdateStatusResponse) ProtoMessage() {}
+
+func (x *GetOSUpdateStatusResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_soda_v2_soda_proto_msgTypes[58]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetOSUpdateStatusResponse.ProtoReflect.Descriptor instead.
+func (*GetOSUpdateStatusResponse) Descriptor() ([]byte, []int) {
+	return file_soda_v2_soda_proto_rawDescGZIP(), []int{58}
+}
+
+func (x *GetOSUpdateStatusResponse) GetStatus() *OSUpdateStatus {
+	if x != nil {
+		return x.Status
+	}
+	return nil
+}
+
+type CheckOSUpdateRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CheckOSUpdateRequest) Reset() {
+	*x = CheckOSUpdateRequest{}
+	mi := &file_soda_v2_soda_proto_msgTypes[59]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CheckOSUpdateRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CheckOSUpdateRequest) ProtoMessage() {}
+
+func (x *CheckOSUpdateRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_soda_v2_soda_proto_msgTypes[59]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CheckOSUpdateRequest.ProtoReflect.Descriptor instead.
+func (*CheckOSUpdateRequest) Descriptor() ([]byte, []int) {
+	return file_soda_v2_soda_proto_rawDescGZIP(), []int{59}
+}
+
+type CheckOSUpdateResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Release       *OSRelease             `protobuf:"bytes,1,opt,name=release,proto3" json:"release,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CheckOSUpdateResponse) Reset() {
+	*x = CheckOSUpdateResponse{}
+	mi := &file_soda_v2_soda_proto_msgTypes[60]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CheckOSUpdateResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CheckOSUpdateResponse) ProtoMessage() {}
+
+func (x *CheckOSUpdateResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_soda_v2_soda_proto_msgTypes[60]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CheckOSUpdateResponse.ProtoReflect.Descriptor instead.
+func (*CheckOSUpdateResponse) Descriptor() ([]byte, []int) {
+	return file_soda_v2_soda_proto_rawDescGZIP(), []int{60}
+}
+
+func (x *CheckOSUpdateResponse) GetRelease() *OSRelease {
+	if x != nil {
+		return x.Release
+	}
+	return nil
+}
+
+type StageOSUpdateRequest struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	ImageReference string                 `protobuf:"bytes,1,opt,name=image_reference,json=imageReference,proto3" json:"image_reference,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *StageOSUpdateRequest) Reset() {
+	*x = StageOSUpdateRequest{}
+	mi := &file_soda_v2_soda_proto_msgTypes[61]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *StageOSUpdateRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*StageOSUpdateRequest) ProtoMessage() {}
+
+func (x *StageOSUpdateRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_soda_v2_soda_proto_msgTypes[61]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use StageOSUpdateRequest.ProtoReflect.Descriptor instead.
+func (*StageOSUpdateRequest) Descriptor() ([]byte, []int) {
+	return file_soda_v2_soda_proto_rawDescGZIP(), []int{61}
+}
+
+func (x *StageOSUpdateRequest) GetImageReference() string {
+	if x != nil {
+		return x.ImageReference
+	}
+	return ""
+}
+
+type StageOSUpdateResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Status        *OSUpdateStatus        `protobuf:"bytes,1,opt,name=status,proto3" json:"status,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *StageOSUpdateResponse) Reset() {
+	*x = StageOSUpdateResponse{}
+	mi := &file_soda_v2_soda_proto_msgTypes[62]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *StageOSUpdateResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*StageOSUpdateResponse) ProtoMessage() {}
+
+func (x *StageOSUpdateResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_soda_v2_soda_proto_msgTypes[62]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use StageOSUpdateResponse.ProtoReflect.Descriptor instead.
+func (*StageOSUpdateResponse) Descriptor() ([]byte, []int) {
+	return file_soda_v2_soda_proto_rawDescGZIP(), []int{62}
+}
+
+func (x *StageOSUpdateResponse) GetStatus() *OSUpdateStatus {
+	if x != nil {
+		return x.Status
+	}
+	return nil
+}
+
+type ActivateOSUpdateRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ConfirmReboot bool                   `protobuf:"varint,1,opt,name=confirm_reboot,json=confirmReboot,proto3" json:"confirm_reboot,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ActivateOSUpdateRequest) Reset() {
+	*x = ActivateOSUpdateRequest{}
+	mi := &file_soda_v2_soda_proto_msgTypes[63]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ActivateOSUpdateRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ActivateOSUpdateRequest) ProtoMessage() {}
+
+func (x *ActivateOSUpdateRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_soda_v2_soda_proto_msgTypes[63]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ActivateOSUpdateRequest.ProtoReflect.Descriptor instead.
+func (*ActivateOSUpdateRequest) Descriptor() ([]byte, []int) {
+	return file_soda_v2_soda_proto_rawDescGZIP(), []int{63}
+}
+
+func (x *ActivateOSUpdateRequest) GetConfirmReboot() bool {
+	if x != nil {
+		return x.ConfirmReboot
+	}
+	return false
+}
+
+type ActivateOSUpdateResponse struct {
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	RebootRequested bool                   `protobuf:"varint,1,opt,name=reboot_requested,json=rebootRequested,proto3" json:"reboot_requested,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *ActivateOSUpdateResponse) Reset() {
+	*x = ActivateOSUpdateResponse{}
+	mi := &file_soda_v2_soda_proto_msgTypes[64]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ActivateOSUpdateResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ActivateOSUpdateResponse) ProtoMessage() {}
+
+func (x *ActivateOSUpdateResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_soda_v2_soda_proto_msgTypes[64]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ActivateOSUpdateResponse.ProtoReflect.Descriptor instead.
+func (*ActivateOSUpdateResponse) Descriptor() ([]byte, []int) {
+	return file_soda_v2_soda_proto_rawDescGZIP(), []int{64}
+}
+
+func (x *ActivateOSUpdateResponse) GetRebootRequested() bool {
+	if x != nil {
+		return x.RebootRequested
+	}
+	return false
+}
+
 var File_soda_v2_soda_proto protoreflect.FileDescriptor
 
 const file_soda_v2_soda_proto_rawDesc = "" +
@@ -3378,7 +3958,42 @@ const file_soda_v2_soda_proto_rawDesc = "" +
 	"\x04jobs\x18\x01 \x03(\v2\x18.soda.v2.ProvisioningJobR\x04jobs\"\x16\n" +
 	"\x14GetHostStatusRequest\"@\n" +
 	"\x15GetHostStatusResponse\x12'\n" +
-	"\x04host\x18\x01 \x01(\v2\x13.soda.v2.HostStatusR\x04host*@\n" +
+	"\x04host\x18\x01 \x01(\v2\x13.soda.v2.HostStatusR\x04host\"\xf4\x01\n" +
+	"\fOSDeployment\x12'\n" +
+	"\x0fimage_reference\x18\x01 \x01(\tR\x0eimageReference\x12\x18\n" +
+	"\aversion\x18\x02 \x01(\tR\aversion\x12\x16\n" +
+	"\x06digest\x18\x03 \x01(\tR\x06digest\x12\"\n" +
+	"\farchitecture\x18\x04 \x01(\tR\farchitecture\x12\x1c\n" +
+	"\tsignature\x18\x05 \x01(\tR\tsignature\x12\"\n" +
+	"\fincompatible\x18\x06 \x01(\bR\fincompatible\x12#\n" +
+	"\rdownload_only\x18\a \x01(\bR\fdownloadOnly\"\x9b\x01\n" +
+	"\x0eOSUpdateStatus\x12-\n" +
+	"\x06booted\x18\x01 \x01(\v2\x15.soda.v2.OSDeploymentR\x06booted\x122\n" +
+	"\x06staged\x18\x02 \x01(\v2\x15.soda.v2.OSDeploymentH\x00R\x06staged\x88\x01\x01\x12\x1b\n" +
+	"\tread_only\x18\x03 \x01(\bR\breadOnlyB\t\n" +
+	"\a_staged\"\x84\x02\n" +
+	"\tOSRelease\x12'\n" +
+	"\x0fimage_reference\x18\x01 \x01(\tR\x0eimageReference\x12\x18\n" +
+	"\aversion\x18\x02 \x01(\tR\aversion\x12'\n" +
+	"\x0fsource_revision\x18\x03 \x01(\tR\x0esourceRevision\x122\n" +
+	"\x15fedora_base_reference\x18\x04 \x01(\tR\x13fedoraBaseReference\x12\x16\n" +
+	"\x06digest\x18\x05 \x01(\tR\x06digest\x12!\n" +
+	"\fstate_schema\x18\x06 \x01(\rR\vstateSchema\x12\x1c\n" +
+	"\tavailable\x18\a \x01(\bR\tavailable\"\x1a\n" +
+	"\x18GetOSUpdateStatusRequest\"L\n" +
+	"\x19GetOSUpdateStatusResponse\x12/\n" +
+	"\x06status\x18\x01 \x01(\v2\x17.soda.v2.OSUpdateStatusR\x06status\"\x16\n" +
+	"\x14CheckOSUpdateRequest\"E\n" +
+	"\x15CheckOSUpdateResponse\x12,\n" +
+	"\arelease\x18\x01 \x01(\v2\x12.soda.v2.OSReleaseR\arelease\"?\n" +
+	"\x14StageOSUpdateRequest\x12'\n" +
+	"\x0fimage_reference\x18\x01 \x01(\tR\x0eimageReference\"H\n" +
+	"\x15StageOSUpdateResponse\x12/\n" +
+	"\x06status\x18\x01 \x01(\v2\x17.soda.v2.OSUpdateStatusR\x06status\"@\n" +
+	"\x17ActivateOSUpdateRequest\x12%\n" +
+	"\x0econfirm_reboot\x18\x01 \x01(\bR\rconfirmReboot\"E\n" +
+	"\x18ActivateOSUpdateResponse\x12)\n" +
+	"\x10reboot_requested\x18\x01 \x01(\bR\x0frebootRequested*@\n" +
 	"\x04Role\x12\x14\n" +
 	"\x10ROLE_UNSPECIFIED\x10\x00\x12\x0e\n" +
 	"\n" +
@@ -3399,7 +4014,7 @@ const file_soda_v2_soda_proto_rawDesc = "" +
 	"\x19RUNTIME_STATE_UNSPECIFIED\x10\x00\x12\x17\n" +
 	"\x13RUNTIME_STATE_READY\x10\x01\x12\x1a\n" +
 	"\x16RUNTIME_STATE_DEGRADED\x10\x02\x12\x1d\n" +
-	"\x19RUNTIME_STATE_UNAVAILABLE\x10\x032\x8a\f\n" +
+	"\x19RUNTIME_STATE_UNAVAILABLE\x10\x032\xdf\x0e\n" +
 	"\vSodaService\x129\n" +
 	"\x06Health\x12\x16.soda.v2.HealthRequest\x1a\x17.soda.v2.HealthResponse\x12K\n" +
 	"\fCreatePerson\x12\x1c.soda.v2.CreatePersonRequest\x1a\x1d.soda.v2.CreatePersonResponse\x12K\n" +
@@ -3419,7 +4034,11 @@ const file_soda_v2_soda_proto_rawDesc = "" +
 	"\x13GetProjectToolchain\x12#.soda.v2.GetProjectToolchainRequest\x1a$.soda.v2.GetProjectToolchainResponse\x12Z\n" +
 	"\x11StartProvisioning\x12!.soda.v2.StartProvisioningRequest\x1a\".soda.v2.StartProvisioningResponse\x12c\n" +
 	"\x14ListProvisioningJobs\x12$.soda.v2.ListProvisioningJobsRequest\x1a%.soda.v2.ListProvisioningJobsResponse\x12N\n" +
-	"\rGetHostStatus\x12\x1d.soda.v2.GetHostStatusRequest\x1a\x1e.soda.v2.GetHostStatusResponseB;Z9github.com/LevitateOS/soda-os/internal/gen/soda/v2;sodav2b\x06proto3"
+	"\rGetHostStatus\x12\x1d.soda.v2.GetHostStatusRequest\x1a\x1e.soda.v2.GetHostStatusResponse\x12Z\n" +
+	"\x11GetOSUpdateStatus\x12!.soda.v2.GetOSUpdateStatusRequest\x1a\".soda.v2.GetOSUpdateStatusResponse\x12N\n" +
+	"\rCheckOSUpdate\x12\x1d.soda.v2.CheckOSUpdateRequest\x1a\x1e.soda.v2.CheckOSUpdateResponse\x12N\n" +
+	"\rStageOSUpdate\x12\x1d.soda.v2.StageOSUpdateRequest\x1a\x1e.soda.v2.StageOSUpdateResponse\x12W\n" +
+	"\x10ActivateOSUpdate\x12 .soda.v2.ActivateOSUpdateRequest\x1a!.soda.v2.ActivateOSUpdateResponseB;Z9github.com/LevitateOS/soda-os/internal/gen/soda/v2;sodav2b\x06proto3"
 
 var (
 	file_soda_v2_soda_proto_rawDescOnce sync.Once
@@ -3434,7 +4053,7 @@ func file_soda_v2_soda_proto_rawDescGZIP() []byte {
 }
 
 var file_soda_v2_soda_proto_enumTypes = make([]protoimpl.EnumInfo, 4)
-var file_soda_v2_soda_proto_msgTypes = make([]protoimpl.MessageInfo, 54)
+var file_soda_v2_soda_proto_msgTypes = make([]protoimpl.MessageInfo, 65)
 var file_soda_v2_soda_proto_goTypes = []any{
 	(Role)(0),                             // 0: soda.v2.Role
 	(ToolchainProfile)(0),                 // 1: soda.v2.ToolchainProfile
@@ -3494,11 +4113,22 @@ var file_soda_v2_soda_proto_goTypes = []any{
 	(*ListProvisioningJobsResponse)(nil),  // 55: soda.v2.ListProvisioningJobsResponse
 	(*GetHostStatusRequest)(nil),          // 56: soda.v2.GetHostStatusRequest
 	(*GetHostStatusResponse)(nil),         // 57: soda.v2.GetHostStatusResponse
-	(*timestamppb.Timestamp)(nil),         // 58: google.protobuf.Timestamp
+	(*OSDeployment)(nil),                  // 58: soda.v2.OSDeployment
+	(*OSUpdateStatus)(nil),                // 59: soda.v2.OSUpdateStatus
+	(*OSRelease)(nil),                     // 60: soda.v2.OSRelease
+	(*GetOSUpdateStatusRequest)(nil),      // 61: soda.v2.GetOSUpdateStatusRequest
+	(*GetOSUpdateStatusResponse)(nil),     // 62: soda.v2.GetOSUpdateStatusResponse
+	(*CheckOSUpdateRequest)(nil),          // 63: soda.v2.CheckOSUpdateRequest
+	(*CheckOSUpdateResponse)(nil),         // 64: soda.v2.CheckOSUpdateResponse
+	(*StageOSUpdateRequest)(nil),          // 65: soda.v2.StageOSUpdateRequest
+	(*StageOSUpdateResponse)(nil),         // 66: soda.v2.StageOSUpdateResponse
+	(*ActivateOSUpdateRequest)(nil),       // 67: soda.v2.ActivateOSUpdateRequest
+	(*ActivateOSUpdateResponse)(nil),      // 68: soda.v2.ActivateOSUpdateResponse
+	(*timestamppb.Timestamp)(nil),         // 69: google.protobuf.Timestamp
 }
 var file_soda_v2_soda_proto_depIdxs = []int32{
 	0,  // 0: soda.v2.Person.role:type_name -> soda.v2.Role
-	58, // 1: soda.v2.SshDeviceKey.created_at:type_name -> google.protobuf.Timestamp
+	69, // 1: soda.v2.SshDeviceKey.created_at:type_name -> google.protobuf.Timestamp
 	6,  // 2: soda.v2.ProjectSource.empty:type_name -> soda.v2.EmptyProjectSource
 	7,  // 3: soda.v2.ProjectSource.git:type_name -> soda.v2.GitProjectSource
 	1,  // 4: soda.v2.Project.profile:type_name -> soda.v2.ToolchainProfile
@@ -3507,7 +4137,7 @@ var file_soda_v2_soda_proto_depIdxs = []int32{
 	2,  // 7: soda.v2.ToolchainInstallation.state:type_name -> soda.v2.JobState
 	2,  // 8: soda.v2.ProvisioningJob.state:type_name -> soda.v2.JobState
 	3,  // 9: soda.v2.ServiceStatus.state:type_name -> soda.v2.RuntimeState
-	58, // 10: soda.v2.HostStatus.sampled_at:type_name -> google.protobuf.Timestamp
+	69, // 10: soda.v2.HostStatus.sampled_at:type_name -> google.protobuf.Timestamp
 	3,  // 11: soda.v2.HostStatus.overall:type_name -> soda.v2.RuntimeState
 	16, // 12: soda.v2.HostStatus.services:type_name -> soda.v2.ServiceStatus
 	17, // 13: soda.v2.HostStatus.interfaces:type_name -> soda.v2.NetworkInterface
@@ -3539,47 +4169,60 @@ var file_soda_v2_soda_proto_depIdxs = []int32{
 	14, // 39: soda.v2.StartProvisioningResponse.job:type_name -> soda.v2.ProvisioningJob
 	14, // 40: soda.v2.ListProvisioningJobsResponse.jobs:type_name -> soda.v2.ProvisioningJob
 	20, // 41: soda.v2.GetHostStatusResponse.host:type_name -> soda.v2.HostStatus
-	21, // 42: soda.v2.SodaService.Health:input_type -> soda.v2.HealthRequest
-	23, // 43: soda.v2.SodaService.CreatePerson:input_type -> soda.v2.CreatePersonRequest
-	25, // 44: soda.v2.SodaService.ImportPerson:input_type -> soda.v2.ImportPersonRequest
-	27, // 45: soda.v2.SodaService.ListPeople:input_type -> soda.v2.ListPeopleRequest
-	29, // 46: soda.v2.SodaService.CreateSshDeviceKey:input_type -> soda.v2.CreateSshDeviceKeyRequest
-	31, // 47: soda.v2.SodaService.ListSshDeviceKeys:input_type -> soda.v2.ListSshDeviceKeysRequest
-	33, // 48: soda.v2.SodaService.RevokeSshDeviceKey:input_type -> soda.v2.RevokeSshDeviceKeyRequest
-	35, // 49: soda.v2.SodaService.CreateProject:input_type -> soda.v2.CreateProjectRequest
-	37, // 50: soda.v2.SodaService.ListProjects:input_type -> soda.v2.ListProjectsRequest
-	39, // 51: soda.v2.SodaService.ListProjectsForPerson:input_type -> soda.v2.ListProjectsForPersonRequest
-	41, // 52: soda.v2.SodaService.AddCollaborator:input_type -> soda.v2.AddCollaboratorRequest
-	43, // 53: soda.v2.SodaService.ListCollaborators:input_type -> soda.v2.ListCollaboratorsRequest
-	46, // 54: soda.v2.SodaService.ListWorktrees:input_type -> soda.v2.ListWorktreesRequest
-	48, // 55: soda.v2.SodaService.GetDeployKey:input_type -> soda.v2.GetDeployKeyRequest
-	50, // 56: soda.v2.SodaService.GetProjectToolchain:input_type -> soda.v2.GetProjectToolchainRequest
-	52, // 57: soda.v2.SodaService.StartProvisioning:input_type -> soda.v2.StartProvisioningRequest
-	54, // 58: soda.v2.SodaService.ListProvisioningJobs:input_type -> soda.v2.ListProvisioningJobsRequest
-	56, // 59: soda.v2.SodaService.GetHostStatus:input_type -> soda.v2.GetHostStatusRequest
-	22, // 60: soda.v2.SodaService.Health:output_type -> soda.v2.HealthResponse
-	24, // 61: soda.v2.SodaService.CreatePerson:output_type -> soda.v2.CreatePersonResponse
-	26, // 62: soda.v2.SodaService.ImportPerson:output_type -> soda.v2.ImportPersonResponse
-	28, // 63: soda.v2.SodaService.ListPeople:output_type -> soda.v2.ListPeopleResponse
-	30, // 64: soda.v2.SodaService.CreateSshDeviceKey:output_type -> soda.v2.CreateSshDeviceKeyResponse
-	32, // 65: soda.v2.SodaService.ListSshDeviceKeys:output_type -> soda.v2.ListSshDeviceKeysResponse
-	34, // 66: soda.v2.SodaService.RevokeSshDeviceKey:output_type -> soda.v2.RevokeSshDeviceKeyResponse
-	36, // 67: soda.v2.SodaService.CreateProject:output_type -> soda.v2.CreateProjectResponse
-	38, // 68: soda.v2.SodaService.ListProjects:output_type -> soda.v2.ListProjectsResponse
-	40, // 69: soda.v2.SodaService.ListProjectsForPerson:output_type -> soda.v2.ListProjectsForPersonResponse
-	42, // 70: soda.v2.SodaService.AddCollaborator:output_type -> soda.v2.AddCollaboratorResponse
-	45, // 71: soda.v2.SodaService.ListCollaborators:output_type -> soda.v2.ListCollaboratorsResponse
-	47, // 72: soda.v2.SodaService.ListWorktrees:output_type -> soda.v2.ListWorktreesResponse
-	49, // 73: soda.v2.SodaService.GetDeployKey:output_type -> soda.v2.GetDeployKeyResponse
-	51, // 74: soda.v2.SodaService.GetProjectToolchain:output_type -> soda.v2.GetProjectToolchainResponse
-	53, // 75: soda.v2.SodaService.StartProvisioning:output_type -> soda.v2.StartProvisioningResponse
-	55, // 76: soda.v2.SodaService.ListProvisioningJobs:output_type -> soda.v2.ListProvisioningJobsResponse
-	57, // 77: soda.v2.SodaService.GetHostStatus:output_type -> soda.v2.GetHostStatusResponse
-	60, // [60:78] is the sub-list for method output_type
-	42, // [42:60] is the sub-list for method input_type
-	42, // [42:42] is the sub-list for extension type_name
-	42, // [42:42] is the sub-list for extension extendee
-	0,  // [0:42] is the sub-list for field type_name
+	58, // 42: soda.v2.OSUpdateStatus.booted:type_name -> soda.v2.OSDeployment
+	58, // 43: soda.v2.OSUpdateStatus.staged:type_name -> soda.v2.OSDeployment
+	59, // 44: soda.v2.GetOSUpdateStatusResponse.status:type_name -> soda.v2.OSUpdateStatus
+	60, // 45: soda.v2.CheckOSUpdateResponse.release:type_name -> soda.v2.OSRelease
+	59, // 46: soda.v2.StageOSUpdateResponse.status:type_name -> soda.v2.OSUpdateStatus
+	21, // 47: soda.v2.SodaService.Health:input_type -> soda.v2.HealthRequest
+	23, // 48: soda.v2.SodaService.CreatePerson:input_type -> soda.v2.CreatePersonRequest
+	25, // 49: soda.v2.SodaService.ImportPerson:input_type -> soda.v2.ImportPersonRequest
+	27, // 50: soda.v2.SodaService.ListPeople:input_type -> soda.v2.ListPeopleRequest
+	29, // 51: soda.v2.SodaService.CreateSshDeviceKey:input_type -> soda.v2.CreateSshDeviceKeyRequest
+	31, // 52: soda.v2.SodaService.ListSshDeviceKeys:input_type -> soda.v2.ListSshDeviceKeysRequest
+	33, // 53: soda.v2.SodaService.RevokeSshDeviceKey:input_type -> soda.v2.RevokeSshDeviceKeyRequest
+	35, // 54: soda.v2.SodaService.CreateProject:input_type -> soda.v2.CreateProjectRequest
+	37, // 55: soda.v2.SodaService.ListProjects:input_type -> soda.v2.ListProjectsRequest
+	39, // 56: soda.v2.SodaService.ListProjectsForPerson:input_type -> soda.v2.ListProjectsForPersonRequest
+	41, // 57: soda.v2.SodaService.AddCollaborator:input_type -> soda.v2.AddCollaboratorRequest
+	43, // 58: soda.v2.SodaService.ListCollaborators:input_type -> soda.v2.ListCollaboratorsRequest
+	46, // 59: soda.v2.SodaService.ListWorktrees:input_type -> soda.v2.ListWorktreesRequest
+	48, // 60: soda.v2.SodaService.GetDeployKey:input_type -> soda.v2.GetDeployKeyRequest
+	50, // 61: soda.v2.SodaService.GetProjectToolchain:input_type -> soda.v2.GetProjectToolchainRequest
+	52, // 62: soda.v2.SodaService.StartProvisioning:input_type -> soda.v2.StartProvisioningRequest
+	54, // 63: soda.v2.SodaService.ListProvisioningJobs:input_type -> soda.v2.ListProvisioningJobsRequest
+	56, // 64: soda.v2.SodaService.GetHostStatus:input_type -> soda.v2.GetHostStatusRequest
+	61, // 65: soda.v2.SodaService.GetOSUpdateStatus:input_type -> soda.v2.GetOSUpdateStatusRequest
+	63, // 66: soda.v2.SodaService.CheckOSUpdate:input_type -> soda.v2.CheckOSUpdateRequest
+	65, // 67: soda.v2.SodaService.StageOSUpdate:input_type -> soda.v2.StageOSUpdateRequest
+	67, // 68: soda.v2.SodaService.ActivateOSUpdate:input_type -> soda.v2.ActivateOSUpdateRequest
+	22, // 69: soda.v2.SodaService.Health:output_type -> soda.v2.HealthResponse
+	24, // 70: soda.v2.SodaService.CreatePerson:output_type -> soda.v2.CreatePersonResponse
+	26, // 71: soda.v2.SodaService.ImportPerson:output_type -> soda.v2.ImportPersonResponse
+	28, // 72: soda.v2.SodaService.ListPeople:output_type -> soda.v2.ListPeopleResponse
+	30, // 73: soda.v2.SodaService.CreateSshDeviceKey:output_type -> soda.v2.CreateSshDeviceKeyResponse
+	32, // 74: soda.v2.SodaService.ListSshDeviceKeys:output_type -> soda.v2.ListSshDeviceKeysResponse
+	34, // 75: soda.v2.SodaService.RevokeSshDeviceKey:output_type -> soda.v2.RevokeSshDeviceKeyResponse
+	36, // 76: soda.v2.SodaService.CreateProject:output_type -> soda.v2.CreateProjectResponse
+	38, // 77: soda.v2.SodaService.ListProjects:output_type -> soda.v2.ListProjectsResponse
+	40, // 78: soda.v2.SodaService.ListProjectsForPerson:output_type -> soda.v2.ListProjectsForPersonResponse
+	42, // 79: soda.v2.SodaService.AddCollaborator:output_type -> soda.v2.AddCollaboratorResponse
+	45, // 80: soda.v2.SodaService.ListCollaborators:output_type -> soda.v2.ListCollaboratorsResponse
+	47, // 81: soda.v2.SodaService.ListWorktrees:output_type -> soda.v2.ListWorktreesResponse
+	49, // 82: soda.v2.SodaService.GetDeployKey:output_type -> soda.v2.GetDeployKeyResponse
+	51, // 83: soda.v2.SodaService.GetProjectToolchain:output_type -> soda.v2.GetProjectToolchainResponse
+	53, // 84: soda.v2.SodaService.StartProvisioning:output_type -> soda.v2.StartProvisioningResponse
+	55, // 85: soda.v2.SodaService.ListProvisioningJobs:output_type -> soda.v2.ListProvisioningJobsResponse
+	57, // 86: soda.v2.SodaService.GetHostStatus:output_type -> soda.v2.GetHostStatusResponse
+	62, // 87: soda.v2.SodaService.GetOSUpdateStatus:output_type -> soda.v2.GetOSUpdateStatusResponse
+	64, // 88: soda.v2.SodaService.CheckOSUpdate:output_type -> soda.v2.CheckOSUpdateResponse
+	66, // 89: soda.v2.SodaService.StageOSUpdate:output_type -> soda.v2.StageOSUpdateResponse
+	68, // 90: soda.v2.SodaService.ActivateOSUpdate:output_type -> soda.v2.ActivateOSUpdateResponse
+	69, // [69:91] is the sub-list for method output_type
+	47, // [47:69] is the sub-list for method input_type
+	47, // [47:47] is the sub-list for extension type_name
+	47, // [47:47] is the sub-list for extension extendee
+	0,  // [0:47] is the sub-list for field type_name
 }
 
 func init() { file_soda_v2_soda_proto_init() }
@@ -3593,13 +4236,14 @@ func file_soda_v2_soda_proto_init() {
 	}
 	file_soda_v2_soda_proto_msgTypes[10].OneofWrappers = []any{}
 	file_soda_v2_soda_proto_msgTypes[16].OneofWrappers = []any{}
+	file_soda_v2_soda_proto_msgTypes[55].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_soda_v2_soda_proto_rawDesc), len(file_soda_v2_soda_proto_rawDesc)),
 			NumEnums:      4,
-			NumMessages:   54,
+			NumMessages:   65,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

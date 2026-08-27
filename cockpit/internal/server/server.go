@@ -58,6 +58,8 @@ type pageData struct {
 	Admin                  bool
 	ProvisioningActive     bool
 	Host                   *soda.HostStatus
+	OSUpdate               *soda.OSUpdateStatus
+	OSRelease              *soda.OSRelease
 	Message                string
 	DeviceKeys             []soda.SSHDeviceKey
 	SelectedDeviceKey      *soda.SSHDeviceKey
@@ -137,6 +139,10 @@ func (s *Server) Handler() http.Handler {
 	protected.HandleFunc("POST /projects/{project_id}/members", s.addCollaborator)
 	protected.HandleFunc("POST /projects/{project_id}/provisioning", s.retryProvisioning)
 	protected.HandleFunc("GET /profiles", s.profiles)
+	protected.HandleFunc("GET /os-update", s.osUpdate)
+	protected.HandleFunc("POST /os-update/check", s.checkOSUpdate)
+	protected.HandleFunc("POST /os-update/stage", s.stageOSUpdate)
+	protected.HandleFunc("POST /os-update/activate", s.activateOSUpdate)
 
 	public.Handle("/", s.requireSession(protected))
 	return securityHeaders(public)
@@ -706,6 +712,82 @@ func (s *Server) profiles(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.render(w, http.StatusOK, "profiles.html", pageData{Title: "Development environments · Soda OS", Version: version.Version, User: user, Projects: projects})
+}
+
+func (s *Server) osUpdate(w http.ResponseWriter, r *http.Request) {
+	if !requireAdmin(w, r) {
+		return
+	}
+	s.renderOSUpdate(w, r, http.StatusOK, "", "", nil)
+}
+
+func (s *Server) checkOSUpdate(w http.ResponseWriter, r *http.Request) {
+	if !requireAdmin(w, r) {
+		return
+	}
+	release, err := s.api.CheckOSUpdate(r.Context())
+	if err != nil {
+		s.renderOSUpdate(w, r, http.StatusUnprocessableEntity, "", err.Error(), nil)
+		return
+	}
+	message := "This host already runs the current signed Soda OS release."
+	if release.Available {
+		message = "A signed Soda OS release is available to stage."
+	}
+	s.renderOSUpdate(w, r, http.StatusOK, message, "", &release)
+}
+
+func (s *Server) stageOSUpdate(w http.ResponseWriter, r *http.Request) {
+	if !requireAdmin(w, r) {
+		return
+	}
+	release, err := s.api.CheckOSUpdate(r.Context())
+	if err != nil {
+		s.renderOSUpdate(w, r, http.StatusUnprocessableEntity, "", err.Error(), nil)
+		return
+	}
+	if !release.Available {
+		s.renderOSUpdate(w, r, http.StatusUnprocessableEntity, "", "No newer signed Soda OS release is available.", &release)
+		return
+	}
+	status, err := s.api.StageOSUpdate(r.Context(), release.ImageReference)
+	if err != nil {
+		s.renderOSUpdate(w, r, http.StatusUnprocessableEntity, "", err.Error(), &release)
+		return
+	}
+	s.renderOSUpdateWithStatus(w, r, http.StatusOK, "Update downloaded and locked. Running work is unchanged; activation still requires confirmation.", "", &release, status)
+}
+
+func (s *Server) activateOSUpdate(w http.ResponseWriter, r *http.Request) {
+	if !requireAdmin(w, r) {
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "invalid activation confirmation", http.StatusBadRequest)
+		return
+	}
+	confirmed := r.FormValue("confirm_reboot") == "yes"
+	if err := s.api.ActivateOSUpdate(r.Context(), confirmed); err != nil {
+		s.renderOSUpdate(w, r, http.StatusUnprocessableEntity, "", err.Error(), nil)
+		return
+	}
+	s.renderOSUpdate(w, r, http.StatusOK, "Maintenance reboot requested.", "", nil)
+}
+
+func (s *Server) renderOSUpdate(w http.ResponseWriter, r *http.Request, status int, message, errorMessage string, release *soda.OSRelease) {
+	value, err := s.api.OSUpdateStatus(r.Context())
+	if err != nil {
+		s.render(w, http.StatusBadGateway, "os_update.html", pageData{Title: "OS update · Soda OS", Version: version.Version, User: currentUser(r), Admin: true, Error: "OS update status is unavailable."})
+		return
+	}
+	s.renderOSUpdateWithStatus(w, r, status, message, errorMessage, release, value)
+}
+
+func (s *Server) renderOSUpdateWithStatus(w http.ResponseWriter, r *http.Request, status int, message, errorMessage string, release *soda.OSRelease, value soda.OSUpdateStatus) {
+	s.render(w, status, "os_update.html", pageData{
+		Title: "OS update · Soda OS", Version: version.Version, User: currentUser(r), Admin: true,
+		OSUpdate: &value, OSRelease: release, Message: message, Error: errorMessage,
+	})
 }
 
 func (s *Server) visibleProjects(ctx context.Context, user soda.Person) ([]soda.Project, error) {

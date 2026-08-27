@@ -12,6 +12,7 @@ import (
 	"github.com/LevitateOS/soda-os/internal/daemon"
 	"github.com/LevitateOS/soda-os/internal/host"
 	"github.com/LevitateOS/soda-os/internal/observe"
+	"github.com/LevitateOS/soda-os/internal/osupdate"
 	"github.com/LevitateOS/soda-os/internal/store"
 	"github.com/LevitateOS/soda-os/internal/toolchain"
 )
@@ -55,7 +56,11 @@ func run(logger *slog.Logger) error {
 		return err
 	}
 	observability := daemon.NewObservability(observer)
-	service := daemon.New(daemon.Options{Store: persistence, Host: system, Toolchains: toolchain.New(toolchains), Telemetry: observability, ProjectsRoot: projects, Logger: logger})
+	updates, err := osupdate.New(osupdate.Options{})
+	if err != nil {
+		return err
+	}
+	service := daemon.New(daemon.Options{Store: persistence, Host: system, Toolchains: toolchain.New(toolchains), Telemetry: observability, OSUpdates: updates, ProjectsRoot: projects, Logger: logger})
 	defer service.Close()
 	if err = service.ReconcileAllAuthorizedKeys(runContext); err != nil {
 		return err

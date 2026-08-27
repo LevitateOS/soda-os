@@ -7,6 +7,11 @@ nevra = "binutils-0:2.46.1-1.fc44.aarch64"
 source = "fedora"
 
 [[package]]
+name = "bootc"
+nevra = "bootc-0:1.16.10-1.fc44.aarch64"
+source = "fedora"
+
+[[package]]
 name = "checkpolicy"
 nevra = "checkpolicy-0:3.11-1.fc44.aarch64"
 source = "fedora"
