@@ -16,5 +16,11 @@ check:
 rpm:
     go run ./cmd/soda-image rpm
 
-oci:
-    go run ./cmd/soda-image oci
+oci registry_ca public_key:
+    go run ./cmd/soda-image oci --registry-ca {{quote(registry_ca)}} --public-key {{quote(public_key)}}
+
+release-tools:
+    ./scripts/fetch-release-tools.sh
+
+publish archive registry_ca public_key signing_key:
+    go run ./cmd/soda-image publish --archive {{quote(archive)}} --registry-ca {{quote(registry_ca)}} --public-key {{quote(public_key)}} --signing-key {{quote(signing_key)}}

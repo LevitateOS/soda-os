@@ -4,8 +4,10 @@ package image
 import (
 	"context"
 	"crypto/sha256"
+	"crypto/x509"
 	"encoding/hex"
 	"encoding/json"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	"io"
@@ -59,9 +61,11 @@ type rpmInventoryItem struct {
 // Builder owns no system state. It writes only disposable OCI build artifacts
 // below Root/.artifacts; BuildImage never pushes or loads an image.
 type Builder struct {
-	Root   string
-	Spec   config.DistroSpec
-	runner Runner
+	Root             string
+	Spec             config.DistroSpec
+	RegistryCA       string
+	SigningPublicKey string
+	runner           Runner
 }
 
 func NewBuilderFromWorkingDirectory(specPath string, runner Runner) (*Builder, error) {
@@ -161,6 +165,9 @@ func (b *Builder) Check(_ context.Context) error {
 		"packaging/rpm/soda-runtime.spec",
 		"packaging/rpm/soda-cockpit.spec",
 		"packaging/sysusers.d/soda.conf",
+		"packaging/release/policy.json",
+		"packaging/release/registries.d.yaml",
+		"packaging/release/tools.lock",
 	} {
 		if !isFile(b.path(path)) {
 			return fmt.Errorf("required bootc build input %s is missing", path)
@@ -226,7 +233,13 @@ func (b *Builder) BuildRPMs(ctx context.Context) error {
 // BuildImage emits a local OCI archive. It deliberately omits --push and
 // --load: publication and local container storage are separate operations.
 func (b *Builder) BuildImage(ctx context.Context) error {
+	if _, err := b.sourceRevision(ctx); err != nil {
+		return err
+	}
 	if err := b.BuildRPMs(ctx); err != nil {
+		return err
+	}
+	if err := b.stageReleaseTrust(); err != nil {
 		return err
 	}
 	revision, err := b.sourceRevision(ctx)
@@ -258,6 +271,39 @@ func (b *Builder) BuildImage(ctx context.Context) error {
 		return err
 	}
 	fmt.Printf("Built OCI archive %s from %s\n", output, b.Spec.Base.Reference)
+	return nil
+}
+
+func (b *Builder) stageReleaseTrust() error {
+	ca, err := os.ReadFile(b.RegistryCA)
+	if err != nil {
+		return fmt.Errorf("read registry CA build input: %w", err)
+	}
+	pool := x509.NewCertPool()
+	if !pool.AppendCertsFromPEM(ca) {
+		return errors.New("registry CA build input is not a PEM certificate")
+	}
+	publicKey, err := os.ReadFile(b.SigningPublicKey)
+	if err != nil {
+		return fmt.Errorf("read signing public key build input: %w", err)
+	}
+	block, rest := pem.Decode(publicKey)
+	if block == nil || block.Type != "PUBLIC KEY" || len(strings.TrimSpace(string(rest))) != 0 {
+		return errors.New("signing public key build input is not one PEM public key")
+	}
+	if _, err := x509.ParsePKIXPublicKey(block.Bytes); err != nil {
+		return fmt.Errorf("parse signing public key build input: %w", err)
+	}
+	destination := b.artifactPath("bootc", "trust")
+	if err := recreate(destination); err != nil {
+		return err
+	}
+	if err := copyFile(b.RegistryCA, filepath.Join(destination, "registry-ca.crt")); err != nil {
+		return err
+	}
+	if err := copyFile(b.SigningPublicKey, filepath.Join(destination, "cosign.pub")); err != nil {
+		return err
+	}
 	return nil
 }
 

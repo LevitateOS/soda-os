@@ -1,11 +1,19 @@
 package image
 
 import (
+	"bytes"
 	"context"
+	"crypto/ed25519"
+	"crypto/rand"
+	"crypto/x509"
+	"crypto/x509/pkix"
+	"encoding/pem"
+	"math/big"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/LevitateOS/soda-os/internal/config"
 	"github.com/stretchr/testify/require"
@@ -38,6 +46,14 @@ func TestDockerCommandUsesPinnedArm64Builder(t *testing.T) {
 		"run", "--rm", "--platform", "linux/arm64", "--volume", "/workspace/soda:/src", "--workdir", "/src",
 		"--env", "SOURCE_DATE_EPOCH=1787825905", "soda-os-rpm-builder:0.2.0", "rpm", "--version",
 	}, command.Args)
+}
+
+func TestOSRunnerWiresOnlyExplicitStdin(t *testing.T) {
+	input := bytes.NewBufferString("administrator input")
+	runner := OSRunner{Stdin: input}
+	command := runner.command(context.Background(), Command{Name: "ignored"})
+	require.Same(t, input, command.Stdin)
+	require.Nil(t, (OSRunner{}).command(context.Background(), Command{Name: "ignored"}).Stdin)
 }
 
 func TestRPMBuildPinsHeaderTimeAndHost(t *testing.T) {
@@ -147,6 +163,11 @@ func TestRuntimeImageEnablesServicesAndMasksAutomaticUpdates(t *testing.T) {
 		"/var/cache/ldconfig/aux-cache",
 		"/var/lib/dnf/repos",
 		"/var/log/dnf5.log",
+		"COPY .artifacts/bootc/trust/registry-ca.crt /usr/share/pki/ca-trust-source/anchors/soda-registry-ca.crt",
+		"COPY .artifacts/bootc/trust/cosign.pub /usr/share/soda/release/cosign.pub",
+		"COPY packaging/release/policy.json /etc/containers/policy.json",
+		"COPY packaging/release/registries.d.yaml /etc/containers/registries.d/soda.yaml",
+		"update-ca-trust extract",
 	} {
 		require.Contains(t, containerfile, expected)
 	}
@@ -162,4 +183,70 @@ func TestRuntimeImageEnablesServicesAndMasksAutomaticUpdates(t *testing.T) {
 	for _, unit := range []string{"sshd.service", "sodad.service", "soda-authd.service", "soda-cockpit.service", "avahi-daemon.service", "srv-soda-projects.mount", "opt-soda-toolchains.mount"} {
 		require.True(t, strings.Contains(string(preset), "enable "+unit))
 	}
+}
+
+func TestStageReleaseTrustAcceptsExplicitCAAndPublicKey(t *testing.T) {
+	root := t.TempDir()
+	caPath, publicKeyPath := writeTestReleaseTrust(t, root)
+	builder := &Builder{Root: root, RegistryCA: caPath, SigningPublicKey: publicKeyPath}
+	require.NoError(t, builder.stageReleaseTrust())
+
+	stagedCA, err := os.ReadFile(filepath.Join(root, ".artifacts", "bootc", "trust", "registry-ca.crt"))
+	require.NoError(t, err)
+	wantCA, err := os.ReadFile(caPath)
+	require.NoError(t, err)
+	require.Equal(t, wantCA, stagedCA)
+	stagedKey, err := os.ReadFile(filepath.Join(root, ".artifacts", "bootc", "trust", "cosign.pub"))
+	require.NoError(t, err)
+	wantKey, err := os.ReadFile(publicKeyPath)
+	require.NoError(t, err)
+	require.Equal(t, wantKey, stagedKey)
+
+	policy, err := os.ReadFile(filepath.Join("..", "..", "packaging", "release", "policy.json"))
+	require.NoError(t, err)
+	require.Contains(t, string(policy), `"registry.soda.local/soda/os"`)
+	require.Contains(t, string(policy), `"type": "sigstoreSigned"`)
+	require.Contains(t, string(policy), `"keyPath": "/usr/share/soda/release/cosign.pub"`)
+	registries, err := os.ReadFile(filepath.Join("..", "..", "packaging", "release", "registries.d.yaml"))
+	require.NoError(t, err)
+	require.Contains(t, string(registries), "use-sigstore-attachments: true")
+}
+
+func TestBuildImageStagesTrustAfterLockedBootcInputs(t *testing.T) {
+	source, err := os.ReadFile("image.go")
+	require.NoError(t, err)
+	buildRPMs := strings.Index(string(source), "if err := b.BuildRPMs(ctx)")
+	stageTrust := strings.Index(string(source), "if err := b.stageReleaseTrust()")
+	require.Greater(t, buildRPMs, -1)
+	require.Greater(t, stageTrust, buildRPMs)
+
+	root := t.TempDir()
+	caPath, publicKeyPath := writeTestReleaseTrust(t, root)
+	bootcInputs := filepath.Join(root, ".artifacts", "bootc")
+	require.NoError(t, recreate(bootcInputs))
+	require.NoError(t, os.WriteFile(filepath.Join(bootcInputs, "expected-packages.txt"), []byte("locked inputs\n"), 0o644))
+	builder := &Builder{Root: root, RegistryCA: caPath, SigningPublicKey: publicKeyPath}
+	require.NoError(t, builder.stageReleaseTrust())
+	require.FileExists(t, filepath.Join(bootcInputs, "expected-packages.txt"))
+	require.FileExists(t, filepath.Join(bootcInputs, "trust", "registry-ca.crt"))
+	require.FileExists(t, filepath.Join(bootcInputs, "trust", "cosign.pub"))
+}
+
+func writeTestReleaseTrust(t *testing.T, root string) (string, string) {
+	t.Helper()
+	publicKey, privateKey, err := ed25519.GenerateKey(rand.Reader)
+	require.NoError(t, err)
+	certificate, err := x509.CreateCertificate(rand.Reader, &x509.Certificate{
+		SerialNumber: big.NewInt(1), Subject: pkix.Name{CommonName: "Soda test registry CA"},
+		NotBefore: time.Unix(1, 0), NotAfter: time.Unix(2, 0), IsCA: true,
+		BasicConstraintsValid: true, KeyUsage: x509.KeyUsageCertSign,
+	}, &x509.Certificate{SerialNumber: big.NewInt(1), Subject: pkix.Name{CommonName: "Soda test registry CA"}, IsCA: true, BasicConstraintsValid: true, KeyUsage: x509.KeyUsageCertSign}, publicKey, privateKey)
+	require.NoError(t, err)
+	caPath := filepath.Join(root, "registry-ca.crt")
+	require.NoError(t, os.WriteFile(caPath, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certificate}), 0o644))
+	encodedPublicKey, err := x509.MarshalPKIXPublicKey(publicKey)
+	require.NoError(t, err)
+	publicKeyPath := filepath.Join(root, "cosign.pub")
+	require.NoError(t, os.WriteFile(publicKeyPath, pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: encodedPublicKey}), 0o644))
+	return caPath, publicKeyPath
 }

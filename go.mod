@@ -4,6 +4,7 @@ go 1.25.10
 
 require (
 	github.com/BurntSushi/toml v1.6.0
+	github.com/google/go-containerregistry v0.21.7
 	github.com/google/uuid v1.6.0
 	github.com/msteinert/pam/v2 v2.1.0
 	github.com/spf13/cobra v1.10.2
@@ -53,7 +54,6 @@ require (
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/gofrs/flock v0.13.0 // indirect
 	github.com/google/cel-go v0.29.2 // indirect
-	github.com/google/go-containerregistry v0.21.7 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/jdx/go-netrc v1.0.0 // indirect
 	github.com/jinzhu/inflection v1.0.0 // indirect

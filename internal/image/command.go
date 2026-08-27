@@ -33,6 +33,7 @@ type Runner interface {
 
 // OSRunner is the production process runner.
 type OSRunner struct {
+	Stdin  io.Reader
 	Stdout io.Writer
 	Stderr io.Writer
 }
@@ -69,6 +70,7 @@ func (r OSRunner) CombinedOutput(ctx context.Context, command Command) (string, 
 func (r OSRunner) command(ctx context.Context, command Command) *exec.Cmd {
 	cmd := exec.CommandContext(ctx, command.Name, command.Args...)
 	cmd.Dir = command.Dir
+	cmd.Stdin = r.Stdin
 	if len(command.Env) > 0 {
 		cmd.Env = append(cmd.Environ(), command.Env...)
 	}
