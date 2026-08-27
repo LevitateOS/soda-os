@@ -118,18 +118,18 @@ source = "fedora"
 
 [[package]]
 name = "soda-release"
-nevra = "soda-release-0:0.3.0-1.fc44.noarch"
+nevra = "soda-release-0:0.3.1-1.fc44.noarch"
 source = "local-rpm"
-file = "soda-release-0.3.0-1.fc44.noarch.rpm"
+file = "soda-release-0.3.1-1.fc44.noarch.rpm"
 
 [[package]]
 name = "soda-runtime"
-nevra = "soda-runtime-0:0.3.0-1.fc44.aarch64"
+nevra = "soda-runtime-0:0.3.1-1.fc44.aarch64"
 source = "local-rpm"
-file = "soda-runtime-0.3.0-1.fc44.aarch64.rpm"
+file = "soda-runtime-0.3.1-1.fc44.aarch64.rpm"
 
 [[package]]
 name = "soda-cockpit"
-nevra = "soda-cockpit-0:0.3.0-1.fc44.aarch64"
+nevra = "soda-cockpit-0:0.3.1-1.fc44.aarch64"
 source = "local-rpm"
-file = "soda-cockpit-0.3.0-1.fc44.aarch64.rpm"
+file = "soda-cockpit-0.3.1-1.fc44.aarch64.rpm"

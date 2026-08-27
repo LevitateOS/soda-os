@@ -1,5 +1,5 @@
 Name:           soda-runtime
-Version:        0.3.0
+Version:        0.3.1
 Release:        1%{?dist}
 Summary:        Soda OS project runtime
 License:        MIT OR Apache-2.0

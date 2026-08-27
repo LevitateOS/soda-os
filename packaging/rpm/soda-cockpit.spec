@@ -1,5 +1,5 @@
 Name:           soda-cockpit
-Version:        0.3.0
+Version:        0.3.1
 Release:        1%{?dist}
 Summary:        Soda OS development cockpit
 License:        MIT OR Apache-2.0
