@@ -1,0 +1,13 @@
+[Unit]
+Description=Soda OS persistent toolchain storage
+After=systemd-tmpfiles-setup.service
+Before=sodad.service
+
+[Mount]
+What=/var/lib/soda/toolchains
+Where=/opt/soda/toolchains
+Type=none
+Options=bind
+
+[Install]
+WantedBy=multi-user.target

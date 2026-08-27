@@ -1,0 +1,13 @@
+[Unit]
+Description=Soda OS persistent project storage
+After=systemd-tmpfiles-setup.service
+Before=sodad.service
+
+[Mount]
+What=/var/lib/soda/projects
+Where=/srv/soda/projects
+Type=none
+Options=bind
+
+[Install]
+WantedBy=multi-user.target

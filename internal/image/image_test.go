@@ -110,6 +110,61 @@ func TestRuntimePackagesRootOwnedProjectAuthorizedKeys(t *testing.T) {
 	require.Contains(t, spec, "restorecon -RF /etc/soda/authorized_keys")
 }
 
+func TestRuntimePackagesPersistMutableStateBehindStablePaths(t *testing.T) {
+	specContents, err := os.ReadFile(filepath.Join("..", "..", "packaging", "rpm", "soda-runtime.spec"))
+	require.NoError(t, err)
+	spec := string(specContents)
+	require.Contains(t, spec, "%{_tmpfilesdir}/soda.conf")
+	require.Contains(t, spec, "srv-soda-projects.mount")
+	require.Contains(t, spec, "opt-soda-toolchains.mount")
+	require.Contains(t, spec, "%{_presetdir}/90-soda.preset")
+	require.Contains(t, spec, "%systemd_post sodad.service srv-soda-projects.mount opt-soda-toolchains.mount")
+	require.Contains(t, spec, "%systemd_preun sodad.service srv-soda-projects.mount opt-soda-toolchains.mount")
+	require.NotContains(t, spec, "install -d -m 0755 /srv/soda")
+	require.NotContains(t, spec, "install -d -m 0755 /opt/soda")
+	require.Contains(t, spec, "-e /home /var/lib/soda/projects")
+	require.Contains(t, spec, "-t var_log_t '/var/log/soda(/.*)?'")
+
+	tmpfilesContents, err := os.ReadFile(filepath.Join("..", "..", "packaging", "tmpfiles.d", "soda.conf"))
+	require.NoError(t, err)
+	tmpfiles := string(tmpfilesContents)
+	for _, path := range []string{"/var/lib/soda/projects", "/var/lib/soda/toolchains", "/srv/soda/projects", "/opt/soda/toolchains", "/var/log/soda"} {
+		require.Contains(t, tmpfiles, path)
+	}
+
+	projectsMount, err := os.ReadFile(filepath.Join("..", "..", "packaging", "systemd", "srv-soda-projects.mount"))
+	require.NoError(t, err)
+	require.Contains(t, string(projectsMount), "What=/var/lib/soda/projects")
+	require.Contains(t, string(projectsMount), "Where=/srv/soda/projects")
+	require.Contains(t, string(projectsMount), "Options=bind")
+	require.Contains(t, string(projectsMount), "After=systemd-tmpfiles-setup.service")
+
+	toolchainsMount, err := os.ReadFile(filepath.Join("..", "..", "packaging", "systemd", "opt-soda-toolchains.mount"))
+	require.NoError(t, err)
+	require.Contains(t, string(toolchainsMount), "What=/var/lib/soda/toolchains")
+	require.Contains(t, string(toolchainsMount), "Where=/opt/soda/toolchains")
+	require.Contains(t, string(toolchainsMount), "Options=bind")
+
+	presetContents, err := os.ReadFile(filepath.Join("..", "..", "packaging", "systemd", "90-soda.preset"))
+	require.NoError(t, err)
+	preset := string(presetContents)
+	require.Contains(t, preset, "enable srv-soda-projects.mount")
+	require.Contains(t, preset, "enable opt-soda-toolchains.mount")
+
+	sodadContents, err := os.ReadFile(filepath.Join("..", "..", "packaging", "systemd", "sodad.service"))
+	require.NoError(t, err)
+	sodad := string(sodadContents)
+	require.Contains(t, sodad, "Requires=srv-soda-projects.mount opt-soda-toolchains.mount")
+	require.Contains(t, sodad, "StateDirectory=soda")
+	require.Contains(t, sodad, "LogsDirectory=soda/sodad")
+
+	for _, kickstartPath := range []string{"interactive.ks", "automated.ks"} {
+		kickstartContents, err := os.ReadFile(filepath.Join("..", "..", "packaging", "kickstart", kickstartPath))
+		require.NoError(t, err)
+		require.Contains(t, string(kickstartContents), "systemctl enable sshd sodad soda-authd soda-cockpit avahi-daemon srv-soda-projects.mount opt-soda-toolchains.mount")
+	}
+}
+
 func TestReplaceFileReplacesReadOnlyExtractedFile(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "grub.cfg")
 	require.NoError(t, os.WriteFile(path, []byte("upstream"), 0o444))

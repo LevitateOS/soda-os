@@ -15,6 +15,10 @@ ProtectSystem=strict
 ProtectHome=true
 StateDirectory=soda/certs
 StateDirectoryMode=0750
+LogsDirectory=soda/soda-cockpit
+LogsDirectoryMode=0750
+StandardOutput=append:/var/log/soda/soda-cockpit/service.log
+StandardError=append:/var/log/soda/soda-cockpit/service.log
 ReadWritePaths=/var/lib/soda/certs
 UMask=0027
 

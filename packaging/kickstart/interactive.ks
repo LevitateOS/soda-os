@@ -22,5 +22,5 @@ sudo
 %end
 
 %post --erroronfail
-/usr/bin/systemctl enable sshd sodad soda-authd soda-cockpit avahi-daemon
+/usr/bin/systemctl enable sshd sodad soda-authd soda-cockpit avahi-daemon srv-soda-projects.mount opt-soda-toolchains.mount
 %end

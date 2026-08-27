@@ -49,9 +49,22 @@ Linux accounts ownership of project files.
 `sodad` exposes gRPC only through `/run/soda/sodad.sock`. Schema version 2
 stores people, SSH device keys, projects, memberships, worktrees, development
 environment resolutions, and project-setup jobs in `/var/lib/soda/soda.db`.
-It intentionally requires a fresh database. Project repositories live under
-`/srv/soda/projects` and publisher-resolved tools are cached under
-`/opt/soda/toolchains`.
+It intentionally requires a fresh database. Cockpit certificates also live in
+`/var/lib/soda/certs`.
+
+Mutable project repositories and toolchain caches physically live at
+`/var/lib/soda/projects` and `/var/lib/soda/toolchains`. Image-owned systemd
+bind mounts retain the stable session paths `/srv/soda/projects` and
+`/opt/soda/toolchains`; the forced SSH gateway and project account homes keep
+using those visible paths. `tmpfiles.d` creates the state and mount-point
+directories at boot rather than shipping mutable Soda state in the image.
+Soda service logs are written below `/var/log/soda`.
+
+Soda-created Linux users and their PAM passwords remain system account state;
+SSH host keys remain under `/etc/ssh`; and per-project forced-command key files
+remain root-owned under `/etc/soda/authorized_keys`. Those paths, the SQLite
+database, certificates, logs, projects, and toolchains are persistent host
+state, not container state.
 
 The daemon samples host health for the status page. Project and account pages
 show current state when requested; the daemon does not poll workspace Git state
