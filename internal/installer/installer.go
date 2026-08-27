@@ -103,7 +103,8 @@ func (b *Builder) ValidateISO(ctx context.Context, isoPath, reference, installer
 	if err := b.copyToStorage(ctx, lock, volumeName, installerArchive, installerTag); err != nil {
 		return Provenance{}, err
 	}
-	if err := b.inspectISO(ctx, lock, volumeName, installerTag, isoPath, inspectDir, reference); err != nil {
+	payloadTag := payloadStagingReference(reference)
+	if err := b.inspectISO(ctx, lock, volumeName, installerTag, isoPath, inspectDir, reference, payloadTag); err != nil {
 		return Provenance{}, err
 	}
 	return ValidateProvenance(isoPath, reference)
@@ -195,6 +196,7 @@ func (b *Builder) Build(ctx context.Context, options Options) (Result, error) {
 		return Result{}, err
 	}
 	installerTag := "localhost/soda-installer:" + b.Spec.Identity.Version
+	payloadTag := payloadStagingReference(options.ImageReference)
 	if err := b.runner.Run(ctx, imagebuild.Command{Dir: b.Root, Name: "docker", Args: []string{
 		"buildx", "build", "--platform", Platform, "--file", "packaging/installer/Containerfile",
 		"--tag", installerTag, "--provenance=false", "--output", "type=oci,dest=" + installerArchive + ",oci-mediatypes=true", ".",
@@ -203,7 +205,7 @@ func (b *Builder) Build(ctx context.Context, options Options) (Result, error) {
 	}
 	for _, item := range []struct{ archive, reference string }{
 		{installerArchive, installerTag},
-		{options.ArchivePath, options.ImageReference},
+		{options.ArchivePath, payloadTag},
 	} {
 		if err := b.copyToStorage(ctx, lock, volumeName, item.archive, item.reference); err != nil {
 			return Result{}, err
@@ -219,7 +221,7 @@ func (b *Builder) Build(ctx context.Context, options Options) (Result, error) {
 	args := b.containerArgs(lock, volumeName, outputDir)
 	args = append(args,
 		"build", "--arch", "aarch64", "--bootc-ref", installerTag,
-		"--bootc-installer-payload-ref", options.ImageReference,
+		"--bootc-installer-payload-ref", payloadTag,
 		"--bootc-default-fs", "ext4", "--output-dir", "/output",
 		"--output-name", outputName, "bootc-generic-iso",
 	)
@@ -230,7 +232,7 @@ func (b *Builder) Build(ctx context.Context, options Options) (Result, error) {
 	if !regularFile(isoPath) {
 		return Result{}, fmt.Errorf("image-builder did not create %s", isoPath)
 	}
-	if err := b.inspectISO(ctx, lock, volumeName, installerTag, isoPath, inspectDir, options.ImageReference); err != nil {
+	if err := b.inspectISO(ctx, lock, volumeName, installerTag, isoPath, inspectDir, options.ImageReference, payloadTag); err != nil {
 		return Result{}, err
 	}
 	digest, err := fileSHA256(isoPath)
@@ -324,7 +326,7 @@ func (b *Builder) containerArgs(lock toolLock, volumeName, outputDir string) []s
 		"--volume", outputDir + ":/output", lock.Reference}
 }
 
-func (b *Builder) inspectISO(ctx context.Context, lock toolLock, volumeName, installerTag, isoPath, inspectDir, reference string) error {
+func (b *Builder) inspectISO(ctx context.Context, lock toolLock, volumeName, installerTag, isoPath, inspectDir, reference, payloadTag string) error {
 	outer := []string{"run", "--rm", "--platform", Platform, "--privileged", "--entrypoint", "podman",
 		"--volume", volumeName + ":/var/lib/containers/storage", "--volume", isoPath + ":/input/soda.iso:ro",
 		"--volume", inspectDir + ":/inspect", lock.Reference,
@@ -353,8 +355,8 @@ func (b *Builder) inspectISO(ctx context.Context, lock toolLock, volumeName, ins
 	if err != nil {
 		return fmt.Errorf("read embedded container storage metadata: %w", err)
 	}
-	if !strings.Contains(string(storageMetadata), reference) {
-		return errors.New("ISO container storage does not contain the exact Soda payload reference")
+	if err := validateEmbeddedPayload(storageMetadata, payloadTag, reference); err != nil {
+		return err
 	}
 	isoConfig, err := os.ReadFile(filepath.Join(inspectDir, "root", "usr/lib/image-builder/bootc/iso.yaml"))
 	if err != nil {
@@ -368,6 +370,36 @@ func (b *Builder) inspectISO(ctx context.Context, lock toolLock, volumeName, ins
 		return err
 	}
 	return nil
+}
+
+func payloadStagingReference(reference string) string {
+	return Repository + ":payload-" + strings.TrimPrefix(reference, Repository+"@sha256:")
+}
+
+func validateEmbeddedPayload(metadata []byte, payloadTag, reference string) error {
+	var images []struct {
+		Names  []string `json:"names"`
+		Digest string   `json:"digest"`
+	}
+	if err := json.Unmarshal(metadata, &images); err != nil {
+		return fmt.Errorf("decode embedded container storage metadata: %w", err)
+	}
+	manifestDigest := "sha256:" + strings.TrimPrefix(reference, Repository+"@sha256:")
+	for _, image := range images {
+		if containsString(image.Names, payloadTag) && image.Digest == manifestDigest {
+			return nil
+		}
+	}
+	return errors.New("ISO container storage does not contain the staged Soda payload and exact manifest digest")
+}
+
+func containsString(values []string, expected string) bool {
+	for _, value := range values {
+		if value == expected {
+			return true
+		}
+	}
+	return false
 }
 
 func validateISOConfig(actual, expected []byte) error {

@@ -34,6 +34,28 @@ func TestKickstartKeepsStockInteractiveFlowAndExactDigest(t *testing.T) {
 	require.NotContains(t, contents, "user --name")
 }
 
+func TestPayloadStagingReferenceUsesFullExactDigestOnlyForImageBuilderStorage(t *testing.T) {
+	expected := Repository + ":payload-" + strings.TrimPrefix(testExactImage, Repository+"@sha256:")
+	require.Equal(t, expected, payloadStagingReference(testExactImage))
+	require.NotEqual(t, testExactImage, payloadStagingReference(testExactImage))
+}
+
+func TestValidateEmbeddedPayloadRequiresStagingTagAndOriginalManifestDigest(t *testing.T) {
+	payloadTag := payloadStagingReference(testExactImage)
+	manifestDigest := strings.TrimPrefix(testExactImage, Repository+"@")
+	metadata := []byte(`[{"names":["` + payloadTag + `"],"digest":"` + manifestDigest + `"}]`)
+	require.NoError(t, validateEmbeddedPayload(metadata, payloadTag, testExactImage))
+
+	malformed := []byte(`[{"names":`)
+	require.ErrorContains(t, validateEmbeddedPayload(malformed, payloadTag, testExactImage), "decode embedded container storage metadata")
+
+	missingTag := []byte(`[{"names":["` + testExactImage + `"],"digest":"` + manifestDigest + `"}]`)
+	require.EqualError(t, validateEmbeddedPayload(missingTag, payloadTag, testExactImage), "ISO container storage does not contain the staged Soda payload and exact manifest digest")
+
+	wrongDigest := []byte(`[{"names":["` + payloadTag + `"],"digest":"sha256:` + strings.Repeat("b", 64) + `"}]`)
+	require.EqualError(t, validateEmbeddedPayload(wrongDigest, payloadTag, testExactImage), "ISO container storage does not contain the staged Soda payload and exact manifest digest")
+}
+
 func TestISOConfigRequiresExactStage2KernelAndInitrdContract(t *testing.T) {
 	expected := []byte("label: \"SodaOS-Installer\"\ngrub2:\n  default: 0\n  timeout: 10\n  entries:\n    - name: \"Install Soda OS\"\n      linux: \"/images/pxeboot/vmlinuz inst.stage2=hd:LABEL=SodaOS-Installer console=tty0\"\n      initrd: \"/images/pxeboot/initrd.img\"\n")
 	require.NoError(t, validateISOConfig(expected, expected))
@@ -143,6 +165,10 @@ platform = "linux/arm64"
 	}
 	require.Contains(t, commands, "docker volume create "+volumeName)
 	require.Contains(t, commands, "docker volume rm --force "+volumeName)
+	payloadTag := payloadStagingReference(options.ImageReference)
+	require.Contains(t, strings.Join(commands, "\n"), "containers-storage:"+payloadTag)
+	require.Contains(t, strings.Join(commands, "\n"), "--bootc-installer-payload-ref "+payloadTag)
+	require.NotContains(t, strings.Join(commands, "\n"), "--bootc-installer-payload-ref "+options.ImageReference)
 	require.NotContains(t, strings.Join(commands, "\n"), root+"/.artifacts/installer/containers-storage:/var/lib/containers/storage")
 	require.Contains(t, strings.Join(commands, "\n"), volumeName+":/var/lib/containers/storage")
 }
