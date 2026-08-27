@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "artifact": {
+    "filename": "Fedora-bootc-44.20260826.0-aarch64.oci-archive.tar",
+    "format": "OCI Image Layout 1.0.0 tar archive with Docker manifest.json compatibility metadata",
+    "bytes": 968966656,
+    "sha256": "8763c4813eb4f06ef3cc08c33e205245c850feef6aa77b3c4192c90d01cf8ffb",
+    "tracked": false
+  },
+  "source": {
+    "official_project": "https://gitlab.com/fedora/bootc/base-images",
+    "registry_repository": "quay.io/fedora/fedora-bootc",
+    "requested_tag": "44",
+    "resolved_reference": "quay.io/fedora/fedora-bootc@sha256:85677d47c03b2e1f8f9a3a19d838023ea154229817d579d4b4da5b87a21c9c1a",
+    "platform": "linux/arm64",
+    "manifest_digest": "sha256:85677d47c03b2e1f8f9a3a19d838023ea154229817d579d4b4da5b87a21c9c1a",
+    "config_digest": "sha256:c4603aa4d0fc9cac0eba42bf4be70d8277569faa3632f42e1bcbb80a8d5582ca",
+    "image_version": "44.20260826.0",
+    "image_created": "2026-08-26T10:07:18Z",
+    "containers_bootc_label": "1",
+    "pulled_at": "2026-08-27T09:08:05Z"
+  },
+  "verification": {
+    "registry_pull": "pulled by immutable manifest digest for linux/arm64; Docker reported the same digest",
+    "archive_layout": "oci-layout declares imageLayoutVersion 1.0.0 and index.json points to the same manifest digest",
+    "archive_checksum": "local SHA-256 recorded in CHECKSUM",
+    "upstream_signature": "not verified: Fedora's bootc base-image project identifies the Quay repository as official, but no bootc-specific detached signed checksum or documented container-signing verification was available; Quay's OCI Referrers response for this manifest contained no signature artifacts at pull time"
+  },
+  "representation": {
+    "canonical_base_input": "OCI container image",
+    "iso": "not used: Fedora's standard bootc base is published as an OCI image; an ISO is a downstream installation artifact to be generated from a Soda-owned bootc image"
+  }
+}

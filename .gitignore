@@ -1,4 +1,5 @@
 /isos/**/*.iso
+/isos/**/*.oci-archive.tar
 .DS_Store
 .artifacts/
 target/
