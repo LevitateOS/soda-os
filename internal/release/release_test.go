@@ -75,6 +75,70 @@ func TestPublishUsesExactDigestAndUpdatesCurrentLast(t *testing.T) {
 	require.Empty(t, record.ISOChecksum)
 }
 
+func TestPublishDeferredSignsExactImageWithoutRecordOrCurrent(t *testing.T) {
+	img := testImage(t, true)
+	archive := writeOCIArchive(t, img)
+	events := []string{}
+	registry := &fakeRegistry{image: img, events: &events}
+	publisher := &Publisher{Spec: testSpec(), Registry: registry, Signer: &fakeSigner{events: &events}}
+	output := filepath.Join(t.TempDir(), "deferred-release")
+	options := testOptions(t, archive, output)
+	options.DeferCurrent = true
+
+	result, err := publisher.Publish(context.Background(), options)
+	require.NoError(t, err)
+	digest, err := img.Digest()
+	require.NoError(t, err)
+	exact := Repository + "@" + digest.String()
+	require.Equal(t, exact, result.ImageReference)
+	require.Empty(t, result.RecordPath)
+	require.Empty(t, result.BundlePath)
+	require.NoDirExists(t, output)
+	require.Equal(t, []string{
+		"cosign-version",
+		"push:" + Repository + ":0.2.0",
+		"resolve:" + Repository + ":0.2.0",
+		"sign-image:" + exact,
+		"verify-image:" + exact,
+	}, events)
+}
+
+func TestPublishWithISOBindsExactDigestAndUpdatesCurrentLast(t *testing.T) {
+	img := testImage(t, true)
+	archive := writeOCIArchive(t, img)
+	digest, err := img.Digest()
+	require.NoError(t, err)
+	exact := Repository + "@" + digest.String()
+	iso := writeInstallerISO(t, exact)
+	events := []string{}
+	registry := &fakeRegistry{image: img, events: &events}
+	validator := &fakeISOValidator{}
+	publisher := &Publisher{Spec: testSpec(), Registry: registry, Signer: &fakeSigner{events: &events}, ISOValidator: validator}
+	options := testOptions(t, archive, t.TempDir())
+	options.ISOPath = iso
+
+	result, err := publisher.Publish(context.Background(), options)
+	require.NoError(t, err)
+	require.Equal(t, 1, validator.calls)
+	require.Equal(t, []string{
+		"cosign-version",
+		"push:" + Repository + ":0.2.0",
+		"resolve:" + Repository + ":0.2.0",
+		"sign-image:" + exact,
+		"verify-image:" + exact,
+		"sign-blob",
+		"verify-blob",
+		"push:" + Repository + ":current",
+	}, events)
+
+	contents, err := os.ReadFile(result.RecordPath)
+	require.NoError(t, err)
+	var record Record
+	require.NoError(t, json.Unmarshal(contents, &record))
+	require.Equal(t, exact, record.SodaImageReference)
+	require.Equal(t, sha256Hex([]byte("installer bytes")), record.ISOChecksum)
+}
+
 func TestPublishRejectsCanonicalRegistryDigestMismatchBeforeSigning(t *testing.T) {
 	img := testImage(t, true)
 	events := []string{}
@@ -392,6 +456,23 @@ func testOptions(t *testing.T, archive, output string) Options {
 	require.NoError(t, os.WriteFile(ca, testRegistryCA, 0o644))
 	require.NoError(t, os.WriteFile(publicKey, testPublicKey, 0o644))
 	return Options{ArchivePath: archive, OutputDir: output, RegistryCA: ca, PublicKey: publicKey}
+}
+
+func writeInstallerISO(t *testing.T, exactReference string) string {
+	t.Helper()
+	iso := filepath.Join(t.TempDir(), "SodaOS.iso")
+	contents := []byte("installer bytes")
+	require.NoError(t, os.WriteFile(iso, contents, 0o644))
+	provenance := installer.Provenance{
+		SchemaVersion: 1, ISOPath: filepath.Base(iso), ISOSHA256: sha256Hex(contents),
+		EmbeddedImageReference: exactReference, Platform: installer.Platform, Filesystem: "ext4",
+		ImageBuilderVersion:   "81.0.0",
+		ImageBuilderReference: "ghcr.io/osbuild/image-builder@sha256:704dc05d6033799248a33c415f7f7253ec20b40f0b2bff03b06d8687179e058a",
+	}
+	encoded, err := json.Marshal(provenance)
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(iso+".payload.json", encoded, 0o644))
+	return iso
 }
 
 func writeOCIArchive(t *testing.T, img v1.Image) string {

@@ -98,6 +98,10 @@ func releaseCommand(builder func() (*image.Builder, error)) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			if result.RecordPath == "" {
+				fmt.Printf("Prepared signed image %s; no release record or current tag was written\n", result.ImageReference)
+				return nil
+			}
 			fmt.Printf("Published %s\nRelease record: %s\nSignature bundle: %s\n", result.ImageReference, result.RecordPath, result.BundlePath)
 			return nil
 		},
@@ -107,6 +111,7 @@ func releaseCommand(builder func() (*image.Builder, error)) *cobra.Command {
 	command.Flags().StringVar(&options.PublicKey, "public-key", "", "Soda Cosign public key")
 	command.Flags().StringVar(&options.PrivateKey, "signing-key", "", "passphrase-protected Soda Cosign private key")
 	command.Flags().StringVar(&options.ISOPath, "iso", "", "optional installer ISO to bind into the release record")
+	command.Flags().BoolVar(&options.DeferCurrent, "defer-current", false, "sign and verify the exact image for ISO construction without writing a record or current tag")
 	command.Flags().StringVar(&options.OutputDir, "output-dir", ".artifacts/releases", "signed release record directory")
 	command.Flags().StringVar(&options.CosignPath, "cosign", ".artifacts/tools/cosign", "pinned Cosign executable")
 	command.Flags().StringVar(&options.ToolLock, "tool-lock", "packaging/release/tools.lock", "pinned release tool checksums")

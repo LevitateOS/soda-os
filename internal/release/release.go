@@ -40,11 +40,15 @@ const (
 // Options are explicit operator inputs. The private key and passphrase are
 // never copied into output; cosign reads the passphrase interactively.
 type Options struct {
-	ArchivePath       string
-	RegistryCA        string
-	PublicKey         string
-	PrivateKey        string
-	ISOPath           string
+	ArchivePath string
+	RegistryCA  string
+	PublicKey   string
+	PrivateKey  string
+	ISOPath     string
+	// DeferCurrent publishes and signs the exact image so it can be embedded in
+	// an installer ISO. It intentionally writes neither a release record nor
+	// the mutable current discovery tag.
+	DeferCurrent      bool
 	OutputDir         string
 	CosignPath        string
 	ToolLock          string
@@ -136,8 +140,9 @@ func NewPublisher(spec config.DistroSpec, options Options, runner imagebuild.Run
 	}, nil
 }
 
-// Publish follows one linear happy path. The mutable current discovery tag is
-// written only after the canonical digest and both signatures verify.
+// Publish follows the trusted-LAN release happy path. A deferred publication
+// first makes a signed exact image available for ISO construction. The final
+// ISO-bound publication writes the release record and current tag last.
 func (p *Publisher) Publish(ctx context.Context, options Options) (Result, error) {
 	if p.Registry == nil || p.Signer == nil {
 		return Result{}, errors.New("release publisher requires a registry and signer")
@@ -185,6 +190,9 @@ func (p *Publisher) Publish(ctx context.Context, options Options) (Result, error
 	}
 	if err := p.Signer.VerifyImage(ctx, exactReference); err != nil {
 		return Result{}, fmt.Errorf("verify exact image signature: %w", err)
+	}
+	if options.DeferCurrent {
+		return Result{ImageReference: exactReference}, nil
 	}
 
 	outputDir := options.OutputDir
