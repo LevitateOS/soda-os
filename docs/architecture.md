@@ -2,7 +2,7 @@
 
 Soda OS keeps four ownership boundaries:
 
-1. Rocky Linux owns the base operating system and standard administration
+1. Fedora bootc owns the base operating system and standard administration
    facilities.
 2. TOML specifications own Soda identity, paths, and toolchain source policy.
 3. Go owns privileged orchestration, persistence, project sessions, and image
@@ -80,5 +80,5 @@ moving the project to a newer stable release.
 There are no project or person deletion or update endpoints, browser IDE, web
 terminal, containers, profile switching, or Internet-facing management API.
 Trusted-LAN deployment does not remove individual PAM authentication or SSH
-attribution. The Anaconda administrator remains an ordinary Linux account
-until an operator explicitly imports it into Soda.
+attribution. A host administrator remains an ordinary Linux account until an
+operator explicitly imports it into Soda.

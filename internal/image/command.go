@@ -11,7 +11,7 @@ import (
 )
 
 // Command describes one external process invocation. It keeps process execution
-// injectable, so the image contract can be tested without Docker or an ISO.
+// injectable, so the image contract can be tested without Docker or a registry.
 type Command struct {
 	Dir        string
 	Env        []string

@@ -1,0 +1,41 @@
+FROM quay.io/fedora/fedora-bootc@sha256:85677d47c03b2e1f8f9a3a19d838023ea154229817d579d4b4da5b87a21c9c1a
+
+ARG SODA_VERSION
+ARG SODA_SOURCE_REVISION
+ARG SOURCE_DATE_EPOCH
+ARG SODA_CREATED
+
+LABEL org.opencontainers.image.title="Soda OS" \
+      org.opencontainers.image.description="Soda OS remote development appliance" \
+      org.opencontainers.image.source="https://github.com/LevitateOS/soda-os" \
+      org.opencontainers.image.version="${SODA_VERSION}" \
+      org.opencontainers.image.revision="${SODA_SOURCE_REVISION}" \
+      org.opencontainers.image.created="${SODA_CREATED}" \
+      org.opencontainers.image.base.name="quay.io/fedora/fedora-bootc@sha256:85677d47c03b2e1f8f9a3a19d838023ea154229817d579d4b4da5b87a21c9c1a" \
+      org.sodaos.state-schema="2" \
+      org.sodaos.source-date-epoch="${SOURCE_DATE_EPOCH}"
+
+COPY .artifacts/rpms/soda-release-*.rpm /var/tmp/soda-rpms/
+COPY .artifacts/rpms/soda-runtime-*.rpm /var/tmp/soda-rpms/
+COPY .artifacts/rpms/soda-cockpit-*.rpm /var/tmp/soda-rpms/
+COPY .artifacts/bootc/fedora-packages.txt /var/tmp/soda-lock/fedora-packages.txt
+COPY .artifacts/bootc/expected-packages.txt /var/tmp/soda-lock/expected-packages.txt
+
+RUN dnf -y --setopt=install_weak_deps=False install \
+      $(cat /var/tmp/soda-lock/fedora-packages.txt) \
+      /var/tmp/soda-rpms/*.rpm \
+    && dnf clean all \
+    && rm -rf /var/cache/dnf /var/tmp/soda-rpms \
+    && systemd-sysusers /usr/lib/sysusers.d/soda.conf \
+    && test "$(getent group soda-api | cut -d: -f3)" = 976 \
+    && test "$(id -u soda-cockpit)" = 976 \
+    && systemctl preset sshd.service sodad.service soda-authd.service soda-cockpit.service avahi-daemon.service srv-soda-projects.mount opt-soda-toolchains.mount \
+    && systemctl enable sshd.service sodad.service soda-authd.service soda-cockpit.service avahi-daemon.service srv-soda-projects.mount opt-soda-toolchains.mount \
+    && systemctl mask bootc-fetch-apply-updates.timer \
+    && install -d -m 0755 /usr/share/soda \
+    && rpm -qa --qf '%{NAME}-%{EPOCHNUM}:%{VERSION}-%{RELEASE}.%{ARCH}\n' | LC_ALL=C sort > /usr/share/soda/rpm-inventory.txt \
+    && while IFS= read -r package; do grep -Fqx "$package" /usr/share/soda/rpm-inventory.txt; done < /var/tmp/soda-lock/expected-packages.txt \
+    && cd /usr/share/soda \
+    && sha256sum rpm-inventory.txt > rpm-inventory.sha256 \
+    && sha256sum --check rpm-inventory.sha256 \
+    && rm -rf /var/tmp/soda-lock

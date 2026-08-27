@@ -8,10 +8,6 @@ Requires:       avahi, pam, soda-runtime = %{version}
 %description
 Standalone Go and HTMX management website for Soda OS.
 
-%pre
-getent group soda-api >/dev/null || groupadd --system soda-api
-getent passwd soda-cockpit >/dev/null || useradd --system --gid soda-api --home-dir /var/lib/soda --shell /sbin/nologin soda-cockpit
-
 %install
 mkdir -p %{buildroot}%{_libexecdir}/soda %{buildroot}%{_unitdir} %{buildroot}%{_sysconfdir}/avahi/services %{buildroot}%{_sysconfdir}/pam.d
 install -m 0755 %{_sourcedir}/soda-cockpit %{buildroot}%{_libexecdir}/soda/soda-cockpit

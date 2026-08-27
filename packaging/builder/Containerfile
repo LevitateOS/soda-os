@@ -1,27 +1,19 @@
-FROM rockylinux/rockylinux:10
+FROM registry.fedoraproject.org/fedora:44
 
 RUN dnf -y install \
       ca-certificates \
       cpio \
-      createrepo_c \
       gcc \
       gcc-c++ \
       git \
       golang \
-      lorax \
-      libxml2 \
       make \
       pam-devel \
       pkgconf-pkg-config \
-      pykickstart \
-      rocky-gpg-keys \
       rpm-build \
-      sequoia-sq \
-      isomd5sum \
       systemd-rpm-macros \
       tar \
       unzip \
-      xorriso \
       xz \
     && dnf clean all
 

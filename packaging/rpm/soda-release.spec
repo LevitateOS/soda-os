@@ -6,7 +6,7 @@ License:        MIT OR Apache-2.0
 BuildArch:      noarch
 
 %description
-Release identity and defaults for the Soda OS Rocky Linux derivative.
+Release identity and defaults for the Soda OS Fedora bootc derivative.
 
 %install
 mkdir -p %{buildroot}%{_sysconfdir} %{buildroot}%{_prefix}/lib/soda %{buildroot}%{_datadir}/doc/soda-release %{buildroot}%{_datadir}/pixmaps
@@ -20,9 +20,9 @@ cat > %{buildroot}%{_prefix}/lib/soda/os-release <<'EOF'
 NAME="Soda OS"
 VERSION="0.2.0"
 ID="sodaos"
-ID_LIKE="rhel centos fedora"
+ID_LIKE="fedora"
 VERSION_ID="0.2.0"
-PLATFORM_ID="platform:el10"
+PLATFORM_ID="platform:f44"
 PRETTY_NAME="Soda OS 0.2.0"
 ANSI_COLOR="0;38;2;16;215;232"
 HOME_URL="https://github.com/LevitateOS/soda-os"

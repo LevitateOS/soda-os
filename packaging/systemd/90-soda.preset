@@ -1,2 +1,7 @@
+enable sshd.service
+enable sodad.service
+enable soda-authd.service
+enable soda-cockpit.service
+enable avahi-daemon.service
 enable srv-soda-projects.mount
 enable opt-soda-toolchains.mount

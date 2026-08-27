@@ -16,11 +16,5 @@ check:
 rpm:
     go run ./cmd/soda-image rpm
 
-iso:
-    go run ./cmd/soda-image iso
-
-iso-test:
-    go run ./cmd/soda-image iso --automated
-
-verify-iso:
-    go run ./cmd/soda-image verify
+oci:
+    go run ./cmd/soda-image oci

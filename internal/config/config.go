@@ -14,12 +14,13 @@ const (
 )
 
 type DistroSpec struct {
-	SchemaVersion uint32        `toml:"schema_version"`
-	Identity      IdentitySpec  `toml:"identity"`
-	Base          BaseSpec      `toml:"base"`
-	Installer     InstallerSpec `toml:"installer"`
-	Network       NetworkSpec   `toml:"network"`
-	Paths         PathSpec      `toml:"paths"`
+	SchemaVersion uint32       `toml:"schema_version"`
+	Identity      IdentitySpec `toml:"identity"`
+	Base          BaseSpec     `toml:"base"`
+	Image         ImageSpec    `toml:"image"`
+	Build         BuildSpec    `toml:"build"`
+	Network       NetworkSpec  `toml:"network"`
+	Paths         PathSpec     `toml:"paths"`
 }
 
 type IdentitySpec struct {
@@ -31,35 +32,18 @@ type IdentitySpec struct {
 }
 
 type BaseSpec struct {
-	Distribution           string `toml:"distribution"`
-	InstallerSourceVersion string `toml:"installer_source_version"`
-	PackageStream          string `toml:"package_stream"`
-	SourceISO              string `toml:"source_iso"`
-	SourceISOSHA256        string `toml:"source_iso_sha256"`
-	ChecksumFile           string `toml:"checksum_file"`
-	SignatureFile          string `toml:"signature_file"`
+	Reference string `toml:"reference"`
+	Platform  string `toml:"platform"`
 }
 
-type InstallerSpec struct {
-	ProfileID          string             `toml:"profile_id"`
-	AnacondaGUINEVRA   string             `toml:"anaconda_gui_nevra"`
-	VolumeID           string             `toml:"volume_id"`
-	BootTimeoutSeconds uint16             `toml:"boot_timeout_seconds"`
-	BrandingManifest   string             `toml:"branding_manifest"`
-	UpstreamManifest   string             `toml:"upstream_manifest"`
-	Payload            NetworkPayloadSpec `toml:"payload"`
+type ImageSpec struct {
+	Registry    string `toml:"registry"`
+	StateSchema uint32 `toml:"state_schema"`
+	PackageLock string `toml:"package_lock"`
 }
 
-type NetworkPayloadSpec struct {
-	Mode                     string   `toml:"mode"`
-	BaseOSMirrorlist         string   `toml:"baseos_mirrorlist"`
-	AppStreamMirrorlist      string   `toml:"appstream_mirrorlist"`
-	InstallWeakDependencies  bool     `toml:"install_weak_dependencies"`
-	MaxISOSizeBytes          uint64   `toml:"max_iso_size_bytes"`
-	Environment              string   `toml:"environment"`
-	Packages                 []string `toml:"packages"`
-	AutomatedExtraPackages   []string `toml:"automated_extra_packages"`
-	AnacondaRequiredPackages []string `toml:"anaconda_required_packages"`
+type BuildSpec struct {
+	SourceDateEpoch int64 `toml:"source_date_epoch"`
 }
 
 type NetworkSpec struct {
@@ -97,8 +81,8 @@ func LoadDistro(path string) (DistroSpec, error) {
 	if _, err := toml.DecodeFile(path, &spec); err != nil {
 		return DistroSpec{}, fmt.Errorf("decode distro specification %q: %w", path, err)
 	}
-	if spec.SchemaVersion != 3 {
-		return DistroSpec{}, fmt.Errorf("unsupported distro schema version %d; expected 3", spec.SchemaVersion)
+	if spec.SchemaVersion != 2 {
+		return DistroSpec{}, fmt.Errorf("unsupported distro schema version %d; expected 2", spec.SchemaVersion)
 	}
 	return spec, nil
 }

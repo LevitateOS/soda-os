@@ -12,7 +12,7 @@ import (
 func main() {
 	root := &cobra.Command{
 		Use:           "soda-image",
-		Short:         "Build Soda OS artifacts",
+		Short:         "Build Soda OS bootc OCI artifacts",
 		SilenceUsage:  true,
 		SilenceErrors: true,
 	}
@@ -22,14 +22,10 @@ func main() {
 		return image.NewBuilderFromWorkingDirectory(specPath, image.OSRunner{Stdout: os.Stdout, Stderr: os.Stderr})
 	}
 	root.AddCommand(
-		command("check", "validate the Soda installer contract", builder, func(ctx context.Context, b *image.Builder) error { return b.Check(ctx) }),
-		command("verify", "verify the signed Rocky source media", builder, func(ctx context.Context, b *image.Builder) error { return b.Verify(ctx) }),
-		command("rpm", "build Soda RPMs and repository", builder, func(ctx context.Context, b *image.Builder) error { return b.BuildRPMs(ctx) }),
+		command("check", "validate the pinned Fedora bootc image contract", builder, func(ctx context.Context, b *image.Builder) error { return b.Check(ctx) }),
+		command("rpm", "build the three locked Soda RPM inputs", builder, func(ctx context.Context, b *image.Builder) error { return b.BuildRPMs(ctx) }),
+		command("oci", "build the Soda bootc OCI archive without loading or publishing it", builder, func(ctx context.Context, b *image.Builder) error { return b.BuildImage(ctx) }),
 	)
-	var automated bool
-	iso := command("iso", "build a compact Soda installation ISO", builder, func(ctx context.Context, b *image.Builder) error { return b.BuildISO(ctx, automated) })
-	iso.Flags().BoolVar(&automated, "automated", false, "build the automated test installer")
-	root.AddCommand(iso)
 	if err := root.Execute(); err != nil {
 		fmt.Fprintln(os.Stderr, "soda-image:", err)
 		os.Exit(1)

@@ -1,51 +1,32 @@
-# Soda installer customization
+# Soda bootc runtime image
 
-Soda OS uses the Rocky Linux 10.2 DVD only for its boot and graphical installer
-runtime, including the exact
-`anaconda-gui-40.22.3.46-1.el10.rocky.0.6.aarch64` package. The installed
-payload comes from the current Rocky Linux 10 BaseOS and AppStream mirrorlists.
-The installer is customized without an Anaconda fork or custom installer
-Python.
+`distro/soda.toml` is the schema-version-2 runtime image contract. It pins the
+approved Fedora 44 bootc manifest digest, `linux/arm64` platform, Soda image
+name, runtime state schema, package lock, Soda version, and source-date epoch.
+The builder obtains the source revision from the current Git commit.
 
-`distro/soda.toml` is the schema-version-3 image contract. It pins the Soda
-profile ID, Anaconda package, volume ID, boot timeout, Rocky mirrorlists,
-package roots, weak-dependency policy, ISO size ceiling, branding manifest,
-and upstream overlay manifest. `just check` validates that contract, the
-committed asset dimensions and hashes, Kickstarts, and spoke lists without
-contacting the network.
+`packaging/bootc/packages.lock` records exact NEVRAs for every Fedora RPM added
+to the pinned base and for the three locally built Soda RPM inputs. The Soda
+RPMs are build inputs only; no mutable Soda RPM repository is created or
+embedded. Weak dependencies are disabled.
 
-During `just rpm`, the Go image builder:
+During `just oci`, the Go builder:
 
-1. verifies the signed Rocky checksum file and source DVD digest;
-2. extracts the pinned Anaconda GUI RPM from that DVD;
-3. verifies every overlaid upstream Glade file against
-   `packaging/anaconda/upstream.toml`;
-4. applies only the declared property overrides and validates the resulting XML;
-5. creates an xz-compressed, reproducible `newc` archive at
-   `.artifacts/installer/product.img`;
-6. builds the three target RPMs and the isolated build-only branding RPM.
+1. validates the immutable base, platform, registry, state schema, and package
+   lock;
+2. reproducibly builds `soda-release`, `soda-runtime`, and `soda-cockpit` with
+   the configured version, source revision, and source date;
+3. installs the exact locked transaction into the pinned Fedora bootc base;
+4. creates the fixed `soda-api` group and `soda-cockpit` service account;
+5. enables SSH, Soda services, Avahi, and the persistent-state bind mounts;
+6. masks the automatic bootc update timer while retaining manual bootc
+   operations;
+7. records the complete installed RPM inventory and verifies its SHA-256; and
+8. exports an OCI archive without loading, pushing, signing, or publishing it.
 
-The profile leaves language, keyboard, timezone, automatic local-disk storage,
-wired DHCP, and administrator creation visible. Software source and selection,
-kdump, root password, manual or specialized storage, reclaim, encryption, and
-advanced network controls are deliberately unavailable. Their required values
-come from the Kickstart and profile contracts.
+OCI labels record the Soda version, Git revision, creation time, pinned base,
+and runtime state schema. BuildKit rewrites image timestamps to the configured
+source-date epoch and omits provenance attestations from this local artifact.
 
-During `just iso`, the Go builder resolves and records the current network
-payload, extracts the source EFI tree, installs a complete Soda GRUB
-configuration, rebuilds the AArch64 EFI image with `mkefiboot`, and replays the
-source boot layout with xorriso. The complete BaseOS and AppStream DVD trees
-are removed before the image is written. The builder adds only the local Soda
-repository, `product.img`, boot runtime, licenses, and release key, then
-implants and verifies the media checksum. It rejects unexpected root files,
-local Rocky package trees, extra Soda RPMs, or an image larger than 1.25 GiB.
-
-Installation requires wired DHCP and Internet access. RPM weak dependencies
-are disabled, while Rocky's minimal environment still selects its standard
-general-hardware firmware packages. Exact Rocky RPM versions can advance while
-Soda OS remains version 0.2.0.
-
-Rocky Linux remains the kernel, userspace, package source, repository identity,
-and RPM provenance. This base is documented in the installed
-`/usr/share/doc/soda-release/BASE_SYSTEM.md`; Rocky names are not presented as
-the product identity.
+ISO generation, image signing, registry publication, and an update API are not
+implemented in this phase.
