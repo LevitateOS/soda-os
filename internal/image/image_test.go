@@ -40,6 +40,21 @@ func TestDockerCommandUsesPinnedArm64Builder(t *testing.T) {
 	}, command.Args)
 }
 
+func TestRPMBuildPinsHeaderTimeAndHost(t *testing.T) {
+	runner := &RecordingRunner{}
+	builder := &Builder{Root: "/workspace/soda", runner: runner, Spec: config.DistroSpec{
+		Identity: config.IdentitySpec{Version: "0.2.0"},
+		Base:     config.BaseSpec{Platform: bootcPlatform},
+		Build:    config.BuildSpec{SourceDateEpoch: 1787825905},
+	}}
+	require.NoError(t, builder.rpmbuild(context.Background(), "soda-runtime"))
+	require.Len(t, runner.Commands, 1)
+	command := runner.Commands[0].String()
+	require.Contains(t, command, "--define _source_date_epoch 1787825905")
+	require.Contains(t, command, "--define use_source_date_epoch_as_buildtime 1")
+	require.Contains(t, command, "--define _buildhost soda-builder")
+}
+
 func TestSourceRevisionAcceptsCleanWorktree(t *testing.T) {
 	const revision = "79eb8c180a711f1b4230a88d95aa411b3ceb99ca"
 	runner := &RecordingRunner{Outputs: map[string]string{
@@ -128,6 +143,10 @@ func TestRuntimeImageEnablesServicesAndMasksAutomaticUpdates(t *testing.T) {
 		"systemctl mask bootc-fetch-apply-updates.timer",
 		"rpm-inventory.sha256",
 		"sha256sum --check rpm-inventory.sha256",
+		"/usr/lib/sysimage/libdnf5/transaction_history.sqlite*",
+		"/var/cache/ldconfig/aux-cache",
+		"/var/lib/dnf/repos",
+		"/var/log/dnf5.log",
 	} {
 		require.Contains(t, containerfile, expected)
 	}

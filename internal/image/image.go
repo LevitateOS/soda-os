@@ -434,7 +434,12 @@ func (b *Builder) dockerCommand(environment []string, name string, args ...strin
 
 func (b *Builder) rpmbuild(ctx context.Context, name string) error {
 	epoch := fmt.Sprint(b.Spec.Build.SourceDateEpoch)
-	return b.docker(ctx, []string{"SOURCE_DATE_EPOCH=" + epoch}, "rpmbuild", "-bb", "--define", "_topdir /src/.artifacts/rpmbuild", "--define", "_source_date_epoch "+epoch, "packaging/rpm/"+name+".spec")
+	return b.docker(ctx, []string{"SOURCE_DATE_EPOCH=" + epoch}, "rpmbuild", "-bb",
+		"--define", "_topdir /src/.artifacts/rpmbuild",
+		"--define", "_source_date_epoch "+epoch,
+		"--define", "use_source_date_epoch_as_buildtime 1",
+		"--define", "_buildhost soda-builder",
+		"packaging/rpm/"+name+".spec")
 }
 
 func (b *Builder) path(path string) string {
