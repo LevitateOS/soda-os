@@ -84,3 +84,48 @@ passwords, device and host SSH keys, projects, bare repositories, worktrees,
 toolchains, SQLite state, certificates, and logs persist across the image
 transition. This MVP does not support database-schema-changing releases or
 state rollback across incompatible schemas.
+
+## Local AArch64 acceptance
+
+`scripts/bootc-acceptance.sh` separates repeatable evidence collection from
+operator-owned authentication. Set an untracked evidence directory, the
+Anaconda administrator's SSH identity, and the exact digest under test before
+using `launch`, `wait`, `capture`, `workload`, or `stop`. Run `--help` for the
+complete input contract.
+
+The `launch install` operation creates a blank sparse disk and starts the stock
+Anaconda ISO with AArch64 UEFI, SSH forwarded to port 2222, Cockpit forwarded
+to port 9090, a passive serial log, and a QMP lifecycle socket. The operator
+alone completes Anaconda. After installation, enroll the administrator's
+public key and record the disposable host key once, then use a normal `ssh -tt`
+session for password and `sudo` prompts:
+
+```sh
+ssh-copy-id \
+  -o StrictHostKeyChecking=accept-new \
+  -o "UserKnownHostsFile=$SODA_ACCEPTANCE_DIR/known-hosts" \
+  -i "$SODA_ACCEPTANCE_ADMIN_KEY.pub" \
+  -p 2222 vince@127.0.0.1
+```
+
+Do not use the forced project account as the administrator account.
+
+Before each `capture NAME`, the operator records the corresponding privileged
+status without exposing credentials:
+
+```sh
+mkdir -p "$HOME/.local/state/soda-acceptance"
+sudo sodactl os update status > \
+  "$HOME/.local/state/soda-acceptance/NAME-privileged.json"
+```
+
+The capture operation copies that status alongside the boot ID, QMP status,
+service and mount state, Cockpit health, registry manifests, classic Cosign
+signature attachment, release hashes, stdout, stderr, and timestamps. The
+workload operation uses a registered Soda device key and the project's forced
+SSH account to prove that staging does not interrupt a live workspace.
+
+Use the graphical console only for Anaconda. Use QMP only for observation and
+clean shutdown. The acceptance path does not inject QEMU keys, store
+passwords, enable passwordless sudo, take polling screenshots, or repair a
+failed final disk.

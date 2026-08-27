@@ -8,6 +8,8 @@ fmt:
 
 check:
     test -z "$(gofmt -l $(find . -name '*.go' -not -path './.artifacts/*'))"
+    sh -n scripts/bootc-acceptance.sh
+    scripts/bootc-acceptance.sh --help >/dev/null
     ./scripts/protobuf-verify.sh
     go vet ./...
     go test ./...
