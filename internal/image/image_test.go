@@ -286,20 +286,38 @@ func TestRuntimeImageEnablesServicesAndMasksAutomaticUpdates(t *testing.T) {
 
 	staging, err := os.ReadFile("image.go")
 	require.NoError(t, err)
+	require.Contains(t, string(staging), `b.path("packaging/systemd/soda-state-directories.service"), filepath.Join(sources, "soda-state-directories.service")`)
 	require.Contains(t, string(staging), `b.path("packaging/systemd/var-srv-soda-projects.mount"), filepath.Join(sources, "var-srv-soda-projects.mount")`)
 	require.NotContains(t, string(staging), "00-soda-var-srv.conf")
 
 	runtimeSpec, err := os.ReadFile(filepath.Join("..", "..", "packaging", "rpm", "soda-runtime.spec"))
 	require.NoError(t, err)
+	require.Contains(t, string(runtimeSpec), "install -m 0644 %{_sourcedir}/soda-state-directories.service %{buildroot}%{_unitdir}/soda-state-directories.service")
+	require.Contains(t, string(runtimeSpec), "%{_unitdir}/soda-state-directories.service")
 	require.Contains(t, string(runtimeSpec), "install -m 0644 %{_sourcedir}/var-srv-soda-projects.mount %{buildroot}%{_unitdir}/var-srv-soda-projects.mount")
 	require.Contains(t, string(runtimeSpec), "%{_unitdir}/var-srv-soda-projects.mount")
 	require.NotContains(t, string(runtimeSpec), "00-soda-var-srv.conf")
 
 	projectMount, err := os.ReadFile(filepath.Join("..", "..", "packaging", "systemd", "var-srv-soda-projects.mount"))
 	require.NoError(t, err)
+	require.Contains(t, string(projectMount), "Requires=soda-state-directories.service")
+	require.Contains(t, string(projectMount), "After=soda-state-directories.service")
+	require.NotContains(t, string(projectMount), "After=systemd-tmpfiles-setup.service")
 	require.Contains(t, string(projectMount), "What=/var/lib/soda/projects")
 	require.Contains(t, string(projectMount), "Where=/var/srv/soda/projects")
 	require.Contains(t, string(projectMount), "Options=bind")
+
+	stateDirectories, err := os.ReadFile(filepath.Join("..", "..", "packaging", "systemd", "soda-state-directories.service"))
+	require.NoError(t, err)
+	require.Contains(t, string(stateDirectories), "DefaultDependencies=no")
+	require.Contains(t, string(stateDirectories), "Before=local-fs.target var-srv-soda-projects.mount opt-soda-toolchains.mount")
+	require.Contains(t, string(stateDirectories), "ExecStart=/usr/bin/systemd-tmpfiles --create --prefix=/var/lib/soda --prefix=/var/srv/soda")
+
+	toolchainMount, err := os.ReadFile(filepath.Join("..", "..", "packaging", "systemd", "opt-soda-toolchains.mount"))
+	require.NoError(t, err)
+	require.Contains(t, string(toolchainMount), "Requires=soda-state-directories.service")
+	require.Contains(t, string(toolchainMount), "After=soda-state-directories.service")
+	require.NotContains(t, string(toolchainMount), "After=systemd-tmpfiles-setup.service")
 
 	sodadUnit, err := os.ReadFile(filepath.Join("..", "..", "packaging", "systemd", "sodad.service"))
 	require.NoError(t, err)

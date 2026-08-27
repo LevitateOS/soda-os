@@ -1,6 +1,7 @@
 [Unit]
 Description=Soda OS persistent toolchain storage
-After=systemd-tmpfiles-setup.service
+Requires=soda-state-directories.service
+After=soda-state-directories.service
 Before=sodad.service
 
 [Mount]
