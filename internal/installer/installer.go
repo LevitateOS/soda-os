@@ -411,7 +411,7 @@ func validateISOConfig(actual, expected []byte) error {
 
 func kickstart(reference, hostname string) string {
 	return "# Soda OS stock interactive Anaconda defaults.\n" +
-		"graphical\n" +
+		"text\n" +
 		"network --bootproto=dhcp --device=link --activate --onboot=on --hostname=" + hostname + "\n" +
 		"bootc --source-imgref=\"containers-storage:" + reference + "\" --target-imgref=\"" + reference + "\"\n"
 }

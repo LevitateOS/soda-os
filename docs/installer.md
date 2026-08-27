@@ -51,12 +51,15 @@ The initial-install happy path is deliberately two-step:
    release record, and updates `registry.soda.local/soda/os:current` last.
 
 The installer is for fresh installation only. It uses stock interactive
-Anaconda with DHCP, a default hostname of `soda`, and the normal interactive
-choices for storage, networking, hostname, and the first administrator. It
-does not preserve the former custom graphical overlay and does not perform an
-in-place Rocky conversion. The Fedora 44 installer environment runs SELinux in
-permissive mode because its live overlay cannot be relabeled; this boot option
-does not change the installed Soda image, which retains enforcing SELinux.
+Anaconda text mode with DHCP, a default hostname of `soda`, and the normal
+interactive choices for storage, networking, hostname, and the first
+administrator. Declaring text mode directly avoids Fedora 44 Anaconda's broken
+graphical-fallback chooser when the pinned bootc installer environment has no
+local graphical frontend. Soda does not preserve the former custom graphical
+overlay and does not perform an in-place Rocky conversion. The Fedora 44
+installer environment runs SELinux in permissive mode because its live overlay
+cannot be relabeled; this boot option does not change the installed Soda image,
+which retains enforcing SELinux.
 
 The ISO embeds the exact signed image digest in local container storage. Fedora
 44's `bootc` Kickstart command accepts exact source and target image references
