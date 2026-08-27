@@ -210,7 +210,8 @@ func TestRuntimeImageEnablesServicesAndMasksAutomaticUpdates(t *testing.T) {
 	for _, expected := range []string{
 		bootcBaseReference,
 		"systemd-sysusers /usr/lib/sysusers.d/soda.conf",
-		"systemctl enable sshd.service sodad.service soda-authd.service soda-cockpit.service avahi-daemon.service srv-soda-projects.mount opt-soda-toolchains.mount",
+		"install -d -m 0755 /opt/soda/toolchains",
+		"systemctl enable sshd.service sodad.service soda-authd.service soda-cockpit.service avahi-daemon.service var-srv-soda-projects.mount opt-soda-toolchains.mount",
 		"systemctl mask bootc-fetch-apply-updates.timer",
 		"cp -f /usr/lib/soda/os-release /etc/os-release",
 		"cp -f /usr/lib/soda/os-release /usr/lib/os-release",
@@ -221,11 +222,11 @@ func TestRuntimeImageEnablesServicesAndMasksAutomaticUpdates(t *testing.T) {
 		"semanage fcontext -a -t var_lib_t '/var/lib/soda(/.*)?'",
 		"semanage fcontext -a -e /home /var/lib/soda/projects",
 		"semanage fcontext -a -e /opt /var/lib/soda/toolchains",
-		"semanage fcontext -a -e /home /srv/soda/projects",
+		"semanage fcontext -a -e /home /var/srv/soda/projects",
 		"semanage fcontext -a -e /opt /opt/soda/toolchains",
 		"semanage fcontext -a -t var_log_t '/var/log/soda(/.*)?'",
 		"semanage fcontext -a -t ssh_home_t '/etc/soda/authorized_keys(/.*)?'",
-		"restorecon -RF /etc/soda/authorized_keys",
+		"restorecon -RF /etc/soda/authorized_keys /opt/soda/toolchains",
 		"ssh-keygen -q -t ed25519 -N '' -f /run/soda-sshd-hostkey",
 		"/usr/sbin/sshd -t -h /run/soda-sshd-hostkey",
 		"rm -f /run/soda-sshd-hostkey /run/soda-sshd-hostkey.pub",
@@ -260,7 +261,7 @@ func TestRuntimeImageEnablesServicesAndMasksAutomaticUpdates(t *testing.T) {
 
 	preset, err := os.ReadFile(filepath.Join("..", "..", "packaging", "systemd", "90-soda.preset"))
 	require.NoError(t, err)
-	for _, unit := range []string{"sshd.service", "sodad.service", "soda-authd.service", "soda-cockpit.service", "avahi-daemon.service", "srv-soda-projects.mount", "opt-soda-toolchains.mount"} {
+	for _, unit := range []string{"sshd.service", "sodad.service", "soda-authd.service", "soda-cockpit.service", "avahi-daemon.service", "var-srv-soda-projects.mount", "opt-soda-toolchains.mount"} {
 		require.True(t, strings.Contains(string(preset), "enable "+unit))
 	}
 
@@ -271,23 +272,49 @@ func TestRuntimeImageEnablesServicesAndMasksAutomaticUpdates(t *testing.T) {
 		"/var/lib/soda/projects",
 		"/var/lib/soda/toolchains",
 		"/var/log/soda",
-		"/srv/soda/projects",
-		"/opt/soda/toolchains",
+		"/var/log/soda/sodad",
+		"/var/log/soda/soda-authd",
+		"/var/log/soda/soda-cockpit",
+		"/var/srv/soda",
+		"/var/srv/soda/projects",
 	} {
 		require.Contains(t, string(tmpfiles), "d "+path+" ", "first-boot tmpfiles must create %s after the image installs its SELinux fcontext mapping", path)
 	}
-	earlyTmpfiles, err := os.ReadFile(filepath.Join("..", "..", "packaging", "tmpfiles.d", "00-soda-var-srv.conf"))
-	require.NoError(t, err)
-	require.Contains(t, string(earlyTmpfiles), "d /var/srv 0755 root root -")
+	require.NotRegexp(t, `(?m)^d /srv/`, string(tmpfiles))
+	require.NotRegexp(t, `(?m)^d /opt/`, string(tmpfiles))
+	require.Contains(t, string(tmpfiles), "d /var/log/soda/soda-cockpit 0750 soda-cockpit soda-api -")
 
 	staging, err := os.ReadFile("image.go")
 	require.NoError(t, err)
-	require.Contains(t, string(staging), `b.path("packaging/tmpfiles.d/00-soda-var-srv.conf"), filepath.Join(sources, "00-soda-var-srv.conf")`)
+	require.Contains(t, string(staging), `b.path("packaging/systemd/var-srv-soda-projects.mount"), filepath.Join(sources, "var-srv-soda-projects.mount")`)
+	require.NotContains(t, string(staging), "00-soda-var-srv.conf")
 
 	runtimeSpec, err := os.ReadFile(filepath.Join("..", "..", "packaging", "rpm", "soda-runtime.spec"))
 	require.NoError(t, err)
-	require.Contains(t, string(runtimeSpec), "install -m 0644 %{_sourcedir}/00-soda-var-srv.conf %{buildroot}%{_tmpfilesdir}/00-soda-var-srv.conf")
-	require.Contains(t, string(runtimeSpec), "%{_tmpfilesdir}/00-soda-var-srv.conf")
+	require.Contains(t, string(runtimeSpec), "install -m 0644 %{_sourcedir}/var-srv-soda-projects.mount %{buildroot}%{_unitdir}/var-srv-soda-projects.mount")
+	require.Contains(t, string(runtimeSpec), "%{_unitdir}/var-srv-soda-projects.mount")
+	require.NotContains(t, string(runtimeSpec), "00-soda-var-srv.conf")
+
+	projectMount, err := os.ReadFile(filepath.Join("..", "..", "packaging", "systemd", "var-srv-soda-projects.mount"))
+	require.NoError(t, err)
+	require.Contains(t, string(projectMount), "What=/var/lib/soda/projects")
+	require.Contains(t, string(projectMount), "Where=/var/srv/soda/projects")
+	require.Contains(t, string(projectMount), "Options=bind")
+
+	sodadUnit, err := os.ReadFile(filepath.Join("..", "..", "packaging", "systemd", "sodad.service"))
+	require.NoError(t, err)
+	require.Contains(t, string(sodadUnit), "Requires=var-srv-soda-projects.mount opt-soda-toolchains.mount")
+	require.Contains(t, string(sodadUnit), "After=local-fs.target network-online.target var-srv-soda-projects.mount opt-soda-toolchains.mount")
+
+	for _, service := range []string{"sodad.service", "soda-authd.service", "soda-cockpit.service"} {
+		unit, readErr := os.ReadFile(filepath.Join("..", "..", "packaging", "systemd", service))
+		require.NoError(t, readErr)
+		require.Contains(t, string(unit), "StandardOutput=append:/var/log/soda/")
+		require.NotContains(t, string(unit), "LogsDirectory=")
+	}
+	cockpitUnit, err := os.ReadFile(filepath.Join("..", "..", "packaging", "systemd", "soda-cockpit.service"))
+	require.NoError(t, err)
+	require.Contains(t, string(cockpitUnit), "ReadWritePaths=/var/lib/soda/certs /var/log/soda/soda-cockpit")
 }
 
 func TestSodaRPMsAreScriptletFree(t *testing.T) {

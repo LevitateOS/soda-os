@@ -41,8 +41,9 @@ RUN dnf -y --setopt=install_weak_deps=False --enablerepo=updates-testing install
     && systemd-sysusers /usr/lib/sysusers.d/soda.conf \
     && test "$(getent group soda-api | cut -d: -f3)" = 976 \
     && test "$(id -u soda-cockpit)" = 976 \
-    && systemctl preset sshd.service sodad.service soda-authd.service soda-cockpit.service avahi-daemon.service srv-soda-projects.mount opt-soda-toolchains.mount \
-    && systemctl enable sshd.service sodad.service soda-authd.service soda-cockpit.service avahi-daemon.service srv-soda-projects.mount opt-soda-toolchains.mount \
+    && install -d -m 0755 /opt/soda/toolchains \
+    && systemctl preset sshd.service sodad.service soda-authd.service soda-cockpit.service avahi-daemon.service var-srv-soda-projects.mount opt-soda-toolchains.mount \
+    && systemctl enable sshd.service sodad.service soda-authd.service soda-cockpit.service avahi-daemon.service var-srv-soda-projects.mount opt-soda-toolchains.mount \
     && systemctl mask bootc-fetch-apply-updates.timer \
     && cp -f /usr/lib/soda/os-release /etc/os-release \
     && cp -f /usr/lib/soda/os-release /usr/lib/os-release \
@@ -53,11 +54,11 @@ RUN dnf -y --setopt=install_weak_deps=False --enablerepo=updates-testing install
     && semanage fcontext -a -t var_lib_t '/var/lib/soda(/.*)?' \
     && semanage fcontext -a -e /home /var/lib/soda/projects \
     && semanage fcontext -a -e /opt /var/lib/soda/toolchains \
-    && semanage fcontext -a -e /home /srv/soda/projects \
+    && semanage fcontext -a -e /home /var/srv/soda/projects \
     && semanage fcontext -a -e /opt /opt/soda/toolchains \
     && semanage fcontext -a -t var_log_t '/var/log/soda(/.*)?' \
     && semanage fcontext -a -t ssh_home_t '/etc/soda/authorized_keys(/.*)?' \
-    && restorecon -RF /etc/soda/authorized_keys \
+    && restorecon -RF /etc/soda/authorized_keys /opt/soda/toolchains \
     && ssh-keygen -q -t ed25519 -N '' -f /run/soda-sshd-hostkey \
     && /usr/sbin/sshd -t -h /run/soda-sshd-hostkey \
     && rm -f /run/soda-sshd-hostkey /run/soda-sshd-hostkey.pub \

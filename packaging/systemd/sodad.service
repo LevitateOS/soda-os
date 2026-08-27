@@ -1,7 +1,7 @@
 [Unit]
 Description=Soda OS project daemon
-Requires=srv-soda-projects.mount opt-soda-toolchains.mount
-After=local-fs.target network-online.target srv-soda-projects.mount opt-soda-toolchains.mount
+Requires=var-srv-soda-projects.mount opt-soda-toolchains.mount
+After=local-fs.target network-online.target var-srv-soda-projects.mount opt-soda-toolchains.mount
 Wants=network-online.target
 
 [Service]
@@ -14,8 +14,6 @@ RuntimeDirectoryMode=0770
 RuntimeDirectoryPreserve=yes
 StateDirectory=soda
 StateDirectoryMode=0750
-LogsDirectory=soda/sodad
-LogsDirectoryMode=0750
 StandardOutput=append:/var/log/soda/sodad/service.log
 StandardError=append:/var/log/soda/sodad/service.log
 UMask=0007

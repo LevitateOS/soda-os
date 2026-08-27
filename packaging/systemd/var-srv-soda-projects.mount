@@ -5,7 +5,7 @@ Before=sodad.service
 
 [Mount]
 What=/var/lib/soda/projects
-Where=/srv/soda/projects
+Where=/var/srv/soda/projects
 Type=none
 Options=bind
 

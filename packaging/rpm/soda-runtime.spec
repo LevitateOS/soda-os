@@ -15,10 +15,9 @@ install -m 0755 %{_sourcedir}/soda-ssh %{buildroot}%{_libexecdir}/soda/soda-ssh
 install -m 0755 %{_sourcedir}/sodactl %{buildroot}%{_bindir}/sodactl
 install -m 0755 %{_sourcedir}/cosign %{buildroot}%{_libexecdir}/soda/cosign
 install -m 0644 %{_sourcedir}/sodad.service %{buildroot}%{_unitdir}/sodad.service
-install -m 0644 %{_sourcedir}/srv-soda-projects.mount %{buildroot}%{_unitdir}/srv-soda-projects.mount
+install -m 0644 %{_sourcedir}/var-srv-soda-projects.mount %{buildroot}%{_unitdir}/var-srv-soda-projects.mount
 install -m 0644 %{_sourcedir}/opt-soda-toolchains.mount %{buildroot}%{_unitdir}/opt-soda-toolchains.mount
 install -m 0644 %{_sourcedir}/90-soda.preset %{buildroot}%{_presetdir}/90-soda.preset
-install -m 0644 %{_sourcedir}/00-soda-var-srv.conf %{buildroot}%{_tmpfilesdir}/00-soda-var-srv.conf
 install -m 0644 %{_sourcedir}/soda.conf %{buildroot}%{_tmpfilesdir}/soda.conf
 install -m 0644 %{_sourcedir}/soda.sysusers %{buildroot}%{_sysusersdir}/soda.conf
 install -m 0644 %{_sourcedir}/41-soda-project-accounts.conf %{buildroot}%{_sysconfdir}/ssh/sshd_config.d/41-soda-project-accounts.conf
@@ -29,10 +28,9 @@ install -m 0644 %{_sourcedir}/41-soda-project-accounts.conf %{buildroot}%{_sysco
 %{_bindir}/sodactl
 %{_libexecdir}/soda/cosign
 %{_unitdir}/sodad.service
-%{_unitdir}/srv-soda-projects.mount
+%{_unitdir}/var-srv-soda-projects.mount
 %{_unitdir}/opt-soda-toolchains.mount
 %{_presetdir}/90-soda.preset
-%{_tmpfilesdir}/00-soda-var-srv.conf
 %{_tmpfilesdir}/soda.conf
 %{_sysusersdir}/soda.conf
 %config(noreplace) %{_sysconfdir}/ssh/sshd_config.d/41-soda-project-accounts.conf
