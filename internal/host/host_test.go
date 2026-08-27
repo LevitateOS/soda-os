@@ -237,6 +237,28 @@ func TestProjectAuthorizedKeysRemainRootOwnedOutsideProjectHome(t *testing.T) {
 	}
 }
 
+func TestCreateSessionHomeMakesPeopleRootTraversableByProjectAccount(t *testing.T) {
+	root := t.TempDir()
+	runner := &recordingRunner{}
+	system := New(root, true)
+	system.Runner = runner
+	project := domain.Project{Slug: "demo", UnixUser: "soda-p-demo"}
+	person := domain.Person{Username: "alice"}
+	tree := domain.Worktree{Path: filepath.Join(root, "demo", "worktrees", "alice")}
+	if err := os.MkdirAll(tree.Path, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	cleanup, err := system.createSessionHome(context.Background(), project, person, tree)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = cleanup(context.Background()) })
+	peopleRoot := filepath.Join(root, "demo", ".soda", "people")
+	if !hasCall(runner.calls, "chown", "--recursive", project.UnixUser+":"+project.UnixUser, peopleRoot) {
+		t.Fatalf("people root not assigned to project account: %#v", runner.calls)
+	}
+}
+
 func TestCreatePersonCleansPartialUserAfterChpasswdFailure(t *testing.T) {
 	runner := &recordingRunner{failName: "chpasswd"}
 	system := New(t.TempDir(), true)

@@ -292,7 +292,8 @@ func (s *System) ReconcileAuthorizedKeys(ctx context.Context, project domain.Pro
 }
 
 func (s *System) createSessionHome(ctx context.Context, project domain.Project, person domain.Person, tree domain.Worktree) (Cleanup, error) {
-	personRoot := filepath.Dir(s.sessionHome(project, person))
+	peopleRoot := filepath.Join(s.projectRoot(project), ".soda", "people")
+	personRoot := filepath.Join(peopleRoot, person.Username)
 	home := s.sessionHome(project, person)
 	for _, path := range []string{home, filepath.Join(home, ".config"), filepath.Join(home, ".cache"), filepath.Join(home, ".local", "share"), filepath.Join(home, ".local", "state")} {
 		if err := os.MkdirAll(path, 0o750); err != nil {
@@ -313,7 +314,7 @@ func (s *System) createSessionHome(ctx context.Context, project domain.Project, 
 		_ = os.RemoveAll(personRoot)
 		return nil, err
 	}
-	if err := s.chown(ctx, project, personRoot); err != nil {
+	if err := s.chown(ctx, project, peopleRoot); err != nil {
 		_ = os.RemoveAll(personRoot)
 		return nil, err
 	}
