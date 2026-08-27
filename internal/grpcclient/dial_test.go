@@ -33,5 +33,5 @@ func TestDialUnixSocket(t *testing.T) {
 
 	response, err := sodav2.NewSodaServiceClient(connection).Health(ctx, &sodav2.HealthRequest{})
 	require.NoError(t, err)
-	require.Equal(t, "0.2.0", response.Version)
+	require.Equal(t, version.DefaultVersion, response.Version)
 }

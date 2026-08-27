@@ -17,7 +17,7 @@ just release-tools
 just oci /path/to/registry-ca.crt /path/to/cosign.pub
 
 go run ./cmd/soda-image publish \
-  --archive .artifacts/images/soda-os-0.2.0-aarch64.oci.tar \
+  --archive .artifacts/images/soda-os-0.3.0-aarch64.oci.tar \
   --registry-ca /path/to/registry-ca.crt \
   --public-key /path/to/cosign.pub \
   --signing-key /path/to/cosign.key \
@@ -30,16 +30,16 @@ printed exact image reference, then build the ISO from it:
 ```sh
 go run ./cmd/soda-image iso \
   --image registry.soda.local/soda/os@sha256:EXACT_DIGEST \
-  --archive .artifacts/images/soda-os-0.2.0-aarch64.oci.tar \
+  --archive .artifacts/images/soda-os-0.3.0-aarch64.oci.tar \
   --registry-ca /path/to/registry-ca.crt \
   --public-key /path/to/cosign.pub
 
 go run ./cmd/soda-image publish \
-  --archive .artifacts/images/soda-os-0.2.0-aarch64.oci.tar \
+  --archive .artifacts/images/soda-os-0.3.0-aarch64.oci.tar \
   --registry-ca /path/to/registry-ca.crt \
   --public-key /path/to/cosign.pub \
   --signing-key /path/to/cosign.key \
-  --iso .artifacts/images/SodaOS-0.2.0-aarch64.iso
+  --iso .artifacts/images/SodaOS-0.3.0-aarch64.iso
 ```
 
 The final command re-checks the exact ISO payload, writes a signed release

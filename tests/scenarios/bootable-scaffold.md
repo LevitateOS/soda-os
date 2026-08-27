@@ -1,6 +1,6 @@
 # Bootc runtime image, installer, and update release gate
 
-This scenario covers Soda OS 0.2.0 on Fedora 44 bootc for AArch64. Generated
+This scenario covers Soda OS 0.3.0 on Fedora 44 bootc for AArch64. Generated
 images, package inventories, RPMs, keys, credentials, logs, databases, and
 ephemeral registry state stay under ignored artifact paths.
 
@@ -9,7 +9,7 @@ ephemeral registry state stay under ignored artifact paths.
 2. Run `just rpm`; require exactly the locked `soda-release`, `soda-runtime`,
    and `soda-cockpit` RPM inputs plus their recorded hashes.
 3. Run `just oci REGISTRY_CA COSIGN_PUBLIC_KEY`; require an OCI archive at
-   `.artifacts/images/soda-os-0.2.0-aarch64.oci.tar` and no registry push.
+   `.artifacts/images/soda-os-0.3.0-aarch64.oci.tar` and no registry push.
 4. Require the build to verify all locked Fedora and Soda NEVRAs, fixed UID/GID
    976, enabled SSH/Soda/Avahi services, enabled persistent-state mounts, the
    masked `bootc-fetch-apply-updates.timer`, the embedded registry CA and Cosign

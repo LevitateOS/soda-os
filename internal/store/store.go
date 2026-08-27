@@ -124,10 +124,10 @@ func Open(path string) (*Store, error) {
 		return nil, fmt.Errorf("inspect Soda schema: %w", err)
 	}
 	if version == 0 && tables != 0 {
-		return nil, fmt.Errorf("%w: unversioned database; Soda OS 0.2 requires a fresh installation", ErrUnsupportedSchema)
+		return nil, fmt.Errorf("%w: unversioned database; this Soda OS release requires a fresh installation", ErrUnsupportedSchema)
 	}
 	if version != 0 && version != SchemaVersion {
-		return nil, fmt.Errorf("%w: found version %d, expected %d; Soda OS 0.2 requires a fresh installation", ErrUnsupportedSchema, version, SchemaVersion)
+		return nil, fmt.Errorf("%w: found version %d, expected %d; this Soda OS release requires a fresh installation", ErrUnsupportedSchema, version, SchemaVersion)
 	}
 	if version == 0 {
 		if err := initializeSchema(db, nil); err != nil {

@@ -33,7 +33,7 @@ just oci /path/to/registry-ca.crt /path/to/cosign.pub
 Build artifacts are written under `.artifacts/` and are never committed.
 `just rpm` builds exactly the three locked local Soda RPM inputs. `just oci`
 builds those RPMs and emits
-`.artifacts/images/soda-os-0.2.0-aarch64.oci.tar` without loading or publishing
+`.artifacts/images/soda-os-0.3.0-aarch64.oci.tar` without loading or publishing
 the image. It requires the trusted registry CA and the public half of Soda's
 Cosign key so both become image inputs; a private key is never an image input.
 The package lock pins every Fedora package added to the immutable base, and the
