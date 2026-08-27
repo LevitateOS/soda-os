@@ -22,15 +22,33 @@ import (
 )
 
 const (
-	bootcBaseReference = "quay.io/fedora/fedora-bootc@sha256:85677d47c03b2e1f8f9a3a19d838023ea154229817d579d4b4da5b87a21c9c1a"
-	bootcPlatform      = "linux/arm64"
-	bootcRuntimeNEVRA  = "bootc-0:1.16.10-1.fc44.aarch64"
-	sodaRegistry       = "registry.soda.local/soda/os"
-	cosignVersion      = "v3.1.2"
-	cosignArm64SHA256  = "90e7ae0b5dfd60f20816b52c012addf7fc055ebcc7bea4ce81c428ca8518c302"
+	bootcBaseReference   = "quay.io/fedora/fedora-bootc@sha256:85677d47c03b2e1f8f9a3a19d838023ea154229817d579d4b4da5b87a21c9c1a"
+	bootcPlatform        = "linux/arm64"
+	bootcRuntimeNEVRA    = "bootc-0:1.16.10-1.fc44.aarch64"
+	builderBaseReference = "registry.fedoraproject.org/fedora@sha256:9c8b291e256262b91aac5b3da50ea323760d0a6b449c6d6ad5f01d9550d48d2a"
+	sodaRegistry         = "registry.soda.local/soda/os"
+	cosignVersion        = "v3.1.2"
+	cosignArm64SHA256    = "90e7ae0b5dfd60f20816b52c012addf7fc055ebcc7bea4ce81c428ca8518c302"
 )
 
 var targetRPMs = []string{"soda-release", "soda-runtime", "soda-cockpit"}
+
+var builderPackageNames = []string{
+	"ca-certificates",
+	"cpio",
+	"gcc",
+	"gcc-c++",
+	"git",
+	"golang",
+	"make",
+	"pam-devel",
+	"pkgconf-pkg-config",
+	"rpm-build",
+	"systemd-rpm-macros",
+	"tar",
+	"unzip",
+	"xz",
+}
 
 type packageLock struct {
 	SchemaVersion uint32          `toml:"schema_version"`
@@ -43,6 +61,19 @@ type lockedPackage struct {
 	NEVRA  string `toml:"nevra"`
 	Source string `toml:"source"`
 	File   string `toml:"file"`
+}
+
+type builderPackageLock struct {
+	SchemaVersion   uint32                 `toml:"schema_version"`
+	BaseReference   string                 `toml:"base_reference"`
+	Platform        string                 `toml:"platform"`
+	InventorySHA256 string                 `toml:"inventory_sha256"`
+	Package         []builderLockedPackage `toml:"package"`
+}
+
+type builderLockedPackage struct {
+	Name  string `toml:"name"`
+	NEVRA string `toml:"nevra"`
 }
 
 type releaseToolLock struct {
@@ -138,6 +169,9 @@ func (b *Builder) Check(_ context.Context) error {
 	if spec.Build.SourceDateEpoch < 0 {
 		return errors.New("SOURCE_DATE_EPOCH must be non-negative")
 	}
+	if err := b.checkBuilderPackageLock(); err != nil {
+		return err
+	}
 	lock, err := b.packageLock()
 	if err != nil {
 		return err
@@ -192,6 +226,7 @@ func (b *Builder) Check(_ context.Context) error {
 	for _, path := range []string{
 		"packaging/bootc/Containerfile",
 		"packaging/builder/Containerfile",
+		"packaging/builder/packages.lock",
 		"packaging/rpm/soda-release.spec",
 		"packaging/rpm/soda-runtime.spec",
 		"packaging/rpm/soda-cockpit.spec",
@@ -202,6 +237,29 @@ func (b *Builder) Check(_ context.Context) error {
 	} {
 		if !isFile(b.path(path)) {
 			return fmt.Errorf("required bootc build input %s is missing", path)
+		}
+	}
+	return nil
+}
+
+func (b *Builder) checkBuilderPackageLock() error {
+	lock, err := b.builderPackageLock()
+	if err != nil {
+		return err
+	}
+	if lock.SchemaVersion != 1 || lock.BaseReference != builderBaseReference || lock.Platform != bootcPlatform {
+		return errors.New("RPM builder package lock does not bind the approved Fedora AArch64 base")
+	}
+	if len(lock.InventorySHA256) != 64 || !hexDigest(lock.InventorySHA256) {
+		return errors.New("RPM builder package lock must pin the complete installed RPM inventory SHA-256")
+	}
+	if len(lock.Package) != len(builderPackageNames) {
+		return errors.New("RPM builder package lock must contain exactly the required build packages")
+	}
+	for index, name := range builderPackageNames {
+		item := lock.Package[index]
+		if item.Name != name || !strings.HasPrefix(item.NEVRA, name+"-") || !strings.Contains(item.NEVRA, ":") || (!strings.HasSuffix(item.NEVRA, ".aarch64") && !strings.HasSuffix(item.NEVRA, ".noarch")) {
+			return fmt.Errorf("RPM builder package %s does not pin an exact NEVRA", name)
 		}
 	}
 	return nil
@@ -491,6 +549,14 @@ func (b *Builder) packageLock() (packageLock, error) {
 	var lock packageLock
 	if _, err := toml.DecodeFile(b.path(b.Spec.Image.PackageLock), &lock); err != nil {
 		return packageLock{}, fmt.Errorf("parse package lock: %w", err)
+	}
+	return lock, nil
+}
+
+func (b *Builder) builderPackageLock() (builderPackageLock, error) {
+	var lock builderPackageLock
+	if _, err := toml.DecodeFile(b.path("packaging/builder/packages.lock"), &lock); err != nil {
+		return builderPackageLock{}, fmt.Errorf("parse RPM builder package lock: %w", err)
 	}
 	return lock, nil
 }
