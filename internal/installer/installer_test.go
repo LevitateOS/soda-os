@@ -28,7 +28,7 @@ func TestKickstartKeepsStockInteractiveFlowAndExactDigest(t *testing.T) {
 	require.Contains(t, contents, "network --bootproto=dhcp --device=link --activate --onboot=on --hostname=soda")
 	require.Contains(t, contents, `--source-imgref="containers-storage:`+testExactImage+`"`)
 	require.Contains(t, contents, `--target-imgref="`+testExactImage+`"`)
-	require.Contains(t, contents, "--enforce-container-sigpolicy")
+	require.NotContains(t, contents, "--enforce-container-sigpolicy")
 	require.NotContains(t, contents, "selinux=0")
 	require.NotContains(t, contents, "clearpart")
 	require.NotContains(t, contents, "user --name")
@@ -65,7 +65,7 @@ func TestValidateEmbeddedPayloadRequiresStagingTagAndOriginalManifestDigest(t *t
 }
 
 func TestISOConfigRequiresExactStage2KernelAndInitrdContract(t *testing.T) {
-	expected := []byte("label: \"SodaOS-Installer\"\ngrub2:\n  default: 0\n  timeout: 10\n  entries:\n    - name: \"Install Soda OS\"\n      linux: \"/images/pxeboot/vmlinuz inst.stage2=hd:LABEL=SodaOS-Installer console=tty0\"\n      initrd: \"/images/pxeboot/initrd.img\"\n")
+	expected := []byte("label: \"SodaOS-Installer\"\ngrub2:\n  default: 0\n  timeout: 10\n  entries:\n    - name: \"Install Soda OS\"\n      linux: \"/images/pxeboot/vmlinuz inst.stage2=hd:LABEL=SodaOS-Installer console=tty0 enforcing=0\"\n      initrd: \"/images/pxeboot/initrd.img\"\n")
 	require.NoError(t, validateISOConfig(expected, expected))
 
 	for name, malformed := range map[string]string{

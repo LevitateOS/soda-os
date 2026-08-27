@@ -54,7 +54,16 @@ The installer is for fresh installation only. It uses stock interactive
 Anaconda with DHCP, a default hostname of `soda`, and the normal interactive
 choices for storage, networking, hostname, and the first administrator. It
 does not preserve the former custom graphical overlay and does not perform an
-in-place Rocky conversion.
+in-place Rocky conversion. The Fedora 44 installer environment runs SELinux in
+permissive mode because its live overlay cannot be relabeled; this boot option
+does not change the installed Soda image, which retains enforcing SELinux.
+
+The ISO embeds the exact signed image digest in local container storage. Fedora
+44's `bootc` Kickstart command accepts exact source and target image references
+but does not expose bootc's runtime signature-policy flag, so installer trust is
+established before installation by the signed ISO-bound release record and ISO
+checksum. Installed-system updates independently enforce the embedded public-key
+signature policy.
 
 ## Persistent host state
 
