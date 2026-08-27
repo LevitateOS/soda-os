@@ -10,7 +10,7 @@
 {{template "footer" .}}{{end}}
 
 {{define "host"}}
-<section id="host-status" class="panel" aria-live="polite" hx-get="/fragments/host" hx-trigger="sse:host_changed, sse:refresh" hx-swap="outerHTML">
+<section id="host-status" class="panel" aria-live="polite">
   <h2>Development host</h2>
   {{if .HostError}}<p class="error" role="alert">{{.HostError}}</p>{{else if .Host}}
   <dl class="summary">
@@ -29,20 +29,19 @@
   <p>Firewall: SSH {{if .Host.SSHFirewallReady}}ready{{else}}unavailable{{end}} · Cockpit {{if .Host.CockpitFirewallReady}}ready{{else}}unavailable{{end}}</p>
   <h3>Storage</h3>
   <ul class="items">{{range .Host.Filesystems}}<li><code>{{.Path}}</code><span>{{bytes .AvailableBytes}} available / {{bytes .TotalBytes}}</span></li>{{end}}</ul>
-  <p class="muted">SSH observer: {{.Host.SSHObserver}} · Git observer: {{.Host.GitObserver}} · sampled {{time .Host.SampledAt}}</p>
+  <p class="muted">Sampled {{time .Host.SampledAt}}</p>
   {{end}}
 </section>
 {{end}}
 
 {{define "project-list"}}
-<section id="project-list" class="panel" aria-live="polite" hx-get="/fragments/projects" hx-trigger="sse:projects_changed, sse:worktrees_changed, sse:provisioning_changed, sse:access_changed, sse:sessions_changed, sse:refresh" hx-swap="outerHTML">
+<section id="project-list" class="panel" aria-live="polite">
   <h2>{{if .Admin}}Projects{{else}}Your projects{{end}}</h2>
   {{if .ProjectsError}}<p class="error" role="alert">{{.ProjectsError}}</p>{{else if .ProjectCards}}
   <div class="project-cards">{{range .ProjectCards}}
     <article class="project-card">
       <div><h3><a href="/projects/{{.Project.ID}}">{{.Project.Name}}</a></h3><span class="state state-{{.StateClass}}">{{.State}}</span></div>
       <p>{{.Project.Profile}} development environment · <code>{{.Project.UnixUser}}</code></p>
-      {{if .ActiveCollaborators}}<p><strong>Active now:</strong> {{range $index, $name := .ActiveCollaborators}}{{if $index}}, {{end}}{{$name}}{{end}}</p>{{end}}
       {{if .CanConnect}}<p><strong>Connect:</strong> <code>ssh {{.SSHHost}}</code></p>
       {{else if .NeedsKey}}<p><a href="/account">Add an SSH device</a> to connect.</p>
       {{else if .Member}}<p class="muted">Your personal workspace is being prepared.</p>

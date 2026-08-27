@@ -11,9 +11,8 @@
     <link rel="apple-touch-icon" href="/static/apple-touch-icon.png" sizes="180x180">
     <link rel="stylesheet" href="/static/app.css">
     <script src="/static/htmx.min.js" defer></script>
-    <script src="/static/sse.min.js" defer></script>
   </head>
-  <body{{if .User.Username}} hx-ext="sse" sse-connect="/events{{if .EventProjectID}}?project_id={{.EventProjectID}}{{end}}"{{end}}>
+  <body>
     <header class="topbar">
       <div class="identity">
         <a class="brand" href="/" aria-label="Soda OS home"><picture><source media="(prefers-color-scheme: dark)" srcset="/static/soda-logo-dark.svg"><img src="/static/soda-logo.svg" alt="soda os"></picture></a>
@@ -29,7 +28,6 @@
       </nav>
       {{end}}
     </header>
-    {{if .User.Username}}<div id="live-status" aria-live="assertive" sse-swap="backend_down,backend_up"></div>{{end}}
     <main>
 {{end}}
 

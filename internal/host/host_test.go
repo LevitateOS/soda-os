@@ -13,13 +13,6 @@ import (
 	"github.com/google/uuid"
 )
 
-func TestInstallerAdministratorDiscovery(t *testing.T) {
-	account := installerAdministrator("root:x:0:0:root:/root:/bin/bash\nvincent:x:1000:1000:Vincent Example:/home/vincent:/bin/bash\n", "wheel:x:10:vincent\n")
-	if account == nil || account.username != "vincent" || account.displayName != "Vincent Example" {
-		t.Fatalf("account = %#v", account)
-	}
-}
-
 func TestCreatesEmptyProjectAndAttributedWorktree(t *testing.T) {
 	for _, binary := range []string{"git", "ssh-keygen"} {
 		if _, err := exec.LookPath(binary); err != nil {
@@ -160,6 +153,36 @@ func TestCreatePersonUsesRelaxedSixCharacterPasswordPolicy(t *testing.T) {
 	calls := runner.calls[before:]
 	if hasCallNamed(calls, "useradd") || hasCallNamed(calls, "chpasswd") {
 		t.Fatalf("invalid password changed host state: %#v", calls)
+	}
+}
+
+func TestPersonAccountsDoNotUseSodaRoleGroups(t *testing.T) {
+	runner := &recordingRunner{}
+	system := New(t.TempDir(), true)
+	system.Runner = runner
+	person := domain.Person{Username: "alice", Role: domain.RoleAdmin}
+	if _, err := system.CreatePerson(context.Background(), person, "simple"); err != nil {
+		t.Fatal(err)
+	}
+	if !hasCall(runner.calls, "useradd", "--create-home", "--shell", "/sbin/nologin", "alice") {
+		t.Fatalf("person useradd call = %#v", runner.calls)
+	}
+	for _, name := range []string{"groupadd", "usermod", "gpasswd"} {
+		if hasCallNamed(runner.calls, name) {
+			t.Fatalf("unexpected role-group command %q: %#v", name, runner.calls)
+		}
+	}
+}
+
+func TestImportPersonOnlyVerifiesLinuxAccount(t *testing.T) {
+	runner := &recordingRunner{}
+	system := New(t.TempDir(), true)
+	system.Runner = runner
+	if _, err := system.ImportPerson(context.Background(), domain.Person{Username: "alice", Role: domain.RoleDeveloper}); err != nil {
+		t.Fatal(err)
+	}
+	if len(runner.calls) != 1 || !hasCall(runner.calls, "getent", "passwd", "alice") {
+		t.Fatalf("import calls = %#v", runner.calls)
 	}
 }
 

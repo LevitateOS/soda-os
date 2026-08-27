@@ -25,8 +25,9 @@ that person's personal workspace while retaining the project Unix UID.
 ## Identity model
 
 - A person is a normal Linux account plus Soda metadata and an `admin` or
-  `developer` role. Each person can register multiple named public SSH device
-  keys; Soda stores no private keys.
+  `developer` application role. These roles do not create parallel Linux role
+  groups. Each person can register multiple named public SSH device keys; Soda
+  stores no private keys.
 - A project is a locked `soda-p-<slug>` service account whose home is
   `/srv/soda/projects/<slug>`.
 - A membership connects a person to a project and owns exactly one personal
@@ -52,6 +53,10 @@ It intentionally requires a fresh database. Project repositories live under
 `/srv/soda/projects` and publisher-resolved tools are cached under
 `/opt/soda/toolchains`.
 
+The daemon samples host health for the status page. Project and account pages
+show current state when requested; the daemon does not poll workspace Git state
+or SSH presence and does not maintain a global browser event stream.
+
 The four initial profiles are Web (Node.js and Bun), Python (Python and uv),
 Rust (rustc and Cargo), and Go. A project records exact versions after the first
 successful resolution; retries reuse that resolution instead of silently
@@ -59,6 +64,8 @@ moving the project to a newer stable release.
 
 ## Deliberate scaffold limits
 
-There are no deletion or update endpoints, browser IDE, web terminal,
-containers, profile switching, or Internet-facing management API. Trusted-LAN
-deployment does not remove individual PAM authentication or SSH attribution.
+There are no project or person deletion or update endpoints, browser IDE, web
+terminal, containers, profile switching, or Internet-facing management API.
+Trusted-LAN deployment does not remove individual PAM authentication or SSH
+attribution. The Anaconda administrator remains an ordinary Linux account
+until an operator explicitly imports it into Soda.

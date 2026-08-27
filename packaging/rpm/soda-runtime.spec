@@ -20,7 +20,6 @@ install -m 0755 %{_sourcedir}/sodad %{buildroot}%{_libexecdir}/soda/sodad
 install -m 0755 %{_sourcedir}/soda-ssh %{buildroot}%{_libexecdir}/soda/soda-ssh
 install -m 0755 %{_sourcedir}/sodactl %{buildroot}%{_bindir}/sodactl
 install -m 0644 %{_sourcedir}/sodad.service %{buildroot}%{_unitdir}/sodad.service
-install -m 0644 %{_sourcedir}/40-soda-observability.conf %{buildroot}%{_sysconfdir}/ssh/sshd_config.d/40-soda-observability.conf
 install -m 0644 %{_sourcedir}/41-soda-project-accounts.conf %{buildroot}%{_sysconfdir}/ssh/sshd_config.d/41-soda-project-accounts.conf
 
 %post
@@ -43,7 +42,6 @@ systemctl try-reload-or-restart sshd.service >/dev/null 2>&1 || :
 %{_libexecdir}/soda/soda-ssh
 %{_bindir}/sodactl
 %{_unitdir}/sodad.service
-%config(noreplace) %{_sysconfdir}/ssh/sshd_config.d/40-soda-observability.conf
 %config(noreplace) %{_sysconfdir}/ssh/sshd_config.d/41-soda-project-accounts.conf
 %dir %attr(0755,root,root) %{_sysconfdir}/soda
 %dir %attr(0755,root,root) %{_sysconfdir}/soda/authorized_keys

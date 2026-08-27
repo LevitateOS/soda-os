@@ -21,8 +21,6 @@ import (
 type fakeSodaService struct {
 	sodav2.UnimplementedSodaServiceServer
 	projectRequest *sodav2.CreateProjectRequest
-	eventProjectID *string
-	invalidControl bool
 }
 
 func (s *fakeSodaService) ListPeople(context.Context, *sodav2.ListPeopleRequest) (*sodav2.ListPeopleResponse, error) {
@@ -49,18 +47,6 @@ func (*fakeSodaService) GetProjectToolchain(context.Context, *sodav2.GetProjectT
 func (*fakeSodaService) GetHostStatus(context.Context, *sodav2.GetHostStatusRequest) (*sodav2.GetHostStatusResponse, error) {
 	cpu := 24.5
 	return &sodav2.GetHostStatusResponse{Host: &sodav2.HostStatus{SampledAt: timestamppb.New(time.Unix(1_700_000_000, 0)), Overall: sodav2.RuntimeState_RUNTIME_STATE_READY, CpuPercent: &cpu, LoadAverage: &sodav2.LoadAverage{OneMinute: 1, FiveMinutes: 2, FifteenMinutes: 3}}}, nil
-}
-
-func (s *fakeSodaService) SubscribeEvents(request *sodav2.SubscribeEventsRequest, stream sodav2.SodaService_SubscribeEventsServer) error {
-	s.eventProjectID = request.ProjectId
-	if s.invalidControl {
-		return stream.Send(&sodav2.SubscribeEventsResponse{Payload: &sodav2.SubscribeEventsResponse_Control{Control: sodav2.StreamControl_STREAM_CONTROL_UNSPECIFIED}})
-	}
-	if err := stream.Send(&sodav2.SubscribeEventsResponse{Payload: &sodav2.SubscribeEventsResponse_Control{Control: sodav2.StreamControl_STREAM_CONTROL_REFRESH}}); err != nil {
-		return err
-	}
-	projectID := "project-1"
-	return stream.Send(&sodav2.SubscribeEventsResponse{Payload: &sodav2.SubscribeEventsResponse_Event{Event: &sodav2.SodaEvent{Kind: sodav2.EventKind_EVENT_KIND_GIT_CHANGED, ProjectId: &projectID, Sequence: 9}}})
 }
 
 func TestClientMapsGRPCResourcesAndOptionalValues(t *testing.T) {
@@ -98,27 +84,11 @@ func TestClientMapsGRPCResourcesAndOptionalValues(t *testing.T) {
 	}
 }
 
-func TestClientPreservesMissingToolchainAndExplicitRefresh(t *testing.T) {
-	client, service := bufconnClient(t)
+func TestClientPreservesMissingToolchain(t *testing.T) {
+	client, _ := bufconnClient(t)
 	installation, err := client.Toolchain(context.Background(), "project-1")
 	if err != nil || installation != nil {
 		t.Fatalf("Toolchain() = %#v, %v; want nil, nil", installation, err)
-	}
-
-	context, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	events, err := client.Events(context, "project-1")
-	if err != nil {
-		t.Fatalf("Events() error = %v", err)
-	}
-	if event := <-events; event.Kind != "refresh" {
-		t.Fatalf("first event = %#v", event)
-	}
-	if event := <-events; event.Kind != "git_changed" || event.ProjectID == nil || *event.ProjectID != "project-1" || event.Sequence != 9 {
-		t.Fatalf("second event = %#v", event)
-	}
-	if service.eventProjectID == nil || *service.eventProjectID != "project-1" {
-		t.Fatalf("SubscribeEvents project ID = %#v", service.eventProjectID)
 	}
 }
 
@@ -147,23 +117,6 @@ func TestClientSanitizesGRPCErrors(t *testing.T) {
 				t.Fatalf("People() exposed daemon detail %q", test.detail)
 			}
 		})
-	}
-}
-
-func TestInvalidStreamControlClosesEventsForRecovery(t *testing.T) {
-	client, service := bufconnClient(t)
-	service.invalidControl = true
-	events, err := client.Events(context.Background(), "")
-	if err != nil {
-		t.Fatalf("Events() error = %v", err)
-	}
-	select {
-	case event, open := <-events:
-		if open {
-			t.Fatalf("Events() returned invalid control as %#v", event)
-		}
-	case <-time.After(time.Second):
-		t.Fatal("Events() did not close after invalid control")
 	}
 }
 

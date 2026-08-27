@@ -3,7 +3,6 @@ package soda
 import (
 	"context"
 	"fmt"
-	"io"
 	"strings"
 
 	sodav2 "github.com/LevitateOS/soda-os/internal/gen/soda/v2"
@@ -102,42 +101,6 @@ type HostStatus struct {
 	MemoryTotalBytes     uint64             `json:"memory_total_bytes"`
 	MemoryAvailableBytes uint64             `json:"memory_available_bytes"`
 	Filesystems          []FilesystemStatus `json:"filesystems"`
-	SSHObserver          RuntimeState       `json:"ssh_observer"`
-	GitObserver          RuntimeState       `json:"git_observer"`
-}
-type WorktreeStatus struct {
-	WorktreeID string  `json:"worktree_id"`
-	Branch     string  `json:"branch"`
-	Head       string  `json:"head"`
-	Upstream   *string `json:"upstream"`
-	Ahead      uint64  `json:"ahead"`
-	Behind     uint64  `json:"behind"`
-	Staged     uint64  `json:"staged"`
-	Modified   uint64  `json:"modified"`
-	Untracked  uint64  `json:"untracked"`
-	Conflicted uint64  `json:"conflicted"`
-	State      string  `json:"state"`
-	Error      *string `json:"error"`
-}
-type SSHChannel struct {
-	Kind       string `json:"kind"`
-	WorktreeID string `json:"worktree_id"`
-}
-type ActiveSSHConnection struct {
-	ID            string       `json:"id"`
-	ProjectID     string       `json:"project_id"`
-	PersonID      string       `json:"person_id"`
-	ConnectedAt   uint64       `json:"connected_at"`
-	ClientAddress string       `json:"client_address"`
-	ClientPort    uint16       `json:"client_port"`
-	ServerAddress string       `json:"server_address"`
-	ServerPort    uint16       `json:"server_port"`
-	Channels      []SSHChannel `json:"channels"`
-}
-type Event struct {
-	Kind      string  `json:"kind"`
-	ProjectID *string `json:"project_id"`
-	Sequence  uint64  `json:"sequence"`
 }
 type CreatePersonRequest struct {
 	Username    string `json:"username"`
@@ -171,9 +134,6 @@ type API interface {
 	Toolchain(context.Context, string) (*ToolchainInstallation, error)
 	DeployKey(context.Context, string) (DeployKey, error)
 	HostStatus(context.Context) (HostStatus, error)
-	WorktreeStatuses(context.Context, string) ([]WorktreeStatus, error)
-	ActiveSessions(context.Context) ([]ActiveSSHConnection, error)
-	Events(context.Context, string) (<-chan Event, error)
 }
 
 type Client struct {
@@ -334,62 +294,6 @@ func (c *Client) HostStatus(ctx context.Context) (HostStatus, error) {
 	}
 	return hostStatus(response.GetHost()), nil
 }
-func (c *Client) WorktreeStatuses(ctx context.Context, projectID string) ([]WorktreeStatus, error) {
-	response, err := c.service.ListWorktreeStatuses(ctx, &sodav2.ListWorktreeStatusesRequest{ProjectId: projectID})
-	if err != nil {
-		return nil, rpcError(err)
-	}
-	items := make([]WorktreeStatus, 0, len(response.GetWorktrees()))
-	for _, item := range response.GetWorktrees() {
-		items = append(items, worktreeStatus(item))
-	}
-	return items, nil
-}
-func (c *Client) ActiveSessions(ctx context.Context) ([]ActiveSSHConnection, error) {
-	response, err := c.service.ListActiveSshConnections(ctx, &sodav2.ListActiveSshConnectionsRequest{})
-	if err != nil {
-		return nil, rpcError(err)
-	}
-	items := make([]ActiveSSHConnection, 0, len(response.GetConnections()))
-	for _, item := range response.GetConnections() {
-		items = append(items, activeSSHConnection(item))
-	}
-	return items, nil
-}
-
-func (c *Client) Events(ctx context.Context, projectID string) (<-chan Event, error) {
-	request := &sodav2.SubscribeEventsRequest{}
-	if projectID != "" {
-		request.ProjectId = &projectID
-	}
-	stream, err := c.service.SubscribeEvents(ctx, request)
-	if err != nil {
-		return nil, rpcError(err)
-	}
-	events := make(chan Event, 32)
-	go func() {
-		defer close(events)
-		for {
-			response, err := stream.Recv()
-			if err == io.EOF || ctx.Err() != nil {
-				return
-			}
-			if err != nil {
-				return
-			}
-			event, err := event(response)
-			if err != nil {
-				return
-			}
-			select {
-			case events <- event:
-			case <-ctx.Done():
-				return
-			}
-		}
-	}()
-	return events, nil
-}
 
 type RPCError struct {
 	Code    codes.Code
@@ -463,7 +367,7 @@ func toolchain(value *sodav2.ToolchainInstallation) ToolchainInstallation {
 	return ToolchainInstallation{ID: value.GetId(), Profile: profileFromProto(value.GetProfile()), Version: value.GetVersion(), Path: value.GetPath(), Checksum: value.GetChecksum(), State: jobState(value.GetState())}
 }
 func hostStatus(value *sodav2.HostStatus) HostStatus {
-	result := HostStatus{Overall: runtimeState(value.GetOverall()), SSHFirewallReady: value.GetSshFirewallReady(), CockpitFirewallReady: value.GetCockpitFirewallReady(), UptimeSeconds: value.GetUptimeSeconds(), MemoryTotalBytes: value.GetMemoryTotalBytes(), MemoryAvailableBytes: value.GetMemoryAvailableBytes(), SSHObserver: runtimeState(value.GetSshObserver()), GitObserver: runtimeState(value.GetGitObserver())}
+	result := HostStatus{Overall: runtimeState(value.GetOverall()), SSHFirewallReady: value.GetSshFirewallReady(), CockpitFirewallReady: value.GetCockpitFirewallReady(), UptimeSeconds: value.GetUptimeSeconds(), MemoryTotalBytes: value.GetMemoryTotalBytes(), MemoryAvailableBytes: value.GetMemoryAvailableBytes()}
 	if timestamp := value.GetSampledAt(); timestamp != nil {
 		result.SampledAt = uint64(timestamp.AsTime().Unix())
 	}
@@ -485,50 +389,6 @@ func hostStatus(value *sodav2.HostStatus) HostStatus {
 	}
 	return result
 }
-func worktreeStatus(value *sodav2.WorktreeStatus) WorktreeStatus {
-	result := WorktreeStatus{WorktreeID: value.GetWorktreeId(), Branch: value.GetBranch(), Head: value.GetShortCommit(), Ahead: value.GetAhead(), Behind: value.GetBehind(), Staged: value.GetStaged(), Modified: value.GetModified(), Untracked: value.GetUntracked(), Conflicted: value.GetConflicted(), State: worktreeState(value.GetState())}
-	if value.Upstream != nil {
-		result.Upstream = value.Upstream
-	}
-	if value.Error != nil {
-		result.Error = value.Error
-	}
-	return result
-}
-func activeSSHConnection(value *sodav2.ActiveSshConnection) ActiveSSHConnection {
-	result := ActiveSSHConnection{ID: value.GetId(), ProjectID: value.GetProjectId(), PersonID: value.GetPersonId(), ClientAddress: value.GetClientAddress(), ClientPort: uint16(value.GetClientPort()), ServerAddress: value.GetServerAddress(), ServerPort: uint16(value.GetServerPort())}
-	if timestamp := value.GetConnectedAt(); timestamp != nil {
-		result.ConnectedAt = uint64(timestamp.AsTime().Unix())
-	}
-	for _, channel := range value.GetChannels() {
-		result.Channels = append(result.Channels, SSHChannel{Kind: sshChannel(channel.GetKind()), WorktreeID: channel.GetWorktreeId()})
-	}
-	return result
-}
-func event(value *sodav2.SubscribeEventsResponse) (Event, error) {
-	switch payload := value.GetPayload().(type) {
-	case *sodav2.SubscribeEventsResponse_Control:
-		if payload.Control != sodav2.StreamControl_STREAM_CONTROL_REFRESH {
-			return Event{}, fmt.Errorf("invalid stream control %d", payload.Control)
-		}
-		return Event{Kind: "refresh"}, nil
-	case *sodav2.SubscribeEventsResponse_Event:
-		if payload.Event == nil {
-			return Event{}, fmt.Errorf("event stream returned an empty event")
-		}
-		result := Event{Kind: eventKind(payload.Event.GetKind()), Sequence: payload.Event.GetSequence()}
-		if result.Kind == "" {
-			return Event{}, fmt.Errorf("invalid event kind %d", payload.Event.GetKind())
-		}
-		if payload.Event.ProjectId != nil {
-			result.ProjectID = payload.Event.ProjectId
-		}
-		return result, nil
-	default:
-		return Event{}, fmt.Errorf("event stream returned an empty payload")
-	}
-}
-
 func roleToProto(value Role) sodav2.Role {
 	if value == RoleAdmin {
 		return sodav2.Role_ROLE_ADMIN
@@ -601,52 +461,6 @@ func runtimeState(value sodav2.RuntimeState) RuntimeState {
 		return "degraded"
 	case sodav2.RuntimeState_RUNTIME_STATE_UNAVAILABLE:
 		return "unavailable"
-	default:
-		return ""
-	}
-}
-func worktreeState(value sodav2.WorktreeState) string {
-	switch value {
-	case sodav2.WorktreeState_WORKTREE_STATE_CLEAN:
-		return "clean"
-	case sodav2.WorktreeState_WORKTREE_STATE_DIRTY:
-		return "dirty"
-	case sodav2.WorktreeState_WORKTREE_STATE_UNAVAILABLE:
-		return "unavailable"
-	default:
-		return ""
-	}
-}
-func sshChannel(value sodav2.SshChannelKind) string {
-	switch value {
-	case sodav2.SshChannelKind_SSH_CHANNEL_KIND_INTERACTIVE:
-		return "interactive"
-	case sodav2.SshChannelKind_SSH_CHANNEL_KIND_COMMAND:
-		return "command"
-	case sodav2.SshChannelKind_SSH_CHANNEL_KIND_SFTP:
-		return "sftp"
-	default:
-		return ""
-	}
-}
-func eventKind(value sodav2.EventKind) string {
-	switch value {
-	case sodav2.EventKind_EVENT_KIND_HOST_CHANGED:
-		return "host_changed"
-	case sodav2.EventKind_EVENT_KIND_PEOPLE_CHANGED:
-		return "people_changed"
-	case sodav2.EventKind_EVENT_KIND_PROJECTS_CHANGED:
-		return "projects_changed"
-	case sodav2.EventKind_EVENT_KIND_WORKTREES_CHANGED:
-		return "worktrees_changed"
-	case sodav2.EventKind_EVENT_KIND_PROVISIONING_CHANGED:
-		return "provisioning_changed"
-	case sodav2.EventKind_EVENT_KIND_GIT_CHANGED:
-		return "git_changed"
-	case sodav2.EventKind_EVENT_KIND_SESSIONS_CHANGED:
-		return "sessions_changed"
-	case sodav2.EventKind_EVENT_KIND_ACCESS_CHANGED:
-		return "access_changed"
 	default:
 		return ""
 	}

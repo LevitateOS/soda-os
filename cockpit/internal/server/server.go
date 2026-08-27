@@ -9,7 +9,6 @@ import (
 	"html/template"
 	"io/fs"
 	"net/http"
-	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -59,9 +58,6 @@ type pageData struct {
 	Admin                  bool
 	ProvisioningActive     bool
 	Host                   *soda.HostStatus
-	WorktreeStatuses       []worktreeStatusView
-	Sessions               []sessionView
-	EventProjectID         string
 	Message                string
 	DeviceKeys             []soda.SSHDeviceKey
 	SelectedDeviceKey      *soda.SSHDeviceKey
@@ -77,32 +73,18 @@ type pageData struct {
 }
 
 type projectCardView struct {
-	Project             soda.Project
-	State               string
-	StateClass          string
-	SSHHost             string
-	ActiveCollaborators []string
-	Member              bool
-	CanConnect          bool
-	NeedsKey            bool
-}
-
-type worktreeStatusView struct {
-	Person string
-	Name   string
-	Status soda.WorktreeStatus
+	Project    soda.Project
+	State      string
+	StateClass string
+	SSHHost    string
+	Member     bool
+	CanConnect bool
+	NeedsKey   bool
 }
 
 type memberWorkspaceView struct {
 	Person    soda.Person
 	Workspace *soda.Worktree
-}
-
-type sessionView struct {
-	Person      string
-	ConnectedAt uint64
-	Client      string
-	Channels    []string
 }
 
 type userContextKey struct{}
@@ -139,11 +121,6 @@ func (s *Server) Handler() http.Handler {
 
 	protected := http.NewServeMux()
 	protected.HandleFunc("GET /", s.home)
-	protected.HandleFunc("GET /events", s.events)
-	protected.HandleFunc("GET /fragments/host", s.hostFragment)
-	protected.HandleFunc("GET /fragments/projects", s.projectsFragment)
-	protected.HandleFunc("GET /fragments/team", s.peopleFragment)
-	protected.HandleFunc("GET /fragments/ssh-keys", s.sshKeysFragment)
 	protected.HandleFunc("POST /logout", s.logout)
 	protected.HandleFunc("GET /account", s.account)
 	protected.HandleFunc("POST /account/password", s.changePassword)
@@ -157,9 +134,6 @@ func (s *Server) Handler() http.Handler {
 	protected.HandleFunc("GET /projects/{project_id}/connect", s.connectFragment)
 	protected.HandleFunc("GET /projects/{project_id}/ssh-config", s.sshConfig)
 	protected.HandleFunc("GET /projects/{project_id}/provisioning", s.provisioning)
-	protected.HandleFunc("GET /projects/{project_id}/collaboration", s.collaboration)
-	protected.HandleFunc("GET /projects/{project_id}/git", s.gitStatus)
-	protected.HandleFunc("GET /projects/{project_id}/sessions", s.sessionsFragment)
 	protected.HandleFunc("POST /projects/{project_id}/members", s.addCollaborator)
 	protected.HandleFunc("POST /projects/{project_id}/provisioning", s.retryProvisioning)
 	protected.HandleFunc("GET /profiles", s.profiles)
@@ -279,118 +253,6 @@ func (s *Server) home(w http.ResponseWriter, r *http.Request) {
 	s.render(w, http.StatusOK, "index.html", data)
 }
 
-func (s *Server) events(w http.ResponseWriter, r *http.Request) {
-	flusher, ok := w.(http.Flusher)
-	if !ok {
-		http.Error(w, "streaming unavailable", http.StatusInternalServerError)
-		return
-	}
-	w.Header().Set("Content-Type", "text/event-stream")
-	w.Header().Set("Cache-Control", "no-cache")
-	w.Header().Set("X-Accel-Buffering", "no")
-	user := currentUser(r)
-	projectID := r.URL.Query().Get("project_id")
-	if projectID != "" {
-		if _, allowed, err := s.visibleProject(r.Context(), user, projectID); err != nil || !allowed {
-			http.Error(w, "forbidden", http.StatusForbidden)
-			return
-		}
-	}
-	backoff := time.Second
-	for {
-		stream, err := s.api.Events(r.Context(), projectID)
-		if err != nil {
-			writeSSE(w, "backend_down", `<p class="live-warning" role="alert">Soda service unavailable; displayed information may be stale.</p>`)
-			writeSSE(w, "host_changed", "refresh")
-			flusher.Flush()
-			select {
-			case <-r.Context().Done():
-				return
-			case <-time.After(backoff):
-			}
-			if backoff < 5*time.Second {
-				backoff *= 2
-			}
-			continue
-		}
-		backoff = time.Second
-		writeSSE(w, "backend_up", `<span class="sr-only">Live updates connected.</span>`)
-		writeSSE(w, "refresh", "refresh")
-		flusher.Flush()
-		keepalive := time.NewTicker(15 * time.Second)
-		connected := true
-		for connected {
-			select {
-			case <-r.Context().Done():
-				keepalive.Stop()
-				return
-			case <-keepalive.C:
-				_, _ = fmt.Fprint(w, ": keepalive\n\n")
-				flusher.Flush()
-			case event, open := <-stream:
-				if !open {
-					connected = false
-					continue
-				}
-				if s.eventAllowed(r.Context(), user, event) {
-					writeSSE(w, event.Kind, "refresh")
-					flusher.Flush()
-				}
-			}
-		}
-		keepalive.Stop()
-		writeSSE(w, "backend_down", `<p class="live-warning" role="alert">Soda service unavailable; displayed information may be stale.</p>`)
-		flusher.Flush()
-	}
-}
-
-func (s *Server) eventAllowed(ctx context.Context, user soda.Person, event soda.Event) bool {
-	if event.ProjectID == nil || user.Role == soda.RoleAdmin {
-		return event.Kind != "people_changed" || user.Role == soda.RoleAdmin
-	}
-	projects, err := s.visibleProjects(ctx, user)
-	if err != nil {
-		return false
-	}
-	for _, project := range projects {
-		if project.ID == *event.ProjectID {
-			return true
-		}
-	}
-	return false
-}
-
-func writeSSE(w http.ResponseWriter, event, data string) {
-	_, _ = fmt.Fprintf(w, "event: %s\ndata: %s\n\n", event, strings.ReplaceAll(data, "\n", " "))
-}
-
-func (s *Server) hostFragment(w http.ResponseWriter, r *http.Request) {
-	host, err := s.api.HostStatus(r.Context())
-	data := pageData{User: currentUser(r)}
-	if err != nil {
-		data.HostError = "Host status is temporarily unavailable."
-	} else {
-		data.Host = &host
-	}
-	s.render(w, http.StatusOK, "host", data)
-}
-
-func (s *Server) projectsFragment(w http.ResponseWriter, r *http.Request) {
-	user := currentUser(r)
-	projects, err := s.visibleProjects(r.Context(), user)
-	data := pageData{User: user}
-	if err != nil {
-		data.ProjectsError = "Projects are temporarily unavailable."
-	} else {
-		data.Projects = projects
-		data.ProjectCards, err = s.projectCards(r.Context(), user, projects)
-		if err != nil {
-			data.ProjectsError = "Projects are temporarily unavailable."
-		}
-	}
-	s.render(w, http.StatusOK, "project-list", data)
-}
-
 func (s *Server) account(w http.ResponseWriter, r *http.Request) {
 	user := currentUser(r)
 	keys, err := s.api.SSHDeviceKeys(r.Context(), user.ID)
@@ -399,18 +261,6 @@ func (s *Server) account(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.render(w, http.StatusOK, "account.html", pageData{Title: "My account · Soda OS", Version: version.Version, User: user, DeviceKeys: keys, Admin: user.Role == soda.RoleAdmin})
-}
-
-func (s *Server) sshKeysFragment(w http.ResponseWriter, r *http.Request) {
-	user := currentUser(r)
-	keys, err := s.api.SSHDeviceKeys(r.Context(), user.ID)
-	data := pageData{User: user, Admin: user.Role == soda.RoleAdmin}
-	if err != nil {
-		data.Error = "SSH devices are temporarily unavailable."
-	} else {
-		data.DeviceKeys = keys
-	}
-	s.render(w, http.StatusOK, "ssh-keys", data)
 }
 
 func (s *Server) createSSHDeviceKey(w http.ResponseWriter, r *http.Request) {
@@ -470,20 +320,6 @@ func (s *Server) changePassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.render(w, http.StatusOK, "password-change", pageData{User: user, Message: "Password changed."})
-}
-
-func (s *Server) peopleFragment(w http.ResponseWriter, r *http.Request) {
-	if !requireAdmin(w, r) {
-		return
-	}
-	people, err := s.api.People(r.Context())
-	data := pageData{User: currentUser(r)}
-	if err != nil {
-		data.Error = "People are temporarily unavailable."
-	} else {
-		data.People = people
-	}
-	s.render(w, http.StatusOK, "people-list", data)
 }
 
 func (s *Server) people(w http.ResponseWriter, r *http.Request) {
@@ -622,7 +458,7 @@ func (s *Server) project(w http.ResponseWriter, r *http.Request) {
 	data := pageData{Title: "Project · Soda OS", Version: version.Version, User: user, Project: &project,
 		People: people, Worktrees: worktrees, Jobs: jobs, Toolchain: installation,
 		MemberWorkspaces: memberWorkspaceViews(members, worktrees), PersonNames: personNames(people),
-		ProvisioningActive: provisioningActive(jobs), EventProjectID: project.ID}
+		ProvisioningActive: provisioningActive(jobs)}
 	data.ProjectState, data.ProjectStateClass = projectState(jobs)
 	data.ProjectReady = data.ProjectStateClass == "ready"
 	data.AvailablePeople = peopleWithoutMembers(people, members)
@@ -649,7 +485,7 @@ func (s *Server) connectFragment(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "forbidden", http.StatusForbidden)
 		return
 	}
-	data := pageData{User: user, Project: &project, EventProjectID: project.ID}
+	data := pageData{User: user, Project: &project}
 	if err = s.loadConnectData(r.Context(), &data, r.URL.Query().Get("key_id")); err != nil {
 		data.ConnectError = "Connection details are temporarily unavailable."
 	}
@@ -737,130 +573,43 @@ func (s *Server) loadConnectData(ctx context.Context, data *pageData, selectedKe
 	return nil
 }
 
-func (s *Server) collaboration(w http.ResponseWriter, r *http.Request) {
-	data, status, ok := s.collaborationData(w, r)
-	if !ok {
-		return
-	}
-	s.render(w, status, "collaboration", data)
-}
-
-func (s *Server) collaborationData(w http.ResponseWriter, r *http.Request) (pageData, int, bool) {
+func (s *Server) collaborationData(w http.ResponseWriter, r *http.Request) (pageData, bool) {
 	user := currentUser(r)
 	project, allowed, err := s.visibleProject(r.Context(), user, r.PathValue("project_id"))
 	if err != nil {
 		http.Error(w, "load project", http.StatusBadGateway)
-		return pageData{}, 0, false
+		return pageData{}, false
 	}
 	if !allowed {
 		http.Error(w, "forbidden", http.StatusForbidden)
-		return pageData{}, 0, false
+		return pageData{}, false
 	}
 	worktrees, err := s.api.Worktrees(r.Context(), project.ID)
 	if err != nil {
 		http.Error(w, "load worktrees", http.StatusBadGateway)
-		return pageData{}, 0, false
+		return pageData{}, false
 	}
 	people, err := s.api.People(r.Context())
 	if err != nil {
 		http.Error(w, "load people", http.StatusBadGateway)
-		return pageData{}, 0, false
+		return pageData{}, false
 	}
 	members, err := s.api.Members(r.Context(), project.ID)
 	if err != nil {
 		http.Error(w, "load project members", http.StatusBadGateway)
-		return pageData{}, 0, false
+		return pageData{}, false
 	}
 	data := pageData{
 		User: user, Project: &project, People: people, Worktrees: worktrees,
 		MemberWorkspaces: memberWorkspaceViews(members, worktrees), AvailablePeople: peopleWithoutMembers(people, members),
-		PersonNames: personNames(people), EventProjectID: project.ID,
+		PersonNames: personNames(people),
 	}
 	jobs, _, setupErr := s.provisioningState(r.Context(), project.ID)
 	if setupErr == nil {
 		_, stateClass := projectState(jobs)
 		data.ProjectReady = stateClass == "ready"
 	}
-	return data, http.StatusOK, true
-}
-
-func (s *Server) gitStatus(w http.ResponseWriter, r *http.Request) {
-	user := currentUser(r)
-	project, allowed, err := s.visibleProject(r.Context(), user, r.PathValue("project_id"))
-	if err != nil {
-		http.Error(w, "load project", http.StatusBadGateway)
-		return
-	}
-	if !allowed {
-		http.Error(w, "forbidden", http.StatusForbidden)
-		return
-	}
-	statuses, err := s.api.WorktreeStatuses(r.Context(), project.ID)
-	if err != nil {
-		s.render(w, http.StatusOK, "git-status", pageData{User: user, Project: &project, Error: "Git status is temporarily unavailable."})
-		return
-	}
-	worktrees, _ := s.api.Worktrees(r.Context(), project.ID)
-	people, _ := s.api.People(r.Context())
-	worktreeByID := make(map[string]soda.Worktree, len(worktrees))
-	for _, worktree := range worktrees {
-		worktreeByID[worktree.ID] = worktree
-	}
-	names := personNames(people)
-	views := make([]worktreeStatusView, 0, len(statuses))
-	for _, status := range statuses {
-		worktree := worktreeByID[status.WorktreeID]
-		views = append(views, worktreeStatusView{Person: names[worktree.PersonID], Name: worktree.Name, Status: status})
-	}
-	s.render(w, http.StatusOK, "git-status", pageData{User: user, Project: &project, WorktreeStatuses: views})
-}
-
-func (s *Server) sessionsFragment(w http.ResponseWriter, r *http.Request) {
-	user := currentUser(r)
-	project, allowed, err := s.visibleProject(r.Context(), user, r.PathValue("project_id"))
-	if err != nil {
-		http.Error(w, "load project", http.StatusBadGateway)
-		return
-	}
-	if !allowed {
-		http.Error(w, "forbidden", http.StatusForbidden)
-		return
-	}
-	sessions, err := s.api.ActiveSessions(r.Context())
-	if err != nil {
-		s.render(w, http.StatusOK, "sessions", pageData{User: user, Project: &project, Error: "SSH presence is temporarily unavailable."})
-		return
-	}
-	people, _ := s.api.People(r.Context())
-	worktrees, _ := s.api.Worktrees(r.Context(), project.ID)
-	names := personNames(people)
-	worktreeNames := make(map[string]string, len(worktrees))
-	for _, worktree := range worktrees {
-		worktreeNames[worktree.ID] = worktree.Name
-	}
-	views := make([]sessionView, 0)
-	for _, session := range sessions {
-		if session.ProjectID != project.ID {
-			continue
-		}
-		channels := make([]string, 0, len(session.Channels))
-		for _, channel := range session.Channels {
-			channels = append(channels, channel.Kind+" · "+worktreeNames[channel.WorktreeID])
-		}
-		if len(channels) == 0 {
-			channels = append(channels, "transport only")
-		}
-		client := ""
-		if user.Role == soda.RoleAdmin {
-			client = fmt.Sprintf("%s:%d", session.ClientAddress, session.ClientPort)
-		}
-		views = append(views, sessionView{Person: names[session.PersonID], ConnectedAt: session.ConnectedAt, Client: client, Channels: channels})
-	}
-	data := pageData{User: user, Project: &project, Sessions: views}
-	if host, hostErr := s.api.HostStatus(r.Context()); hostErr == nil && host.SSHObserver != "ready" {
-		data.Error = "SSH presence is degraded; displayed sessions may be incomplete."
-	}
-	s.render(w, http.StatusOK, "sessions", data)
+	return data, true
 }
 
 func (s *Server) provisioning(w http.ResponseWriter, r *http.Request) {
@@ -897,7 +646,7 @@ func (s *Server) addCollaborator(w http.ResponseWriter, r *http.Request) {
 	projectID := r.PathValue("project_id")
 	if _, err := s.api.AddCollaborator(r.Context(), projectID, r.FormValue("person_id")); err != nil {
 		if isHTMX(r) {
-			data, _, ok := s.collaborationData(w, r)
+			data, ok := s.collaborationData(w, r)
 			if ok {
 				data.Error = err.Error()
 				s.render(w, http.StatusUnprocessableEntity, "collaboration", data)
@@ -908,7 +657,7 @@ func (s *Server) addCollaborator(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if isHTMX(r) {
-		data, _, ok := s.collaborationData(w, r)
+		data, ok := s.collaborationData(w, r)
 		if ok {
 			data.Message = "Team member and personal workspace added."
 			s.render(w, http.StatusOK, "collaboration", data)
@@ -1006,7 +755,6 @@ func (s *Server) projectCards(ctx context.Context, user soda.Person, projects []
 	if err != nil {
 		return nil, err
 	}
-	activeSessions, _ := s.api.ActiveSessions(ctx)
 	cards := make([]projectCardView, 0, len(projects))
 	for _, project := range projects {
 		jobs, _, loadErr := s.provisioningState(ctx, project.ID)
@@ -1023,9 +771,7 @@ func (s *Server) projectCards(ctx context.Context, user soda.Person, projects []
 			return nil, loadErr
 		}
 		member := false
-		memberNames := make(map[string]string, len(members))
 		for _, person := range members {
-			memberNames[person.ID] = person.DisplayName
 			if person.ID == user.ID {
 				member = true
 			}
@@ -1037,23 +783,9 @@ func (s *Server) projectCards(ctx context.Context, user soda.Person, projects []
 				break
 			}
 		}
-		activeNames := make([]string, 0)
-		activePeople := make(map[string]struct{})
-		for _, session := range activeSessions {
-			name, belongs := memberNames[session.PersonID]
-			if session.ProjectID != project.ID || !belongs {
-				continue
-			}
-			if _, seen := activePeople[session.PersonID]; seen {
-				continue
-			}
-			activePeople[session.PersonID] = struct{}{}
-			activeNames = append(activeNames, name)
-		}
-		sort.Strings(activeNames)
 		cards = append(cards, projectCardView{
 			Project: project, State: state, StateClass: stateClass, SSHHost: "soda-" + project.Slug,
-			ActiveCollaborators: activeNames, Member: member, NeedsKey: member && len(keys) == 0,
+			Member: member, NeedsKey: member && len(keys) == 0,
 			CanConnect: member && hasWorkspace && len(keys) > 0 && stateClass == "ready",
 		})
 	}

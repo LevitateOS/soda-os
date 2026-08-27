@@ -30,19 +30,11 @@ func TestSodaServiceContract(t *testing.T) {
 		"StartProvisioning",
 		"ListProvisioningJobs",
 		"GetHostStatus",
-		"ListWorktreeStatuses",
-		"ListActiveSshConnections",
-		"SubscribeEvents",
 	}
 	require.Equal(t, len(wantMethods), service.Methods().Len())
 	for _, methodName := range wantMethods {
 		require.NotNilf(t, service.Methods().ByName(methodName), "missing RPC %s", methodName)
 	}
-
-	subscribe := service.Methods().ByName("SubscribeEvents")
-	require.True(t, subscribe.IsStreamingServer())
-	require.False(t, subscribe.IsStreamingClient())
-	require.True(t, (&SubscribeEventsRequest{}).ProtoReflect().Descriptor().Fields().ByName("project_id").HasOptionalKeyword())
 }
 
 func TestPersonalWorkspaceIdentityContract(t *testing.T) {
@@ -50,7 +42,6 @@ func TestPersonalWorkspaceIdentityContract(t *testing.T) {
 	require.Nil(t, person.Fields().ByName("ssh_public_key"))
 	request := (&CreateProjectRequest{}).ProtoReflect().Descriptor()
 	require.True(t, request.Fields().ByName("initial_person_ids").IsList())
-	require.NotEqual(t, EventKind_EVENT_KIND_UNSPECIFIED, EventKind_EVENT_KIND_ACCESS_CHANGED)
 }
 
 func TestProjectSourceUsesOneofWithoutKindDiscriminator(t *testing.T) {
@@ -60,19 +51,4 @@ func TestProjectSourceUsesOneofWithoutKindDiscriminator(t *testing.T) {
 	require.Equal(t, protoreflect.Name("source"), descriptor.Oneofs().Get(0).Name())
 	require.Equal(t, descriptor.Oneofs().Get(0), descriptor.Fields().ByName("empty").ContainingOneof())
 	require.Equal(t, descriptor.Oneofs().Get(0), descriptor.Fields().ByName("git").ContainingOneof())
-}
-
-func TestSubscribeEventsResponseHasExplicitRefreshControl(t *testing.T) {
-	descriptor := (&SubscribeEventsResponse{}).ProtoReflect().Descriptor()
-	require.Equal(t, 1, descriptor.Oneofs().Len())
-	require.Equal(t, protoreflect.Name("payload"), descriptor.Oneofs().Get(0).Name())
-	require.Equal(t, descriptor.Oneofs().Get(0), descriptor.Fields().ByName("event").ContainingOneof())
-	require.Equal(t, descriptor.Oneofs().Get(0), descriptor.Fields().ByName("control").ContainingOneof())
-	require.NotEqual(t, StreamControl_STREAM_CONTROL_UNSPECIFIED, StreamControl_STREAM_CONTROL_REFRESH)
-
-	response := &SubscribeEventsResponse{
-		Payload: &SubscribeEventsResponse_Control{Control: StreamControl_STREAM_CONTROL_REFRESH},
-	}
-	require.Equal(t, StreamControl_STREAM_CONTROL_REFRESH, response.GetControl())
-	require.Nil(t, response.GetEvent())
 }

@@ -45,9 +45,6 @@ type fakeHost struct {
 	reconcileErr     error
 }
 
-func (*fakeHost) InstallerAdministrator(context.Context) (*domain.Person, *domain.SSHDeviceKey, error) {
-	return nil, nil, nil
-}
 func (h *fakeHost) CreatePerson(context.Context, domain.Person, string) (host.Cleanup, error) {
 	h.mu.Lock()
 	h.people++
@@ -146,18 +143,6 @@ type observeHost struct{}
 
 func (observeHost) SampleHost(context.Context) (domain.HostStatus, error) {
 	return domain.HostStatus{SampledAt: time.Now(), Overall: domain.RuntimeReady}, nil
-}
-
-type observeGit struct{}
-
-func (observeGit) Inspect(_ context.Context, _ domain.Project, tree domain.Worktree) domain.WorktreeStatus {
-	return domain.WorktreeStatus{WorktreeID: tree.ID, State: domain.WorktreeClean}
-}
-
-type observeSessions struct{}
-
-func (observeSessions) Inspect(context.Context, []domain.Project, []domain.Person, []domain.SSHDeviceKey, []domain.Worktree) (observe.SessionObservation, error) {
-	return observe.SessionObservation{Connections: []domain.ActiveSSHConnection{{ID: "connection", ConnectedAt: time.Now()}}}, nil
 }
 
 func newTestService(t *testing.T) *Service {
@@ -293,21 +278,20 @@ func TestValidationUsesCanonicalStatus(t *testing.T) {
 	}
 }
 
-func TestCommittedObservabilityBacksTelemetryAndEventStream(t *testing.T) {
+func TestCommittedHostObservabilityBacksTelemetry(t *testing.T) {
 	repository, err := store.Open(filepath.Join(t.TempDir(), "soda.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	manager, err := observe.NewManager(observe.Dependencies{Store: repository, Host: observeHost{}, Git: observeGit{}, Sessions: observeSessions{}})
+	manager, err := observe.NewManager(observeHost{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	defer manager.Broker().Close()
 	manager.Run(ctx)
 	adapter := NewObservability(manager)
-	service := New(Options{Store: repository, Host: &fakeHost{}, Toolchains: fakeInstaller{}, Telemetry: adapter, Events: adapter, EventSource: adapter, ProjectsRoot: t.TempDir()})
+	service := New(Options{Store: repository, Host: &fakeHost{}, Toolchains: fakeInstaller{}, Telemetry: adapter, ProjectsRoot: t.TempDir()})
 	defer service.Close()
 	listener := bufconn.Listen(1 << 20)
 	server := grpc.NewServer()
@@ -324,32 +308,8 @@ func TestCommittedObservabilityBacksTelemetryAndEventStream(t *testing.T) {
 	if err != nil || hostResponse.Host == nil {
 		t.Fatalf("host = %#v, %v", hostResponse, err)
 	}
-	sessions, err := client.ListActiveSshConnections(ctx, &sodav2.ListActiveSshConnectionsRequest{})
-	if err != nil || len(sessions.Connections) != 1 {
-		t.Fatalf("sessions = %#v, %v", sessions, err)
-	}
-	streamCtx, streamCancel := context.WithTimeout(ctx, 2*time.Second)
-	defer streamCancel()
-	stream, err := client.SubscribeEvents(streamCtx, &sodav2.SubscribeEventsRequest{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	first, err := stream.Recv()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if first.GetControl() != sodav2.StreamControl_STREAM_CONTROL_REFRESH {
-		t.Fatalf("initial stream message = %#v", first)
-	}
-	manager.Broker().Publish(domain.EventPeopleChanged, "")
-	for {
-		message, receiveErr := stream.Recv()
-		if receiveErr != nil {
-			t.Fatal(receiveErr)
-		}
-		if message.GetEvent().GetKind() == sodav2.EventKind_EVENT_KIND_PEOPLE_CHANGED {
-			break
-		}
+	if hostResponse.Host.GetOverall() != sodav2.RuntimeState_RUNTIME_STATE_READY {
+		t.Fatalf("host status = %#v", hostResponse.Host)
 	}
 }
 

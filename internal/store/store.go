@@ -227,23 +227,6 @@ func (s *Store) SSHDeviceKeys(ctx context.Context, personID string) ([]domain.SS
 	return values, nil
 }
 
-func (s *Store) AllSSHDeviceKeys(ctx context.Context) ([]domain.SSHDeviceKey, error) {
-	var rows []SSHDeviceKey
-	if err := s.db.WithContext(ctx).Order("person_id, label, id").Find(&rows).Error; err != nil {
-		return nil, err
-	}
-	values := make([]domain.SSHDeviceKey, 0, len(rows))
-	for _, row := range rows {
-		values = append(values, sshDeviceKeyDomain(row))
-	}
-	return values, nil
-}
-
-// ListSSHDeviceKeys implements observe.ProjectStore without exposing GORM models.
-func (s *Store) ListSSHDeviceKeys(ctx context.Context) ([]domain.SSHDeviceKey, error) {
-	return s.AllSSHDeviceKeys(ctx)
-}
-
 func (s *Store) DeleteSSHDeviceKey(ctx context.Context, personID, keyID string) (domain.SSHDeviceKey, error) {
 	var removed domain.SSHDeviceKey
 	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -315,12 +298,6 @@ func (s *Store) Projects(ctx context.Context) ([]domain.Project, error) {
 	}
 	return values, nil
 }
-
-// ListProjects implements observe.ProjectStore without exposing GORM models.
-func (s *Store) ListProjects(ctx context.Context) ([]domain.Project, error) { return s.Projects(ctx) }
-
-// ListPeople implements observe.ProjectStore without exposing GORM models.
-func (s *Store) ListPeople(ctx context.Context) ([]domain.Person, error) { return s.People(ctx) }
 
 func (s *Store) Project(ctx context.Context, id string) (domain.Project, error) {
 	var row Project
@@ -444,11 +421,6 @@ func (s *Store) Worktrees(ctx context.Context, projectID string) ([]domain.Workt
 		values = append(values, worktreeDomain(row))
 	}
 	return values, nil
-}
-
-// ListWorktrees implements observe.ProjectStore without exposing GORM models.
-func (s *Store) ListWorktrees(ctx context.Context, projectID string) ([]domain.Worktree, error) {
-	return s.Worktrees(ctx, projectID)
 }
 
 func (s *Store) WorktreesForPerson(ctx context.Context, projectID, personID string) ([]domain.Worktree, error) {

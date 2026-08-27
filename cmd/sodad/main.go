@@ -50,17 +50,13 @@ func run(logger *slog.Logger) error {
 		logger.Warn("marked interrupted provisioning jobs failed", slog.Int64("jobs", interrupted))
 	}
 	system := host.New(projects, true)
-	observer, err := observe.NewManager(observe.Dependencies{Store: persistence, Host: observe.NewSystemHostSampler(nil, nil), Git: observe.NewSystemGitInspector(nil), Sessions: observe.NewSystemSessionInspector(nil)})
+	observer, err := observe.NewManager(observe.NewSystemHostSampler(nil, nil))
 	if err != nil {
 		return err
 	}
-	defer observer.Broker().Close()
 	observability := daemon.NewObservability(observer)
-	service := daemon.New(daemon.Options{Store: persistence, Host: system, Toolchains: toolchain.New(toolchains), Telemetry: observability, Events: observability, EventSource: observability, ProjectsRoot: projects, Logger: logger})
+	service := daemon.New(daemon.Options{Store: persistence, Host: system, Toolchains: toolchain.New(toolchains), Telemetry: observability, ProjectsRoot: projects, Logger: logger})
 	defer service.Close()
-	if err = service.BootstrapInstallerAdministrator(runContext); err != nil {
-		return err
-	}
 	if err = service.ReconcileAllAuthorizedKeys(runContext); err != nil {
 		return err
 	}

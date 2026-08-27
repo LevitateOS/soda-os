@@ -19,27 +19,24 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	SodaService_Health_FullMethodName                   = "/soda.v2.SodaService/Health"
-	SodaService_CreatePerson_FullMethodName             = "/soda.v2.SodaService/CreatePerson"
-	SodaService_ImportPerson_FullMethodName             = "/soda.v2.SodaService/ImportPerson"
-	SodaService_ListPeople_FullMethodName               = "/soda.v2.SodaService/ListPeople"
-	SodaService_CreateSshDeviceKey_FullMethodName       = "/soda.v2.SodaService/CreateSshDeviceKey"
-	SodaService_ListSshDeviceKeys_FullMethodName        = "/soda.v2.SodaService/ListSshDeviceKeys"
-	SodaService_RevokeSshDeviceKey_FullMethodName       = "/soda.v2.SodaService/RevokeSshDeviceKey"
-	SodaService_CreateProject_FullMethodName            = "/soda.v2.SodaService/CreateProject"
-	SodaService_ListProjects_FullMethodName             = "/soda.v2.SodaService/ListProjects"
-	SodaService_ListProjectsForPerson_FullMethodName    = "/soda.v2.SodaService/ListProjectsForPerson"
-	SodaService_AddCollaborator_FullMethodName          = "/soda.v2.SodaService/AddCollaborator"
-	SodaService_ListCollaborators_FullMethodName        = "/soda.v2.SodaService/ListCollaborators"
-	SodaService_ListWorktrees_FullMethodName            = "/soda.v2.SodaService/ListWorktrees"
-	SodaService_GetDeployKey_FullMethodName             = "/soda.v2.SodaService/GetDeployKey"
-	SodaService_GetProjectToolchain_FullMethodName      = "/soda.v2.SodaService/GetProjectToolchain"
-	SodaService_StartProvisioning_FullMethodName        = "/soda.v2.SodaService/StartProvisioning"
-	SodaService_ListProvisioningJobs_FullMethodName     = "/soda.v2.SodaService/ListProvisioningJobs"
-	SodaService_GetHostStatus_FullMethodName            = "/soda.v2.SodaService/GetHostStatus"
-	SodaService_ListWorktreeStatuses_FullMethodName     = "/soda.v2.SodaService/ListWorktreeStatuses"
-	SodaService_ListActiveSshConnections_FullMethodName = "/soda.v2.SodaService/ListActiveSshConnections"
-	SodaService_SubscribeEvents_FullMethodName          = "/soda.v2.SodaService/SubscribeEvents"
+	SodaService_Health_FullMethodName                = "/soda.v2.SodaService/Health"
+	SodaService_CreatePerson_FullMethodName          = "/soda.v2.SodaService/CreatePerson"
+	SodaService_ImportPerson_FullMethodName          = "/soda.v2.SodaService/ImportPerson"
+	SodaService_ListPeople_FullMethodName            = "/soda.v2.SodaService/ListPeople"
+	SodaService_CreateSshDeviceKey_FullMethodName    = "/soda.v2.SodaService/CreateSshDeviceKey"
+	SodaService_ListSshDeviceKeys_FullMethodName     = "/soda.v2.SodaService/ListSshDeviceKeys"
+	SodaService_RevokeSshDeviceKey_FullMethodName    = "/soda.v2.SodaService/RevokeSshDeviceKey"
+	SodaService_CreateProject_FullMethodName         = "/soda.v2.SodaService/CreateProject"
+	SodaService_ListProjects_FullMethodName          = "/soda.v2.SodaService/ListProjects"
+	SodaService_ListProjectsForPerson_FullMethodName = "/soda.v2.SodaService/ListProjectsForPerson"
+	SodaService_AddCollaborator_FullMethodName       = "/soda.v2.SodaService/AddCollaborator"
+	SodaService_ListCollaborators_FullMethodName     = "/soda.v2.SodaService/ListCollaborators"
+	SodaService_ListWorktrees_FullMethodName         = "/soda.v2.SodaService/ListWorktrees"
+	SodaService_GetDeployKey_FullMethodName          = "/soda.v2.SodaService/GetDeployKey"
+	SodaService_GetProjectToolchain_FullMethodName   = "/soda.v2.SodaService/GetProjectToolchain"
+	SodaService_StartProvisioning_FullMethodName     = "/soda.v2.SodaService/StartProvisioning"
+	SodaService_ListProvisioningJobs_FullMethodName  = "/soda.v2.SodaService/ListProvisioningJobs"
+	SodaService_GetHostStatus_FullMethodName         = "/soda.v2.SodaService/GetHostStatus"
 )
 
 // SodaServiceClient is the client API for SodaService service.
@@ -64,9 +61,6 @@ type SodaServiceClient interface {
 	StartProvisioning(ctx context.Context, in *StartProvisioningRequest, opts ...grpc.CallOption) (*StartProvisioningResponse, error)
 	ListProvisioningJobs(ctx context.Context, in *ListProvisioningJobsRequest, opts ...grpc.CallOption) (*ListProvisioningJobsResponse, error)
 	GetHostStatus(ctx context.Context, in *GetHostStatusRequest, opts ...grpc.CallOption) (*GetHostStatusResponse, error)
-	ListWorktreeStatuses(ctx context.Context, in *ListWorktreeStatusesRequest, opts ...grpc.CallOption) (*ListWorktreeStatusesResponse, error)
-	ListActiveSshConnections(ctx context.Context, in *ListActiveSshConnectionsRequest, opts ...grpc.CallOption) (*ListActiveSshConnectionsResponse, error)
-	SubscribeEvents(ctx context.Context, in *SubscribeEventsRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[SubscribeEventsResponse], error)
 }
 
 type sodaServiceClient struct {
@@ -257,45 +251,6 @@ func (c *sodaServiceClient) GetHostStatus(ctx context.Context, in *GetHostStatus
 	return out, nil
 }
 
-func (c *sodaServiceClient) ListWorktreeStatuses(ctx context.Context, in *ListWorktreeStatusesRequest, opts ...grpc.CallOption) (*ListWorktreeStatusesResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(ListWorktreeStatusesResponse)
-	err := c.cc.Invoke(ctx, SodaService_ListWorktreeStatuses_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *sodaServiceClient) ListActiveSshConnections(ctx context.Context, in *ListActiveSshConnectionsRequest, opts ...grpc.CallOption) (*ListActiveSshConnectionsResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(ListActiveSshConnectionsResponse)
-	err := c.cc.Invoke(ctx, SodaService_ListActiveSshConnections_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *sodaServiceClient) SubscribeEvents(ctx context.Context, in *SubscribeEventsRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[SubscribeEventsResponse], error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	stream, err := c.cc.NewStream(ctx, &SodaService_ServiceDesc.Streams[0], SodaService_SubscribeEvents_FullMethodName, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	x := &grpc.GenericClientStream[SubscribeEventsRequest, SubscribeEventsResponse]{ClientStream: stream}
-	if err := x.ClientStream.SendMsg(in); err != nil {
-		return nil, err
-	}
-	if err := x.ClientStream.CloseSend(); err != nil {
-		return nil, err
-	}
-	return x, nil
-}
-
-// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type SodaService_SubscribeEventsClient = grpc.ServerStreamingClient[SubscribeEventsResponse]
-
 // SodaServiceServer is the server API for SodaService service.
 // All implementations must embed UnimplementedSodaServiceServer
 // for forward compatibility.
@@ -318,9 +273,6 @@ type SodaServiceServer interface {
 	StartProvisioning(context.Context, *StartProvisioningRequest) (*StartProvisioningResponse, error)
 	ListProvisioningJobs(context.Context, *ListProvisioningJobsRequest) (*ListProvisioningJobsResponse, error)
 	GetHostStatus(context.Context, *GetHostStatusRequest) (*GetHostStatusResponse, error)
-	ListWorktreeStatuses(context.Context, *ListWorktreeStatusesRequest) (*ListWorktreeStatusesResponse, error)
-	ListActiveSshConnections(context.Context, *ListActiveSshConnectionsRequest) (*ListActiveSshConnectionsResponse, error)
-	SubscribeEvents(*SubscribeEventsRequest, grpc.ServerStreamingServer[SubscribeEventsResponse]) error
 	mustEmbedUnimplementedSodaServiceServer()
 }
 
@@ -384,15 +336,6 @@ func (UnimplementedSodaServiceServer) ListProvisioningJobs(context.Context, *Lis
 }
 func (UnimplementedSodaServiceServer) GetHostStatus(context.Context, *GetHostStatusRequest) (*GetHostStatusResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetHostStatus not implemented")
-}
-func (UnimplementedSodaServiceServer) ListWorktreeStatuses(context.Context, *ListWorktreeStatusesRequest) (*ListWorktreeStatusesResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method ListWorktreeStatuses not implemented")
-}
-func (UnimplementedSodaServiceServer) ListActiveSshConnections(context.Context, *ListActiveSshConnectionsRequest) (*ListActiveSshConnectionsResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method ListActiveSshConnections not implemented")
-}
-func (UnimplementedSodaServiceServer) SubscribeEvents(*SubscribeEventsRequest, grpc.ServerStreamingServer[SubscribeEventsResponse]) error {
-	return status.Error(codes.Unimplemented, "method SubscribeEvents not implemented")
 }
 func (UnimplementedSodaServiceServer) mustEmbedUnimplementedSodaServiceServer() {}
 func (UnimplementedSodaServiceServer) testEmbeddedByValue()                     {}
@@ -739,53 +682,6 @@ func _SodaService_GetHostStatus_Handler(srv interface{}, ctx context.Context, de
 	return interceptor(ctx, in, info, handler)
 }
 
-func _SodaService_ListWorktreeStatuses_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ListWorktreeStatusesRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(SodaServiceServer).ListWorktreeStatuses(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: SodaService_ListWorktreeStatuses_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(SodaServiceServer).ListWorktreeStatuses(ctx, req.(*ListWorktreeStatusesRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _SodaService_ListActiveSshConnections_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ListActiveSshConnectionsRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(SodaServiceServer).ListActiveSshConnections(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: SodaService_ListActiveSshConnections_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(SodaServiceServer).ListActiveSshConnections(ctx, req.(*ListActiveSshConnectionsRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _SodaService_SubscribeEvents_Handler(srv interface{}, stream grpc.ServerStream) error {
-	m := new(SubscribeEventsRequest)
-	if err := stream.RecvMsg(m); err != nil {
-		return err
-	}
-	return srv.(SodaServiceServer).SubscribeEvents(m, &grpc.GenericServerStream[SubscribeEventsRequest, SubscribeEventsResponse]{ServerStream: stream})
-}
-
-// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type SodaService_SubscribeEventsServer = grpc.ServerStreamingServer[SubscribeEventsResponse]
-
 // SodaService_ServiceDesc is the grpc.ServiceDesc for SodaService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -865,21 +761,7 @@ var SodaService_ServiceDesc = grpc.ServiceDesc{
 			MethodName: "GetHostStatus",
 			Handler:    _SodaService_GetHostStatus_Handler,
 		},
-		{
-			MethodName: "ListWorktreeStatuses",
-			Handler:    _SodaService_ListWorktreeStatuses_Handler,
-		},
-		{
-			MethodName: "ListActiveSshConnections",
-			Handler:    _SodaService_ListActiveSshConnections_Handler,
-		},
 	},
-	Streams: []grpc.StreamDesc{
-		{
-			StreamName:    "SubscribeEvents",
-			Handler:       _SodaService_SubscribeEvents_Handler,
-			ServerStreams: true,
-		},
-	},
+	Streams:  []grpc.StreamDesc{},
 	Metadata: "soda/v2/soda.proto",
 }

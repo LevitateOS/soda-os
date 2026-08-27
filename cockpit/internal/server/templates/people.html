@@ -25,7 +25,7 @@
 {{end}}
 
 {{define "people-list"}}
-<section id="people-list" class="panel" aria-live="polite" hx-get="/fragments/team" hx-trigger="sse:people_changed, sse:refresh" hx-swap="outerHTML">
+<section id="people-list" class="panel" aria-live="polite">
   <h2>Team members</h2>
   {{if .Error}}<p class="error" role="alert">{{.Error}}</p>{{else if .People}}<table><thead><tr><th>Name</th><th>Linux username</th><th>Email</th><th>Role</th></tr></thead><tbody>
   {{range .People}}<tr><td>{{.DisplayName}}</td><td><code>{{.Username}}</code></td><td>{{.Email}}</td><td>{{.Role}}</td></tr>{{end}}

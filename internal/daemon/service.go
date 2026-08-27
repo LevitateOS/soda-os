@@ -18,34 +18,13 @@ import (
 	"github.com/LevitateOS/soda-os/internal/toolchain"
 	"github.com/LevitateOS/soda-os/internal/version"
 	"github.com/google/uuid"
-	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
 
-type EventPublisher interface {
-	Publish(domain.EventKind, *string)
-}
-type EventMessage struct {
-	Event   *domain.Event
-	Refresh bool
-}
-type EventSubscription interface {
-	Messages() <-chan EventMessage
-	Close()
-}
-type EventSource interface {
-	Subscribe(context.Context, *string) (EventSubscription, error)
-}
 type Telemetry interface {
 	HostStatus(context.Context) (*sodav2.HostStatus, error)
-	WorktreeStatuses(context.Context, string) ([]*sodav2.WorktreeStatus, error)
-	ActiveSSHConnections(context.Context) ([]*sodav2.ActiveSshConnection, error)
 }
-
-type noopEvents struct{}
-
-func (noopEvents) Publish(domain.EventKind, *string) {}
 
 type Service struct {
 	sodav2.UnimplementedSodaServiceServer
@@ -53,8 +32,6 @@ type Service struct {
 	host                host.Operations
 	toolchains          toolchain.Installer
 	telemetry           Telemetry
-	events              EventPublisher
-	eventSource         EventSource
 	projectsRoot        string
 	logger              *slog.Logger
 	background          context.Context
@@ -68,8 +45,6 @@ type Options struct {
 	Host                host.Operations
 	Toolchains          toolchain.Installer
 	Telemetry           Telemetry
-	Events              EventPublisher
-	EventSource         EventSource
 	ProjectsRoot        string
 	Logger              *slog.Logger
 	ProvisioningTimeout time.Duration
@@ -79,10 +54,6 @@ const defaultProvisioningTimeout = 30 * time.Minute
 
 func New(options Options) *Service {
 	background, cancel := context.WithCancel(context.Background())
-	events := options.Events
-	if events == nil {
-		events = noopEvents{}
-	}
 	logger := options.Logger
 	if logger == nil {
 		logger = slog.Default()
@@ -91,44 +62,9 @@ func New(options Options) *Service {
 	if provisioningTimeout <= 0 {
 		provisioningTimeout = defaultProvisioningTimeout
 	}
-	return &Service{store: options.Store, host: options.Host, toolchains: options.Toolchains, telemetry: options.Telemetry, events: events, eventSource: options.EventSource, projectsRoot: options.ProjectsRoot, logger: logger, background: background, cancel: cancel, provisioningTimeout: provisioningTimeout}
+	return &Service{store: options.Store, host: options.Host, toolchains: options.Toolchains, telemetry: options.Telemetry, projectsRoot: options.ProjectsRoot, logger: logger, background: background, cancel: cancel, provisioningTimeout: provisioningTimeout}
 }
 func (s *Service) Close() { s.cancel(); s.wg.Wait() }
-
-func (s *Service) BootstrapInstallerAdministrator(ctx context.Context) error {
-	people, err := s.store.People(ctx)
-	if err != nil {
-		return err
-	}
-	if len(people) != 0 {
-		return nil
-	}
-	candidate, device, err := s.host.InstallerAdministrator(ctx)
-	if err != nil {
-		return err
-	}
-	if candidate == nil {
-		return nil
-	}
-	candidate.ID = uuid.NewString()
-	cleanup, err := s.host.ImportPerson(ctx, *candidate)
-	if err != nil {
-		return err
-	}
-	if err = s.store.CreatePerson(ctx, *candidate); err != nil {
-		return s.compensate(ctx, err, cleanup, "installer administrator", candidate.Username)
-	}
-	if device != nil {
-		device.ID = uuid.NewString()
-		device.PersonID = candidate.ID
-		device.CreatedAt = time.Now().UTC()
-		if err = s.store.CreateSSHDeviceKey(ctx, *device); err != nil {
-			return err
-		}
-	}
-	s.events.Publish(domain.EventPeopleChanged, nil)
-	return nil
-}
 
 func (s *Service) Health(_ context.Context, _ *sodav2.HealthRequest) (*sodav2.HealthResponse, error) {
 	return &sodav2.HealthResponse{Status: "ok", Service: "sodad", Version: version.Version}, nil
@@ -161,7 +97,6 @@ func (s *Service) CreatePerson(ctx context.Context, request *sodav2.CreatePerson
 	if err = s.store.CreatePerson(ctx, person); err != nil {
 		return nil, rpcError(s.compensate(ctx, err, cleanup, "person", person.Username))
 	}
-	s.events.Publish(domain.EventPeopleChanged, nil)
 	return &sodav2.CreatePersonResponse{Person: personProto(person)}, nil
 }
 func (s *Service) ImportPerson(ctx context.Context, request *sodav2.ImportPersonRequest) (*sodav2.ImportPersonResponse, error) {
@@ -183,7 +118,6 @@ func (s *Service) ImportPerson(ctx context.Context, request *sodav2.ImportPerson
 	if err = s.store.CreatePerson(ctx, person); err != nil {
 		return nil, rpcError(s.compensate(ctx, err, cleanup, "imported person", person.Username))
 	}
-	s.events.Publish(domain.EventPeopleChanged, nil)
 	return &sodav2.ImportPersonResponse{Person: personProto(person)}, nil
 }
 func (s *Service) ListPeople(ctx context.Context, _ *sodav2.ListPeopleRequest) (*sodav2.ListPeopleResponse, error) {
@@ -232,7 +166,6 @@ func (s *Service) CreateSshDeviceKey(ctx context.Context, request *sodav2.Create
 		}
 		return nil, rpcError(errors.Join(err, rollbackErr))
 	}
-	s.events.Publish(domain.EventAccessChanged, nil)
 	return &sodav2.CreateSshDeviceKeyResponse{Key: sshDeviceKeyProto(key)}, nil
 }
 
@@ -275,7 +208,6 @@ func (s *Service) RevokeSshDeviceKey(ctx context.Context, request *sodav2.Revoke
 		}
 		return nil, rpcError(errors.Join(err, rollbackErr))
 	}
-	s.events.Publish(domain.EventAccessChanged, nil)
 	return &sodav2.RevokeSshDeviceKeyResponse{Key: sshDeviceKeyProto(key)}, nil
 }
 
@@ -324,7 +256,6 @@ func (s *Service) CreateProject(ctx context.Context, request *sodav2.CreateProje
 		}
 		return nil, rpcError(err)
 	}
-	s.events.Publish(domain.EventProjectsChanged, nil)
 	return &sodav2.CreateProjectResponse{Project: projectProto(project)}, nil
 }
 func (s *Service) ListProjects(ctx context.Context, _ *sodav2.ListProjectsRequest) (*sodav2.ListProjectsResponse, error) {
@@ -404,8 +335,6 @@ func (s *Service) AddCollaborator(ctx context.Context, request *sodav2.AddCollab
 		}
 		return nil, rpcError(errors.Join(err, rollbackErr))
 	}
-	s.events.Publish(domain.EventWorktreesChanged, &projectID)
-	s.events.Publish(domain.EventAccessChanged, &projectID)
 	return &sodav2.AddCollaboratorResponse{Membership: membershipProto(membership), Worktree: worktreeProto(tree)}, nil
 }
 func (s *Service) ListCollaborators(ctx context.Context, request *sodav2.ListCollaboratorsRequest) (*sodav2.ListCollaboratorsResponse, error) {
@@ -526,83 +455,11 @@ func (s *Service) GetHostStatus(ctx context.Context, _ *sodav2.GetHostStatusRequ
 	}
 	return &sodav2.GetHostStatusResponse{Host: hostStatus}, nil
 }
-func (s *Service) ListWorktreeStatuses(ctx context.Context, request *sodav2.ListWorktreeStatusesRequest) (*sodav2.ListWorktreeStatusesResponse, error) {
-	id, err := parseID(request.GetProjectId(), "project")
-	if err != nil {
-		return nil, rpcError(err)
-	}
-	if _, err = s.store.Project(ctx, id); err != nil {
-		return nil, rpcError(err)
-	}
-	if s.telemetry == nil {
-		return nil, status.Error(codes.Unavailable, "Git telemetry is unavailable")
-	}
-	values, err := s.telemetry.WorktreeStatuses(ctx, id)
-	if err != nil {
-		return nil, status.Error(codes.Unavailable, err.Error())
-	}
-	return &sodav2.ListWorktreeStatusesResponse{Worktrees: values}, nil
-}
-func (s *Service) ListActiveSshConnections(ctx context.Context, _ *sodav2.ListActiveSshConnectionsRequest) (*sodav2.ListActiveSshConnectionsResponse, error) {
-	if s.telemetry == nil {
-		return nil, status.Error(codes.Unavailable, "SSH telemetry is unavailable")
-	}
-	values, err := s.telemetry.ActiveSSHConnections(ctx)
-	if err != nil {
-		return nil, status.Error(codes.Unavailable, err.Error())
-	}
-	return &sodav2.ListActiveSshConnectionsResponse{Connections: values}, nil
-}
-func (s *Service) SubscribeEvents(request *sodav2.SubscribeEventsRequest, stream grpc.ServerStreamingServer[sodav2.SubscribeEventsResponse]) error {
-	if s.eventSource == nil {
-		return status.Error(codes.Unavailable, "event stream is unavailable")
-	}
-	var projectID *string
-	if request.ProjectId != nil {
-		id, err := parseID(request.GetProjectId(), "project")
-		if err != nil {
-			return rpcError(err)
-		}
-		projectID = &id
-	}
-	subscription, err := s.eventSource.Subscribe(stream.Context(), projectID)
-	if err != nil {
-		return status.Error(codes.Unavailable, err.Error())
-	}
-	defer subscription.Close()
-	for {
-		select {
-		case <-stream.Context().Done():
-			return stream.Context().Err()
-		case message, ok := <-subscription.Messages():
-			if !ok {
-				return status.Error(codes.Unavailable, "event stream closed")
-			}
-			if message.Refresh {
-				if err = stream.Send(&sodav2.SubscribeEventsResponse{Payload: &sodav2.SubscribeEventsResponse_Control{Control: sodav2.StreamControl_STREAM_CONTROL_REFRESH}}); err != nil {
-					return err
-				}
-				continue
-			}
-			if message.Event == nil {
-				continue
-			}
-			event := *message.Event
-			protoEvent := &sodav2.SodaEvent{Kind: eventKindProto(event.Kind), Sequence: event.Sequence}
-			protoEvent.ProjectId = event.ProjectID
-			if err = stream.Send(&sodav2.SubscribeEventsResponse{Payload: &sodav2.SubscribeEventsResponse_Event{Event: protoEvent}}); err != nil {
-				return err
-			}
-		}
-	}
-}
-
 func (s *Service) startProvisioning(projectID string) (domain.ProvisioningJob, error) {
 	job := domain.ProvisioningJob{ID: uuid.NewString(), ProjectID: projectID, State: domain.JobInstalling}
 	if err := s.store.BeginProvisioning(s.background, job); err != nil {
 		return domain.ProvisioningJob{}, err
 	}
-	s.events.Publish(domain.EventProvisioningChanged, &projectID)
 	s.wg.Add(1)
 	go func() { defer s.wg.Done(); s.runProvisioning(projectID, job.ID) }()
 	return job, nil
@@ -621,7 +478,6 @@ func (s *Service) runProvisioning(projectID, jobID string) {
 	if err := s.store.UpdateJob(updateContext, job); err != nil {
 		s.logger.Error("update provisioning job", slog.String("job_id", jobID), slog.Any("error", err))
 	}
-	s.events.Publish(domain.EventProvisioningChanged, &projectID)
 }
 
 func (s *Service) compensate(ctx context.Context, operationErr error, cleanup host.Cleanup, resource, identity string) error {
@@ -699,12 +555,10 @@ func (s *Service) installProject(ctx context.Context, projectID string) error {
 		if createErr = s.store.CreateWorktree(ctx, tree); createErr != nil {
 			return s.compensate(ctx, createErr, cleanup, "personal workspace", tree.Path)
 		}
-		s.events.Publish(domain.EventWorktreesChanged, &projectID)
 	}
 	if err = s.reconcileProjectAccess(ctx, projectID); err != nil {
 		return err
 	}
-	s.events.Publish(domain.EventAccessChanged, &projectID)
 	return nil
 }
 func (s *Service) makeWorktree(project domain.Project, person domain.Person) domain.Worktree {
@@ -840,26 +694,4 @@ func parsePair(project, person string) (string, string, error) {
 	}
 	personID, err := parseID(person, "person")
 	return projectID, personID, err
-}
-func eventKindProto(kind domain.EventKind) sodav2.EventKind {
-	switch kind {
-	case domain.EventHostChanged:
-		return sodav2.EventKind_EVENT_KIND_HOST_CHANGED
-	case domain.EventPeopleChanged:
-		return sodav2.EventKind_EVENT_KIND_PEOPLE_CHANGED
-	case domain.EventProjectsChanged:
-		return sodav2.EventKind_EVENT_KIND_PROJECTS_CHANGED
-	case domain.EventWorktreesChanged:
-		return sodav2.EventKind_EVENT_KIND_WORKTREES_CHANGED
-	case domain.EventProvisioningChanged:
-		return sodav2.EventKind_EVENT_KIND_PROVISIONING_CHANGED
-	case domain.EventGitChanged:
-		return sodav2.EventKind_EVENT_KIND_GIT_CHANGED
-	case domain.EventSessionsChanged:
-		return sodav2.EventKind_EVENT_KIND_SESSIONS_CHANGED
-	case domain.EventAccessChanged:
-		return sodav2.EventKind_EVENT_KIND_ACCESS_CHANGED
-	default:
-		return sodav2.EventKind_EVENT_KIND_UNSPECIFIED
-	}
 }

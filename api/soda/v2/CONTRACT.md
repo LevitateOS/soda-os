@@ -14,7 +14,7 @@ CLI clients translate these codes without exposing raw internal errors.
 - Valid requests rejected by current resource or provisioning state:
   `FailedPrecondition`.
 - Authenticated callers without access to a resource: `PermissionDenied`.
-- Unavailable daemon dependencies, services, or observers: `Unavailable`.
+- Unavailable daemon dependencies or services: `Unavailable`.
 - Unexpected failures that cannot be mapped more precisely: `Internal`.
 
 ## Project sources and Git URLs
@@ -38,10 +38,3 @@ worktree creation is not part of this API.
 Project SSH authorization is derived entirely from memberships, personal
 workspaces, and active device keys. The project account selects the project;
 the authenticated device-key fingerprint identifies the person.
-
-## Event stream
-
-`SubscribeEventsResponse.payload` contains either a domain event or a stream
-control value. Initial connection and recovery use the explicit
-`STREAM_CONTROL_REFRESH` value. `STREAM_CONTROL_UNSPECIFIED` is never a refresh
-signal and must be treated as invalid stream data.

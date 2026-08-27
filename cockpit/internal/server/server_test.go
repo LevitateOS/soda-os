@@ -8,7 +8,6 @@ import (
 	"net/url"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/LevitateOS/soda-os/cockpit/internal/auth"
 	"github.com/LevitateOS/soda-os/cockpit/internal/soda"
@@ -38,15 +37,11 @@ type fakeAPI struct {
 	worktrees      []soda.Worktree
 	jobs           []soda.ProvisioningJob
 	toolchain      *soda.ToolchainInstallation
-	statuses       []soda.WorktreeStatus
-	active         []soda.ActiveSSHConnection
-	events         <-chan soda.Event
 	created        *soda.CreatePersonRequest
 	createdProject *soda.CreateProjectRequest
 	keys           []soda.SSHDeviceKey
 	keyPersonIDs   []string
 	retried        bool
-	eventProject   string
 	hostCalls      int
 }
 
@@ -122,21 +117,6 @@ func (f *fakeAPI) HostStatus(context.Context) (soda.HostStatus, error) {
 	f.hostCalls++
 	return soda.HostStatus{Overall: "ready"}, nil
 }
-func (f *fakeAPI) WorktreeStatuses(context.Context, string) ([]soda.WorktreeStatus, error) {
-	return f.statuses, nil
-}
-func (f *fakeAPI) ActiveSessions(context.Context) ([]soda.ActiveSSHConnection, error) {
-	return f.active, nil
-}
-func (f *fakeAPI) Events(_ context.Context, projectID string) (<-chan soda.Event, error) {
-	f.eventProject = projectID
-	if f.events != nil {
-		return f.events, nil
-	}
-	events := make(chan soda.Event)
-	return events, nil
-}
-
 func TestHealthAndLoginPageArePublic(t *testing.T) {
 	app := testServer(t, &fakeAPI{}, fakeAuth{})
 	for path, expected := range map[string]string{"/healthz": "ok\n", "/login": "Sign in to Soda OS"} {
@@ -186,7 +166,7 @@ func TestFailedAuthenticationDoesNotCreateSession(t *testing.T) {
 	}
 }
 
-func TestProvisioningFragmentUsesEventsWhileInstalling(t *testing.T) {
+func TestProvisioningFragmentShowsCurrentState(t *testing.T) {
 	admin := soda.Person{ID: "admin-1", Username: "admin", DisplayName: "Admin", Role: soda.RoleAdmin}
 	project := soda.Project{ID: "project-1", Name: "Live project"}
 	api := &fakeAPI{
@@ -202,19 +182,17 @@ func TestProvisioningFragmentUsesEventsWhileInstalling(t *testing.T) {
 	cookie := &http.Cookie{Name: sessionCookie, Value: token}
 
 	installing := request(app, http.MethodGet, "/projects/project-1/provisioning", "", cookie)
-	if installing.Code != http.StatusOK || !strings.Contains(installing.Body.String(), `sse:provisioning_changed`) ||
-		strings.Contains(installing.Body.String(), `every 2s`) ||
+	if installing.Code != http.StatusOK || strings.Contains(installing.Body.String(), `sse:`) ||
 		!strings.Contains(installing.Body.String(), `aria-busy="true"`) ||
 		strings.Contains(installing.Body.String(), `Retry project setup`) {
-		t.Fatalf("expected live installing fragment, got %d %q", installing.Code, installing.Body.String())
+		t.Fatalf("expected installing fragment, got %d %q", installing.Code, installing.Body.String())
 	}
 
 	api.jobs[0].State = "ready"
 	ready := request(app, http.MethodGet, "/projects/project-1/provisioning", "", cookie)
-	if ready.Code != http.StatusOK || !strings.Contains(ready.Body.String(), `sse:provisioning_changed`) ||
-		strings.Contains(ready.Body.String(), `every 2s`) ||
+	if ready.Code != http.StatusOK || strings.Contains(ready.Body.String(), `sse:`) ||
 		strings.Contains(ready.Body.String(), `Retry project setup`) || !strings.Contains(ready.Body.String(), `>Ready<`) {
-		t.Fatalf("expected completed fragment without polling, got %d %q", ready.Code, ready.Body.String())
+		t.Fatalf("expected ready fragment, got %d %q", ready.Code, ready.Body.String())
 	}
 }
 
@@ -234,7 +212,7 @@ func TestHTMXRetryReturnsInstallingFragment(t *testing.T) {
 	app.Handler().ServeHTTP(response, req)
 
 	if !api.retried || response.Code != http.StatusOK || response.Header().Get("HX-Redirect") != "" ||
-		!strings.Contains(response.Body.String(), `sse:provisioning_changed`) {
+		!strings.Contains(response.Body.String(), `aria-busy="true"`) || strings.Contains(response.Body.String(), `sse:`) {
 		t.Fatalf("expected HTMX retry fragment, got retried=%t status=%d headers=%v body=%q",
 			api.retried, response.Code, response.Header(), response.Body.String())
 	}
@@ -264,64 +242,6 @@ func TestAdminHTMXPersonFlow(t *testing.T) {
 	}
 	if api.created == nil || api.created.Username != "bob" {
 		t.Fatalf("person request was not forwarded: %#v", api.created)
-	}
-}
-
-func TestProjectSSEForwardsAllowedEvents(t *testing.T) {
-	developer := soda.Person{ID: "person-1", Username: "alice", DisplayName: "Alice", Role: soda.RoleDeveloper}
-	project := soda.Project{ID: "project-1", Name: "Live project"}
-	events := make(chan soda.Event, 1)
-	projectID := project.ID
-	events <- soda.Event{Kind: "git_changed", ProjectID: &projectID, Sequence: 2}
-	api := &fakeAPI{people: []soda.Person{developer}, projects: []soda.Project{project}, events: events}
-	app := testServer(t, api, fakeAuth{})
-	token, err := app.sessions.create(developer)
-	if err != nil {
-		t.Fatal(err)
-	}
-	ctx, cancel := context.WithCancel(context.Background())
-	req := httptest.NewRequest(http.MethodGet, "/events?project_id=project-1", nil).WithContext(ctx)
-	req.AddCookie(&http.Cookie{Name: sessionCookie, Value: token})
-	response := httptest.NewRecorder()
-	done := make(chan struct{})
-	go func() {
-		app.Handler().ServeHTTP(response, req)
-		close(done)
-	}()
-	time.Sleep(25 * time.Millisecond)
-	cancel()
-	<-done
-	if api.eventProject != project.ID || !strings.Contains(response.Body.String(), "event: git_changed") {
-		t.Fatalf("project event was not streamed: project=%q body=%q", api.eventProject, response.Body.String())
-	}
-}
-
-func TestSessionFragmentRedactsClientForDevelopers(t *testing.T) {
-	developer := soda.Person{ID: "person-1", Username: "alice", DisplayName: "Alice", Role: soda.RoleDeveloper}
-	admin := soda.Person{ID: "admin-1", Username: "admin", DisplayName: "Admin", Role: soda.RoleAdmin}
-	project := soda.Project{ID: "project-1", Name: "Live project"}
-	api := &fakeAPI{
-		people:   []soda.Person{developer, admin},
-		projects: []soda.Project{project},
-		active: []soda.ActiveSSHConnection{{
-			ProjectID: project.ID, PersonID: developer.ID, ConnectedAt: 1,
-			ClientAddress: "192.0.2.10", ClientPort: 54321,
-		}},
-	}
-	app := testServer(t, api, fakeAuth{})
-	for _, test := range []struct {
-		user       soda.Person
-		wantClient bool
-	}{{developer, false}, {admin, true}} {
-		token, err := app.sessions.create(test.user)
-		if err != nil {
-			t.Fatal(err)
-		}
-		response := request(app, http.MethodGet, "/projects/project-1/sessions", "", &http.Cookie{Name: sessionCookie, Value: token})
-		contains := strings.Contains(response.Body.String(), "192.0.2.10:54321")
-		if response.Code != http.StatusOK || contains != test.wantClient || !strings.Contains(response.Body.String(), "Alice") {
-			t.Fatalf("unexpected session visibility for %s: %d %q", test.user.Role, response.Code, response.Body.String())
-		}
 	}
 }
 
@@ -421,6 +341,11 @@ func TestProjectShowsMembershipWhilePersonalWorkspaceIsPreparing(t *testing.T) {
 	if page.Code != http.StatusOK || !strings.Contains(page.Body.String(), "Bob <code>bob</code>") || !strings.Contains(page.Body.String(), ">Preparing<") {
 		t.Fatalf("pending member workspace was not visible: %d %q", page.Code, page.Body.String())
 	}
+	for _, removed := range []string{"sse-connect", "sse:", "Personal workspace Git status", "Active development sessions"} {
+		if strings.Contains(page.Body.String(), removed) {
+			t.Fatalf("project page retained removed live-status behavior %q: %q", removed, page.Body.String())
+		}
+	}
 }
 
 func TestConnectFragmentRendersPersonalizedSSHConfiguration(t *testing.T) {
@@ -444,30 +369,6 @@ func TestConnectFragmentRendersPersonalizedSSHConfiguration(t *testing.T) {
 	download := request(app, http.MethodGet, "/projects/project-1/ssh-config?key_id=key-1", "", cookie)
 	if download.Code != http.StatusOK || download.Header().Get("Content-Type") != "text/plain; charset=utf-8" || !strings.Contains(download.Body.String(), `IdentityFile "~/.ssh/key with space"`) {
 		t.Fatalf("downloaded SSH config = %d %v %q", download.Code, download.Header(), download.Body.String())
-	}
-}
-
-func TestDeveloperHomeShowsActiveProjectCollaborators(t *testing.T) {
-	alice := soda.Person{ID: "person-1", Username: "alice", DisplayName: "Alice", Role: soda.RoleDeveloper}
-	bob := soda.Person{ID: "person-2", Username: "bob", DisplayName: "Bob", Role: soda.RoleDeveloper}
-	project := soda.Project{ID: "project-1", Slug: "storefront", Name: "Storefront", UnixUser: "soda-p-storefront", Profile: "go"}
-	workspace := soda.Worktree{ID: "workspace-1", ProjectID: project.ID, PersonID: alice.ID, Branch: "people/alice", Path: "/srv/soda/projects/storefront/worktrees/alice"}
-	api := &fakeAPI{
-		people: []soda.Person{alice, bob}, projects: []soda.Project{project}, worktrees: []soda.Worktree{workspace},
-		jobs: []soda.ProvisioningJob{{ID: "job-1", ProjectID: project.ID, State: "ready"}},
-		active: []soda.ActiveSSHConnection{
-			{ID: "session-bob-1", ProjectID: project.ID, PersonID: bob.ID},
-			{ID: "session-bob-2", ProjectID: project.ID, PersonID: bob.ID},
-		},
-	}
-	app := testServer(t, api, fakeAuth{})
-	token, err := app.sessions.create(alice)
-	if err != nil {
-		t.Fatal(err)
-	}
-	home := request(app, http.MethodGet, "/", "", &http.Cookie{Name: sessionCookie, Value: token})
-	if home.Code != http.StatusOK || !strings.Contains(home.Body.String(), "Active now:</strong> Bob") || strings.Count(home.Body.String(), "Bob") != 1 {
-		t.Fatalf("developer home did not show deduplicated active collaborators: %d %q", home.Code, home.Body.String())
 	}
 }
 

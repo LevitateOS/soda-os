@@ -14,7 +14,7 @@
 {{template "footer" .}}{{end}}
 
 {{define "ssh-keys"}}
-<section id="ssh-keys" class="panel" aria-live="polite" hx-get="/fragments/ssh-keys" hx-trigger="sse:access_changed, sse:refresh" hx-swap="outerHTML">
+<section id="ssh-keys" class="panel" aria-live="polite">
   <h2>SSH devices</h2>
   <p>Each device gets its own named public key. Soda never stores your private key.</p>
   {{if .Message}}<p class="success" role="status">{{.Message}}</p>{{end}}

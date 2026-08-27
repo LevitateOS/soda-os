@@ -32,10 +32,6 @@ service SodaService {
   rpc ListProvisioningJobs(ListProvisioningJobsRequest) returns (ListProvisioningJobsResponse);
 
   rpc GetHostStatus(GetHostStatusRequest) returns (GetHostStatusResponse);
-  rpc ListWorktreeStatuses(ListWorktreeStatusesRequest) returns (ListWorktreeStatusesResponse);
-  rpc ListActiveSshConnections(ListActiveSshConnectionsRequest) returns (ListActiveSshConnectionsResponse);
-
-  rpc SubscribeEvents(SubscribeEventsRequest) returns (stream SubscribeEventsResponse);
 }
 
 enum Role {
@@ -64,37 +60,6 @@ enum RuntimeState {
   RUNTIME_STATE_READY = 1;
   RUNTIME_STATE_DEGRADED = 2;
   RUNTIME_STATE_UNAVAILABLE = 3;
-}
-
-enum WorktreeState {
-  WORKTREE_STATE_UNSPECIFIED = 0;
-  WORKTREE_STATE_CLEAN = 1;
-  WORKTREE_STATE_DIRTY = 2;
-  WORKTREE_STATE_UNAVAILABLE = 3;
-}
-
-enum SshChannelKind {
-  SSH_CHANNEL_KIND_UNSPECIFIED = 0;
-  SSH_CHANNEL_KIND_INTERACTIVE = 1;
-  SSH_CHANNEL_KIND_COMMAND = 2;
-  SSH_CHANNEL_KIND_SFTP = 3;
-}
-
-enum EventKind {
-  EVENT_KIND_UNSPECIFIED = 0;
-  EVENT_KIND_HOST_CHANGED = 1;
-  EVENT_KIND_PEOPLE_CHANGED = 2;
-  EVENT_KIND_PROJECTS_CHANGED = 3;
-  EVENT_KIND_WORKTREES_CHANGED = 4;
-  EVENT_KIND_PROVISIONING_CHANGED = 5;
-  EVENT_KIND_GIT_CHANGED = 6;
-  EVENT_KIND_SESSIONS_CHANGED = 7;
-  EVENT_KIND_ACCESS_CHANGED = 8;
-}
-
-enum StreamControl {
-  STREAM_CONTROL_UNSPECIFIED = 0;
-  STREAM_CONTROL_REFRESH = 1;
 }
 
 message Person {
@@ -203,6 +168,9 @@ message LoadAverage {
 }
 
 message HostStatus {
+  reserved 13, 14;
+  reserved "ssh_observer", "git_observer";
+
   google.protobuf.Timestamp sampled_at = 1;
   RuntimeState overall = 2;
   repeated ServiceStatus services = 3;
@@ -215,46 +183,6 @@ message HostStatus {
   uint64 memory_total_bytes = 10;
   uint64 memory_available_bytes = 11;
   repeated FilesystemStatus filesystems = 12;
-  RuntimeState ssh_observer = 13;
-  RuntimeState git_observer = 14;
-}
-
-message WorktreeStatus {
-  string worktree_id = 1;
-  string branch = 2;
-  string short_commit = 3;
-  optional string upstream = 4;
-  uint64 ahead = 5;
-  uint64 behind = 6;
-  uint64 staged = 7;
-  uint64 modified = 8;
-  uint64 untracked = 9;
-  uint64 conflicted = 10;
-  WorktreeState state = 11;
-  optional string error = 12;
-}
-
-message SshChannel {
-  SshChannelKind kind = 1;
-  string worktree_id = 2;
-}
-
-message ActiveSshConnection {
-  string id = 1;
-  string project_id = 2;
-  string person_id = 3;
-  google.protobuf.Timestamp connected_at = 4;
-  string client_address = 5;
-  uint32 client_port = 6;
-  string server_address = 7;
-  uint32 server_port = 8;
-  repeated SshChannel channels = 9;
-}
-
-message SodaEvent {
-  EventKind kind = 1;
-  optional string project_id = 2;
-  uint64 sequence = 3;
 }
 
 message HealthRequest {}
@@ -423,29 +351,4 @@ message GetHostStatusRequest {}
 
 message GetHostStatusResponse {
   HostStatus host = 1;
-}
-
-message ListWorktreeStatusesRequest {
-  string project_id = 1;
-}
-
-message ListWorktreeStatusesResponse {
-  repeated WorktreeStatus worktrees = 1;
-}
-
-message ListActiveSshConnectionsRequest {}
-
-message ListActiveSshConnectionsResponse {
-  repeated ActiveSshConnection connections = 1;
-}
-
-message SubscribeEventsRequest {
-  optional string project_id = 1;
-}
-
-message SubscribeEventsResponse {
-  oneof payload {
-    SodaEvent event = 1;
-    StreamControl control = 2;
-  }
 }

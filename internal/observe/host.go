@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -25,7 +26,12 @@ type CommandRunner interface {
 type OSCommandRunner struct{}
 
 func (OSCommandRunner) Output(ctx context.Context, name string, args ...string) ([]byte, error) {
-	return runCommand(ctx, name, args...)
+	command := exec.CommandContext(ctx, name, args...)
+	output, err := command.CombinedOutput()
+	if err != nil {
+		return nil, fmt.Errorf("%s: %w: %s", name, err, strings.TrimSpace(string(output)))
+	}
+	return output, nil
 }
 
 type HostFiles interface {

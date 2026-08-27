@@ -1,7 +1,6 @@
 package host
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"errors"
@@ -25,7 +24,6 @@ const DefaultAuthorizedKeysRoot = "/etc/soda/authorized_keys"
 type Cleanup func(context.Context) error
 
 type Operations interface {
-	InstallerAdministrator(context.Context) (*domain.Person, *domain.SSHDeviceKey, error)
 	CreatePerson(context.Context, domain.Person, string) (Cleanup, error)
 	ImportPerson(context.Context, domain.Person) (Cleanup, error)
 	CreateProject(context.Context, domain.Project) (Cleanup, error)
@@ -69,8 +67,6 @@ type System struct {
 	ProjectsRoot       string
 	ManageAccounts     bool
 	Runner             Runner
-	PasswdPath         string
-	GroupPath          string
 	AuthorizedKeysRoot string
 	authorizedKeysMu   sync.Mutex
 }
@@ -80,46 +76,7 @@ func New(projectsRoot string, manageAccounts bool) *System {
 	if !manageAccounts {
 		authorizedKeysRoot = filepath.Join(projectsRoot, ".authorized_keys")
 	}
-	return &System{ProjectsRoot: projectsRoot, ManageAccounts: manageAccounts, Runner: ExecRunner{}, PasswdPath: "/etc/passwd", GroupPath: "/etc/group", AuthorizedKeysRoot: authorizedKeysRoot}
-}
-
-func (s *System) InstallerAdministrator(ctx context.Context) (*domain.Person, *domain.SSHDeviceKey, error) {
-	if !s.ManageAccounts {
-		return nil, nil, nil
-	}
-	passwd, err := os.ReadFile(s.PasswdPath)
-	if err != nil {
-		return nil, nil, err
-	}
-	group, err := os.ReadFile(s.GroupPath)
-	if err != nil {
-		return nil, nil, err
-	}
-	account := installerAdministrator(string(passwd), string(group))
-	if account == nil {
-		return nil, nil, nil
-	}
-	key := ""
-	if contents, readErr := os.ReadFile(filepath.Join(account.home, ".ssh", "authorized_keys")); readErr == nil {
-		scanner := bufio.NewScanner(bytes.NewReader(contents))
-		for scanner.Scan() {
-			candidate := strings.TrimSpace(scanner.Text())
-			if strings.HasPrefix(candidate, "ssh-ed25519 ") || strings.HasPrefix(candidate, "ssh-rsa ") {
-				key = candidate
-				break
-			}
-		}
-	}
-	person := &domain.Person{Username: account.username, DisplayName: account.displayName, Email: account.username + "@soda.local", Role: domain.RoleAdmin}
-	if key == "" {
-		return person, nil, nil
-	}
-	fingerprint, err := domain.SSHKeyFingerprint(key)
-	if err != nil {
-		return nil, nil, err
-	}
-	device := &domain.SSHDeviceKey{Label: "Installer key", PublicKey: key, Fingerprint: fingerprint, IdentityFileHint: "~/.ssh/id_ed25519"}
-	return person, device, nil
+	return &System{ProjectsRoot: projectsRoot, ManageAccounts: manageAccounts, Runner: ExecRunner{}, AuthorizedKeysRoot: authorizedKeysRoot}
 }
 
 func (s *System) CreatePerson(ctx context.Context, person domain.Person, password string) (Cleanup, error) {
@@ -132,11 +89,7 @@ func (s *System) CreatePerson(ctx context.Context, person domain.Person, passwor
 	if !s.ManageAccounts {
 		return noopCleanup, nil
 	}
-	if err := s.ensureGroups(ctx); err != nil {
-		return nil, err
-	}
-	group := roleGroup(person.Role)
-	if _, err := s.Runner.Run(ctx, "useradd", []string{"--create-home", "--groups", group, "--shell", "/sbin/nologin", person.Username}, nil, ""); err != nil {
+	if _, err := s.Runner.Run(ctx, "useradd", []string{"--create-home", "--shell", "/sbin/nologin", person.Username}, nil, ""); err != nil {
 		return nil, err
 	}
 	cleanup := func(cleanupContext context.Context) error {
@@ -159,24 +112,7 @@ func (s *System) ImportPerson(ctx context.Context, person domain.Person) (Cleanu
 	if _, err := s.Runner.Run(ctx, "getent", []string{"passwd", person.Username}, nil, ""); err != nil {
 		return nil, fmt.Errorf("%w: Linux account %s", ErrNotFound, person.Username)
 	}
-	if err := s.ensureGroups(ctx); err != nil {
-		return nil, err
-	}
-	group := roleGroup(person.Role)
-	groups, err := s.Runner.Run(ctx, "id", []string{"--groups", "--name", person.Username}, nil, "")
-	if err != nil {
-		return nil, err
-	}
-	if containsField(groups, group) {
-		return noopCleanup, nil
-	}
-	if _, err = s.Runner.Run(ctx, "usermod", []string{"--append", "--groups", group, person.Username}, nil, ""); err != nil {
-		return nil, err
-	}
-	return func(cleanupContext context.Context) error {
-		_, cleanupErr := s.Runner.Run(cleanupContext, "gpasswd", []string{"--delete", person.Username, group}, nil, "")
-		return cleanupErr
-	}, nil
+	return noopCleanup, nil
 }
 
 func (s *System) CreateProject(ctx context.Context, project domain.Project) (Cleanup, error) {
@@ -418,20 +354,6 @@ func ValidatePublicKey(key string, optional bool) error {
 	}
 	return nil
 }
-func (s *System) ensureGroups(ctx context.Context) error {
-	for _, group := range []string{"soda-admins", "soda-developers"} {
-		if _, err := s.Runner.Run(ctx, "groupadd", []string{"--force", "--system", group}, nil, ""); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-func roleGroup(role domain.Role) string {
-	if role == domain.RoleAdmin {
-		return "soda-admins"
-	}
-	return "soda-developers"
-}
 func (s *System) projectRoot(project domain.Project) string {
 	return filepath.Join(s.ProjectsRoot, project.Slug)
 }
@@ -493,15 +415,6 @@ func (s *System) writeAuthorizedKeys(ctx context.Context, path, contents string)
 	return err
 }
 
-func containsField(output, value string) bool {
-	for _, field := range strings.Fields(output) {
-		if field == value {
-			return true
-		}
-	}
-	return false
-}
-
 func noopCleanup(context.Context) error { return nil }
 
 func combineCleanups(cleanups []Cleanup) Cleanup {
@@ -527,34 +440,4 @@ func failWithCleanups(ctx context.Context, operationErr error, cleanups []Cleanu
 		return errors.Join(operationErr, fmt.Errorf("cleanup failed: %w", cleanupErr))
 	}
 	return operationErr
-}
-
-type localAccount struct{ username, displayName, home string }
-
-func installerAdministrator(passwd, group string) *localAccount {
-	wheel := ""
-	for _, line := range strings.Split(group, "\n") {
-		fields := strings.Split(line, ":")
-		if len(fields) == 4 && fields[0] == "wheel" {
-			wheel = fields[3]
-			break
-		}
-	}
-	for _, username := range strings.Split(wheel, ",") {
-		if username == "" {
-			continue
-		}
-		for _, line := range strings.Split(passwd, "\n") {
-			fields := strings.Split(line, ":")
-			if len(fields) < 7 || fields[0] != username {
-				continue
-			}
-			display := strings.TrimSpace(strings.Split(fields[4], ",")[0])
-			if display == "" {
-				display = username
-			}
-			return &localAccount{username, display, fields[5]}
-		}
-	}
-	return nil
 }
