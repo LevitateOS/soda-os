@@ -11,9 +11,9 @@ import (
 	"github.com/LevitateOS/soda-os/internal/config"
 	"github.com/LevitateOS/soda-os/internal/daemon"
 	"github.com/LevitateOS/soda-os/internal/host"
-	"github.com/LevitateOS/soda-os/internal/observe"
 	"github.com/LevitateOS/soda-os/internal/osupdate"
 	"github.com/LevitateOS/soda-os/internal/store"
+	"github.com/LevitateOS/soda-os/internal/telemetry"
 	"github.com/LevitateOS/soda-os/internal/toolchain"
 )
 
@@ -43,16 +43,16 @@ func run(logger *slog.Logger) error {
 		logger.Warn("marked interrupted provisioning jobs failed", slog.Int64("jobs", interrupted))
 	}
 	system := host.New(projects)
-	observer, err := observe.NewManager(observe.NewSystemHostSampler(nil, nil))
+	observer, err := telemetry.NewManager(telemetry.NewSystemHostSampler(nil, nil))
 	if err != nil {
 		return err
 	}
-	observability := daemon.NewObservability(observer)
+	telemetryAdapter := daemon.NewTelemetryAdapter(observer)
 	updates, err := osupdate.New(osupdate.Options{})
 	if err != nil {
 		return err
 	}
-	service := daemon.New(daemon.Options{Store: persistence, Host: system, Toolchains: toolchain.New(toolchains), Telemetry: observability, OSUpdates: updates, ProjectsRoot: projects, Logger: logger})
+	service := daemon.New(daemon.Options{Store: persistence, Host: system, Toolchains: toolchain.New(toolchains), Telemetry: telemetryAdapter, OSUpdates: updates, ProjectsRoot: projects, Logger: logger})
 	defer service.Close()
 	if err = service.ReconcileAllAuthorizedKeys(runContext); err != nil {
 		return err

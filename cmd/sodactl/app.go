@@ -1,5 +1,4 @@
-// Package sodactl implements the Soda OS administrative command-line client.
-package sodactl
+package main
 
 import (
 	"context"
@@ -25,29 +24,29 @@ const (
 	defaultOSActivateTimeout = 5 * time.Minute
 )
 
-type Dial func(context.Context, string) (sodav2.SodaServiceClient, io.Closer, error)
+type dialFunc func(context.Context, string) (sodav2.SodaServiceClient, io.Closer, error)
 
-type App struct {
-	Dial    Dial
-	Getenv  func(string) string
-	Timeout time.Duration
+type app struct {
+	dial    dialFunc
+	getenv  func(string) string
+	timeout time.Duration
 }
 
-func New() *App {
-	return &App{
-		Dial: func(ctx context.Context, socket string) (sodav2.SodaServiceClient, io.Closer, error) {
+func newApp() *app {
+	return &app{
+		dial: func(ctx context.Context, socket string) (sodav2.SodaServiceClient, io.Closer, error) {
 			conn, err := grpcclient.Dial(ctx, socket)
 			if err != nil {
 				return nil, nil, err
 			}
 			return sodav2.NewSodaServiceClient(conn), conn, nil
 		},
-		Getenv:  os.Getenv,
-		Timeout: defaultCommandTimeout,
+		getenv:  os.Getenv,
+		timeout: defaultCommandTimeout,
 	}
 }
 
-func (a *App) Command() *cobra.Command {
+func (a *app) command() *cobra.Command {
 	var socket string
 	root := &cobra.Command{
 		Use:          "sodactl",
@@ -64,7 +63,7 @@ func (a *App) Command() *cobra.Command {
 	return root
 }
 
-func (a *App) healthCommand(socket *string) *cobra.Command {
+func (a *app) healthCommand(socket *string) *cobra.Command {
 	return &cobra.Command{
 		Use: "health",
 		RunE: func(cmd *cobra.Command, _ []string) error {
@@ -76,7 +75,7 @@ func (a *App) healthCommand(socket *string) *cobra.Command {
 	}
 }
 
-func (a *App) peopleCommand(socket *string) *cobra.Command {
+func (a *app) peopleCommand(socket *string) *cobra.Command {
 	people := &cobra.Command{Use: "people", Short: "Manage Soda people"}
 	people.AddCommand(&cobra.Command{
 		Use: "list",
@@ -91,12 +90,12 @@ func (a *App) peopleCommand(socket *string) *cobra.Command {
 	return people
 }
 
-func (a *App) addPersonCommand(socket *string) *cobra.Command {
+func (a *app) addPersonCommand(socket *string) *cobra.Command {
 	var input personInput
 	command := &cobra.Command{
 		Use: "add",
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			password := a.Getenv("SODA_PERSON_PASSWORD")
+			password := a.getenv("SODA_PERSON_PASSWORD")
 			if password == "" {
 				return errors.New("SODA_PERSON_PASSWORD is required")
 			}
@@ -114,7 +113,7 @@ func (a *App) addPersonCommand(socket *string) *cobra.Command {
 	return command
 }
 
-func (a *App) importPersonCommand(socket *string) *cobra.Command {
+func (a *app) importPersonCommand(socket *string) *cobra.Command {
 	var input personInput
 	command := &cobra.Command{Use: "import", RunE: func(cmd *cobra.Command, _ []string) error {
 		parsedRole, err := roleValue(input.role)
@@ -142,13 +141,13 @@ func (input *personInput) bind(command *cobra.Command) {
 	_ = command.MarkFlagRequired("email")
 }
 
-func (a *App) projectsCommand(socket *string) *cobra.Command {
+func (a *app) projectsCommand(socket *string) *cobra.Command {
 	projects := &cobra.Command{Use: "projects", Short: "Manage Soda projects"}
 	projects.AddCommand(a.projectListCommand(socket), a.projectCreateCommand(socket), a.membersCommand(socket), a.workspacesCommand(socket), a.provisioningCommand(socket), a.deployKeyCommand(socket), a.toolchainCommand(socket))
 	return projects
 }
 
-func (a *App) projectListCommand(socket *string) *cobra.Command {
+func (a *app) projectListCommand(socket *string) *cobra.Command {
 	return &cobra.Command{Use: "list", RunE: func(cmd *cobra.Command, _ []string) error {
 		return a.call(cmd, *socket, func(ctx context.Context, client sodav2.SodaServiceClient) (any, error) {
 			response, err := client.ListProjects(ctx, &sodav2.ListProjectsRequest{})
@@ -157,7 +156,7 @@ func (a *App) projectListCommand(socket *string) *cobra.Command {
 	}}
 }
 
-func (a *App) projectCreateCommand(socket *string) *cobra.Command {
+func (a *app) projectCreateCommand(socket *string) *cobra.Command {
 	var slug, name, profile, remoteURL string
 	var memberIDs []string
 	command := &cobra.Command{Use: "create", RunE: func(cmd *cobra.Command, _ []string) error {
@@ -186,7 +185,7 @@ func (a *App) projectCreateCommand(socket *string) *cobra.Command {
 	return command
 }
 
-func (a *App) membersCommand(socket *string) *cobra.Command {
+func (a *app) membersCommand(socket *string) *cobra.Command {
 	var projectID, personID string
 	group := &cobra.Command{Use: "members", Short: "Manage project members"}
 	add := &cobra.Command{Use: "add", RunE: func(cmd *cobra.Command, _ []string) error {
@@ -212,7 +211,7 @@ func (a *App) membersCommand(socket *string) *cobra.Command {
 	return group
 }
 
-func (a *App) workspacesCommand(socket *string) *cobra.Command {
+func (a *app) workspacesCommand(socket *string) *cobra.Command {
 	group := &cobra.Command{Use: "workspaces", Short: "Inspect personal workspaces"}
 	var listProjectID string
 	list := &cobra.Command{Use: "list", RunE: func(cmd *cobra.Command, _ []string) error {
@@ -227,7 +226,7 @@ func (a *App) workspacesCommand(socket *string) *cobra.Command {
 	return group
 }
 
-func (a *App) provisioningCommand(socket *string) *cobra.Command {
+func (a *app) provisioningCommand(socket *string) *cobra.Command {
 	group := &cobra.Command{Use: "provisioning", Short: "Inspect and retry provisioning"}
 	var listProjectID string
 	list := &cobra.Command{Use: "list", RunE: func(cmd *cobra.Command, _ []string) error {
@@ -251,7 +250,7 @@ func (a *App) provisioningCommand(socket *string) *cobra.Command {
 	return group
 }
 
-func (a *App) deployKeyCommand(socket *string) *cobra.Command {
+func (a *app) deployKeyCommand(socket *string) *cobra.Command {
 	var projectID string
 	command := &cobra.Command{Use: "deploy-key", RunE: func(cmd *cobra.Command, _ []string) error {
 		return a.call(cmd, *socket, func(ctx context.Context, client sodav2.SodaServiceClient) (any, error) {
@@ -264,7 +263,7 @@ func (a *App) deployKeyCommand(socket *string) *cobra.Command {
 	return command
 }
 
-func (a *App) toolchainCommand(socket *string) *cobra.Command {
+func (a *app) toolchainCommand(socket *string) *cobra.Command {
 	var projectID string
 	command := &cobra.Command{Use: "toolchain", RunE: func(cmd *cobra.Command, _ []string) error {
 		return a.call(cmd, *socket, func(ctx context.Context, client sodav2.SodaServiceClient) (any, error) {
@@ -277,14 +276,14 @@ func (a *App) toolchainCommand(socket *string) *cobra.Command {
 	return command
 }
 
-func (a *App) call(command *cobra.Command, socket string, operation func(context.Context, sodav2.SodaServiceClient) (any, error)) error {
-	return a.callWithTimeout(command, socket, a.Timeout, operation)
+func (a *app) call(command *cobra.Command, socket string, operation func(context.Context, sodav2.SodaServiceClient) (any, error)) error {
+	return a.callWithTimeout(command, socket, a.timeout, operation)
 }
 
-func (a *App) callWithTimeout(command *cobra.Command, socket string, timeout time.Duration, operation func(context.Context, sodav2.SodaServiceClient) (any, error)) error {
+func (a *app) callWithTimeout(command *cobra.Command, socket string, timeout time.Duration, operation func(context.Context, sodav2.SodaServiceClient) (any, error)) error {
 	ctx, cancel := context.WithTimeout(command.Context(), timeout)
 	defer cancel()
-	client, closer, err := a.Dial(ctx, socket)
+	client, closer, err := a.dial(ctx, socket)
 	if err != nil {
 		return errors.New("sodad unavailable: Soda service is unavailable")
 	}

@@ -13,9 +13,9 @@ import (
 	"github.com/LevitateOS/soda-os/internal/domain"
 	sodav2 "github.com/LevitateOS/soda-os/internal/gen/soda/v2"
 	"github.com/LevitateOS/soda-os/internal/grpcclient"
-	"github.com/LevitateOS/soda-os/internal/observe"
 	"github.com/LevitateOS/soda-os/internal/osupdate"
 	"github.com/LevitateOS/soda-os/internal/store"
+	"github.com/LevitateOS/soda-os/internal/telemetry"
 	"github.com/google/uuid"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -155,14 +155,14 @@ func TestCommittedHostObservabilityBacksTelemetry(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	manager, err := observe.NewManager(observeHost{})
+	manager, err := telemetry.NewManager(observeHost{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	manager.Run(ctx)
-	adapter := NewObservability(manager)
+	adapter := NewTelemetryAdapter(manager)
 	service := New(Options{Store: repository, Host: &fakeHost{}, Toolchains: fakeInstaller{}, Telemetry: adapter, ProjectsRoot: t.TempDir()})
 	defer service.Close()
 	listener := bufconn.Listen(1 << 20)

@@ -1,4 +1,4 @@
-package sodactl
+package main
 
 import (
 	"strings"

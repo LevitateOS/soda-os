@@ -5,18 +5,18 @@ import (
 
 	"github.com/LevitateOS/soda-os/internal/domain"
 	sodav2 "github.com/LevitateOS/soda-os/internal/gen/soda/v2"
-	"github.com/LevitateOS/soda-os/internal/observe"
+	"github.com/LevitateOS/soda-os/internal/telemetry"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-// Observability adapts host status to sodad's gRPC service.
-type Observability struct{ manager *observe.Manager }
+// Telemetry adapts host status to sodad's gRPC service.
+type TelemetryAdapter struct{ manager *telemetry.Manager }
 
-func NewObservability(manager *observe.Manager) *Observability {
-	return &Observability{manager: manager}
+func NewTelemetryAdapter(manager *telemetry.Manager) *TelemetryAdapter {
+	return &TelemetryAdapter{manager: manager}
 }
 
-func (o *Observability) HostStatus(context.Context) (*sodav2.HostStatus, error) {
+func (o *TelemetryAdapter) HostStatus(context.Context) (*sodav2.HostStatus, error) {
 	return hostStatusProto(o.manager.HostStatus()), nil
 }
 

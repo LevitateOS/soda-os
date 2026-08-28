@@ -1,4 +1,4 @@
-package sodactl
+package main
 
 import (
 	"bytes"
@@ -119,7 +119,7 @@ func testOSUpdateStatus() *sodav2.OSUpdateStatus {
 	return &sodav2.OSUpdateStatus{ReadOnly: true, Booted: &sodav2.OSDeployment{ImageReference: "registry.soda.local/soda/os@" + digest, Version: "0.2.0", Digest: digest, Architecture: "arm64", Signature: "containerPolicy"}}
 }
 
-func testApp(t *testing.T, server *recordingServer) (*App, *string) {
+func testApp(t *testing.T, server *recordingServer) (*app, *string) {
 	t.Helper()
 	listener := bufconn.Listen(1024 * 1024)
 	grpcServer := grpc.NewServer()
@@ -127,8 +127,8 @@ func testApp(t *testing.T, server *recordingServer) (*App, *string) {
 	go func() { _ = grpcServer.Serve(listener) }()
 	t.Cleanup(func() { grpcServer.Stop() })
 	var socket string
-	app := New()
-	app.Dial = func(ctx context.Context, path string) (sodav2.SodaServiceClient, io.Closer, error) {
+	app := newApp()
+	app.dial = func(ctx context.Context, path string) (sodav2.SodaServiceClient, io.Closer, error) {
 		socket = path
 		conn, err := grpc.DialContext(ctx, "bufnet", grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) {
 			return listener.Dial()
@@ -138,7 +138,7 @@ func testApp(t *testing.T, server *recordingServer) (*App, *string) {
 		}
 		return sodav2.NewSodaServiceClient(conn), conn, nil
 	}
-	app.Getenv = func(name string) string {
+	app.getenv = func(name string) string {
 		if name == "SODA_PERSON_PASSWORD" {
 			return "easy-password"
 		}
@@ -147,9 +147,9 @@ func testApp(t *testing.T, server *recordingServer) (*App, *string) {
 	return app, &socket
 }
 
-func execute(t *testing.T, app *App, args ...string) (string, error) {
+func execute(t *testing.T, app *app, args ...string) (string, error) {
 	t.Helper()
-	root := app.Command()
+	root := app.command()
 	var output bytes.Buffer
 	root.SetOut(&output)
 	root.SetErr(&output)
@@ -217,9 +217,9 @@ func TestCommandsUseGRPCAndWriteSnakeCaseJSON(t *testing.T) {
 }
 
 func TestOSActivationRequiresExplicitConfirmationFlagBeforeCallingDaemon(t *testing.T) {
-	app := New()
+	app := newApp()
 	dials := 0
-	app.Dial = func(context.Context, string) (sodav2.SodaServiceClient, io.Closer, error) {
+	app.dial = func(context.Context, string) (sodav2.SodaServiceClient, io.Closer, error) {
 		dials++
 		return nil, nil, io.ErrUnexpectedEOF
 	}
@@ -229,13 +229,13 @@ func TestOSActivationRequiresExplicitConfirmationFlagBeforeCallingDaemon(t *test
 }
 
 func TestPersonAddRequiresPasswordBeforeCallingDaemon(t *testing.T) {
-	app := New()
+	app := newApp()
 	dials := 0
-	app.Dial = func(context.Context, string) (sodav2.SodaServiceClient, io.Closer, error) {
+	app.dial = func(context.Context, string) (sodav2.SodaServiceClient, io.Closer, error) {
 		dials++
 		return nil, nil, io.ErrUnexpectedEOF
 	}
-	app.Getenv = func(string) string { return "" }
+	app.getenv = func(string) string { return "" }
 	_, err := execute(t, app, "people", "add", "--username", "vince", "--display-name", "Vince", "--email", "vince@soda.local")
 	require.EqualError(t, err, "SODA_PERSON_PASSWORD is required")
 	require.Zero(t, dials)
@@ -261,9 +261,9 @@ func TestCanonicalGRPCErrors(t *testing.T) {
 }
 
 func TestLocalValidationFailureNeverDials(t *testing.T) {
-	app := New()
+	app := newApp()
 	dials := 0
-	app.Dial = func(context.Context, string) (sodav2.SodaServiceClient, io.Closer, error) {
+	app.dial = func(context.Context, string) (sodav2.SodaServiceClient, io.Closer, error) {
 		dials++
 		return nil, nil, io.ErrUnexpectedEOF
 	}
@@ -277,8 +277,8 @@ func TestLocalValidationFailureNeverDials(t *testing.T) {
 }
 
 func TestMissingSocketReturnsUnavailableWithinDeadline(t *testing.T) {
-	app := New()
-	app.Timeout = 100 * time.Millisecond
+	app := newApp()
+	app.timeout = 100 * time.Millisecond
 	socket := filepath.Join(t.TempDir(), "missing.sock")
 	started := time.Now()
 	_, err := execute(t, app, "--socket", socket, "health")

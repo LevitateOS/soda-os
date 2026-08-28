@@ -1,4 +1,4 @@
-package sodactl
+package main
 
 import (
 	"context"
@@ -9,7 +9,7 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-func (a *App) osCommand(socket *string) *cobra.Command {
+func (a *app) osCommand(socket *string) *cobra.Command {
 	osCommand := &cobra.Command{Use: "os", Short: "Administer the Soda OS base image"}
 	update := &cobra.Command{Use: "update", Short: "Manually check, stage, and activate OS updates"}
 	update.AddCommand(a.osStatusCommand(socket), a.osCheckCommand(socket), a.osStageCommand(socket), a.osActivateCommand(socket))
@@ -17,7 +17,7 @@ func (a *App) osCommand(socket *string) *cobra.Command {
 	return osCommand
 }
 
-func (a *App) osStatusCommand(socket *string) *cobra.Command {
+func (a *app) osStatusCommand(socket *string) *cobra.Command {
 	return &cobra.Command{Use: "status", RunE: func(cmd *cobra.Command, _ []string) error {
 		return a.callWithTimeout(cmd, *socket, defaultOSReadTimeout, func(ctx context.Context, client sodav2.SodaServiceClient) (any, error) {
 			response, err := client.GetOSUpdateStatus(ctx, &sodav2.GetOSUpdateStatusRequest{})
@@ -26,7 +26,7 @@ func (a *App) osStatusCommand(socket *string) *cobra.Command {
 	}}
 }
 
-func (a *App) osCheckCommand(socket *string) *cobra.Command {
+func (a *app) osCheckCommand(socket *string) *cobra.Command {
 	return &cobra.Command{Use: "check", RunE: func(cmd *cobra.Command, _ []string) error {
 		return a.callWithTimeout(cmd, *socket, defaultOSReadTimeout, func(ctx context.Context, client sodav2.SodaServiceClient) (any, error) {
 			response, err := client.CheckOSUpdate(ctx, &sodav2.CheckOSUpdateRequest{})
@@ -35,7 +35,7 @@ func (a *App) osCheckCommand(socket *string) *cobra.Command {
 	}}
 }
 
-func (a *App) osStageCommand(socket *string) *cobra.Command {
+func (a *app) osStageCommand(socket *string) *cobra.Command {
 	return &cobra.Command{Use: "stage", RunE: func(cmd *cobra.Command, _ []string) error {
 		return a.callWithTimeout(cmd, *socket, defaultOSStageTimeout, func(ctx context.Context, client sodav2.SodaServiceClient) (any, error) {
 			checked, err := client.CheckOSUpdate(ctx, &sodav2.CheckOSUpdateRequest{})
@@ -52,7 +52,7 @@ func (a *App) osStageCommand(socket *string) *cobra.Command {
 	}}
 }
 
-func (a *App) osActivateCommand(socket *string) *cobra.Command {
+func (a *app) osActivateCommand(socket *string) *cobra.Command {
 	var confirmReboot bool
 	command := &cobra.Command{Use: "activate", RunE: func(cmd *cobra.Command, _ []string) error {
 		return a.callWithTimeout(cmd, *socket, defaultOSActivateTimeout, func(ctx context.Context, client sodav2.SodaServiceClient) (any, error) {
