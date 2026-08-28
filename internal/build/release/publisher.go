@@ -14,9 +14,9 @@ import (
 	"runtime"
 
 	"github.com/BurntSushi/toml"
+	"github.com/LevitateOS/soda-os/internal/build/installer"
 	"github.com/LevitateOS/soda-os/internal/config"
-	imagebuild "github.com/LevitateOS/soda-os/internal/image"
-	"github.com/LevitateOS/soda-os/internal/installer"
+	"github.com/LevitateOS/soda-os/internal/process"
 	"github.com/google/go-containerregistry/pkg/authn"
 	"github.com/google/go-containerregistry/pkg/name"
 	v1 "github.com/google/go-containerregistry/pkg/v1"
@@ -94,7 +94,7 @@ type Publisher struct {
 	publicKey    string
 }
 
-func NewPublisher(root string, spec config.DistroSpec, options SigningOptions, runner imagebuild.Runner) (*Publisher, error) {
+func NewPublisher(root string, spec config.DistroSpec, options SigningOptions, runner process.Runner) (*Publisher, error) {
 	if spec.Image.Registry != Repository {
 		return nil, fmt.Errorf("release repository must be %s", Repository)
 	}
@@ -116,7 +116,7 @@ func NewPublisher(root string, spec config.DistroSpec, options SigningOptions, r
 		return nil, err
 	}
 	if runner == nil {
-		runner = imagebuild.OSRunner{Stdout: os.Stdout, Stderr: os.Stderr}
+		runner = process.OSRunner{Stdout: os.Stdout, Stderr: os.Stderr}
 	}
 	return &Publisher{
 		spec: spec,
@@ -275,34 +275,34 @@ func (r *remoteRegistry) Resolve(ctx context.Context, reference string) (v1.Hash
 }
 
 type cosignSigner struct {
-	runner                    imagebuild.Runner
+	runner                    process.Runner
 	executable                string
 	ca, publicKey, privateKey string
 }
 
 func (s *cosignSigner) SignImage(ctx context.Context, reference string) error {
-	return s.runner.Run(ctx, imagebuild.Command{Name: s.executable, Args: []string{
+	return s.runner.Run(ctx, process.Command{Name: s.executable, Args: []string{
 		"sign", "--yes", "--use-signing-config=false", "--tlog-upload=false", "--registry-referrers-mode=legacy", "--new-bundle-format=false",
 		"--key", s.privateKey, "--registry-cacert", s.ca, reference,
 	}})
 }
 
 func (s *cosignSigner) VerifyImage(ctx context.Context, reference string) error {
-	return s.runner.Run(ctx, imagebuild.Command{Name: s.executable, Args: []string{
+	return s.runner.Run(ctx, process.Command{Name: s.executable, Args: []string{
 		"verify", "--key", s.publicKey, "--registry-cacert", s.ca,
 		"--insecure-ignore-tlog=true", reference,
 	}})
 }
 
 func (s *cosignSigner) SignBlob(ctx context.Context, blob, bundle string) error {
-	return s.runner.Run(ctx, imagebuild.Command{Name: s.executable, Args: []string{
+	return s.runner.Run(ctx, process.Command{Name: s.executable, Args: []string{
 		"sign-blob", "--yes", "--use-signing-config=false", "--tlog-upload=false", "--key", s.privateKey,
 		"--bundle", bundle, blob,
 	}})
 }
 
 func (s *cosignSigner) VerifyBlob(ctx context.Context, blob, bundle string) error {
-	return s.runner.Run(ctx, imagebuild.Command{Name: s.executable, Args: []string{
+	return s.runner.Run(ctx, process.Command{Name: s.executable, Args: []string{
 		"verify-blob", "--key", s.publicKey, "--bundle", bundle,
 		"--insecure-ignore-tlog=true", blob,
 	}})

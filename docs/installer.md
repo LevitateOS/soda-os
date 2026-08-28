@@ -5,7 +5,7 @@ approved Fedora 44 bootc manifest digest, `linux/arm64` platform, Soda image
 name, runtime state schema, package lock, Soda version, and source-date epoch.
 The builder obtains the source revision from the current Git commit.
 
-`packaging/bootc/packages.lock` records exact NEVRAs for every Fedora RPM added
+`distro/locks/runtime-packages.toml` records exact NEVRAs for every Fedora RPM added
 to the pinned base and for the three locally built Soda RPM inputs. The Soda
 RPMs are build inputs only; no mutable Soda RPM repository is created or
 embedded. Weak dependencies are disabled.

@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"github.com/LevitateOS/soda-os/internal/config"
-	imagebuild "github.com/LevitateOS/soda-os/internal/image"
+	"github.com/LevitateOS/soda-os/internal/process"
 	v1 "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/google/go-containerregistry/pkg/v1/empty"
 	"github.com/google/go-containerregistry/pkg/v1/layout"
@@ -21,17 +21,17 @@ import (
 const testExactImage = Repository + "@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 
 type recordingRunner struct {
-	Commands []imagebuild.Command
+	Commands []process.Command
 	Outputs  map[string]string
 	Err      error
 }
 
-func (r *recordingRunner) Run(_ context.Context, command imagebuild.Command) error {
+func (r *recordingRunner) Run(_ context.Context, command process.Command) error {
 	r.Commands = append(r.Commands, command)
 	return r.Err
 }
 
-func (r *recordingRunner) Output(_ context.Context, command imagebuild.Command) (string, error) {
+func (r *recordingRunner) Output(_ context.Context, command process.Command) (string, error) {
 	r.Commands = append(r.Commands, command)
 	return r.Outputs[command.String()], r.Err
 }
@@ -52,7 +52,7 @@ func TestKickstartKeepsStockInteractiveFlowAndExactDigest(t *testing.T) {
 }
 
 func TestInstallerStorageUsesOnePlainExt4Root(t *testing.T) {
-	root := filepath.Join("..", "..")
+	root := filepath.Join("..", "..", "..")
 	contents, err := os.ReadFile(filepath.Join(root, "packaging", "installer", "soda-storage.conf"))
 	require.NoError(t, err)
 	require.Equal(t, "# Soda OS automatic storage defaults for the trusted-LAN bootc appliance.\n[Storage]\nfile_system_type = ext4\ndefault_scheme = PLAIN\ndefault_partitioning =\n    / (min 1 GiB)\n", string(contents))
@@ -95,7 +95,7 @@ func TestStorageConfigRequiresExactPlainExt4RootOnlyContract(t *testing.T) {
 }
 
 func TestInstallerEnvironmentPinsLegacyGRUBHybridBootModule(t *testing.T) {
-	contents, err := os.ReadFile(filepath.Join("..", "..", "packaging", "installer", "Containerfile"))
+	contents, err := os.ReadFile(filepath.Join("..", "..", "..", "packaging", "installer", "Containerfile"))
 	require.NoError(t, err)
 	require.Contains(t, string(contents), "grub2-pc-modules-1:2.12-64.fc44.noarch")
 	require.Contains(t, string(contents), "rpm -q shim-aa64 grub2-efi-aa64 grub2-efi-aa64-cdboot grub2-pc-modules")
@@ -103,7 +103,7 @@ func TestInstallerEnvironmentPinsLegacyGRUBHybridBootModule(t *testing.T) {
 }
 
 func TestInstallerEnvironmentUsesAnacondaGeneratorCompatibleDefaultTarget(t *testing.T) {
-	contents, err := os.ReadFile(filepath.Join("..", "..", "packaging", "installer", "Containerfile"))
+	contents, err := os.ReadFile(filepath.Join("..", "..", "..", "packaging", "installer", "Containerfile"))
 	require.NoError(t, err)
 
 	// Fedora 44's anaconda-generator compares readlink output literally with the /lib path.
@@ -112,7 +112,7 @@ func TestInstallerEnvironmentUsesAnacondaGeneratorCompatibleDefaultTarget(t *tes
 }
 
 func TestInstallerEnvironmentUsesVerifiedLocalFedoraBaseContext(t *testing.T) {
-	contents, err := os.ReadFile(filepath.Join("..", "..", "packaging", "installer", "Containerfile"))
+	contents, err := os.ReadFile(filepath.Join("..", "..", "..", "packaging", "installer", "Containerfile"))
 	require.NoError(t, err)
 	require.True(t, strings.HasPrefix(string(contents), "FROM fedora-base\n"))
 }

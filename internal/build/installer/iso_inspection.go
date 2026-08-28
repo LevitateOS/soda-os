@@ -8,7 +8,7 @@ import (
 	"os"
 	"path/filepath"
 
-	imagebuild "github.com/LevitateOS/soda-os/internal/image"
+	"github.com/LevitateOS/soda-os/internal/process"
 )
 
 type isoInspectionInput struct {
@@ -20,11 +20,11 @@ type isoInspectionInput struct {
 func (b *Builder) inspectISO(ctx context.Context, input isoInspectionInput) error {
 	outer := []string{"run", "--rm", "--platform", Platform, "--privileged", "--entrypoint", "podman", "--volume", input.volumeName + ":/var/lib/containers/storage", "--volume", input.isoPath + ":/input/soda.iso:ro", "--volume", input.inspectDir + ":/inspect", input.lock.Reference, "run", "--rm", "--privileged", "--security-opt", "label=disable", "--volume", "/input/soda.iso:/input/soda.iso:ro", "--volume", "/inspect:/inspect", input.installerTag}
 	args := append(append([]string{}, outer...), "xorriso", "-osirrox", "on", "-indev", "/input/soda.iso", "-extract", "/LiveOS/squashfs.img", "/inspect/squashfs.img")
-	if err := b.runner.Run(ctx, imagebuild.Command{Dir: b.Root, Name: "docker", Args: args}); err != nil {
+	if err := b.runner.Run(ctx, process.Command{Dir: b.Root, Name: "docker", Args: args}); err != nil {
 		return fmt.Errorf("extract installer squashfs: %w", err)
 	}
 	args = append(append([]string{}, outer...), "unsquashfs", "-f", "-d", "/inspect/root", "/inspect/squashfs.img", "usr/share/anaconda/interactive-defaults.ks", "etc/anaconda/conf.d/90-soda-storage.conf", "usr/lib/image-builder/bootc/iso.yaml", "var/lib/containers/storage/overlay-images/images.json")
-	if err := b.runner.Run(ctx, imagebuild.Command{Dir: b.Root, Name: "docker", Args: args}); err != nil {
+	if err := b.runner.Run(ctx, process.Command{Dir: b.Root, Name: "docker", Args: args}); err != nil {
 		return fmt.Errorf("inspect installer squashfs: %w", err)
 	}
 	return b.validateExtractedISO(input.inspectDir, input.reference, input.payloadTag)

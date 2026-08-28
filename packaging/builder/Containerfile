@@ -1,6 +1,6 @@
 FROM registry.fedoraproject.org/fedora@sha256:9c8b291e256262b91aac5b3da50ea323760d0a6b449c6d6ad5f01d9550d48d2a
 
-COPY packaging/builder/packages.lock /usr/share/soda-builder/packages.lock
+COPY distro/locks/builder-packages.toml /usr/share/soda-builder/packages.lock
 
 RUN dnf -y install --setopt=install_weak_deps=False $(awk -F '"' '/^nevra = / { print $2 }' /usr/share/soda-builder/packages.lock) \
     && actual="$(rpm -qa --qf '%{NAME}-%{EPOCHNUM}:%{VERSION}-%{RELEASE}.%{ARCH}\n' | LC_ALL=C sort | sha256sum | awk '{print $1}')" \

@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	imagebuild "github.com/LevitateOS/soda-os/internal/image"
+	"github.com/LevitateOS/soda-os/internal/process"
 	"github.com/stretchr/testify/require"
 )
 
@@ -17,17 +17,17 @@ const (
 )
 
 type recordingRunner struct {
-	Commands []imagebuild.Command
+	Commands []process.Command
 	Outputs  map[string]string
 	Err      error
 }
 
-func (r *recordingRunner) Run(_ context.Context, command imagebuild.Command) error {
+func (r *recordingRunner) Run(_ context.Context, command process.Command) error {
 	r.Commands = append(r.Commands, command)
 	return r.Err
 }
 
-func (r *recordingRunner) Output(_ context.Context, command imagebuild.Command) (string, error) {
+func (r *recordingRunner) Output(_ context.Context, command process.Command) (string, error) {
 	r.Commands = append(r.Commands, command)
 	return r.Outputs[command.String()], r.Err
 }
@@ -236,7 +236,7 @@ func bootcStatusJSON(bootedDigest, stagedDigest string, downloadOnly bool) strin
 	return `{"status":{"readOnly":false,"booted":` + deployment(bootedDigest, "0.2.0", false, false) + `,"staged":` + staged + `}}`
 }
 
-func commandStrings(commands []imagebuild.Command) []string {
+func commandStrings(commands []process.Command) []string {
 	result := make([]string, len(commands))
 	for index := range commands {
 		result[index] = commands[index].String()

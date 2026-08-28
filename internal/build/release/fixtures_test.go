@@ -11,7 +11,7 @@ import (
 	"testing"
 
 	"github.com/LevitateOS/soda-os/internal/config"
-	imagebuild "github.com/LevitateOS/soda-os/internal/image"
+	"github.com/LevitateOS/soda-os/internal/process"
 	v1 "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/google/go-containerregistry/pkg/v1/empty"
 	"github.com/google/go-containerregistry/pkg/v1/layout"
@@ -22,17 +22,17 @@ import (
 )
 
 type recordingRunner struct {
-	Commands []imagebuild.Command
+	Commands []process.Command
 	Outputs  map[string]string
 	Err      error
 }
 
-func (r *recordingRunner) Run(_ context.Context, command imagebuild.Command) error {
+func (r *recordingRunner) Run(_ context.Context, command process.Command) error {
 	r.Commands = append(r.Commands, command)
 	return r.Err
 }
 
-func (r *recordingRunner) Output(_ context.Context, command imagebuild.Command) (string, error) {
+func (r *recordingRunner) Output(_ context.Context, command process.Command) (string, error) {
 	r.Commands = append(r.Commands, command)
 	return r.Outputs[command.String()], r.Err
 }

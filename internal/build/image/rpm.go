@@ -10,6 +10,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/LevitateOS/soda-os/internal/process"
 )
 
 // BuildRPMs builds exactly the three direct Soda RPM inputs and records their
@@ -183,21 +185,21 @@ func (b *Builder) verifyRuntimeCosign() error {
 }
 
 func (b *Builder) buildContainer(ctx context.Context) error {
-	return b.runner.Run(ctx, Command{Dir: b.Root, Name: "docker", Args: []string{"build", "--quiet", "--platform", b.Spec.Base.Platform, "--file", "packaging/builder/Containerfile", "--tag", "soda-os-rpm-builder:" + b.Spec.Identity.Version, "."}})
+	return b.runner.Run(ctx, process.Command{Dir: b.Root, Name: "docker", Args: []string{"build", "--quiet", "--platform", b.Spec.Base.Platform, "--file", "packaging/builder/Containerfile", "--tag", "soda-os-rpm-builder:" + b.Spec.Identity.Version, "."}})
 }
 
 func (b *Builder) docker(ctx context.Context, environment []string, name string, args ...string) error {
 	return b.runner.Run(ctx, b.dockerCommand(environment, name, args...))
 }
 
-func (b *Builder) dockerCommand(environment []string, name string, args ...string) Command {
+func (b *Builder) dockerCommand(environment []string, name string, args ...string) process.Command {
 	dockerArgs := []string{"run", "--rm", "--platform", b.Spec.Base.Platform, "--volume", b.Root + ":/src", "--workdir", "/src"}
 	for _, pair := range environment {
 		dockerArgs = append(dockerArgs, "--env", pair)
 	}
 	dockerArgs = append(dockerArgs, "soda-os-rpm-builder:"+b.Spec.Identity.Version, name)
 	dockerArgs = append(dockerArgs, args...)
-	return Command{Dir: b.Root, Name: "docker", Args: dockerArgs}
+	return process.Command{Dir: b.Root, Name: "docker", Args: dockerArgs}
 }
 
 func (b *Builder) rpmbuild(ctx context.Context, name string) error {

@@ -5,9 +5,10 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/LevitateOS/soda-os/internal/image"
-	"github.com/LevitateOS/soda-os/internal/installer"
-	"github.com/LevitateOS/soda-os/internal/release"
+	"github.com/LevitateOS/soda-os/internal/build/image"
+	"github.com/LevitateOS/soda-os/internal/build/installer"
+	"github.com/LevitateOS/soda-os/internal/build/release"
+	"github.com/LevitateOS/soda-os/internal/process"
 	"github.com/spf13/cobra"
 )
 
@@ -21,7 +22,7 @@ func main() {
 	var specPath string
 	root.PersistentFlags().StringVar(&specPath, "spec", "distro/soda.toml", "path to the Soda distribution specification")
 	builder := func() (*image.Builder, error) {
-		return image.NewBuilderFromWorkingDirectory(specPath, image.OSRunner{Stdout: os.Stdout, Stderr: os.Stderr})
+		return image.NewBuilderFromWorkingDirectory(specPath, process.OSRunner{Stdout: os.Stdout, Stderr: os.Stderr})
 	}
 	root.AddCommand(
 		command("check", "validate the pinned Fedora bootc image contract", builder, func(ctx context.Context, b *image.Builder) error { return b.Check(ctx) }),
@@ -57,7 +58,7 @@ func installerCommand(builder func() (*image.Builder, error)) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			isoBuilder := installer.NewBuilder(imageBuilder.Root, imageBuilder.Spec, image.OSRunner{Stdout: os.Stdout, Stderr: os.Stderr})
+			isoBuilder := installer.NewBuilder(imageBuilder.Root, imageBuilder.Spec, process.OSRunner{Stdout: os.Stdout, Stderr: os.Stderr})
 			isoPath, err := isoBuilder.Build(command.Context(), options)
 			if err != nil {
 				return err
@@ -71,7 +72,7 @@ func installerCommand(builder func() (*image.Builder, error)) *cobra.Command {
 	command.Flags().StringVar(&options.RegistryCA, "registry-ca", "", "PEM CA certificate for registry.soda.local")
 	command.Flags().StringVar(&options.PublicKey, "public-key", "", "Soda Cosign public key")
 	command.Flags().StringVar(&options.CosignPath, "cosign", ".artifacts/tools/cosign", "pinned Cosign executable")
-	command.Flags().StringVar(&options.ToolLock, "tool-lock", "packaging/installer/image-builder.lock", "pinned Image Builder tool contract")
+	command.Flags().StringVar(&options.ToolLock, "tool-lock", "distro/locks/installer-image-builder.toml", "pinned Image Builder tool contract")
 	command.Flags().StringVar(&options.OutputDir, "output-dir", ".artifacts/images", "installer artifact directory")
 	for _, name := range []string{"image", "archive", "registry-ca", "public-key"} {
 		_ = command.MarkFlagRequired(name)
@@ -102,9 +103,9 @@ func releaseCommand(builder func() (*image.Builder, error)) *cobra.Command {
 	command.Flags().BoolVar(&state.deferCurrent, "defer-current", false, "sign and verify the exact image for ISO construction without writing a record or current tag")
 	command.Flags().StringVar(&state.publication.OutputDir, "output-dir", ".artifacts/releases", "signed release record directory")
 	command.Flags().StringVar(&state.signing.CosignPath, "cosign", ".artifacts/tools/cosign", "pinned Cosign executable")
-	command.Flags().StringVar(&state.signing.ToolLock, "tool-lock", "packaging/release/tools.lock", "pinned release tool checksums")
+	command.Flags().StringVar(&state.signing.ToolLock, "tool-lock", "distro/locks/release-tools.toml", "pinned release tool checksums")
 	command.Flags().StringVar(&state.publication.InstallerArchive, "installer-archive", ".artifacts/installer/soda-installer-environment.oci.tar", "build-only installer environment used to inspect --iso")
-	command.Flags().StringVar(&state.publication.InstallerToolLock, "installer-tool-lock", "packaging/installer/image-builder.lock", "pinned Image Builder contract used to inspect --iso")
+	command.Flags().StringVar(&state.publication.InstallerToolLock, "installer-tool-lock", "distro/locks/installer-image-builder.toml", "pinned Image Builder contract used to inspect --iso")
 	for _, name := range []string{"archive", "registry-ca", "public-key", "signing-key"} {
 		_ = command.MarkFlagRequired(name)
 	}
@@ -116,7 +117,7 @@ func (state *releaseCommandState) run(command *cobra.Command, _ []string) error 
 	if err != nil {
 		return err
 	}
-	publisher, err := release.NewPublisher(builder.Root, builder.Spec, state.signing, image.OSRunner{Stdin: os.Stdin, Stdout: os.Stdout, Stderr: os.Stderr})
+	publisher, err := release.NewPublisher(builder.Root, builder.Spec, state.signing, process.OSRunner{Stdin: os.Stdin, Stdout: os.Stdout, Stderr: os.Stderr})
 	if err != nil {
 		return err
 	}

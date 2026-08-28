@@ -14,7 +14,7 @@ platform = "linux/arm64"
 [image]
 registry = "registry.soda.local/soda/os"
 state_schema = 2
-package_lock = "packaging/bootc/packages.lock"
+package_lock = "distro/locks/runtime-packages.toml"
 
 [build]
 source_date_epoch = 1787825905

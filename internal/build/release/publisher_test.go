@@ -13,7 +13,7 @@ import (
 	"strings"
 	"testing"
 
-	imagebuild "github.com/LevitateOS/soda-os/internal/image"
+	"github.com/LevitateOS/soda-os/internal/process"
 	"github.com/google/go-containerregistry/pkg/registry"
 	"github.com/google/go-containerregistry/pkg/v1"
 	"github.com/google/go-containerregistry/pkg/v1/empty"
@@ -267,8 +267,8 @@ func TestCosignExactImageDigestIntegration(t *testing.T) {
 	const testPassphrase = "ephemeral-integration-passphrase"
 	t.Setenv("COSIGN_PASSWORD", testPassphrase)
 	var processOutput bytes.Buffer
-	runner := imagebuild.OSRunner{Stdout: &processOutput, Stderr: &processOutput}
-	require.NoError(t, runner.Run(context.Background(), imagebuild.Command{Name: cosign, Args: []string{"generate-key-pair", "--output-key-prefix", filepath.Join(keyDir, "release")}}))
+	runner := process.OSRunner{Stdout: &processOutput, Stderr: &processOutput}
+	require.NoError(t, runner.Run(context.Background(), process.Command{Name: cosign, Args: []string{"generate-key-pair", "--output-key-prefix", filepath.Join(keyDir, "release")}}))
 	signer := &cosignSigner{runner: runner, executable: cosign, ca: caPath, publicKey: filepath.Join(keyDir, "release.pub"), privateKey: filepath.Join(keyDir, "release.key")}
 	unsignedImage := matchingTestImage(t)
 	unsignedConfig, err := unsignedImage.ConfigFile()
@@ -285,7 +285,7 @@ func TestCosignExactImageDigestIntegration(t *testing.T) {
 	require.NoError(t, signer.SignImage(context.Background(), exact))
 	require.NoError(t, signer.VerifyImage(context.Background(), exact), processOutput.String())
 
-	require.NoError(t, runner.Run(context.Background(), imagebuild.Command{Name: cosign, Args: []string{"generate-key-pair", "--output-key-prefix", filepath.Join(keyDir, "wrong")}}))
+	require.NoError(t, runner.Run(context.Background(), process.Command{Name: cosign, Args: []string{"generate-key-pair", "--output-key-prefix", filepath.Join(keyDir, "wrong")}}))
 	wrongVerifier := &cosignSigner{runner: runner, executable: cosign, ca: caPath, publicKey: filepath.Join(keyDir, "wrong.pub")}
 	require.Error(t, wrongVerifier.VerifyImage(context.Background(), exact))
 
@@ -301,6 +301,6 @@ func TestCosignInteractivePassphraseIntegration(t *testing.T) {
 	}
 	require.NoError(t, os.Unsetenv("COSIGN_PASSWORD"))
 	bundle := blob + ".sigstore.json"
-	signer := &cosignSigner{runner: imagebuild.OSRunner{Stdin: os.Stdin, Stdout: os.Stdout, Stderr: os.Stderr}, executable: cosign, privateKey: key}
+	signer := &cosignSigner{runner: process.OSRunner{Stdin: os.Stdin, Stdout: os.Stdout, Stderr: os.Stderr}, executable: cosign, privateKey: key}
 	require.NoError(t, signer.SignBlob(context.Background(), blob, bundle))
 }

@@ -1,5 +1,5 @@
 /isos/**/*.iso
-/isos/**/*.oci-archive.tar
+/distro/base/**/*.oci-archive.tar
 .DS_Store
 .artifacts/
 target/

@@ -14,7 +14,7 @@ import (
 	"strconv"
 	"strings"
 
-	imagebuild "github.com/LevitateOS/soda-os/internal/image"
+	"github.com/LevitateOS/soda-os/internal/process"
 	"github.com/google/go-containerregistry/pkg/authn"
 	"github.com/google/go-containerregistry/pkg/name"
 	"github.com/google/go-containerregistry/pkg/v1/remote"
@@ -78,7 +78,7 @@ type verifier interface {
 }
 
 type Manager struct {
-	runner    imagebuild.Runner
+	runner    process.Runner
 	bootc     string
 	discovery discovery
 	verifier  verifier
@@ -86,7 +86,7 @@ type Manager struct {
 }
 
 type Options struct {
-	Runner     imagebuild.Runner
+	Runner     process.Runner
 	BootcPath  string
 	SkopeoPath string
 	CosignPath string
@@ -96,7 +96,7 @@ type Options struct {
 
 func New(options Options) (*Manager, error) {
 	if options.Runner == nil {
-		options.Runner = imagebuild.OSRunner{Stdout: os.Stdout, Stderr: os.Stderr}
+		options.Runner = process.OSRunner{Stdout: os.Stdout, Stderr: os.Stderr}
 	}
 	if options.BootcPath == "" {
 		options.BootcPath = DefaultBootc
@@ -128,7 +128,7 @@ func New(options Options) (*Manager, error) {
 }
 
 func (m *Manager) Status(ctx context.Context) (Status, error) {
-	output, err := m.runner.Output(ctx, imagebuild.Command{Name: m.bootc, Args: []string{"status", "--format=json", "--format-version=1"}})
+	output, err := m.runner.Output(ctx, process.Command{Name: m.bootc, Args: []string{"status", "--format=json", "--format-version=1"}})
 	if err != nil {
 		return Status{}, fmt.Errorf("%w: read bootc status", ErrUnavailable)
 	}
@@ -206,7 +206,7 @@ func (m *Manager) Stage(ctx context.Context, exactReference string) (Status, err
 	if _, err := m.inspectRelease(ctx, exactReference); err != nil {
 		return Status{}, err
 	}
-	if err := m.runner.Run(ctx, imagebuild.Command{Name: m.bootc, Args: []string{"switch", "--download-only", "--enforce-container-sigpolicy", exactReference}}); err != nil {
+	if err := m.runner.Run(ctx, process.Command{Name: m.bootc, Args: []string{"switch", "--download-only", "--enforce-container-sigpolicy", exactReference}}); err != nil {
 		return Status{}, fmt.Errorf("%w: bootc could not stage the signed release", ErrUnavailable)
 	}
 	status, err := m.Status(ctx)
@@ -237,7 +237,7 @@ func (m *Manager) Activate(ctx context.Context) error {
 	if status.ReadOnly || !status.Staged.DownloadOnly {
 		return fmt.Errorf("%w: staged deployment is not locked for explicit activation", ErrPrecondition)
 	}
-	if err := m.runner.Run(ctx, imagebuild.Command{Name: m.bootc, Args: []string{"switch", "--from-downloaded", "--apply"}}); err != nil {
+	if err := m.runner.Run(ctx, process.Command{Name: m.bootc, Args: []string{"switch", "--from-downloaded", "--apply"}}); err != nil {
 		return fmt.Errorf("%w: bootc could not activate the staged release", ErrUnavailable)
 	}
 	return nil
@@ -268,12 +268,12 @@ type imageMetadata struct {
 }
 
 type skopeoInspector struct {
-	runner     imagebuild.Runner
+	runner     process.Runner
 	executable string
 }
 
 func (i skopeoInspector) Inspect(ctx context.Context, reference string) (imageMetadata, error) {
-	output, err := i.runner.Output(ctx, imagebuild.Command{Name: i.executable, Args: []string{
+	output, err := i.runner.Output(ctx, process.Command{Name: i.executable, Args: []string{
 		"--override-os", "linux", "--override-arch", "arm64",
 		"inspect", "--no-creds", "--no-tags", "--tls-verify=true", "docker://" + reference,
 	}})
@@ -288,12 +288,12 @@ func (i skopeoInspector) Inspect(ctx context.Context, reference string) (imageMe
 }
 
 type cosignVerifier struct {
-	runner                    imagebuild.Runner
+	runner                    process.Runner
 	executable, ca, publicKey string
 }
 
 func (v cosignVerifier) Verify(ctx context.Context, reference string) error {
-	return v.runner.Run(ctx, imagebuild.Command{Name: v.executable, Args: []string{
+	return v.runner.Run(ctx, process.Command{Name: v.executable, Args: []string{
 		"verify", "--key", v.publicKey, "--registry-cacert", v.ca,
 		"--insecure-ignore-tlog=true", reference,
 	}})

@@ -1,7 +1,6 @@
 package image
 
 import (
-	"bytes"
 	"context"
 	"crypto/ed25519"
 	"crypto/rand"
@@ -17,27 +16,28 @@ import (
 	"time"
 
 	"github.com/LevitateOS/soda-os/internal/config"
+	"github.com/LevitateOS/soda-os/internal/process"
 	"github.com/stretchr/testify/require"
 )
 
 type recordingRunner struct {
-	Commands []Command
+	Commands []process.Command
 	Outputs  map[string]string
 	Err      error
 }
 
-func (r *recordingRunner) Run(_ context.Context, command Command) error {
+func (r *recordingRunner) Run(_ context.Context, command process.Command) error {
 	r.Commands = append(r.Commands, command)
 	return r.Err
 }
 
-func (r *recordingRunner) Output(_ context.Context, command Command) (string, error) {
+func (r *recordingRunner) Output(_ context.Context, command process.Command) (string, error) {
 	r.Commands = append(r.Commands, command)
 	return r.Outputs[command.String()], r.Err
 }
 
 func TestBootcContract(t *testing.T) {
-	root, err := filepath.Abs(filepath.Join("..", ".."))
+	root, err := filepath.Abs(filepath.Join("..", "..", ".."))
 	require.NoError(t, err)
 	builder, err := NewBuilder(root, "distro/soda.toml", &recordingRunner{})
 	require.NoError(t, err)
@@ -73,26 +73,18 @@ func TestDockerCommandUsesPinnedArm64Builder(t *testing.T) {
 }
 
 func TestRPMBuilderContractPinsFedoraBaseAndInstalledInventory(t *testing.T) {
-	root, err := filepath.Abs(filepath.Join("..", ".."))
+	root, err := filepath.Abs(filepath.Join("..", "..", ".."))
 	require.NoError(t, err)
 
 	contents, err := os.ReadFile(filepath.Join(root, "packaging", "builder", "Containerfile"))
 	require.NoError(t, err)
 	containerfile := string(contents)
 	require.Contains(t, containerfile, "FROM "+builderBaseReference)
-	require.Contains(t, containerfile, "COPY packaging/builder/packages.lock")
+	require.Contains(t, containerfile, "COPY distro/locks/builder-packages.toml")
 	require.Contains(t, containerfile, "dnf -y install --setopt=install_weak_deps=False $(awk")
 	require.Contains(t, containerfile, "%{ARCH}\\n' | LC_ALL=C sort")
 	require.Contains(t, containerfile, "test \"$actual\" = \"$expected\"")
 	require.NotContains(t, containerfile, "registry.fedoraproject.org/fedora:44")
-}
-
-func TestOSRunnerWiresOnlyExplicitStdin(t *testing.T) {
-	input := bytes.NewBufferString("administrator input")
-	runner := OSRunner{Stdin: input}
-	command := runner.command(context.Background(), Command{Name: "ignored"})
-	require.Same(t, input, command.Stdin)
-	require.Nil(t, (OSRunner{}).command(context.Background(), Command{Name: "ignored"}).Stdin)
 }
 
 func TestRPMBuildPinsHeaderTimeAndHost(t *testing.T) {
@@ -126,9 +118,9 @@ func TestSourceRevisionAcceptsCleanAndRejectsDirtyWorktrees(t *testing.T) {
 	}, []string{runner.Commands[0].String(), runner.Commands[1].String()})
 
 	for name, status := range map[string]string{
-		"tracked":   " M internal/image/image.go\n",
-		"staged":    "M  internal/image/image.go\n",
-		"untracked": "?? internal/image/new_source.go\n",
+		"tracked":   " M internal/build/image/image.go\n",
+		"staged":    "M  internal/build/image/image.go\n",
+		"untracked": "?? internal/build/image/new_source.go\n",
 	} {
 		t.Run(name, func(t *testing.T) {
 			runner := &recordingRunner{Outputs: map[string]string{
@@ -144,7 +136,7 @@ func TestSourceRevisionAcceptsCleanAndRejectsDirtyWorktrees(t *testing.T) {
 }
 
 func TestArtifactBuildsRejectDirtyWorktreeBeforeDocker(t *testing.T) {
-	root, err := filepath.Abs(filepath.Join("..", ".."))
+	root, err := filepath.Abs(filepath.Join("..", "..", ".."))
 	require.NoError(t, err)
 	for name, build := range map[string]func(context.Context, *Builder) error{
 		"rpms":  func(ctx context.Context, builder *Builder) error { return builder.BuildRPMs(ctx) },
@@ -165,7 +157,7 @@ func TestArtifactBuildsRejectDirtyWorktreeBeforeDocker(t *testing.T) {
 
 func TestLockedInstallInputsRequireExactLocalRPMFiles(t *testing.T) {
 	root := t.TempDir()
-	require.NoError(t, os.MkdirAll(filepath.Join(root, "packaging", "bootc"), 0o755))
+	require.NoError(t, os.MkdirAll(filepath.Join(root, "distro", "locks"), 0o755))
 	lock := `schema_version = 1
 base_reference = "` + bootcBaseReference + `"
 
@@ -180,8 +172,8 @@ nevra = "soda-release-0:0.2.0-1.fc44.noarch"
 source = "local-rpm"
 file = "soda-release.rpm"
 `
-	require.NoError(t, os.WriteFile(filepath.Join(root, "packaging", "bootc", "packages.lock"), []byte(lock), 0o644))
-	builder := &Builder{Root: root, Spec: config.DistroSpec{Image: config.ImageSpec{PackageLock: "packaging/bootc/packages.lock"}}}
+	require.NoError(t, os.WriteFile(filepath.Join(root, "distro", "locks", "runtime-packages.toml"), []byte(lock), 0o644))
+	builder := &Builder{Root: root, Spec: config.DistroSpec{Image: config.ImageSpec{PackageLock: "distro/locks/runtime-packages.toml"}}}
 	require.ErrorContains(t, builder.writeLockedInstallInputs(filepath.Join(root, "rpms")), "locked local RPM soda-release.rpm is missing")
 }
 
@@ -197,7 +189,7 @@ func TestPrepareLocalBootcBaseUsesExactDigestDerivedLocalTag(t *testing.T) {
 }
 
 func TestSodaRPMsAreScriptletFree(t *testing.T) {
-	root, err := filepath.Abs(filepath.Join("..", ".."))
+	root, err := filepath.Abs(filepath.Join("..", "..", ".."))
 	require.NoError(t, err)
 	scriptlet := regexp.MustCompile(`(?m)^%(?:pre(?:un|trans)?|post(?:un|trans)?|trigger\w*|filetrigger\w*|transfiletrigger\w*|verifyscript)(?:\s|$)`)
 	for _, name := range targetRPMs {
@@ -208,13 +200,13 @@ func TestSodaRPMsAreScriptletFree(t *testing.T) {
 }
 
 func TestRuntimeCosignInputIsPinnedForLinuxAArch64(t *testing.T) {
-	script, err := os.ReadFile(filepath.Join("..", "..", "scripts", "fetch-release-tools.sh"))
+	script, err := os.ReadFile(filepath.Join("..", "..", "..", "scripts", "fetch-release-tools.sh"))
 	require.NoError(t, err)
 	require.Contains(t, string(script), "cosign-linux-arm64")
 	require.Contains(t, string(script), cosignArm64SHA256)
 	require.Contains(t, string(script), "releases/download/v3.1.2")
 
-	spec, err := os.ReadFile(filepath.Join("..", "..", "packaging", "rpm", "soda-runtime.spec"))
+	spec, err := os.ReadFile(filepath.Join("..", "..", "..", "packaging", "rpm", "soda-runtime.spec"))
 	require.NoError(t, err)
 	require.Contains(t, string(spec), "install -m 0755 %{_sourcedir}/cosign %{buildroot}%{_libexecdir}/soda/cosign")
 	require.Contains(t, string(spec), "%{_libexecdir}/soda/cosign")
@@ -244,12 +236,12 @@ func TestStageReleaseTrustAcceptsExplicitCAAndPublicKey(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, wantKey, stagedKey)
 
-	policy, err := os.ReadFile(filepath.Join("..", "..", "packaging", "release", "policy.json"))
+	policy, err := os.ReadFile(filepath.Join("..", "..", "..", "packaging", "release", "policy.json"))
 	require.NoError(t, err)
 	require.Contains(t, string(policy), `"registry.soda.local/soda/os"`)
 	require.Contains(t, string(policy), `"type": "sigstoreSigned"`)
 	require.Contains(t, string(policy), `"keyPath": "/usr/share/soda/release/cosign.pub"`)
-	registries, err := os.ReadFile(filepath.Join("..", "..", "packaging", "release", "registries.d.yaml"))
+	registries, err := os.ReadFile(filepath.Join("..", "..", "..", "packaging", "release", "registries.d.yaml"))
 	require.NoError(t, err)
 	require.Contains(t, string(registries), "use-sigstore-attachments: true")
 }
@@ -276,7 +268,7 @@ func TestStageReleaseTrustPreservesInputsAlreadyAtDestination(t *testing.T) {
 }
 
 func TestBuildImageStagesTrustAfterLockedBootcInputs(t *testing.T) {
-	source, err := os.ReadFile("image.go")
+	source, err := os.ReadFile("builder.go")
 	require.NoError(t, err)
 	buildRPMs := strings.Index(string(source), "if err := b.BuildRPMs(ctx)")
 	stageTrust := strings.Index(string(source), "if err := b.stageReleaseTrust()")

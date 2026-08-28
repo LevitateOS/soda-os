@@ -16,8 +16,9 @@ import (
 	"strings"
 
 	"github.com/BurntSushi/toml"
+	imagebuild "github.com/LevitateOS/soda-os/internal/build/image"
 	"github.com/LevitateOS/soda-os/internal/config"
-	imagebuild "github.com/LevitateOS/soda-os/internal/image"
+	"github.com/LevitateOS/soda-os/internal/process"
 )
 
 const (
@@ -78,11 +79,11 @@ func (b *Builder) inspectPublishedISO(ctx context.Context, isoPath, reference, i
 	}
 	defer os.RemoveAll(inspectDir)
 	volumeName := fmt.Sprintf("soda-iso-inspect-%s-%d", strings.TrimPrefix(reference, Repository+"@sha256:")[:12], os.Getpid())
-	if err := b.runner.Run(ctx, imagebuild.Command{Dir: b.Root, Name: "docker", Args: []string{"volume", "create", volumeName}}); err != nil {
+	if err := b.runner.Run(ctx, process.Command{Dir: b.Root, Name: "docker", Args: []string{"volume", "create", volumeName}}); err != nil {
 		return "", fmt.Errorf("create disposable ISO inspection storage: %w", err)
 	}
 	defer func() {
-		_ = b.runner.Run(context.Background(), imagebuild.Command{Dir: b.Root, Name: "docker", Args: []string{"volume", "rm", "--force", volumeName}})
+		_ = b.runner.Run(context.Background(), process.Command{Dir: b.Root, Name: "docker", Args: []string{"volume", "rm", "--force", volumeName}})
 	}()
 	installerTag := "localhost/soda-installer-inspect:" + b.Spec.Identity.Version
 	if err := b.copyToStorage(ctx, lock, volumeName, installerArchive, installerTag); err != nil {
@@ -102,12 +103,12 @@ func (b *Builder) inspectPublishedISO(ctx context.Context, isoPath, reference, i
 type Builder struct {
 	Root   string
 	Spec   config.DistroSpec
-	runner imagebuild.Runner
+	runner process.Runner
 }
 
-func NewBuilder(root string, spec config.DistroSpec, runner imagebuild.Runner) *Builder {
+func NewBuilder(root string, spec config.DistroSpec, runner process.Runner) *Builder {
 	if runner == nil {
-		runner = imagebuild.OSRunner{}
+		runner = process.OSRunner{}
 	}
 	return &Builder{Root: root, Spec: spec, runner: runner}
 }
@@ -132,11 +133,11 @@ func (b *Builder) Build(ctx context.Context, options Options) (string, error) {
 		return "", err
 	}
 	volumeName := fmt.Sprintf("soda-installer-%s-%d", strings.TrimPrefix(options.ImageReference, Repository+"@sha256:")[:12], os.Getpid())
-	if err := b.runner.Run(ctx, imagebuild.Command{Dir: b.Root, Name: "docker", Args: []string{"volume", "create", volumeName}}); err != nil {
+	if err := b.runner.Run(ctx, process.Command{Dir: b.Root, Name: "docker", Args: []string{"volume", "create", volumeName}}); err != nil {
 		return "", fmt.Errorf("create disposable installer container storage: %w", err)
 	}
 	defer func() {
-		_ = b.runner.Run(context.Background(), imagebuild.Command{Dir: b.Root, Name: "docker", Args: []string{"volume", "rm", "--force", volumeName}})
+		_ = b.runner.Run(context.Background(), process.Command{Dir: b.Root, Name: "docker", Args: []string{"volume", "rm", "--force", volumeName}})
 	}()
 
 	installerArchive, installerTag, err := b.buildInstallerEnvironment(ctx, baseTag, workspace.work)
@@ -196,7 +197,7 @@ func (b *Builder) buildInstallerEnvironment(ctx context.Context, baseTag, work s
 	}
 	tag := "localhost/soda-installer:" + b.Spec.Identity.Version
 	args := []string{"buildx", "build", "--platform", Platform, "--build-context", "fedora-base=docker-image://" + baseTag, "--file", "packaging/installer/Containerfile", "--tag", tag, "--provenance=false", "--output", "type=oci,dest=" + archive + ",oci-mediatypes=true", "."}
-	if err := b.runner.Run(ctx, imagebuild.Command{Dir: b.Root, Name: "docker", Args: args}); err != nil {
+	if err := b.runner.Run(ctx, process.Command{Dir: b.Root, Name: "docker", Args: args}); err != nil {
 		return "", "", fmt.Errorf("build installer environment: %w", err)
 	}
 	return archive, tag, nil
@@ -217,7 +218,7 @@ func (b *Builder) buildInstallerISO(ctx context.Context, input isoBuildInput) (s
 		"--bootc-default-fs", "ext4", "--output-dir", "/output",
 		"--output-name", outputName, "bootc-generic-iso",
 	}
-	if err := b.runner.Run(ctx, imagebuild.Command{Dir: b.Root, Name: "docker", Args: args}); err != nil {
+	if err := b.runner.Run(ctx, process.Command{Dir: b.Root, Name: "docker", Args: args}); err != nil {
 		return "", fmt.Errorf("build bootc-generic-iso: %w", err)
 	}
 	isoPath := filepath.Join(input.workspace.output, outputName+".iso")
@@ -275,11 +276,11 @@ func validateToolLock(lock toolLock) error {
 }
 
 func (b *Builder) verifySignedImage(ctx context.Context, options Options) error {
-	output, err := b.runner.Output(ctx, imagebuild.Command{Name: options.CosignPath, Args: []string{"version"}})
+	output, err := b.runner.Output(ctx, process.Command{Name: options.CosignPath, Args: []string{"version"}})
 	if err != nil || !strings.Contains(output, "v3.1.2") {
 		return errors.New("installer requires the pinned Cosign v3.1.2 tool")
 	}
-	if err := b.runner.Run(ctx, imagebuild.Command{Name: options.CosignPath, Args: []string{
+	if err := b.runner.Run(ctx, process.Command{Name: options.CosignPath, Args: []string{
 		"verify", "--key", options.PublicKey, "--registry-cacert", options.RegistryCA,
 		"--insecure-ignore-tlog=true", options.ImageReference,
 	}}); err != nil {
@@ -293,7 +294,7 @@ func (b *Builder) copyToStorage(ctx context.Context, lock toolLock, volumeName, 
 		"--volume", volumeName + ":/var/lib/containers/storage",
 		"--volume", archive + ":/input/image.oci.tar:ro", lock.Reference},
 		"copy", "oci-archive:/input/image.oci.tar", "containers-storage:"+reference)
-	if err := b.runner.Run(ctx, imagebuild.Command{Dir: b.Root, Name: "docker", Args: args}); err != nil {
+	if err := b.runner.Run(ctx, process.Command{Dir: b.Root, Name: "docker", Args: args}); err != nil {
 		return fmt.Errorf("copy %s into installer container storage: %w", reference, err)
 	}
 	return nil

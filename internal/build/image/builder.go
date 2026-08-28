@@ -15,13 +15,14 @@ import (
 
 	"github.com/BurntSushi/toml"
 	"github.com/LevitateOS/soda-os/internal/config"
+	"github.com/LevitateOS/soda-os/internal/process"
 )
 
 const (
 	bootcBaseReference   = "quay.io/fedora/fedora-bootc@sha256:85677d47c03b2e1f8f9a3a19d838023ea154229817d579d4b4da5b87a21c9c1a"
 	bootcPlatform        = "linux/arm64"
 	bootcRuntimeNEVRA    = "bootc-0:1.16.10-1.fc44.aarch64"
-	bootcBaseArchive     = "isos/Fedora-bootc-44-aarch64/Fedora-bootc-44.20260826.0-aarch64.oci-archive.tar"
+	bootcBaseArchive     = "distro/base/fedora-bootc-44-aarch64/Fedora-bootc-44.20260826.0-aarch64.oci-archive.tar"
 	builderBaseReference = "registry.fedoraproject.org/fedora@sha256:9c8b291e256262b91aac5b3da50ea323760d0a6b449c6d6ad5f01d9550d48d2a"
 	sodaRegistry         = "registry.soda.local/soda/os"
 	cosignVersion        = "v3.1.2"
@@ -61,10 +62,10 @@ type Builder struct {
 	Spec             config.DistroSpec
 	RegistryCA       string
 	SigningPublicKey string
-	runner           Runner
+	runner           process.Runner
 }
 
-func NewBuilderFromWorkingDirectory(specPath string, runner Runner) (*Builder, error) {
+func NewBuilderFromWorkingDirectory(specPath string, runner process.Runner) (*Builder, error) {
 	root, err := os.Getwd()
 	if err != nil {
 		return nil, fmt.Errorf("get working directory: %w", err)
@@ -72,7 +73,7 @@ func NewBuilderFromWorkingDirectory(specPath string, runner Runner) (*Builder, e
 	return NewBuilder(root, specPath, runner)
 }
 
-func NewBuilder(root, specPath string, runner Runner) (*Builder, error) {
+func NewBuilder(root, specPath string, runner process.Runner) (*Builder, error) {
 	canonicalRoot, err := filepath.EvalSymlinks(root)
 	if err != nil {
 		return nil, fmt.Errorf("canonicalize workspace: %w", err)
@@ -85,7 +86,7 @@ func NewBuilder(root, specPath string, runner Runner) (*Builder, error) {
 		return nil, err
 	}
 	if runner == nil {
-		runner = OSRunner{}
+		runner = process.OSRunner{}
 	}
 	return &Builder{Root: canonicalRoot, Spec: spec, runner: runner}, nil
 }
@@ -171,7 +172,7 @@ func validateReleaseToolLock(lock releaseToolLock) error {
 }
 
 func (b *Builder) validateBuildInputs() error {
-	for _, path := range []string{"packaging/bootc/Containerfile", "packaging/builder/Containerfile", "packaging/builder/packages.lock", "packaging/rpm/soda-release.spec", "packaging/rpm/soda-runtime.spec", "packaging/rpm/soda-cockpit.spec", "packaging/sysusers.d/soda.conf", "packaging/release/policy.json", "packaging/release/registries.d.yaml", "packaging/release/tools.lock"} {
+	for _, path := range []string{"packaging/bootc/Containerfile", "packaging/builder/Containerfile", "distro/locks/builder-packages.toml", "packaging/rpm/soda-release.spec", "packaging/rpm/soda-runtime.spec", "packaging/rpm/soda-cockpit.spec", "packaging/sysusers.d/soda.conf", "packaging/release/policy.json", "packaging/release/registries.d.yaml", "distro/locks/release-tools.toml"} {
 		if !isFile(b.path(path)) {
 			return fmt.Errorf("required bootc build input %s is missing", path)
 		}
@@ -218,7 +219,7 @@ func (b *Builder) BuildImage(ctx context.Context) error {
 		"--output", "type=oci,dest=" + output + ",oci-mediatypes=true,rewrite-timestamp=true",
 		".",
 	}
-	if err := b.runner.Run(ctx, Command{Dir: b.Root, Name: "docker", Args: args}); err != nil {
+	if err := b.runner.Run(ctx, process.Command{Dir: b.Root, Name: "docker", Args: args}); err != nil {
 		return err
 	}
 	fmt.Printf("Built OCI archive %s from %s\n", output, b.Spec.Base.Reference)
@@ -245,14 +246,14 @@ func (b *Builder) stageReleaseTrust() error {
 }
 
 func (b *Builder) sourceRevision(ctx context.Context) (string, error) {
-	status, err := b.runner.Output(ctx, Command{Dir: b.Root, Name: "git", Args: []string{"status", "--porcelain=v1", "--untracked-files=all"}})
+	status, err := b.runner.Output(ctx, process.Command{Dir: b.Root, Name: "git", Args: []string{"status", "--porcelain=v1", "--untracked-files=all"}})
 	if err != nil {
 		return "", fmt.Errorf("inspect source worktree: %w", err)
 	}
 	if strings.TrimSpace(status) != "" {
 		return "", errors.New("release artifact builds require a clean Git worktree; commit or remove tracked, staged, and untracked source changes")
 	}
-	revision, err := b.runner.Output(ctx, Command{Dir: b.Root, Name: "git", Args: []string{"rev-parse", "HEAD"}})
+	revision, err := b.runner.Output(ctx, process.Command{Dir: b.Root, Name: "git", Args: []string{"rev-parse", "HEAD"}})
 	if err != nil {
 		return "", fmt.Errorf("resolve source revision: %w", err)
 	}
@@ -276,7 +277,7 @@ func (b *Builder) packageLock() (packageLock, error) {
 
 func (b *Builder) releaseToolLock() (releaseToolLock, error) {
 	var lock releaseToolLock
-	if _, err := toml.DecodeFile(b.path("packaging/release/tools.lock"), &lock); err != nil {
+	if _, err := toml.DecodeFile(b.path("distro/locks/release-tools.toml"), &lock); err != nil {
 		return releaseToolLock{}, fmt.Errorf("parse release tool lock: %w", err)
 	}
 	return lock, nil
