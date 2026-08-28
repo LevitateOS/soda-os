@@ -8,7 +8,7 @@
 <section id="project-create" class="panel" aria-live="polite">
   <h2>Create project</h2>
   {{if .Error}}<p class="error" role="alert">{{.Error}}</p>{{end}}
-  <form method="post" action="/projects" hx-post="/projects" hx-target="#project-create" hx-swap="outerHTML" hx-disabled-elt="button">
+  <form method="post" action="/projects" hx-post="/projects" hx-target="#project-create" hx-swap="outerHTML" hx-status:422="swap:outerHTML" hx-disable="button">
     <label>Slug <input name="slug" placeholder="my-project" required></label>
     <label>Name <input name="name" required></label>
     <label>Development environment <select name="profile"><option value="web">Web · Node + Bun</option><option value="python">Python · CPython + uv</option><option value="rust">Rust</option><option value="go">Go</option></select></label>

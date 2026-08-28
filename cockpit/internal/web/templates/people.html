@@ -11,7 +11,7 @@
 <section class="panel">
   <h2>Add team member</h2>
   <p>They will replace this temporary password when they first sign in.</p>
-  <form method="post" action="/team" hx-post="/team" hx-target="#people-management" hx-swap="outerHTML" hx-disabled-elt="button">
+  <form method="post" action="/team" hx-post="/team" hx-target="#people-management" hx-swap="outerHTML" hx-status:422="swap:outerHTML" hx-disable="button">
     <label>Username <input name="username" required></label>
     <label>Display name <input name="display_name" required></label>
     <label>Email <input type="email" name="email" required></label>

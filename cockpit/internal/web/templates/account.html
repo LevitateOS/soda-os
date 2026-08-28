@@ -23,13 +23,13 @@
   <table><thead><tr><th>Device</th><th>Key type</th><th>Fingerprint</th><th>Identity file</th><th>Added</th><th></th></tr></thead><tbody>
     {{range .DeviceKeys}}<tr>
       <td>{{.Label}}</td><td><code>{{keyType .}}</code></td><td><code>{{.Fingerprint}}</code></td><td><code>{{.IdentityFileHint}}</code></td><td>{{time .CreatedAt}}</td>
-      <td><form method="post" action="/account/ssh-keys/{{.ID}}/revoke" hx-post="/account/ssh-keys/{{.ID}}/revoke" hx-target="#ssh-keys" hx-swap="outerHTML" hx-disabled-elt="button"><button type="submit">Revoke</button></form></td>
+      <td><form method="post" action="/account/ssh-keys/{{.ID}}/revoke" hx-post="/account/ssh-keys/{{.ID}}/revoke" hx-target="#ssh-keys" hx-swap="outerHTML" hx-status:422="swap:outerHTML" hx-disable="button"><button type="submit">Revoke</button></form></td>
     </tr>{{end}}
   </tbody></table>
   {{else}}<p>No SSH devices are registered yet.</p>{{end}}
 
   <h3>Add this device</h3>
-  <form method="post" action="/account/ssh-keys" hx-post="/account/ssh-keys" hx-target="#ssh-keys" hx-swap="outerHTML" hx-disabled-elt="button">
+  <form method="post" action="/account/ssh-keys" hx-post="/account/ssh-keys" hx-target="#ssh-keys" hx-swap="outerHTML" hx-status:422="swap:outerHTML" hx-disable="button">
     <label>Device name <input name="label" placeholder="Vince's MacBook" maxlength="40" required></label>
     <label>Public key <textarea name="public_key" rows="4" placeholder="ssh-ed25519 AAAA…" required></textarea></label>
     <label>Private-key path on this device <input name="identity_file_hint" value="~/.ssh/id_ed25519" required></label>
@@ -47,7 +47,7 @@
   <h2>Change password</h2>
   {{if .Message}}<p class="success" role="status">{{.Message}}</p>{{end}}
   {{if .Error}}<p class="error" role="alert">{{.Error}}</p>{{end}}
-  <form method="post" action="/account/password" hx-post="/account/password" hx-target="#password-change" hx-swap="outerHTML" hx-disabled-elt="button">
+  <form method="post" action="/account/password" hx-post="/account/password" hx-target="#password-change" hx-swap="outerHTML" hx-status:422="swap:outerHTML" hx-disable="button">
     <label>Current password <input type="password" name="current_password" autocomplete="current-password" required></label>
     <label>New password <input type="password" name="new_password" autocomplete="new-password" minlength="6" required></label>
     <label>Repeat new password <input type="password" name="confirm_password" autocomplete="new-password" minlength="6" required></label>

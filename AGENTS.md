@@ -108,6 +108,17 @@ packages, aliases, duplicate files, or compatibility directories.
 Avoid vague buckets such as `common`, `utils`, or `services` unless a concrete,
 cohesive owner has first been demonstrated.
 
+## htmx skills
+
+Use the installed htmx 4 skills only when their specific workflow applies:
+
+- `htmx-guidance` when writing or reviewing Cockpit htmx markup, attributes,
+  events, swaps, or interaction patterns;
+- `htmx-debugging` when htmx requests, swaps, events, or other runtime behavior
+  do not work as expected;
+- `htmx-extension-authoring` when creating, modifying, or debugging an htmx 4
+  extension.
+
 ## Working method
 
 Before changing the repository:

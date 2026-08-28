@@ -45,7 +45,7 @@
 {{if .Admin}}
 <section class="panel"><h2>Add team member</h2>
   {{if not .Ready}}<p>New members can be added after project setup is ready.</p>
-  {{else if .Available}}<form method="post" action="/projects/{{.Project.ID}}/members" hx-post="/projects/{{.Project.ID}}/members" hx-target="#collaboration" hx-swap="outerHTML" hx-disabled-elt="button">
+  {{else if .Available}}<form method="post" action="/projects/{{.Project.ID}}/members" hx-post="/projects/{{.Project.ID}}/members" hx-target="#collaboration" hx-swap="outerHTML" hx-status:422="swap:outerHTML" hx-disable="button">
     <label>Team member <select name="person_id">{{range .Available}}<option value="{{.ID}}">{{.DisplayName}} · {{.Username}}</option>{{end}}</select></label>
     <button type="submit">Add member and workspace</button>
   </form>
@@ -63,6 +63,6 @@
   <h3>Development environment</h3>
   {{if .Toolchain}}<p><strong>{{.Toolchain.Profile}} {{.Toolchain.Version}}</strong> · <code>{{.Toolchain.Path}}</code></p>{{else}}<p>The development environment is not ready yet.</p>{{end}}
   {{if .Jobs}}<h3>Setup history</h3><ul>{{range .Jobs}}<li>{{.State}}{{if .Error}} · <span class="error">{{.Error}}</span>{{end}}</li>{{end}}</ul>{{end}}
-  {{if and .Admin (eq .State.Class "failed")}}<form method="post" action="/projects/{{.Project.ID}}/provisioning" hx-post="/projects/{{.Project.ID}}/provisioning" hx-target="#provisioning" hx-swap="outerHTML" hx-disabled-elt="button"><button type="submit">Retry project setup</button></form>{{end}}
+  {{if and .Admin (eq .State.Class "failed")}}<form method="post" action="/projects/{{.Project.ID}}/provisioning" hx-post="/projects/{{.Project.ID}}/provisioning" hx-target="#provisioning" hx-swap="outerHTML" hx-status:422="swap:outerHTML" hx-disable="button"><button type="submit">Retry project setup</button></form>{{end}}
 </section>
 {{end}}
