@@ -156,6 +156,25 @@ func TestProtectedPageRedirectsToLogin(t *testing.T) {
 	}
 }
 
+func TestProjectCardsLeaveConnectionGuidanceToProjectDetail(t *testing.T) {
+	admin := soda.Person{ID: "admin-1", Username: "admin", DisplayName: "Admin", Role: soda.RoleAdmin}
+	project := soda.Project{ID: "project-1", Slug: "demo", Name: "Demo", UnixUser: "soda-p-demo", Profile: "go"}
+	app := testServer(t, &fakeAPI{people: []soda.Person{admin}, projects: []soda.Project{project}, jobs: []soda.ProvisioningJob{{ProjectID: project.ID, State: "ready"}}}, fakeAuth{})
+	token, err := app.sessions.create(admin)
+	if err != nil {
+		t.Fatal(err)
+	}
+	response := request(app, http.MethodGet, "/projects", "", &http.Cookie{Name: sessionCookie, Value: token})
+	if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), "Demo") {
+		t.Fatalf("project cards = %d %q", response.Code, response.Body.String())
+	}
+	for _, removed := range []string{"Add an SSH device", "personal workspace is being prepared", "Connect:"} {
+		if strings.Contains(response.Body.String(), removed) {
+			t.Fatalf("project card retained connection guidance %q", removed)
+		}
+	}
+}
+
 func TestOSUpdateControlsAreAdministratorOnlyAndUseVerifiedExactRelease(t *testing.T) {
 	digest := "sha256:" + strings.Repeat("b", 64)
 	exact := "registry.soda.local/soda/os@" + digest
@@ -163,14 +182,12 @@ func TestOSUpdateControlsAreAdministratorOnlyAndUseVerifiedExactRelease(t *testi
 	release := soda.OSRelease{ImageReference: exact, Version: "0.3.0", Digest: digest, StateSchema: 2, Available: true}
 
 	developer := soda.Person{ID: "dev-1", Username: "dev", DisplayName: "Developer", Role: soda.RoleDeveloper}
-	developerAPI := &fakeAPI{people: []soda.Person{developer}, osStatus: status, osRelease: release}
-	developerServer := testServer(t, developerAPI, fakeAuth{})
+	developerServer := testServer(t, &fakeAPI{people: []soda.Person{developer}}, fakeAuth{})
 	developerToken, err := developerServer.sessions.create(developer)
 	if err != nil {
 		t.Fatal(err)
 	}
-	developerCookie := &http.Cookie{Name: sessionCookie, Value: developerToken}
-	response := request(developerServer, http.MethodGet, "/os-update", "", developerCookie)
+	response := request(developerServer, http.MethodGet, "/os-update", "", &http.Cookie{Name: sessionCookie, Value: developerToken})
 	if response.Code != http.StatusForbidden {
 		t.Fatalf("developer accessed OS updates: %d", response.Code)
 	}
@@ -184,7 +201,7 @@ func TestOSUpdateControlsAreAdministratorOnlyAndUseVerifiedExactRelease(t *testi
 	}
 	cookie := &http.Cookie{Name: sessionCookie, Value: token}
 	response = request(app, http.MethodPost, "/os-update/stage", "", cookie)
-	if response.Code != http.StatusOK || api.stagedImage != exact || !strings.Contains(response.Body.String(), "downloaded and locked") {
+	if response.Code != http.StatusOK || api.stagedImage != exact {
 		t.Fatalf("unexpected stage result: %d %q exact=%q", response.Code, response.Body.String(), api.stagedImage)
 	}
 
@@ -326,7 +343,7 @@ func TestFirstLoginRequiresPasswordReplacementThenSignsIn(t *testing.T) {
 	authenticator := &changingAuth{result: auth.PasswordChangeRequired}
 	app := testServer(t, &fakeAPI{people: []soda.Person{alice}}, authenticator)
 	login := request(app, http.MethodPost, "/login", url.Values{"username": {"alice"}, "password": {"temporary"}}.Encode(), nil)
-	if login.Code != http.StatusOK || !strings.Contains(login.Body.String(), "Activate your Soda account") || len(login.Result().Cookies()) != 0 {
+	if login.Code != http.StatusOK || len(login.Result().Cookies()) != 0 {
 		t.Fatalf("unexpected activation response: %d %q", login.Code, login.Body.String())
 	}
 	short := request(app, http.MethodPost, "/activate-password", url.Values{

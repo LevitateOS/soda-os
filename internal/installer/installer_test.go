@@ -3,7 +3,6 @@ package installer
 import (
 	"archive/tar"
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -160,27 +159,6 @@ func TestVerifySignedImageUsesPinnedKeyAndExactDigest(t *testing.T) {
 		"cosign version",
 		"cosign verify --key /keys/cosign.pub --registry-cacert /keys/ca.crt --insecure-ignore-tlog=true " + testExactImage,
 	}, []string{runner.Commands[0].String(), runner.Commands[1].String()})
-}
-
-func TestValidateProvenanceBindsISOBytesAndPayload(t *testing.T) {
-	iso := filepath.Join(t.TempDir(), "SodaOS.iso")
-	require.NoError(t, os.WriteFile(iso, []byte("iso bytes"), 0o644))
-	provenance := Provenance{
-		SchemaVersion: 1, ISOPath: filepath.Base(iso), ISOSHA256: mustSHA256(t, iso),
-		EmbeddedImageReference: testExactImage, Platform: Platform, Filesystem: "ext4",
-		ImageBuilderVersion:   "81.0.0",
-		ImageBuilderReference: "ghcr.io/osbuild/image-builder@sha256:704dc05d6033799248a33c415f7f7253ec20b40f0b2bff03b06d8687179e058a",
-	}
-	encoded, err := json.Marshal(provenance)
-	require.NoError(t, err)
-	require.NoError(t, os.WriteFile(iso+".payload.json", encoded, 0o644))
-	actual, err := ValidateProvenance(iso, testExactImage)
-	require.NoError(t, err)
-	require.Equal(t, provenance, actual)
-
-	require.NoError(t, os.WriteFile(iso, []byte("changed"), 0o644))
-	_, err = ValidateProvenance(iso, testExactImage)
-	require.EqualError(t, err, "installer payload provenance checksum does not match the ISO")
 }
 
 func TestVerifyArchiveDigestRequiresOneMatchingArm64Manifest(t *testing.T) {

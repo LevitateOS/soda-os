@@ -38,7 +38,7 @@ type toolLock struct {
 
 // Options are explicit local build inputs. ArchivePath must contain the same
 // image digest named by ImageReference; inspection proves that exact payload
-// was copied into the finished ISO before provenance is written.
+// was copied into the finished ISO before the checksum is recorded.
 type Options struct {
 	ImageReference string
 	ArchivePath    string
@@ -62,13 +62,12 @@ type Provenance struct {
 }
 
 type Result struct {
-	ISOPath        string
-	ProvenancePath string
+	ISOPath string
 }
 
 // ValidateISO independently re-opens an already-built ISO, extracts its
 // squashfs, and checks the exact kickstart and embedded containers-storage
-// payload before release publication trusts its checksum sidecar.
+// payload before release publication records its checksum.
 func (b *Builder) ValidateISO(ctx context.Context, isoPath, reference, installerArchive, toolLockPath string) (Provenance, error) {
 	if !exactImagePattern.MatchString(reference) {
 		return Provenance{}, errors.New("installer payload must be an exact registry.soda.local/soda/os@sha256 reference")
@@ -83,6 +82,10 @@ func (b *Builder) ValidateISO(ctx context.Context, isoPath, reference, installer
 	if err := validateToolLock(lock); err != nil {
 		return Provenance{}, err
 	}
+	return b.inspectPublishedISO(ctx, isoPath, reference, installerArchive, lock)
+}
+
+func (b *Builder) inspectPublishedISO(ctx context.Context, isoPath, reference, installerArchive string, lock toolLock) (Provenance, error) {
 	workRoot := filepath.Join(b.Root, ".artifacts", "installer")
 	if err := os.MkdirAll(workRoot, 0o755); err != nil {
 		return Provenance{}, err
@@ -107,35 +110,11 @@ func (b *Builder) ValidateISO(ctx context.Context, isoPath, reference, installer
 	if err := b.inspectISO(ctx, lock, volumeName, installerTag, isoPath, inspectDir, reference, payloadTag); err != nil {
 		return Provenance{}, err
 	}
-	return ValidateProvenance(isoPath, reference)
-}
-
-// ValidateProvenance proves that the ISO bytes and payload sidecar agree with
-// the exact release image. Build writes the sidecar only after inspecting the
-// ISO's squashfs and embedded containers-storage metadata.
-func ValidateProvenance(isoPath, expectedReference string) (Provenance, error) {
-	encoded, err := os.ReadFile(isoPath + ".payload.json")
-	if err != nil {
-		return Provenance{}, fmt.Errorf("read installer payload provenance: %w", err)
-	}
-	var provenance Provenance
-	if err := json.Unmarshal(encoded, &provenance); err != nil {
-		return Provenance{}, fmt.Errorf("decode installer payload provenance: %w", err)
-	}
-	if provenance.SchemaVersion != 1 || provenance.ISOPath != filepath.Base(isoPath) ||
-		provenance.EmbeddedImageReference != expectedReference || provenance.Platform != Platform ||
-		provenance.Filesystem != "ext4" || provenance.ImageBuilderVersion != "81.0.0" ||
-		provenance.ImageBuilderReference != "ghcr.io/osbuild/image-builder@sha256:704dc05d6033799248a33c415f7f7253ec20b40f0b2bff03b06d8687179e058a" {
-		return Provenance{}, errors.New("installer payload provenance differs from the Soda ISO contract")
-	}
 	digest, err := fileSHA256(isoPath)
 	if err != nil {
 		return Provenance{}, fmt.Errorf("checksum installer ISO: %w", err)
 	}
-	if provenance.ISOSHA256 != digest {
-		return Provenance{}, errors.New("installer payload provenance checksum does not match the ISO")
-	}
-	return provenance, nil
+	return Provenance{SchemaVersion: 1, ISOPath: filepath.Base(isoPath), ISOSHA256: digest, EmbeddedImageReference: reference, Platform: Platform, Filesystem: "ext4", ImageBuilderVersion: lock.Version, ImageBuilderReference: lock.Reference}, nil
 }
 
 type Builder struct {
@@ -166,25 +145,8 @@ func (b *Builder) Build(ctx context.Context, options Options) (Result, error) {
 	if err != nil {
 		return Result{}, err
 	}
-	work := filepath.Join(b.Root, ".artifacts", "installer")
-	contextDir := filepath.Join(work, "context")
-	inspectDir := filepath.Join(work, "inspect")
-	outputDir := options.OutputDir
-	if outputDir == "" {
-		outputDir = filepath.Join(b.Root, ".artifacts", "images")
-	}
-	for _, path := range []string{contextDir, inspectDir} {
-		if err := os.RemoveAll(path); err != nil {
-			return Result{}, err
-		}
-		if err := os.MkdirAll(path, 0o755); err != nil {
-			return Result{}, err
-		}
-	}
-	if err := os.MkdirAll(outputDir, 0o755); err != nil {
-		return Result{}, err
-	}
-	if err := os.WriteFile(filepath.Join(contextDir, "interactive-defaults.ks"), []byte(kickstart(options.ImageReference, b.Spec.Identity.Hostname)), 0o644); err != nil {
+	workspace, err := b.prepareInstallerWorkspace(options)
+	if err != nil {
 		return Result{}, err
 	}
 	volumeName := fmt.Sprintf("soda-installer-%s-%d", strings.TrimPrefix(options.ImageReference, Repository+"@sha256:")[:12], os.Getpid())
@@ -195,20 +157,11 @@ func (b *Builder) Build(ctx context.Context, options Options) (Result, error) {
 		_ = b.runner.Run(context.Background(), imagebuild.Command{Dir: b.Root, Name: "docker", Args: []string{"volume", "rm", "--force", volumeName}})
 	}()
 
-	installerArchive := filepath.Join(work, "soda-installer-environment.oci.tar")
-	if err := os.Remove(installerArchive); err != nil && !errors.Is(err, os.ErrNotExist) {
+	installerArchive, installerTag, err := b.buildInstallerEnvironment(ctx, baseTag, workspace.work)
+	if err != nil {
 		return Result{}, err
 	}
-	installerTag := "localhost/soda-installer:" + b.Spec.Identity.Version
 	payloadTag := payloadStagingReference(options.ImageReference)
-	if err := b.runner.Run(ctx, imagebuild.Command{Dir: b.Root, Name: "docker", Args: []string{
-		"buildx", "build", "--platform", Platform,
-		"--build-context", "fedora-base=docker-image://" + baseTag,
-		"--file", "packaging/installer/Containerfile",
-		"--tag", installerTag, "--provenance=false", "--output", "type=oci,dest=" + installerArchive + ",oci-mediatypes=true", ".",
-	}}); err != nil {
-		return Result{}, fmt.Errorf("build installer environment: %w", err)
-	}
 	for _, item := range []struct{ archive, reference string }{
 		{installerArchive, installerTag},
 		{options.ArchivePath, payloadTag},
@@ -218,13 +171,56 @@ func (b *Builder) Build(ctx context.Context, options Options) (Result, error) {
 		}
 	}
 
+	return b.buildInstallerISO(ctx, lock, volumeName, installerTag, workspace, options.ImageReference, payloadTag)
+}
+
+type installerWorkspace struct{ work, context, inspect, output string }
+
+func (b *Builder) prepareInstallerWorkspace(options Options) (installerWorkspace, error) {
+	work := filepath.Join(b.Root, ".artifacts", "installer")
+	output := options.OutputDir
+	if output == "" {
+		output = filepath.Join(b.Root, ".artifacts", "images")
+	}
+	workspace := installerWorkspace{work, filepath.Join(work, "context"), filepath.Join(work, "inspect"), output}
+	for _, path := range []string{workspace.context, workspace.inspect} {
+		if err := os.RemoveAll(path); err != nil {
+			return installerWorkspace{}, err
+		}
+		if err := os.MkdirAll(path, 0o755); err != nil {
+			return installerWorkspace{}, err
+		}
+	}
+	if err := os.MkdirAll(workspace.output, 0o755); err != nil {
+		return installerWorkspace{}, err
+	}
+	if err := os.WriteFile(filepath.Join(workspace.context, "interactive-defaults.ks"), []byte(kickstart(options.ImageReference, b.Spec.Identity.Hostname)), 0o644); err != nil {
+		return installerWorkspace{}, err
+	}
+	return workspace, nil
+}
+
+func (b *Builder) buildInstallerEnvironment(ctx context.Context, baseTag, work string) (string, string, error) {
+	archive := filepath.Join(work, "soda-installer-environment.oci.tar")
+	if err := os.Remove(archive); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return "", "", err
+	}
+	tag := "localhost/soda-installer:" + b.Spec.Identity.Version
+	args := []string{"buildx", "build", "--platform", Platform, "--build-context", "fedora-base=docker-image://" + baseTag, "--file", "packaging/installer/Containerfile", "--tag", tag, "--provenance=false", "--output", "type=oci,dest=" + archive + ",oci-mediatypes=true", "."}
+	if err := b.runner.Run(ctx, imagebuild.Command{Dir: b.Root, Name: "docker", Args: args}); err != nil {
+		return "", "", fmt.Errorf("build installer environment: %w", err)
+	}
+	return archive, tag, nil
+}
+
+func (b *Builder) buildInstallerISO(ctx context.Context, lock toolLock, volumeName, installerTag string, workspace installerWorkspace, reference, payloadTag string) (Result, error) {
 	outputName := "SodaOS-" + b.Spec.Identity.Version + "-aarch64"
-	for _, suffix := range []string{".iso", ".iso.sha256", ".iso.payload.json"} {
-		if err := os.Remove(filepath.Join(outputDir, outputName+suffix)); err != nil && !errors.Is(err, os.ErrNotExist) {
+	for _, suffix := range []string{".iso", ".iso.sha256"} {
+		if err := os.Remove(filepath.Join(workspace.output, outputName+suffix)); err != nil && !errors.Is(err, os.ErrNotExist) {
 			return Result{}, err
 		}
 	}
-	args := b.containerArgs(lock, volumeName, outputDir)
+	args := b.containerArgs(lock, volumeName, workspace.output)
 	args = append(args,
 		"build", "--arch", "aarch64", "--bootc-ref", installerTag,
 		"--bootc-installer-payload-ref", payloadTag,
@@ -234,34 +230,21 @@ func (b *Builder) Build(ctx context.Context, options Options) (Result, error) {
 	if err := b.runner.Run(ctx, imagebuild.Command{Dir: b.Root, Name: "docker", Args: args}); err != nil {
 		return Result{}, fmt.Errorf("build bootc-generic-iso: %w", err)
 	}
-	isoPath := filepath.Join(outputDir, outputName+".iso")
+	isoPath := filepath.Join(workspace.output, outputName+".iso")
 	if !regularFile(isoPath) {
 		return Result{}, fmt.Errorf("image-builder did not create %s", isoPath)
 	}
-	if err := b.inspectISO(ctx, lock, volumeName, installerTag, isoPath, inspectDir, options.ImageReference, payloadTag); err != nil {
+	if err := b.inspectISO(ctx, lock, volumeName, installerTag, isoPath, workspace.inspect, reference, payloadTag); err != nil {
 		return Result{}, err
 	}
 	digest, err := fileSHA256(isoPath)
 	if err != nil {
 		return Result{}, err
 	}
-	provenance := Provenance{
-		SchemaVersion: 1, ISOPath: filepath.Base(isoPath), ISOSHA256: digest,
-		EmbeddedImageReference: options.ImageReference, Platform: Platform, Filesystem: "ext4",
-		ImageBuilderVersion: lock.Version, ImageBuilderReference: lock.Reference,
-	}
-	encoded, err := json.Marshal(provenance)
-	if err != nil {
-		return Result{}, err
-	}
-	provenancePath := isoPath + ".payload.json"
-	if err := os.WriteFile(provenancePath, append(encoded, '\n'), 0o644); err != nil {
-		return Result{}, err
-	}
 	if err := os.WriteFile(isoPath+".sha256", []byte(digest+"  "+filepath.Base(isoPath)+"\n"), 0o644); err != nil {
 		return Result{}, err
 	}
-	return Result{ISOPath: isoPath, ProvenancePath: provenancePath}, nil
+	return Result{ISOPath: isoPath}, nil
 }
 
 func (b *Builder) validate(options Options) (toolLock, error) {
@@ -350,6 +333,10 @@ func (b *Builder) inspectISO(ctx context.Context, lock toolLock, volumeName, ins
 	if err := b.runner.Run(ctx, imagebuild.Command{Dir: b.Root, Name: "docker", Args: args}); err != nil {
 		return fmt.Errorf("inspect installer squashfs: %w", err)
 	}
+	return b.validateExtractedISO(inspectDir, reference, payloadTag)
+}
+
+func (b *Builder) validateExtractedISO(inspectDir, reference, payloadTag string) error {
 	kickstartBytes, err := os.ReadFile(filepath.Join(inspectDir, "root", "usr/share/anaconda/interactive-defaults.ks"))
 	if err != nil {
 		return fmt.Errorf("read ISO kickstart: %w", err)
@@ -365,27 +352,24 @@ func (b *Builder) inspectISO(ctx context.Context, lock toolLock, volumeName, ins
 	if err := validateEmbeddedPayload(storageMetadata, payloadTag, reference); err != nil {
 		return err
 	}
-	isoConfig, err := os.ReadFile(filepath.Join(inspectDir, "root", "usr/lib/image-builder/bootc/iso.yaml"))
-	if err != nil {
-		return fmt.Errorf("read ISO configuration: %w", err)
-	}
-	expectedISOConfig, err := os.ReadFile(filepath.Join(b.Root, "packaging", "installer", "iso.yaml"))
-	if err != nil {
-		return fmt.Errorf("read expected ISO configuration: %w", err)
-	}
-	if err := validateISOConfig(isoConfig, expectedISOConfig); err != nil {
-		return err
-	}
-	storageConfig, err := os.ReadFile(filepath.Join(inspectDir, "root", "etc/anaconda/conf.d/90-soda-storage.conf"))
-	if err != nil {
-		return fmt.Errorf("read ISO storage configuration: %w", err)
-	}
-	expectedStorageConfig, err := os.ReadFile(filepath.Join(b.Root, "packaging", "installer", "soda-storage.conf"))
-	if err != nil {
-		return fmt.Errorf("read expected installer storage configuration: %w", err)
-	}
-	if err := validateStorageConfig(storageConfig, expectedStorageConfig); err != nil {
-		return err
+	for _, file := range []struct {
+		actual, expected, label string
+		validate                func([]byte, []byte) error
+	}{
+		{"usr/lib/image-builder/bootc/iso.yaml", "iso.yaml", "ISO configuration", validateISOConfig},
+		{"etc/anaconda/conf.d/90-soda-storage.conf", "soda-storage.conf", "installer storage configuration", validateStorageConfig},
+	} {
+		actual, err := os.ReadFile(filepath.Join(inspectDir, "root", file.actual))
+		if err != nil {
+			return fmt.Errorf("read %s: %w", file.label, err)
+		}
+		expected, err := os.ReadFile(filepath.Join(b.Root, "packaging", "installer", file.expected))
+		if err != nil {
+			return fmt.Errorf("read expected %s: %w", file.label, err)
+		}
+		if err := file.validate(actual, expected); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -465,50 +449,7 @@ func verifyArchiveDigest(path, expectedReference string) error {
 		return err
 	}
 	defer os.RemoveAll(directory)
-	file, err := os.Open(path)
-	if err != nil {
-		return fmt.Errorf("open runtime OCI archive: %w", err)
-	}
-	reader := tar.NewReader(file)
-	for {
-		header, nextErr := reader.Next()
-		if errors.Is(nextErr, io.EOF) {
-			break
-		}
-		if nextErr != nil {
-			file.Close()
-			return fmt.Errorf("read runtime OCI archive: %w", nextErr)
-		}
-		clean := filepath.Clean(header.Name)
-		if clean == "." || filepath.IsAbs(clean) || clean == ".." || strings.HasPrefix(clean, ".."+string(filepath.Separator)) {
-			file.Close()
-			return fmt.Errorf("runtime OCI archive contains unsafe path %q", header.Name)
-		}
-		target := filepath.Join(directory, clean)
-		switch header.Typeflag {
-		case tar.TypeDir:
-			err = os.MkdirAll(target, 0o755)
-		case tar.TypeReg, tar.TypeRegA:
-			if err = os.MkdirAll(filepath.Dir(target), 0o755); err == nil {
-				var output *os.File
-				output, err = os.OpenFile(target, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o644)
-				if err == nil {
-					_, err = io.Copy(output, reader)
-					closeErr := output.Close()
-					if err == nil {
-						err = closeErr
-					}
-				}
-			}
-		default:
-			err = fmt.Errorf("runtime OCI archive contains unsupported entry %q", header.Name)
-		}
-		if err != nil {
-			file.Close()
-			return err
-		}
-	}
-	if err := file.Close(); err != nil {
+	if err := extractRuntimeOCIArchive(path, directory); err != nil {
 		return err
 	}
 	index, err := layout.ImageIndexFromPath(directory)
@@ -531,4 +472,53 @@ func verifyArchiveDigest(path, expectedReference string) error {
 		return fmt.Errorf("runtime OCI archive digest %s differs from exact payload %s", descriptor.Digest, expectedDigest)
 	}
 	return nil
+}
+
+func extractRuntimeOCIArchive(path, directory string) error {
+	file, err := os.Open(path)
+	if err != nil {
+		return fmt.Errorf("open runtime OCI archive: %w", err)
+	}
+	defer file.Close()
+	reader := tar.NewReader(file)
+	for {
+		header, err := reader.Next()
+		if errors.Is(err, io.EOF) {
+			return nil
+		}
+		if err != nil {
+			return fmt.Errorf("read runtime OCI archive: %w", err)
+		}
+		if err := extractRuntimeOCIEntry(reader, header, directory); err != nil {
+			return err
+		}
+	}
+}
+
+func extractRuntimeOCIEntry(reader *tar.Reader, header *tar.Header, directory string) error {
+	clean := filepath.Clean(header.Name)
+	if clean == "." || filepath.IsAbs(clean) || clean == ".." || strings.HasPrefix(clean, ".."+string(filepath.Separator)) {
+		return fmt.Errorf("runtime OCI archive contains unsafe path %q", header.Name)
+	}
+	target := filepath.Join(directory, clean)
+	switch header.Typeflag {
+	case tar.TypeDir:
+		return os.MkdirAll(target, 0o755)
+	case tar.TypeReg, tar.TypeRegA:
+		if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+			return err
+		}
+		output, err := os.OpenFile(target, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o644)
+		if err != nil {
+			return err
+		}
+		_, copyErr := io.Copy(output, reader)
+		closeErr := output.Close()
+		if copyErr != nil {
+			return copyErr
+		}
+		return closeErr
+	default:
+		return fmt.Errorf("runtime OCI archive contains unsupported entry %q", header.Name)
+	}
 }

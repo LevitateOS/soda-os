@@ -2,10 +2,20 @@ package domain
 
 import (
 	"fmt"
+	"regexp"
 	"time"
 
 	"github.com/google/uuid"
 )
+
+var unixIdentifier = regexp.MustCompile(`^[a-z][a-z0-9-]{0,23}$`)
+
+func ValidateUnixIdentifier(value string) error {
+	if unixIdentifier.MatchString(value) {
+		return nil
+	}
+	return fmt.Errorf("must start with a lowercase letter and contain at most 24 lowercase letters, digits, or hyphens")
+}
 
 type Role string
 
@@ -99,6 +109,14 @@ type ToolchainInstallation struct {
 	Path     string
 	Checksum string
 	State    JobState
+}
+
+// ProjectEnvironment is the generated environment contract copied from a
+// resolved toolchain installation into a project for SSH sessions.
+type ProjectEnvironment struct {
+	Profile   string            `json:"profile"`
+	Path      []string          `json:"path"`
+	Variables map[string]string `json:"variables,omitempty"`
 }
 
 type ProjectToolchainResolution struct {

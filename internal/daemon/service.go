@@ -231,22 +231,10 @@ func (s *Service) CreateSshDeviceKey(ctx context.Context, request *sodav2.Create
 	if _, err = s.store.Person(ctx, personID); err != nil {
 		return nil, rpcError(err)
 	}
-	label := strings.TrimSpace(request.GetLabel())
-	if label == "" || len(label) > 40 || strings.ContainsAny(label, "\r\n\x00") {
-		return nil, rpcError(invalid("device label must contain 1 to 40 characters"))
-	}
-	hint := strings.TrimSpace(request.GetIdentityFileHint())
-	if hint == "" || len(hint) > 255 || strings.ContainsAny(hint, "\r\n\x00") {
-		return nil, rpcError(invalid("identity file path hint must be a single value of at most 255 characters"))
-	}
-	if err = host.ValidatePublicKey(request.GetPublicKey(), false); err != nil {
-		return nil, rpcError(invalid("%v", err))
-	}
-	fingerprint, err := domain.SSHKeyFingerprint(request.GetPublicKey())
+	key, err := deviceKeyRegistration(personID, request)
 	if err != nil {
-		return nil, rpcError(invalid("%v", err))
+		return nil, rpcError(err)
 	}
-	key := domain.SSHDeviceKey{ID: uuid.NewString(), PersonID: personID, Label: label, PublicKey: strings.TrimSpace(request.GetPublicKey()), Fingerprint: fingerprint, IdentityFileHint: hint, CreatedAt: time.Now().UTC()}
 	if err = s.store.CreateSSHDeviceKey(ctx, key); err != nil {
 		return nil, rpcError(err)
 	}
@@ -255,9 +243,30 @@ func (s *Service) CreateSshDeviceKey(ctx context.Context, request *sodav2.Create
 		if rollbackErr == nil {
 			rollbackErr = s.reconcilePersonAccess(context.WithoutCancel(ctx), personID)
 		}
-		return nil, rpcError(errors.Join(err, rollbackErr))
+		err = errors.Join(err, rollbackErr)
+		return nil, rpcError(err)
 	}
 	return &sodav2.CreateSshDeviceKeyResponse{Key: sshDeviceKeyProto(key)}, nil
+}
+
+func deviceKeyRegistration(personID string, request *sodav2.CreateSshDeviceKeyRequest) (domain.SSHDeviceKey, error) {
+	label := strings.TrimSpace(request.GetLabel())
+	if label == "" || len(label) > 40 || strings.ContainsAny(label, "\r\n\x00") {
+		return domain.SSHDeviceKey{}, invalid("device label must contain 1 to 40 characters")
+	}
+	hint := strings.TrimSpace(request.GetIdentityFileHint())
+	if hint == "" || len(hint) > 255 || strings.ContainsAny(hint, "\r\n\x00") {
+		return domain.SSHDeviceKey{}, invalid("identity file path hint must be a single value of at most 255 characters")
+	}
+	publicKey := strings.TrimSpace(request.GetPublicKey())
+	if err := host.ValidatePublicKey(publicKey, false); err != nil {
+		return domain.SSHDeviceKey{}, invalid("%v", err)
+	}
+	fingerprint, err := domain.SSHKeyFingerprint(publicKey)
+	if err != nil {
+		return domain.SSHDeviceKey{}, invalid("%v", err)
+	}
+	return domain.SSHDeviceKey{ID: uuid.NewString(), PersonID: personID, Label: label, PublicKey: publicKey, Fingerprint: fingerprint, IdentityFileHint: hint, CreatedAt: time.Now().UTC()}, nil
 }
 
 func (s *Service) ListSshDeviceKeys(ctx context.Context, request *sodav2.ListSshDeviceKeysRequest) (*sodav2.ListSshDeviceKeysResponse, error) {
@@ -303,34 +312,13 @@ func (s *Service) RevokeSshDeviceKey(ctx context.Context, request *sodav2.Revoke
 }
 
 func (s *Service) CreateProject(ctx context.Context, request *sodav2.CreateProjectRequest) (*sodav2.CreateProjectResponse, error) {
-	if err := validateSlug(request.GetSlug()); err != nil {
-		return nil, rpcError(err)
-	}
-	if strings.TrimSpace(request.GetName()) == "" {
-		return nil, rpcError(invalid("project name is required"))
-	}
-	profile, err := profileDomain(request.GetProfile())
+	project, personIDs, err := s.projectRequest(ctx, request)
 	if err != nil {
 		return nil, rpcError(err)
 	}
-	source, err := sourceDomain(request.GetSource())
+	cleanup, err := s.createProjectResources(ctx, project, personIDs)
 	if err != nil {
 		return nil, rpcError(err)
-	}
-	personIDs, err := s.initialPeople(ctx, request.GetInitialPersonIds())
-	if err != nil {
-		return nil, rpcError(err)
-	}
-	project := domain.Project{ID: uuid.NewString(), Slug: request.GetSlug(), Name: request.GetName(), UnixUser: "soda-p-" + request.GetSlug(), Profile: profile, Source: source}
-	if err = s.store.PreflightProject(ctx, project.Slug, project.UnixUser); err != nil {
-		return nil, rpcError(err)
-	}
-	cleanup, err := s.host.CreateProject(ctx, project)
-	if err != nil {
-		return nil, rpcError(err)
-	}
-	if err = s.store.CreateProjectWithMemberships(ctx, project, personIDs); err != nil {
-		return nil, rpcError(s.compensate(ctx, err, cleanup, "project", project.Slug))
 	}
 	if _, err = s.startProvisioning(project.ID); err != nil {
 		cleanupErr := s.store.DeleteFreshProject(context.WithoutCancel(ctx), project.ID)
@@ -349,6 +337,43 @@ func (s *Service) CreateProject(ctx context.Context, request *sodav2.CreateProje
 	}
 	return &sodav2.CreateProjectResponse{Project: projectProto(project)}, nil
 }
+
+func (s *Service) projectRequest(ctx context.Context, request *sodav2.CreateProjectRequest) (domain.Project, []string, error) {
+	if err := validateSlug(request.GetSlug()); err != nil {
+		return domain.Project{}, nil, err
+	}
+	if strings.TrimSpace(request.GetName()) == "" {
+		return domain.Project{}, nil, invalid("project name is required")
+	}
+	profile, err := profileDomain(request.GetProfile())
+	if err != nil {
+		return domain.Project{}, nil, err
+	}
+	source, err := sourceDomain(request.GetSource())
+	if err != nil {
+		return domain.Project{}, nil, err
+	}
+	personIDs, err := s.initialPeople(ctx, request.GetInitialPersonIds())
+	if err != nil {
+		return domain.Project{}, nil, err
+	}
+	return domain.Project{ID: uuid.NewString(), Slug: request.GetSlug(), Name: request.GetName(), UnixUser: "soda-p-" + request.GetSlug(), Profile: profile, Source: source}, personIDs, nil
+}
+
+func (s *Service) createProjectResources(ctx context.Context, project domain.Project, personIDs []string) (host.Cleanup, error) {
+	if err := s.store.PreflightProject(ctx, project.Slug, project.UnixUser); err != nil {
+		return nil, err
+	}
+	cleanup, err := s.host.CreateProject(ctx, project)
+	if err != nil {
+		return nil, err
+	}
+	if err = s.store.CreateProjectWithMemberships(ctx, project, personIDs); err != nil {
+		return nil, s.compensate(ctx, err, cleanup, "project", project.Slug)
+	}
+	return cleanup, nil
+}
+
 func (s *Service) ListProjects(ctx context.Context, _ *sodav2.ListProjectsRequest) (*sodav2.ListProjectsResponse, error) {
 	values, err := s.store.Projects(ctx)
 	if err != nil {
@@ -380,54 +405,72 @@ func (s *Service) ListProjectsForPerson(ctx context.Context, request *sodav2.Lis
 }
 
 func (s *Service) AddCollaborator(ctx context.Context, request *sodav2.AddCollaboratorRequest) (*sodav2.AddCollaboratorResponse, error) {
-	projectID, personID, err := parsePair(request.GetProjectId(), request.GetPersonId())
+	project, person, err := s.collaboratorAdmission(ctx, request)
 	if err != nil {
 		return nil, rpcError(err)
 	}
-	if _, err = s.store.Membership(ctx, projectID, personID); err == nil {
-		return nil, rpcError(fmt.Errorf("%w: membership", store.ErrAlreadyExists))
-	} else if !errors.Is(err, store.ErrNotFound) {
-		return nil, rpcError(err)
-	}
-	project, err := s.store.Project(ctx, projectID)
+	membership, tree, cleanup, err := s.createCollaboratorWorkspace(ctx, project, person)
 	if err != nil {
 		return nil, rpcError(err)
 	}
-	person, err := s.store.Person(ctx, personID)
-	if err != nil {
-		return nil, rpcError(err)
-	}
-	if err = s.requireProjectReady(ctx, projectID); err != nil {
-		return nil, rpcError(err)
-	}
-	baseRef, err := s.host.DefaultBranch(ctx, project)
-	if err != nil {
-		return nil, rpcError(err)
-	}
-	tree := s.makeWorktree(project, person)
-	if err = s.store.PreflightWorktree(ctx, tree); err != nil {
-		return nil, rpcError(err)
-	}
-	cleanup, err := s.host.CreateWorktree(ctx, project, person, tree, baseRef)
-	if err != nil {
-		return nil, rpcError(err)
-	}
-	membership := domain.Membership{ProjectID: projectID, PersonID: personID}
-	if err = s.store.AddMembershipAndWorktree(ctx, membership, tree); err != nil {
-		return nil, rpcError(s.compensate(ctx, err, cleanup, "collaborator worktree", tree.Path))
-	}
-	if err = s.reconcileProjectAccess(ctx, projectID); err != nil {
-		rollbackErr := s.store.DeleteMembershipAndWorktree(context.WithoutCancel(ctx), projectID, personID)
+	if err = s.reconcileProjectAccess(ctx, membership.ProjectID); err != nil {
+		rollbackErr := s.store.DeleteMembershipAndWorktree(context.WithoutCancel(ctx), membership.ProjectID, membership.PersonID)
 		if cleanupErr := s.runCleanup(ctx, cleanup); cleanupErr != nil {
 			rollbackErr = errors.Join(rollbackErr, cleanupErr)
 		}
-		if reconcileErr := s.reconcileProjectAccess(context.WithoutCancel(ctx), projectID); reconcileErr != nil {
+		if reconcileErr := s.reconcileProjectAccess(context.WithoutCancel(ctx), membership.ProjectID); reconcileErr != nil {
 			rollbackErr = errors.Join(rollbackErr, reconcileErr)
 		}
-		return nil, rpcError(errors.Join(err, rollbackErr))
+		err = errors.Join(err, rollbackErr)
+		return nil, rpcError(err)
 	}
 	return &sodav2.AddCollaboratorResponse{Membership: membershipProto(membership), Worktree: worktreeProto(tree)}, nil
 }
+
+func (s *Service) collaboratorAdmission(ctx context.Context, request *sodav2.AddCollaboratorRequest) (domain.Project, domain.Person, error) {
+	projectID, personID, err := parsePair(request.GetProjectId(), request.GetPersonId())
+	if err != nil {
+		return domain.Project{}, domain.Person{}, err
+	}
+	if _, err = s.store.Membership(ctx, projectID, personID); err == nil {
+		return domain.Project{}, domain.Person{}, fmt.Errorf("%w: membership", store.ErrAlreadyExists)
+	} else if !errors.Is(err, store.ErrNotFound) {
+		return domain.Project{}, domain.Person{}, err
+	}
+	project, err := s.store.Project(ctx, projectID)
+	if err != nil {
+		return domain.Project{}, domain.Person{}, err
+	}
+	person, err := s.store.Person(ctx, personID)
+	if err != nil {
+		return domain.Project{}, domain.Person{}, err
+	}
+	if err = s.requireProjectReady(ctx, projectID); err != nil {
+		return domain.Project{}, domain.Person{}, err
+	}
+	return project, person, nil
+}
+
+func (s *Service) createCollaboratorWorkspace(ctx context.Context, project domain.Project, person domain.Person) (domain.Membership, domain.Worktree, host.Cleanup, error) {
+	baseRef, err := s.host.DefaultBranch(ctx, project)
+	if err != nil {
+		return domain.Membership{}, domain.Worktree{}, nil, err
+	}
+	tree := s.makeWorktree(project, person)
+	if err = s.store.PreflightWorktree(ctx, tree); err != nil {
+		return domain.Membership{}, domain.Worktree{}, nil, err
+	}
+	cleanup, err := s.host.CreateWorktree(ctx, project, person, tree, baseRef)
+	if err != nil {
+		return domain.Membership{}, domain.Worktree{}, nil, err
+	}
+	membership := domain.Membership{ProjectID: project.ID, PersonID: person.ID}
+	if err = s.store.AddMembershipAndWorktree(ctx, membership, tree); err != nil {
+		return domain.Membership{}, domain.Worktree{}, nil, s.compensate(ctx, err, cleanup, "collaborator worktree", tree.Path)
+	}
+	return membership, tree, cleanup, nil
+}
+
 func (s *Service) ListCollaborators(ctx context.Context, request *sodav2.ListCollaboratorsRequest) (*sodav2.ListCollaboratorsResponse, error) {
 	projectID, err := parseID(request.GetProjectId(), "project")
 	if err != nil {
@@ -592,40 +635,51 @@ func (s *Service) installProject(ctx context.Context, projectID string) error {
 	if err != nil {
 		return err
 	}
-	if err = s.host.EnsureRepository(ctx, project); err != nil {
-		return err
-	}
-	baseRef, err := s.host.DefaultBranch(ctx, project)
+	baseRef, err := s.ensureProjectPrerequisites(ctx, project)
 	if err != nil {
 		return err
 	}
-	installation, _, err := s.store.ProjectInstallation(ctx, projectID)
-	if err == nil {
-		if err = s.host.WriteProjectEnvironment(ctx, project, "source "+filepath.Join(installation.Path, "env")+"\n"); err != nil {
-			return err
-		}
-	} else {
+	if err = s.provisionProjectWorkspaces(ctx, project, baseRef); err != nil {
+		return err
+	}
+	return s.reconcileProjectAccess(ctx, projectID)
+}
+
+func (s *Service) ensureProjectPrerequisites(ctx context.Context, project domain.Project) (string, error) {
+	if err := s.host.EnsureRepository(ctx, project); err != nil {
+		return "", err
+	}
+	baseRef, err := s.host.DefaultBranch(ctx, project)
+	if err != nil {
+		return "", err
+	}
+	installation, _, err := s.store.ProjectInstallation(ctx, project.ID)
+	if err != nil {
 		if !errors.Is(err, store.ErrNotFound) {
-			return err
+			return "", err
 		}
 		installation, err = s.toolchains.Install(ctx, project.Profile)
 		if err != nil {
-			return err
+			return "", err
 		}
 		installation.ID = uuid.NewString()
-		if _, err = s.store.SaveInstallation(ctx, projectID, installation); err != nil {
-			return err
-		}
-		if err = s.host.WriteProjectEnvironment(ctx, project, "source "+filepath.Join(installation.Path, "env")+"\n"); err != nil {
-			return err
+		if _, err = s.store.SaveInstallation(ctx, project.ID, installation); err != nil {
+			return "", err
 		}
 	}
-	members, err := s.store.Collaborators(ctx, projectID)
+	if err = s.host.WriteProjectEnvironment(ctx, project, filepath.Join(installation.Path, "environment.json")); err != nil {
+		return "", err
+	}
+	return baseRef, nil
+}
+
+func (s *Service) provisionProjectWorkspaces(ctx context.Context, project domain.Project, baseRef string) error {
+	members, err := s.store.Collaborators(ctx, project.ID)
 	if err != nil {
 		return err
 	}
 	for _, person := range members {
-		trees, treeErr := s.store.WorktreesForPerson(ctx, projectID, person.ID)
+		trees, treeErr := s.store.WorktreesForPerson(ctx, project.ID, person.ID)
 		if treeErr != nil {
 			return treeErr
 		}
@@ -646,9 +700,6 @@ func (s *Service) installProject(ctx context.Context, projectID string) error {
 		if createErr = s.store.CreateWorktree(ctx, tree); createErr != nil {
 			return s.compensate(ctx, createErr, cleanup, "personal workspace", tree.Path)
 		}
-	}
-	if err = s.reconcileProjectAccess(ctx, projectID); err != nil {
-		return err
 	}
 	return nil
 }
@@ -749,13 +800,8 @@ func (s *Service) ReconcileAllAuthorizedKeys(ctx context.Context) error {
 }
 
 func validateUsername(value string) error {
-	if value == "" || len(value) > 24 || value[0] < 'a' || value[0] > 'z' {
-		return invalid("username must start with a lowercase letter and contain at most 24 lowercase letters, digits, or hyphens")
-	}
-	for _, char := range []byte(value) {
-		if (char < 'a' || char > 'z') && (char < '0' || char > '9') && char != '-' {
-			return invalid("username must start with a lowercase letter and contain at most 24 lowercase letters, digits, or hyphens")
-		}
+	if err := domain.ValidateUnixIdentifier(value); err != nil {
+		return invalid("username %s", err)
 	}
 	return nil
 }

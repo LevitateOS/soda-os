@@ -62,7 +62,7 @@ func installerCommand(builder func() (*image.Builder, error)) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			fmt.Printf("Built installer ISO: %s\nPayload provenance: %s\n", result.ISOPath, result.ProvenancePath)
+			fmt.Printf("Built installer ISO: %s\nChecksum: %s.sha256\n", result.ISOPath, result.ISOPath)
 			return nil
 		},
 	}

@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net"
 	"os"
+	"os/user"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -176,6 +177,15 @@ func newTestService(t *testing.T) *Service {
 	return service
 }
 
+func testStore(t *testing.T) *store.Store {
+	t.Helper()
+	repository, err := store.Open(filepath.Join(t.TempDir(), "soda.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return repository
+}
+
 func TestUnaryWorkflowOverBufconn(t *testing.T) {
 	service := newTestService(t)
 	listener := bufconn.Listen(1 << 20)
@@ -190,34 +200,25 @@ func TestUnaryWorkflowOverBufconn(t *testing.T) {
 	defer connection.Close()
 	client := sodav2.NewSodaServiceClient(connection)
 	ctx := context.Background()
-	personResponse, err := client.CreatePerson(ctx, &sodav2.CreatePersonRequest{Username: "alice", DisplayName: "Alice", Email: "alice@example.test", Role: sodav2.Role_ROLE_DEVELOPER, Password: "simple"})
+	person, err := client.CreatePerson(ctx, &sodav2.CreatePersonRequest{Username: "alice", DisplayName: "Alice", Email: "alice@example.test", Role: sodav2.Role_ROLE_DEVELOPER, Password: "simple"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	personID := personResponse.Person.Id
-	device, err := client.CreateSshDeviceKey(ctx, &sodav2.CreateSshDeviceKeyRequest{PersonId: personID, Label: "Laptop", PublicKey: "ssh-ed25519 AAAA alice", IdentityFileHint: "~/.ssh/id_ed25519"})
+	device, err := client.CreateSshDeviceKey(ctx, &sodav2.CreateSshDeviceKeyRequest{PersonId: person.Person.Id, Label: "Laptop", PublicKey: "ssh-ed25519 AAAA alice", IdentityFileHint: "~/.ssh/id_ed25519"})
 	if err != nil || device.Key.GetFingerprint() == "" {
 		t.Fatalf("device key = %#v, %v", device, err)
 	}
-	projectResponse, err := client.CreateProject(ctx, &sodav2.CreateProjectRequest{Slug: "demo", Name: "Demo", Profile: sodav2.ToolchainProfile_TOOLCHAIN_PROFILE_GO, Source: &sodav2.ProjectSource{Source: &sodav2.ProjectSource_Empty{Empty: &sodav2.EmptyProjectSource{}}}, InitialPersonIds: []string{personID}})
+	project, err := client.CreateProject(ctx, &sodav2.CreateProjectRequest{Slug: "demo", Name: "Demo", Profile: sodav2.ToolchainProfile_TOOLCHAIN_PROFILE_GO, Source: &sodav2.ProjectSource{Source: &sodav2.ProjectSource_Empty{Empty: &sodav2.EmptyProjectSource{}}}, InitialPersonIds: []string{person.Person.Id}})
 	if err != nil {
 		t.Fatal(err)
 	}
-	projectID := projectResponse.Project.Id
-	deadline := time.Now().Add(2 * time.Second)
-	for {
-		jobs, jobErr := client.ListProvisioningJobs(ctx, &sodav2.ListProvisioningJobsRequest{ProjectId: projectID})
-		if jobErr != nil {
-			t.Fatal(jobErr)
-		}
-		if len(jobs.Jobs) > 0 && jobs.Jobs[0].State == sodav2.JobState_JOB_STATE_READY {
-			break
-		}
-		if time.Now().After(deadline) {
-			t.Fatalf("jobs did not become ready: %v", jobs.Jobs)
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
+	projectID := project.Project.Id
+	waitForJobState(t, service.store, projectID, domain.JobReady)
+	assertUnaryProjectViews(t, ctx, client, projectID)
+}
+
+func assertUnaryProjectViews(t *testing.T, ctx context.Context, client sodav2.SodaServiceClient, projectID string) {
+	t.Helper()
 	toolchainResponse, err := client.GetProjectToolchain(ctx, &sodav2.GetProjectToolchainRequest{ProjectId: projectID})
 	if err != nil {
 		t.Fatal(err)
@@ -252,6 +253,9 @@ func TestProjectRequiresAtLeastOneInitialMember(t *testing.T) {
 }
 
 func TestRealUnixSocketPermissionsAndHealth(t *testing.T) {
+	if _, err := user.LookupGroup(apiGroup); err != nil {
+		t.Skipf("%s group is unavailable: %v", apiGroup, err)
+	}
 	service := newTestService(t)
 	socketDir, err := os.MkdirTemp("/tmp", "soda-")
 	if err != nil {
@@ -259,7 +263,7 @@ func TestRealUnixSocketPermissionsAndHealth(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = os.RemoveAll(socketDir) })
 	socket := filepath.Join(socketDir, "s.sock")
-	server, err := ListenUnix(socket, "", service, nil)
+	server, err := ListenUnix(socket, service, slog.Default())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -363,10 +367,7 @@ func TestOSUpdateRPCsPreserveExactIdentityAndRebootConfirmation(t *testing.T) {
 }
 
 func TestDuplicatePreflightsDoNotExecuteHostMutations(t *testing.T) {
-	repository, err := store.Open(filepath.Join(t.TempDir(), "soda.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	repository := testStore(t)
 	hostSystem := &fakeHost{}
 	service := New(Options{Store: repository, Host: hostSystem, Toolchains: fakeInstaller{}, ProjectsRoot: filepath.Join(t.TempDir(), "projects")})
 	defer service.Close()
@@ -395,16 +396,21 @@ func TestDuplicatePreflightsDoNotExecuteHostMutations(t *testing.T) {
 		t.Fatalf("duplicate project status = %s: %v", status.Code(err), err)
 	}
 	waitForJobState(t, repository, project.Project.Id, domain.JobReady)
-	if _, err = service.AddCollaborator(ctx, &sodav2.AddCollaboratorRequest{ProjectId: project.Project.Id, PersonId: alice.Person.Id}); status.Code(err) != codes.AlreadyExists {
+	if _, err := service.AddCollaborator(ctx, &sodav2.AddCollaboratorRequest{ProjectId: project.Project.Id, PersonId: alice.Person.Id}); status.Code(err) != codes.AlreadyExists {
 		t.Fatalf("duplicate membership status = %s: %v", status.Code(err), err)
 	}
-	collaboratorRequest := &sodav2.AddCollaboratorRequest{ProjectId: project.Project.Id, PersonId: bob.Person.Id}
-	if _, err = service.AddCollaborator(ctx, collaboratorRequest); err != nil {
+	collaborator := &sodav2.AddCollaboratorRequest{ProjectId: project.Project.Id, PersonId: bob.Person.Id}
+	if _, err := service.AddCollaborator(ctx, collaborator); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = service.AddCollaborator(ctx, collaboratorRequest); status.Code(err) != codes.AlreadyExists {
+	if _, err := service.AddCollaborator(ctx, collaborator); status.Code(err) != codes.AlreadyExists {
 		t.Fatalf("duplicate later membership status = %s: %v", status.Code(err), err)
 	}
+	assertDuplicatePreflightsHostState(t, hostSystem)
+}
+
+func assertDuplicatePreflightsHostState(t *testing.T, hostSystem *fakeHost) {
+	t.Helper()
 	hostSystem.mu.Lock()
 	defer hostSystem.mu.Unlock()
 	if hostSystem.people != 2 || hostSystem.imports != 0 || len(hostSystem.projects) != 1 || len(hostSystem.worktrees) != 2 {
@@ -418,47 +424,19 @@ func TestDuplicatePreflightsDoNotExecuteHostMutations(t *testing.T) {
 }
 
 func TestProvisioningAdmissionIsAtomicAndFailedJobsCanRetry(t *testing.T) {
-	repository, err := store.Open(filepath.Join(t.TempDir(), "soda.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	repository := testStore(t)
 	project := domain.Project{ID: uuid.NewString(), Slug: "demo", Name: "Demo", UnixUser: "soda-p-demo", Profile: domain.ToolchainGo, Source: domain.EmptyProjectSource{}}
-	if err = repository.CreateProject(context.Background(), project); err != nil {
+	if err := repository.CreateProject(context.Background(), project); err != nil {
 		t.Fatal(err)
 	}
 	installer := &blockingInstaller{started: make(chan struct{}), release: make(chan struct{})}
 	service := New(Options{Store: repository, Host: &fakeHost{}, Toolchains: installer, ProjectsRoot: t.TempDir()})
 	defer service.Close()
-	const attempts = 8
-	results := make(chan error, attempts)
-	start := make(chan struct{})
-	for range attempts {
-		go func() {
-			<-start
-			_, callErr := service.StartProvisioning(context.Background(), &sodav2.StartProvisioningRequest{ProjectId: project.ID})
-			results <- callErr
-		}()
-	}
-	close(start)
-	successes, preconditions := 0, 0
-	for range attempts {
-		callErr := <-results
-		switch status.Code(callErr) {
-		case codes.OK:
-			successes++
-		case codes.FailedPrecondition:
-			preconditions++
-		default:
-			t.Fatalf("unexpected status %s: %v", status.Code(callErr), callErr)
-		}
-	}
-	if successes != 1 || preconditions != attempts-1 {
-		t.Fatalf("successes=%d preconditions=%d", successes, preconditions)
-	}
+	assertConcurrentAdmission(t, service, project.ID)
 	<-installer.started
 	close(installer.release)
 	waitForJobState(t, repository, project.ID, domain.JobReady)
-	if _, err = service.StartProvisioning(context.Background(), &sodav2.StartProvisioningRequest{ProjectId: project.ID}); status.Code(err) != codes.FailedPrecondition {
+	if _, err := service.StartProvisioning(context.Background(), &sodav2.StartProvisioningRequest{ProjectId: project.ID}); status.Code(err) != codes.FailedPrecondition {
 		t.Fatalf("ready retry status = %s: %v", status.Code(err), err)
 	}
 	jobs, err := repository.Jobs(context.Background(), project.ID)
@@ -480,22 +458,49 @@ func TestProvisioningAdmissionIsAtomicAndFailedJobsCanRetry(t *testing.T) {
 	waitForJobState(t, repository, project.ID, domain.JobReady)
 }
 
-func TestProvisioningRetryKeepsSuccessfulPersonalWorkspaces(t *testing.T) {
-	repository, err := store.Open(filepath.Join(t.TempDir(), "soda.db"))
-	if err != nil {
-		t.Fatal(err)
+func assertConcurrentAdmission(t *testing.T, service *Service, projectID string) {
+	t.Helper()
+	const attempts = 8
+	results := make(chan error, attempts)
+	start := make(chan struct{})
+	for range attempts {
+		go func() {
+			<-start
+			_, callErr := service.StartProvisioning(context.Background(), &sodav2.StartProvisioningRequest{ProjectId: projectID})
+			results <- callErr
+		}()
 	}
+	close(start)
+	successes, preconditions := 0, 0
+	for range attempts {
+		callErr := <-results
+		switch status.Code(callErr) {
+		case codes.OK:
+			successes++
+		case codes.FailedPrecondition:
+			preconditions++
+		default:
+			t.Fatalf("unexpected status %s: %v", status.Code(callErr), callErr)
+		}
+	}
+	if successes != 1 || preconditions != attempts-1 {
+		t.Fatalf("successes=%d preconditions=%d", successes, preconditions)
+	}
+}
+
+func TestProvisioningRetryKeepsSuccessfulPersonalWorkspaces(t *testing.T) {
+	repository := testStore(t)
 	ctx := context.Background()
 	alice := persistedPerson(t, repository, "alice")
 	bob := persistedPerson(t, repository, "bob")
 	project := domain.Project{ID: uuid.NewString(), Slug: "demo", Name: "Demo", UnixUser: "soda-p-demo", Profile: domain.ToolchainGo, Source: domain.EmptyProjectSource{}}
-	if err = repository.CreateProjectWithMemberships(ctx, project, []string{alice.ID, bob.ID}); err != nil {
+	if err := repository.CreateProjectWithMemberships(ctx, project, []string{alice.ID, bob.ID}); err != nil {
 		t.Fatal(err)
 	}
 	hostSystem := &fakeHost{failWorktreeAt: 2}
 	service := New(Options{Store: repository, Host: hostSystem, Toolchains: fakeInstaller{}, ProjectsRoot: t.TempDir()})
 	defer service.Close()
-	if _, err = service.StartProvisioning(ctx, &sodav2.StartProvisioningRequest{ProjectId: project.ID}); err != nil {
+	if _, err := service.StartProvisioning(ctx, &sodav2.StartProvisioningRequest{ProjectId: project.ID}); err != nil {
 		t.Fatal(err)
 	}
 	waitForJobState(t, repository, project.ID, domain.JobFailed)
@@ -506,11 +511,16 @@ func TestProvisioningRetryKeepsSuccessfulPersonalWorkspaces(t *testing.T) {
 	hostSystem.mu.Lock()
 	hostSystem.failWorktreeAt = 0
 	hostSystem.mu.Unlock()
-	if _, err = service.StartProvisioning(ctx, &sodav2.StartProvisioningRequest{ProjectId: project.ID}); err != nil {
+	assertWorkspaceRetryCompletes(t, ctx, service, repository, project.ID, hostSystem)
+}
+
+func assertWorkspaceRetryCompletes(t *testing.T, ctx context.Context, service *Service, repository *store.Store, projectID string, hostSystem *fakeHost) {
+	t.Helper()
+	if _, err := service.StartProvisioning(ctx, &sodav2.StartProvisioningRequest{ProjectId: projectID}); err != nil {
 		t.Fatal(err)
 	}
-	waitForJobState(t, repository, project.ID, domain.JobReady)
-	workspaces, err = repository.Worktrees(ctx, project.ID)
+	waitForJobState(t, repository, projectID, domain.JobReady)
+	workspaces, err := repository.Worktrees(ctx, projectID)
 	if err != nil || len(workspaces) != 2 {
 		t.Fatalf("workspaces after retry = %#v, %v", workspaces, err)
 	}
@@ -579,18 +589,15 @@ func TestDuplicateSSHDeviceFingerprintIsRejectedGlobally(t *testing.T) {
 }
 
 func TestSSHDeviceChangesReconcileAccessAndRollbackOnFilesystemFailure(t *testing.T) {
-	repository, err := store.Open(filepath.Join(t.TempDir(), "soda.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	repository := testStore(t)
 	ctx := context.Background()
 	person := persistedPerson(t, repository, "alice")
 	project := domain.Project{ID: uuid.NewString(), Slug: "demo", Name: "Demo", UnixUser: "soda-p-demo", Profile: domain.ToolchainGo, Source: domain.EmptyProjectSource{}}
-	if err = repository.CreateProjectWithMemberships(ctx, project, []string{person.ID}); err != nil {
+	if err := repository.CreateProjectWithMemberships(ctx, project, []string{person.ID}); err != nil {
 		t.Fatal(err)
 	}
 	workspace := domain.Worktree{ID: uuid.NewString(), ProjectID: project.ID, PersonID: person.ID, Name: "default", Branch: "people/alice", Path: filepath.Join(t.TempDir(), "alice")}
-	if err = repository.CreateWorktree(ctx, workspace); err != nil {
+	if err := repository.CreateWorktree(ctx, workspace); err != nil {
 		t.Fatal(err)
 	}
 	hostSystem := &fakeHost{}
@@ -603,121 +610,121 @@ func TestSSHDeviceChangesReconcileAccessAndRollbackOnFilesystemFailure(t *testin
 	if len(hostSystem.reconciliations) != 1 || len(hostSystem.reconciliations[0]) != 1 || len(hostSystem.reconciliations[0][0].Keys) != 1 {
 		t.Fatalf("create reconciliation = %#v", hostSystem.reconciliations)
 	}
+	assertFailedDeviceKeyRevocationRestoresKey(t, ctx, service, repository, hostSystem, person.ID, created.Key.Id)
+}
+
+func assertFailedDeviceKeyRevocationRestoresKey(t *testing.T, ctx context.Context, service *Service, repository *store.Store, hostSystem *fakeHost, personID, keyID string) {
+	t.Helper()
 	hostSystem.reconcileErr = errors.New("authorized_keys unavailable")
-	if _, err = service.RevokeSshDeviceKey(ctx, &sodav2.RevokeSshDeviceKeyRequest{PersonId: person.ID, KeyId: created.Key.Id}); status.Code(err) != codes.Internal {
+	if _, err := service.RevokeSshDeviceKey(ctx, &sodav2.RevokeSshDeviceKeyRequest{PersonId: personID, KeyId: keyID}); status.Code(err) != codes.Internal {
 		t.Fatalf("revoke status = %s: %v", status.Code(err), err)
 	}
-	keys, err := repository.SSHDeviceKeys(ctx, person.ID)
-	if err != nil || len(keys) != 1 || keys[0].ID != created.Key.Id {
+	keys, err := repository.SSHDeviceKeys(ctx, personID)
+	if err != nil || len(keys) != 1 || keys[0].ID != keyID {
 		t.Fatalf("failed revoke did not restore device key: %#v, %v", keys, err)
 	}
 }
 
 func TestStartupReconciliationRepairsProjectAccessFromStoredState(t *testing.T) {
-	repository, err := store.Open(filepath.Join(t.TempDir(), "soda.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	repository := testStore(t)
 	ctx := context.Background()
 	person := persistedPerson(t, repository, "alice")
 	project := domain.Project{ID: uuid.NewString(), Slug: "demo", Name: "Demo", UnixUser: "soda-p-demo", Profile: domain.ToolchainGo, Source: domain.EmptyProjectSource{}}
-	if err = repository.CreateProjectWithMemberships(ctx, project, []string{person.ID}); err != nil {
+	if err := repository.CreateProjectWithMemberships(ctx, project, []string{person.ID}); err != nil {
 		t.Fatal(err)
 	}
 	workspace := domain.Worktree{ID: uuid.NewString(), ProjectID: project.ID, PersonID: person.ID, Name: "default", Branch: "people/alice", Path: filepath.Join(t.TempDir(), "alice")}
-	if err = repository.CreateWorktree(ctx, workspace); err != nil {
+	if err := repository.CreateWorktree(ctx, workspace); err != nil {
 		t.Fatal(err)
 	}
 	key := domain.SSHDeviceKey{ID: uuid.NewString(), PersonID: person.ID, Label: "Laptop", PublicKey: "ssh-ed25519 AAAA alice", Fingerprint: "SHA256:test", IdentityFileHint: "~/.ssh/id_ed25519", CreatedAt: time.Now().UTC()}
-	if err = repository.CreateSSHDeviceKey(ctx, key); err != nil {
+	if err := repository.CreateSSHDeviceKey(ctx, key); err != nil {
 		t.Fatal(err)
 	}
 	hostSystem := &fakeHost{}
 	service := New(Options{Store: repository, Host: hostSystem, Toolchains: fakeInstaller{}, ProjectsRoot: t.TempDir()})
 	defer service.Close()
-	if err = service.ReconcileAllAuthorizedKeys(ctx); err != nil {
+	if err := service.ReconcileAllAuthorizedKeys(ctx); err != nil {
 		t.Fatal(err)
 	}
 	if len(hostSystem.reconciliations) != 1 || len(hostSystem.reconciliations[0]) != 1 {
 		t.Fatalf("startup reconciliation = %#v", hostSystem.reconciliations)
 	}
 	access := hostSystem.reconciliations[0][0]
-	if access.Person.ID != person.ID || access.Worktree.ID != workspace.ID || len(access.Keys) != 1 || access.Keys[0].ID != key.ID {
-		t.Fatalf("startup access = %#v", access)
+	if len(access.Keys) != 1 {
+		t.Fatalf("startup access keys = %#v", access)
+	}
+	got := [3]string{access.Person.ID, access.Worktree.ID, access.Keys[0].ID}
+	want := [3]string{person.ID, workspace.ID, key.ID}
+	if got != want {
+		t.Fatalf("startup access = %#v, want %v", access, want)
 	}
 }
 
 func TestFailedPersistenceCompensatesFreshHostResources(t *testing.T) {
-	t.Run("person", func(t *testing.T) {
-		repository, err := store.Open(filepath.Join(t.TempDir(), "soda.db"))
-		if err != nil {
-			t.Fatal(err)
-		}
-		injectCreateFailure(t, repository, "Person")
-		hostSystem := &fakeHost{}
-		service := New(Options{Store: repository, Host: hostSystem, Toolchains: fakeInstaller{}, ProjectsRoot: t.TempDir()})
-		defer service.Close()
-		_, err = service.CreatePerson(context.Background(), &sodav2.CreatePersonRequest{Username: "alice", DisplayName: "Alice", Email: "alice@example.test", Role: sodav2.Role_ROLE_DEVELOPER, Password: "simple"})
-		if err == nil || hostSystem.personCleanups != 1 {
-			t.Fatalf("error=%v cleanups=%d", err, hostSystem.personCleanups)
-		}
-		assertTableCount(t, repository, "people", 0)
-	})
+	t.Run("person", testFailedPersonPersistence)
+	t.Run("project and provisioning admission", testFailedProvisioningAdmission)
+	t.Run("project database cleanup failure preserves host resources", testFailedProjectDatabaseCleanup)
+	t.Run("project persistence", testFailedProjectPersistence)
+}
 
-	t.Run("project and provisioning admission", func(t *testing.T) {
-		repository, err := store.Open(filepath.Join(t.TempDir(), "soda.db"))
-		if err != nil {
-			t.Fatal(err)
-		}
-		person := persistedPerson(t, repository, "alice")
-		injectCreateFailure(t, repository, "ProvisioningJob")
-		hostSystem := &fakeHost{}
-		service := New(Options{Store: repository, Host: hostSystem, Toolchains: fakeInstaller{}, ProjectsRoot: t.TempDir()})
-		defer service.Close()
-		_, err = service.CreateProject(context.Background(), emptyProjectRequest(person.ID))
-		if err == nil || hostSystem.projectCleanups != 1 {
-			t.Fatalf("error=%v cleanups=%d", err, hostSystem.projectCleanups)
-		}
-		assertTableCount(t, repository, "projects", 0)
-	})
+func testFailedPersonPersistence(t *testing.T) {
+	repository := testStore(t)
+	injectCreateFailure(t, repository, "Person")
+	hostSystem := &fakeHost{}
+	service := New(Options{Store: repository, Host: hostSystem, Toolchains: fakeInstaller{}, ProjectsRoot: t.TempDir()})
+	defer service.Close()
+	_, err := service.CreatePerson(context.Background(), &sodav2.CreatePersonRequest{Username: "alice", DisplayName: "Alice", Email: "alice@example.test", Role: sodav2.Role_ROLE_DEVELOPER, Password: "simple"})
+	if err == nil || hostSystem.personCleanups != 1 {
+		t.Fatalf("error=%v cleanups=%d", err, hostSystem.personCleanups)
+	}
+	assertTableCount(t, repository, "people", 0)
+}
 
-	t.Run("project database cleanup failure preserves host resources", func(t *testing.T) {
-		repository, err := store.Open(filepath.Join(t.TempDir(), "soda.db"))
-		if err != nil {
-			t.Fatal(err)
-		}
-		person := persistedPerson(t, repository, "alice")
-		injectCreateFailure(t, repository, "ProvisioningJob")
-		injectDeleteFailure(t, repository, "Project")
-		hostSystem := &fakeHost{}
-		service := New(Options{Store: repository, Host: hostSystem, Toolchains: fakeInstaller{}, ProjectsRoot: t.TempDir()})
-		defer service.Close()
-		_, err = service.CreateProject(context.Background(), emptyProjectRequest(person.ID))
-		if status.Code(err) != codes.Internal {
-			t.Fatalf("status = %s, error = %v", status.Code(err), err)
-		}
-		if hostSystem.projectCleanups != 0 {
-			t.Fatalf("host cleanup ran despite durable project: %d", hostSystem.projectCleanups)
-		}
-		assertTableCount(t, repository, "projects", 1)
-	})
+func testFailedProvisioningAdmission(t *testing.T) {
+	repository := testStore(t)
+	person := persistedPerson(t, repository, "alice")
+	injectCreateFailure(t, repository, "ProvisioningJob")
+	hostSystem := &fakeHost{}
+	service := New(Options{Store: repository, Host: hostSystem, Toolchains: fakeInstaller{}, ProjectsRoot: t.TempDir()})
+	defer service.Close()
+	_, err := service.CreateProject(context.Background(), emptyProjectRequest(person.ID))
+	if err == nil || hostSystem.projectCleanups != 1 {
+		t.Fatalf("error=%v cleanups=%d", err, hostSystem.projectCleanups)
+	}
+	assertTableCount(t, repository, "projects", 0)
+}
 
-	t.Run("project persistence", func(t *testing.T) {
-		repository, err := store.Open(filepath.Join(t.TempDir(), "soda.db"))
-		if err != nil {
-			t.Fatal(err)
-		}
-		person := persistedPerson(t, repository, "alice")
-		injectCreateFailure(t, repository, "Project")
-		hostSystem := &fakeHost{}
-		service := New(Options{Store: repository, Host: hostSystem, Toolchains: fakeInstaller{}, ProjectsRoot: t.TempDir()})
-		defer service.Close()
-		_, err = service.CreateProject(context.Background(), emptyProjectRequest(person.ID))
-		if err == nil || hostSystem.projectCleanups != 1 {
-			t.Fatalf("error=%v cleanups=%d", err, hostSystem.projectCleanups)
-		}
-		assertTableCount(t, repository, "projects", 0)
-	})
+func testFailedProjectDatabaseCleanup(t *testing.T) {
+	repository := testStore(t)
+	person := persistedPerson(t, repository, "alice")
+	injectCreateFailure(t, repository, "ProvisioningJob")
+	injectDeleteFailure(t, repository, "Project")
+	hostSystem := &fakeHost{}
+	service := New(Options{Store: repository, Host: hostSystem, Toolchains: fakeInstaller{}, ProjectsRoot: t.TempDir()})
+	defer service.Close()
+	_, err := service.CreateProject(context.Background(), emptyProjectRequest(person.ID))
+	if status.Code(err) != codes.Internal {
+		t.Fatalf("status = %s, error = %v", status.Code(err), err)
+	}
+	if hostSystem.projectCleanups != 0 {
+		t.Fatalf("host cleanup ran despite durable project: %d", hostSystem.projectCleanups)
+	}
+	assertTableCount(t, repository, "projects", 1)
+}
+
+func testFailedProjectPersistence(t *testing.T) {
+	repository := testStore(t)
+	person := persistedPerson(t, repository, "alice")
+	injectCreateFailure(t, repository, "Project")
+	hostSystem := &fakeHost{}
+	service := New(Options{Store: repository, Host: hostSystem, Toolchains: fakeInstaller{}, ProjectsRoot: t.TempDir()})
+	defer service.Close()
+	_, err := service.CreateProject(context.Background(), emptyProjectRequest(person.ID))
+	if err == nil || hostSystem.projectCleanups != 1 {
+		t.Fatalf("error=%v cleanups=%d", err, hostSystem.projectCleanups)
+	}
+	assertTableCount(t, repository, "projects", 0)
 }
 
 func TestCompensationPreservesOriginalAndAttachesCleanupFailure(t *testing.T) {

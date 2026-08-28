@@ -74,51 +74,65 @@ func NewSystemHostSampler(commands CommandRunner, files HostFiles) *SystemHostSa
 }
 
 func (s *SystemHostSampler) SampleHost(ctx context.Context) (domain.HostStatus, error) {
-	services := make([]domain.ServiceStatus, 0, 7)
-	for _, name := range []string{"sodad", "soda-authd", "soda-cockpit", "sshd", "avahi-daemon", "NetworkManager", "firewalld"} {
-		state := domain.RuntimeReady // this process is the reporting sodad.
-		if name != "sodad" {
-			state = serviceState(ctx, s.Commands, name)
-		}
-		services = append(services, domain.ServiceStatus{Name: name, State: state})
-	}
+	services := s.sampleServices(ctx)
 	interfaces, interfaceErr := networkInterfaces(ctx, s.Commands)
-	memTotal, memAvailable := memoryStatus(s.Files)
-	load := loadAverage(s.Files)
-	uptime := uptimeSeconds(s.Files)
-	cpu := s.cpuPercent()
-	filesystems := make([]domain.FilesystemStatus, 0, 3)
-	for _, path := range []string{"/", "/srv/soda/projects", "/opt/soda/toolchains"} {
-		if total, available, err := s.Files.Statfs(path); err == nil {
-			filesystems = append(filesystems, domain.FilesystemStatus{Path: path, TotalBytes: total, AvailableBytes: available})
-		}
-	}
 	ssh := firewallReady(ctx, s.Commands, "--query-service", "ssh")
 	cockpit := firewallReady(ctx, s.Commands, "--query-port", "9090/tcp")
-	overall := domain.RuntimeReady
-	if interfaceErr != nil || !ssh || !cockpit || len(interfaces) == 0 {
-		overall = domain.RuntimeDegraded
-	}
-	for _, service := range services {
-		if service.State != domain.RuntimeReady {
-			overall = domain.RuntimeDegraded
-			break
-		}
-	}
+	total, available := memoryStatus(s.Files)
+	resources := hostResources{cpu: s.cpuPercent(), load: loadAverage(s.Files), uptime: uptimeSeconds(s.Files), memoryTotal: total, memoryAvailable: available, filesystems: filesystemStatus(s.Files)}
 	return domain.HostStatus{
 		SampledAt:            time.Now(),
-		Overall:              overall,
+		Overall:              hostReadiness(services, interfaces, interfaceErr, ssh, cockpit),
 		Services:             services,
 		SSHFirewallReady:     ssh,
 		CockpitFirewallReady: cockpit,
 		Interfaces:           interfaces,
-		CPUPercent:           cpu,
-		LoadAverage:          load,
-		UptimeSeconds:        uptime,
-		MemoryTotalBytes:     memTotal,
-		MemoryAvailableBytes: memAvailable,
-		Filesystems:          filesystems,
+		CPUPercent:           resources.cpu,
+		LoadAverage:          resources.load,
+		UptimeSeconds:        resources.uptime,
+		MemoryTotalBytes:     resources.memoryTotal,
+		MemoryAvailableBytes: resources.memoryAvailable,
+		Filesystems:          resources.filesystems,
 	}, nil
+}
+
+func (s *SystemHostSampler) sampleServices(ctx context.Context) []domain.ServiceStatus {
+	services := []domain.ServiceStatus{{Name: "sodad", State: domain.RuntimeReady}}
+	for _, name := range []string{"soda-authd", "soda-cockpit", "sshd", "avahi-daemon", "NetworkManager", "firewalld"} {
+		services = append(services, domain.ServiceStatus{Name: name, State: serviceState(ctx, s.Commands, name)})
+	}
+	return services
+}
+
+type hostResources struct {
+	cpu             *float64
+	load            [3]float64
+	uptime          uint64
+	memoryTotal     uint64
+	memoryAvailable uint64
+	filesystems     []domain.FilesystemStatus
+}
+
+func filesystemStatus(files HostFiles) []domain.FilesystemStatus {
+	result := make([]domain.FilesystemStatus, 0, 3)
+	for _, path := range []string{"/", "/srv/soda/projects", "/opt/soda/toolchains"} {
+		if total, available, err := files.Statfs(path); err == nil {
+			result = append(result, domain.FilesystemStatus{Path: path, TotalBytes: total, AvailableBytes: available})
+		}
+	}
+	return result
+}
+
+func hostReadiness(services []domain.ServiceStatus, interfaces []domain.NetworkInterface, interfaceErr error, ssh, cockpit bool) domain.RuntimeState {
+	if interfaceErr != nil || !ssh || !cockpit || len(interfaces) == 0 {
+		return domain.RuntimeDegraded
+	}
+	for _, service := range services {
+		if service.State != domain.RuntimeReady {
+			return domain.RuntimeDegraded
+		}
+	}
+	return domain.RuntimeReady
 }
 
 func serviceState(ctx context.Context, runner CommandRunner, name string) domain.RuntimeState {

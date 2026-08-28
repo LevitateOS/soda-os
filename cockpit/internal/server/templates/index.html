@@ -42,10 +42,6 @@
     <article class="project-card">
       <div><h3><a href="/projects/{{.Project.ID}}">{{.Project.Name}}</a></h3><span class="state state-{{.StateClass}}">{{.State}}</span></div>
       <p>{{.Project.Profile}} development environment · <code>{{.Project.UnixUser}}</code></p>
-      {{if .CanConnect}}<p><strong>Connect:</strong> <code>ssh {{.SSHHost}}</code></p>
-      {{else if .NeedsKey}}<p><a href="/account">Add an SSH device</a> to connect.</p>
-      {{else if .Member}}<p class="muted">Your personal workspace is being prepared.</p>
-      {{else}}<p class="muted">You are viewing this project as an administrator.</p>{{end}}
     </article>
   {{end}}</div>
   {{else}}<p>No projects are assigned.</p>{{end}}

@@ -109,7 +109,7 @@ func TestPublishWithISOBindsExactDigestAndUpdatesCurrentLast(t *testing.T) {
 	digest, err := img.Digest()
 	require.NoError(t, err)
 	exact := Repository + "@" + digest.String()
-	iso := writeInstallerISO(t, exact)
+	iso := writeInstallerISO(t)
 	events := []string{}
 	registry := &fakeRegistry{image: img, events: &events}
 	validator := &fakeISOValidator{}
@@ -150,7 +150,7 @@ func TestPublishRejectsCanonicalRegistryDigestMismatchBeforeSigning(t *testing.T
 	require.Equal(t, []string{"cosign-version", "push:" + Repository + ":0.2.0", "resolve:" + Repository + ":0.2.0"}, events)
 }
 
-func TestPublishRejectsForgedISOSidecarWithoutIndependentInspection(t *testing.T) {
+func TestPublishRejectsISOWithoutIndependentInspection(t *testing.T) {
 	img := testImage(t, true)
 	events := []string{}
 	registry := &fakeRegistry{image: img, events: &events}
@@ -173,7 +173,7 @@ func TestPublishRejectsForgedISOSidecarWithoutIndependentInspection(t *testing.T
 func TestInspectRejectsRPMInventorySidecarMismatch(t *testing.T) {
 	publisher := &Publisher{Spec: testSpec()}
 	options := testOptions(t, "", t.TempDir())
-	_, err := publisher.inspect(testImage(t, false), Repository+"@sha256:"+strings.Repeat("a", 64), "", options.RegistryCA, options.PublicKey)
+	_, err := publisher.inspect(testImage(t, false), Repository+"@sha256:"+strings.Repeat("a", 64), options.RegistryCA, options.PublicKey)
 	require.EqualError(t, err, "installed RPM inventory does not match its image sidecar")
 }
 
@@ -189,39 +189,10 @@ func TestInspectRejectsTrustInputMismatch(t *testing.T) {
 			publisher := &Publisher{Spec: testSpec()}
 			options := testOptions(t, "", t.TempDir())
 			require.NoError(t, os.WriteFile(change.path(options), []byte("different trust input\n"), 0o644))
-			_, err := publisher.inspect(testImage(t, true), Repository+"@sha256:"+strings.Repeat("a", 64), "", options.RegistryCA, options.PublicKey)
+			_, err := publisher.inspect(testImage(t, true), Repository+"@sha256:"+strings.Repeat("a", 64), options.RegistryCA, options.PublicKey)
 			require.EqualError(t, err, change.expected)
 		})
 	}
-}
-
-func TestInspectBindsISOOnlyWhenPayloadProvenanceMatchesExactImage(t *testing.T) {
-	publisher := &Publisher{Spec: testSpec()}
-	options := testOptions(t, "", t.TempDir())
-	exact := Repository + "@sha256:" + strings.Repeat("a", 64)
-	iso := filepath.Join(t.TempDir(), "SodaOS.iso")
-	require.NoError(t, os.WriteFile(iso, []byte("installer bytes"), 0o644))
-	provenance := installer.Provenance{
-		SchemaVersion: 1, ISOPath: filepath.Base(iso), ISOSHA256: sha256Hex([]byte("installer bytes")),
-		EmbeddedImageReference: exact, Platform: installer.Platform, Filesystem: "ext4",
-		ImageBuilderVersion:   "81.0.0",
-		ImageBuilderReference: "ghcr.io/osbuild/image-builder@sha256:704dc05d6033799248a33c415f7f7253ec20b40f0b2bff03b06d8687179e058a",
-	}
-	encoded, err := json.Marshal(provenance)
-	require.NoError(t, err)
-	require.NoError(t, os.WriteFile(iso+".payload.json", encoded, 0o644))
-
-	record, err := publisher.inspect(testImage(t, true), exact, iso, options.RegistryCA, options.PublicKey)
-	require.NoError(t, err)
-	require.Equal(t, provenance.ISOSHA256, record.ISOChecksum)
-	require.Equal(t, exact, record.SodaImageReference)
-
-	provenance.EmbeddedImageReference = Repository + "@sha256:" + strings.Repeat("b", 64)
-	encoded, err = json.Marshal(provenance)
-	require.NoError(t, err)
-	require.NoError(t, os.WriteFile(iso+".payload.json", encoded, 0o644))
-	_, err = publisher.inspect(testImage(t, true), exact, iso, options.RegistryCA, options.PublicKey)
-	require.ErrorContains(t, err, "installer payload provenance differs")
 }
 
 func TestCosignCommandsPinVersionAndExactDigest(t *testing.T) {
@@ -377,9 +348,16 @@ type fakeISOValidator struct {
 	err   error
 }
 
-func (v *fakeISOValidator) ValidateISO(context.Context, string, string, string, string) (installer.Provenance, error) {
+func (v *fakeISOValidator) ValidateISO(_ context.Context, isoPath, reference, _ string, _ string) (installer.Provenance, error) {
 	v.calls++
-	return installer.Provenance{}, v.err
+	if v.err != nil {
+		return installer.Provenance{}, v.err
+	}
+	contents, err := os.ReadFile(isoPath)
+	if err != nil {
+		return installer.Provenance{}, err
+	}
+	return installer.Provenance{ISOPath: filepath.Base(isoPath), ISOSHA256: sha256Hex(contents), EmbeddedImageReference: reference}, nil
 }
 
 func (s *fakeSigner) CheckVersion(context.Context) error {
@@ -458,20 +436,10 @@ func testOptions(t *testing.T, archive, output string) Options {
 	return Options{ArchivePath: archive, OutputDir: output, RegistryCA: ca, PublicKey: publicKey}
 }
 
-func writeInstallerISO(t *testing.T, exactReference string) string {
+func writeInstallerISO(t *testing.T) string {
 	t.Helper()
 	iso := filepath.Join(t.TempDir(), "SodaOS.iso")
-	contents := []byte("installer bytes")
-	require.NoError(t, os.WriteFile(iso, contents, 0o644))
-	provenance := installer.Provenance{
-		SchemaVersion: 1, ISOPath: filepath.Base(iso), ISOSHA256: sha256Hex(contents),
-		EmbeddedImageReference: exactReference, Platform: installer.Platform, Filesystem: "ext4",
-		ImageBuilderVersion:   "81.0.0",
-		ImageBuilderReference: "ghcr.io/osbuild/image-builder@sha256:704dc05d6033799248a33c415f7f7253ec20b40f0b2bff03b06d8687179e058a",
-	}
-	encoded, err := json.Marshal(provenance)
-	require.NoError(t, err)
-	require.NoError(t, os.WriteFile(iso+".payload.json", encoded, 0o644))
+	require.NoError(t, os.WriteFile(iso, []byte("installer bytes"), 0o644))
 	return iso
 }
 

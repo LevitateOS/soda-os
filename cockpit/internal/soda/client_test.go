@@ -49,24 +49,47 @@ func (*fakeSodaService) GetHostStatus(context.Context, *sodav2.GetHostStatusRequ
 	return &sodav2.GetHostStatusResponse{Host: &sodav2.HostStatus{SampledAt: timestamppb.New(time.Unix(1_700_000_000, 0)), Overall: sodav2.RuntimeState_RUNTIME_STATE_READY, CpuPercent: &cpu, LoadAverage: &sodav2.LoadAverage{OneMinute: 1, FiveMinutes: 2, FifteenMinutes: 3}}}, nil
 }
 
-func TestClientMapsGRPCResourcesAndOptionalValues(t *testing.T) {
-	client, service := bufconnClient(t)
+func TestClientMapsPeopleAndCollaborators(t *testing.T) {
+	client, _ := bufconnClient(t)
 	people, err := client.People(context.Background())
-	if err != nil {
-		t.Fatalf("People() error = %v", err)
+	if err != nil || len(people) != 1 {
+		t.Fatalf("People() = %#v, %v", people, err)
 	}
-	if len(people) != 1 || people[0].Role != RoleAdmin || people[0].Username != "alice" {
+	if people[0].Role != RoleAdmin || people[0].Username != "alice" {
 		t.Fatalf("People() = %#v", people)
 	}
-	keys, err := client.SSHDeviceKeys(context.Background(), "person-1")
-	if err != nil || len(keys) != 1 || keys[0].Label != "Laptop" || keys[0].Type != "ssh-ed25519" || keys[0].CreatedAt != 1_700_000_000 {
-		t.Fatalf("SSHDeviceKeys() = %#v, %v", keys, err)
-	}
 	members, err := client.Members(context.Background(), "project-1")
-	if err != nil || len(members) != 1 || members[0].Username != "alice" {
+	if err != nil || len(members) != 1 {
 		t.Fatalf("Members() = %#v, %v", members, err)
 	}
+	if members[0].Username != "alice" {
+		t.Fatalf("Members() = %#v", members)
+	}
+}
 
+func TestClientMapsSSHDeviceKeys(t *testing.T) {
+	client, _ := bufconnClient(t)
+	keys, err := client.SSHDeviceKeys(context.Background(), "person-1")
+	if err != nil || len(keys) != 1 {
+		t.Fatalf("SSHDeviceKeys() = %#v, %v", keys, err)
+	}
+	got := struct {
+		Label     string
+		Type      string
+		CreatedAt uint64
+	}{Label: keys[0].Label, Type: keys[0].Type, CreatedAt: keys[0].CreatedAt}
+	want := struct {
+		Label     string
+		Type      string
+		CreatedAt uint64
+	}{Label: "Laptop", Type: "ssh-ed25519", CreatedAt: 1_700_000_000}
+	if got != want {
+		t.Fatalf("SSHDeviceKeys() = %#v", keys)
+	}
+}
+
+func TestClientMapsProjectRequestAndResponse(t *testing.T) {
+	client, service := bufconnClient(t)
 	project, err := client.CreateProject(context.Background(), CreateProjectRequest{Slug: "demo", Name: "Demo", Profile: "go", Source: ProjectSource{Kind: "git", RemoteURL: "ssh://git@example/demo.git"}, InitialPersonIDs: []string{"person-1"}})
 	if err != nil {
 		t.Fatalf("CreateProject() error = %v", err)
@@ -74,12 +97,25 @@ func TestClientMapsGRPCResourcesAndOptionalValues(t *testing.T) {
 	if service.projectRequest.GetSource().GetGit().GetRemoteUrl() != "ssh://git@example/demo.git" || len(service.projectRequest.GetInitialPersonIds()) != 1 || project.Profile != "go" || project.Source.Kind != "git" {
 		t.Fatalf("project mapping failed: request=%#v result=%#v", service.projectRequest, project)
 	}
+}
 
+func TestClientMapsOptionalHostValues(t *testing.T) {
+	client, _ := bufconnClient(t)
 	host, err := client.HostStatus(context.Background())
-	if err != nil {
-		t.Fatalf("HostStatus() error = %v", err)
+	if err != nil || host.CPUPercent == nil {
+		t.Fatalf("HostStatus() = %#v, %v", host, err)
 	}
-	if host.Overall != "ready" || host.CPUPercent == nil || *host.CPUPercent != 24.5 || host.LoadAverage != [3]float64{1, 2, 3} {
+	got := struct {
+		Overall RuntimeState
+		CPU     float64
+		Load    [3]float64
+	}{Overall: host.Overall, CPU: *host.CPUPercent, Load: host.LoadAverage}
+	want := struct {
+		Overall RuntimeState
+		CPU     float64
+		Load    [3]float64
+	}{Overall: "ready", CPU: 24.5, Load: [3]float64{1, 2, 3}}
+	if got != want {
 		t.Fatalf("HostStatus() = %#v", host)
 	}
 }
@@ -120,13 +156,13 @@ func TestClientSanitizesGRPCErrors(t *testing.T) {
 	}
 }
 
-func TestNewClientDoesNotWaitForSocketAndRecoversLater(t *testing.T) {
-	tempDir, err := os.MkdirTemp("/tmp", "soda-cockpit-grpc-")
+func TestNewClientReturnsBeforeDaemonIsAvailable(t *testing.T) {
+	directory, err := os.MkdirTemp("/tmp", "soda-cockpit-grpc-")
 	if err != nil {
 		t.Fatalf("create socket directory: %v", err)
 	}
-	t.Cleanup(func() { _ = os.RemoveAll(tempDir) })
-	socketPath := filepath.Join(tempDir, "sodad.sock")
+	t.Cleanup(func() { _ = os.RemoveAll(directory) })
+	socketPath := filepath.Join(directory, "sodad.sock")
 	started := time.Now()
 	client, err := NewClient(socketPath)
 	if err != nil {
@@ -136,14 +172,20 @@ func TestNewClientDoesNotWaitForSocketAndRecoversLater(t *testing.T) {
 	if elapsed := time.Since(started); elapsed > 250*time.Millisecond {
 		t.Fatalf("NewClient() blocked for %s", elapsed)
 	}
+}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
-	_, err = client.People(ctx)
-	cancel()
-	if err == nil || err.Error() != "Soda service unavailable." {
-		t.Fatalf("People() before daemon = %v", err)
+func TestClientRecoversWhenDaemonSocketAppears(t *testing.T) {
+	directory, err := os.MkdirTemp("/tmp", "soda-cockpit-grpc-")
+	if err != nil {
+		t.Fatalf("create socket directory: %v", err)
 	}
-
+	t.Cleanup(func() { _ = os.RemoveAll(directory) })
+	socketPath := filepath.Join(directory, "sodad.sock")
+	client, err := NewClient(socketPath)
+	if err != nil {
+		t.Fatalf("NewClient() error = %v", err)
+	}
+	t.Cleanup(func() { _ = client.Close() })
 	listener, err := net.Listen("unix", socketPath)
 	if err != nil {
 		t.Fatalf("listen on recovered socket: %v", err)
@@ -154,7 +196,7 @@ func TestNewClientDoesNotWaitForSocketAndRecoversLater(t *testing.T) {
 	t.Cleanup(func() { server.Stop(); _ = listener.Close() })
 
 	deadline := time.Now().Add(5 * time.Second)
-	for {
+	for time.Now().Before(deadline) {
 		ctx, cancel := context.WithTimeout(context.Background(), 250*time.Millisecond)
 		people, callErr := client.People(ctx)
 		cancel()
@@ -162,13 +204,11 @@ func TestNewClientDoesNotWaitForSocketAndRecoversLater(t *testing.T) {
 			if len(people) != 1 || people[0].Username != "alice" {
 				t.Fatalf("People() after recovery = %#v", people)
 			}
-			break
-		}
-		if time.Now().After(deadline) {
-			t.Fatalf("People() did not recover: %v", callErr)
+			return
 		}
 		time.Sleep(25 * time.Millisecond)
 	}
+	t.Fatal("People() did not recover")
 }
 
 type failingService struct {

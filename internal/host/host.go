@@ -65,18 +65,13 @@ func (ExecRunner) Run(ctx context.Context, name string, args []string, environme
 
 type System struct {
 	ProjectsRoot       string
-	ManageAccounts     bool
 	Runner             Runner
 	AuthorizedKeysRoot string
 	authorizedKeysMu   sync.Mutex
 }
 
-func New(projectsRoot string, manageAccounts bool) *System {
-	authorizedKeysRoot := DefaultAuthorizedKeysRoot
-	if !manageAccounts {
-		authorizedKeysRoot = filepath.Join(projectsRoot, ".authorized_keys")
-	}
-	return &System{ProjectsRoot: projectsRoot, ManageAccounts: manageAccounts, Runner: ExecRunner{}, AuthorizedKeysRoot: authorizedKeysRoot}
+func New(projectsRoot string) *System {
+	return &System{ProjectsRoot: projectsRoot, Runner: ExecRunner{}, AuthorizedKeysRoot: DefaultAuthorizedKeysRoot}
 }
 
 func (s *System) CreatePerson(ctx context.Context, person domain.Person, password string) (Cleanup, error) {
@@ -85,9 +80,6 @@ func (s *System) CreatePerson(ctx context.Context, person domain.Person, passwor
 	}
 	if utf8.RuneCountInString(password) < 6 {
 		return nil, errors.New("password must contain at least 6 characters")
-	}
-	if !s.ManageAccounts {
-		return noopCleanup, nil
 	}
 	if _, err := s.Runner.Run(ctx, "useradd", []string{"--create-home", "--shell", "/sbin/nologin", person.Username}, nil, ""); err != nil {
 		return nil, err
@@ -106,9 +98,6 @@ func (s *System) CreatePerson(ctx context.Context, person domain.Person, passwor
 }
 
 func (s *System) ImportPerson(ctx context.Context, person domain.Person) (Cleanup, error) {
-	if !s.ManageAccounts {
-		return noopCleanup, nil
-	}
 	if _, err := s.Runner.Run(ctx, "getent", []string{"passwd", person.Username}, nil, ""); err != nil {
 		return nil, fmt.Errorf("%w: Linux account %s", ErrNotFound, person.Username)
 	}
@@ -117,21 +106,13 @@ func (s *System) ImportPerson(ctx context.Context, person domain.Person) (Cleanu
 
 func (s *System) CreateProject(ctx context.Context, project domain.Project) (Cleanup, error) {
 	root := s.projectRoot(project)
-	createdAccount := false
-	if s.ManageAccounts {
-		if _, err := s.Runner.Run(ctx, "useradd", []string{"--system", "--create-home", "--home-dir", root, "--shell", "/bin/bash", project.UnixUser}, nil, ""); err != nil {
-			return nil, err
-		}
-		createdAccount = true
-	} else if err := os.MkdirAll(root, 0o755); err != nil {
+	if err := s.createProjectAccount(ctx, project, root); err != nil {
 		return nil, err
 	}
-	cleanup := func(cleanupContext context.Context) error {
+	cleanup := func(ctx context.Context) error {
 		var cleanupErrors []error
-		if createdAccount {
-			if _, err := s.Runner.Run(cleanupContext, "userdel", []string{"--remove", project.UnixUser}, nil, ""); err != nil {
-				cleanupErrors = append(cleanupErrors, err)
-			}
+		if _, err := s.Runner.Run(ctx, "userdel", []string{"--remove", project.UnixUser}, nil, ""); err != nil {
+			cleanupErrors = append(cleanupErrors, err)
 		}
 		if err := os.RemoveAll(root); err != nil {
 			cleanupErrors = append(cleanupErrors, err)
@@ -141,53 +122,74 @@ func (s *System) CreateProject(ctx context.Context, project domain.Project) (Cle
 		}
 		return errors.Join(cleanupErrors...)
 	}
+	if err := s.createProjectKeys(ctx, project, root); err != nil {
+		return nil, failWithCleanup(ctx, err, cleanup)
+	}
+	if err := s.initializeProjectRepository(ctx, project); err != nil {
+		return nil, failWithCleanup(ctx, err, cleanup)
+	}
+	if err := s.finalizeProjectResources(ctx, project, root); err != nil {
+		return nil, failWithCleanup(ctx, err, cleanup)
+	}
+	return cleanup, nil
+}
+
+func (s *System) createProjectAccount(ctx context.Context, project domain.Project, root string) error {
+	_, err := s.Runner.Run(ctx, "useradd", []string{"--system", "--create-home", "--home-dir", root, "--shell", "/bin/bash", project.UnixUser}, nil, "")
+	return err
+}
+
+func (s *System) createProjectKeys(ctx context.Context, project domain.Project, root string) error {
 	sshDir := filepath.Join(root, ".ssh")
 	if err := os.MkdirAll(sshDir, 0o700); err != nil {
-		return nil, failWithCleanup(ctx, err, cleanup)
+		return err
 	}
 	if err := os.Chmod(sshDir, 0o700); err != nil {
-		return nil, failWithCleanup(ctx, err, cleanup)
+		return err
 	}
 	if _, err := s.Runner.Run(ctx, "ssh-keygen", []string{"-q", "-t", "ed25519", "-N", "", "-C", "soda-project-" + project.Slug, "-f", filepath.Join(sshDir, "deploy_key")}, nil, ""); err != nil {
-		return nil, failWithCleanup(ctx, err, cleanup)
+		return err
 	}
+	return s.createAuthorizedKeysFile(project)
+}
+
+func (s *System) createAuthorizedKeysFile(project domain.Project) error {
 	if err := os.MkdirAll(s.AuthorizedKeysRoot, 0o755); err != nil {
-		return nil, failWithCleanup(ctx, err, cleanup)
+		return err
 	}
 	if err := os.Chmod(s.AuthorizedKeysRoot, 0o755); err != nil {
-		return nil, failWithCleanup(ctx, err, cleanup)
+		return err
 	}
 	keyFile := s.authorizedKeysPath(project)
 	file, err := os.OpenFile(keyFile, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o644)
 	if err != nil {
-		return nil, failWithCleanup(ctx, err, cleanup)
+		return err
 	}
 	if err = file.Close(); err != nil {
-		return nil, failWithCleanup(ctx, err, cleanup)
+		return err
 	}
-	if err = os.Chmod(keyFile, 0o644); err != nil {
-		return nil, failWithCleanup(ctx, err, cleanup)
+	return os.Chmod(keyFile, 0o644)
+}
+
+func (s *System) initializeProjectRepository(ctx context.Context, project domain.Project) error {
+	if _, empty := project.Source.(domain.EmptyProjectSource); !empty {
+		return nil
 	}
-	if _, ok := project.Source.(domain.EmptyProjectSource); ok {
-		if err = s.initializeEmptyRepository(ctx, s.repository(project)); err != nil {
-			return nil, failWithCleanup(ctx, err, cleanup)
-		}
+	return s.initializeEmptyRepository(ctx, s.repository(project))
+}
+
+func (s *System) finalizeProjectResources(ctx context.Context, project domain.Project, root string) error {
+	keyFile := s.authorizedKeysPath(project)
+	if _, err := s.Runner.Run(ctx, "chown", []string{"root:root", s.AuthorizedKeysRoot, keyFile}, nil, ""); err != nil {
+		return err
 	}
-	if s.ManageAccounts {
-		if _, err = s.Runner.Run(ctx, "chown", []string{"root:root", s.AuthorizedKeysRoot, keyFile}, nil, ""); err != nil {
-			return nil, failWithCleanup(ctx, err, cleanup)
-		}
-		if _, err = s.Runner.Run(ctx, "restorecon", []string{"-R", root}, nil, ""); err != nil {
-			return nil, failWithCleanup(ctx, err, cleanup)
-		}
-		if _, err = s.Runner.Run(ctx, "restorecon", []string{"-R", s.AuthorizedKeysRoot}, nil, ""); err != nil {
-			return nil, failWithCleanup(ctx, err, cleanup)
-		}
+	if _, err := s.Runner.Run(ctx, "restorecon", []string{"-R", root}, nil, ""); err != nil {
+		return err
 	}
-	if err = s.chown(ctx, project, root); err != nil {
-		return nil, failWithCleanup(ctx, err, cleanup)
+	if _, err := s.Runner.Run(ctx, "restorecon", []string{"-R", s.AuthorizedKeysRoot}, nil, ""); err != nil {
+		return err
 	}
-	return cleanup, nil
+	return s.chown(ctx, project, root)
 }
 
 func (s *System) EnsureRepository(ctx context.Context, project domain.Project) error {
@@ -325,12 +327,16 @@ func (s *System) sessionHome(project domain.Project, person domain.Person) strin
 	return filepath.Join(s.projectRoot(project), ".soda", "people", person.Username, "home")
 }
 
-func (s *System) WriteProjectEnvironment(ctx context.Context, project domain.Project, contents string) error {
+func (s *System) WriteProjectEnvironment(ctx context.Context, project domain.Project, source string) error {
+	contents, err := os.ReadFile(source)
+	if err != nil {
+		return fmt.Errorf("read generated project environment: %w", err)
+	}
 	dir := filepath.Join(s.projectRoot(project), ".soda")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
 	}
-	if err := os.WriteFile(filepath.Join(dir, "env"), []byte(contents), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "environment.json"), contents, 0o644); err != nil {
 		return err
 	}
 	return s.chown(ctx, project, dir)
@@ -365,9 +371,6 @@ func (s *System) authorizedKeysPath(project domain.Project) string {
 	return filepath.Join(s.AuthorizedKeysRoot, project.UnixUser)
 }
 func (s *System) chown(ctx context.Context, project domain.Project, path string) error {
-	if !s.ManageAccounts {
-		return nil
-	}
 	_, err := s.Runner.Run(ctx, "chown", []string{"--recursive", project.UnixUser + ":" + project.UnixUser, path}, nil, "")
 	return err
 }
@@ -410,10 +413,8 @@ func (s *System) writeAuthorizedKeys(ctx context.Context, path, contents string)
 	if err = os.Rename(temporaryPath, path); err != nil {
 		return err
 	}
-	if s.ManageAccounts {
-		if _, err = s.Runner.Run(ctx, "chown", []string{"root:root", path}, nil, ""); err == nil {
-			_, err = s.Runner.Run(ctx, "restorecon", []string{path}, nil, "")
-		}
+	if _, err = s.Runner.Run(ctx, "chown", []string{"root:root", path}, nil, ""); err == nil {
+		_, err = s.Runner.Run(ctx, "restorecon", []string{path}, nil, "")
 	}
 	return err
 }

@@ -1,12 +1,15 @@
 package sshgateway
 
 import (
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/LevitateOS/soda-os/internal/domain"
 )
 
 type captureExecutor struct {
@@ -101,15 +104,10 @@ func TestCanonicalContainmentResolvesSymlinks(t *testing.T) {
 func TestSessionCommandsAndFinalEnvironment(t *testing.T) {
 	t.Parallel()
 	fixture := newFixture(t)
-	profile := filepath.Join(t.TempDir(), "profile.env")
-	mustWrite(t, profile, strings.Join([]string{
-		"export SODA_PROFILE=rust",
-		"export RUSTUP_HOME=/opt/soda/rustup",
-		"export CARGO_HOME=/opt/soda/cargo",
-		"export PATH=/opt/soda/bin:/opt/soda/cargo/bin:$PATH",
-		"",
-	}, "\n"))
-	mustWrite(t, filepath.Join(fixture.project, ".soda", "env"), "source "+profile+"\n")
+	mustWriteProjectEnvironment(t, fixture.project, domain.ProjectEnvironment{
+		Profile: "rust", Path: []string{"/opt/soda/bin", "/opt/soda/cargo/bin"},
+		Variables: map[string]string{"RUSTUP_HOME": "/opt/soda/rustup", "CARGO_HOME": "/opt/soda/cargo"},
+	})
 
 	tests := []struct {
 		name     string
@@ -200,9 +198,7 @@ func TestInteractiveBannerAndSilentNoninteractiveSessions(t *testing.T) {
 func TestProfilePathDoesNotAddCurrentDirectoryWhenPathIsUnset(t *testing.T) {
 	t.Parallel()
 	fixture := newFixture(t)
-	profile := filepath.Join(t.TempDir(), "profile.env")
-	mustWrite(t, profile, "export SODA_PROFILE=go\nexport PATH=/opt/go/bin:$PATH\n")
-	mustWrite(t, filepath.Join(fixture.project, ".soda", "env"), "source "+profile+"\n")
+	mustWriteProjectEnvironment(t, fixture.project, domain.ProjectEnvironment{Profile: "go", Path: []string{"/opt/go/bin"}})
 	options := fixture.options()
 	options.Environment = []string{"LANG=C"}
 	invocation, err := BuildInvocation(options)
@@ -215,29 +211,25 @@ func TestProfilePathDoesNotAddCurrentDirectoryWhenPathIsUnset(t *testing.T) {
 func TestStrictProjectEnvironmentParsing(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		name    string
-		link    string
-		profile string
+		name string
+		raw  string
+		env  domain.ProjectEnvironment
 	}{
-		{name: "missing source", link: "export PROFILE=x\n"},
-		{name: "multiple sources", link: "source /one\nsource /two\n"},
-		{name: "relative profile", link: "source relative/env\n"},
-		{name: "unsupported line", profile: "export SODA_PROFILE=go\nrun something\nexport PATH=/opt/go:$PATH\n"},
-		{name: "unsupported variable", profile: "export SODA_PROFILE=go\nexport SECRET=value\nexport PATH=/opt/go:$PATH\n"},
-		{name: "malformed path", profile: "export SODA_PROFILE=go\nexport PATH=/opt/go\n"},
-		{name: "missing profile", profile: "export PATH=/opt/go:$PATH\n"},
-		{name: "duplicate variable", profile: "export SODA_PROFILE=go\nexport SODA_PROFILE=rust\nexport PATH=/opt/go:$PATH\n"},
+		{name: "invalid JSON", raw: "{"},
+		{name: "empty PATH", env: domain.ProjectEnvironment{Profile: "go"}},
+		{name: "relative PATH", env: domain.ProjectEnvironment{Profile: "go", Path: []string{"bin"}}},
+		{name: "unsupported variable", env: domain.ProjectEnvironment{Profile: "go", Path: []string{"/opt/go"}, Variables: map[string]string{"SECRET": "value"}}},
+		{name: "unpaired Rust variable", env: domain.ProjectEnvironment{Profile: "rust", Path: []string{"/opt/rust"}, Variables: map[string]string{"RUSTUP_HOME": "/opt/rustup"}}},
+		{name: "invalid profile", env: domain.ProjectEnvironment{Profile: "bad\nprofile", Path: []string{"/opt/go"}}},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			fixture := newFixture(t)
-			link := test.link
-			if test.profile != "" {
-				profile := filepath.Join(t.TempDir(), "profile.env")
-				mustWrite(t, profile, test.profile)
-				link = "source " + profile + "\n"
+			if test.raw != "" {
+				mustWrite(t, filepath.Join(fixture.project, ".soda", "environment.json"), test.raw)
+			} else {
+				mustWriteProjectEnvironment(t, fixture.project, test.env)
 			}
-			mustWrite(t, filepath.Join(fixture.project, ".soda", "env"), link)
 			if _, err := BuildInvocation(fixture.options()); err == nil {
 				t.Fatal("malformed environment unexpectedly succeeded")
 			}
@@ -245,15 +237,13 @@ func TestStrictProjectEnvironmentParsing(t *testing.T) {
 	}
 }
 
-func TestNearestProjectEnvironmentWins(t *testing.T) {
+func TestProjectRootEnvironmentIsAuthoritative(t *testing.T) {
 	t.Parallel()
 	fixture := newFixture(t)
-	validProfile := filepath.Join(t.TempDir(), "valid.env")
-	mustWrite(t, validProfile, "export SODA_PROFILE=go\nexport PATH=/opt/go:$PATH\n")
-	mustWrite(t, filepath.Join(fixture.project, ".soda", "env"), "source "+validProfile+"\n")
-	mustWrite(t, filepath.Join(fixture.worktree, ".soda", "env"), "not a source\n")
-	if _, err := BuildInvocation(fixture.options()); err == nil {
-		t.Fatal("invalid nearest environment was skipped")
+	mustWriteProjectEnvironment(t, fixture.project, domain.ProjectEnvironment{Profile: "go", Path: []string{"/opt/go"}})
+	mustWrite(t, filepath.Join(fixture.worktree, ".soda", "environment.json"), "{")
+	if _, err := BuildInvocation(fixture.options()); err != nil {
+		t.Fatalf("project environment was not authoritative: %v", err)
 	}
 }
 
@@ -289,6 +279,7 @@ func newFixture(t *testing.T) fixture {
 	home := filepath.Join(project, ".soda", "people", "alice-2", "home")
 	mustMkdir(t, filepath.Join(worktree, ".git"))
 	mustMkdir(t, home)
+	mustWriteProjectEnvironment(t, project, domain.ProjectEnvironment{Profile: "go", Path: []string{"/opt/go/bin"}})
 	root = mustCanonical(t, root)
 	project = mustCanonical(t, project)
 	worktree = mustCanonical(t, worktree)
@@ -320,6 +311,15 @@ func mustWrite(t *testing.T, path, contents string) {
 	if err := os.WriteFile(path, []byte(contents), 0o644); err != nil {
 		t.Fatal(err)
 	}
+}
+
+func mustWriteProjectEnvironment(t *testing.T, project string, environment domain.ProjectEnvironment) {
+	t.Helper()
+	contents, err := json.Marshal(environment)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mustWrite(t, filepath.Join(project, ".soda", "environment.json"), string(contents))
 }
 
 func mustCanonical(t *testing.T, path string) string {

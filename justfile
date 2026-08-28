@@ -6,11 +6,18 @@ default:
 fmt:
     gofmt -w $(find . -name '*.go' -not -path './.artifacts/*')
 
+complexity:
+    ./scripts/check-cyclomatic-complexity.sh
+
+hooks-install:
+    git config --local core.hooksPath .githooks
+
 check:
     test -z "$(gofmt -l $(find . -name '*.go' -not -path './.artifacts/*'))"
     sh -n scripts/bootc-acceptance.sh
     scripts/bootc-acceptance.sh --help >/dev/null
     ./scripts/protobuf-verify.sh
+    ./scripts/check-cyclomatic-complexity.sh
     go vet ./...
     go test ./...
     go run ./cmd/soda-image check

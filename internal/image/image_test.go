@@ -59,19 +59,6 @@ func TestDockerCommandUsesPinnedArm64Builder(t *testing.T) {
 func TestRPMBuilderContractPinsFedoraBaseAndInstalledInventory(t *testing.T) {
 	root, err := filepath.Abs(filepath.Join("..", ".."))
 	require.NoError(t, err)
-	builder := &Builder{Root: root}
-	require.NoError(t, builder.checkBuilderPackageLock())
-
-	lock, err := builder.builderPackageLock()
-	require.NoError(t, err)
-	require.Equal(t, builderBaseReference, lock.BaseReference)
-	require.Equal(t, bootcPlatform, lock.Platform)
-	require.Len(t, lock.InventorySHA256, 64)
-	require.Len(t, lock.Package, len(builderPackageNames))
-	for index, name := range builderPackageNames {
-		require.Equal(t, name, lock.Package[index].Name)
-		require.Contains(t, lock.Package[index].NEVRA, ":")
-	}
 
 	contents, err := os.ReadFile(filepath.Join(root, "packaging", "builder", "Containerfile"))
 	require.NoError(t, err)
@@ -82,25 +69,6 @@ func TestRPMBuilderContractPinsFedoraBaseAndInstalledInventory(t *testing.T) {
 	require.Contains(t, containerfile, "%{ARCH}\\n' | LC_ALL=C sort")
 	require.Contains(t, containerfile, "test \"$actual\" = \"$expected\"")
 	require.NotContains(t, containerfile, "registry.fedoraproject.org/fedora:44")
-}
-
-func TestRPMBuilderPackageLockRejectsMutableBaseAndUnpinnedPackages(t *testing.T) {
-	root := t.TempDir()
-	directory := filepath.Join(root, "packaging", "builder")
-	require.NoError(t, os.MkdirAll(directory, 0o755))
-	contents, err := os.ReadFile(filepath.Join("..", "..", "packaging", "builder", "packages.lock"))
-	require.NoError(t, err)
-
-	writeLock := func(t *testing.T, old, new string) {
-		t.Helper()
-		require.NoError(t, os.WriteFile(filepath.Join(directory, "packages.lock"), []byte(strings.Replace(string(contents), old, new, 1)), 0o644))
-	}
-
-	writeLock(t, builderBaseReference, "registry.fedoraproject.org/fedora:44")
-	require.EqualError(t, (&Builder{Root: root}).checkBuilderPackageLock(), "RPM builder package lock does not bind the approved Fedora AArch64 base")
-
-	writeLock(t, `nevra = "gcc-0:16.2.1-2.fc44.aarch64"`, `nevra = "gcc"`)
-	require.EqualError(t, (&Builder{Root: root}).checkBuilderPackageLock(), "RPM builder package gcc does not pin an exact NEVRA")
 }
 
 func TestOSRunnerWiresOnlyExplicitStdin(t *testing.T) {

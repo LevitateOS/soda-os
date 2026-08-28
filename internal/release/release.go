@@ -147,149 +147,199 @@ func (p *Publisher) Publish(ctx context.Context, options Options) (Result, error
 	if p.Registry == nil || p.Signer == nil {
 		return Result{}, errors.New("release publisher requires a registry and signer")
 	}
-	if err := p.Signer.CheckVersion(ctx); err != nil {
-		return Result{}, err
-	}
-	img, cleanup, err := imageFromOCIArchive(options.ArchivePath)
+	prepared, err := p.prepareExactImage(ctx, options.ArchivePath)
 	if err != nil {
 		return Result{}, err
 	}
-	defer cleanup()
+	defer prepared.cleanup()
+	return p.finalizePublication(ctx, prepared, options)
+}
 
+type preparedImage struct {
+	image     v1.Image
+	reference string
+	cleanup   func()
+}
+
+func (p *Publisher) prepareExactImage(ctx context.Context, archive string) (preparedImage, error) {
+	if err := p.Signer.CheckVersion(ctx); err != nil {
+		return preparedImage{}, err
+	}
+	img, cleanup, err := imageFromOCIArchive(archive)
+	if err != nil {
+		return preparedImage{}, err
+	}
 	versionTag := Repository + ":" + p.Spec.Identity.Version
 	if err := p.Registry.Push(ctx, versionTag, img); err != nil {
-		return Result{}, fmt.Errorf("push versioned image: %w", err)
+		cleanup()
+		return preparedImage{}, fmt.Errorf("push versioned image: %w", err)
 	}
 	digest, err := p.Registry.Resolve(ctx, versionTag)
 	if err != nil {
-		return Result{}, fmt.Errorf("resolve canonical registry digest: %w", err)
+		cleanup()
+		return preparedImage{}, fmt.Errorf("resolve canonical registry digest: %w", err)
 	}
 	localDigest, err := img.Digest()
 	if err != nil {
-		return Result{}, fmt.Errorf("compute local image digest: %w", err)
+		cleanup()
+		return preparedImage{}, fmt.Errorf("compute local image digest: %w", err)
 	}
 	if digest != localDigest {
-		return Result{}, fmt.Errorf("canonical registry digest %s differs from pushed image digest %s", digest, localDigest)
+		cleanup()
+		return preparedImage{}, fmt.Errorf("canonical registry digest %s differs from pushed image digest %s", digest, localDigest)
 	}
+	return preparedImage{img, Repository + "@" + digest.String(), cleanup}, nil
+}
 
-	exactReference := Repository + "@" + digest.String()
+func (p *Publisher) finalizePublication(ctx context.Context, prepared preparedImage, options Options) (Result, error) {
+	exactReference := prepared.reference
+	isoChecksum := ""
 	if options.ISOPath != "" {
 		if p.ISOValidator == nil {
 			return Result{}, errors.New("release publisher requires independent ISO inspection")
 		}
-		if _, err := p.ISOValidator.ValidateISO(ctx, options.ISOPath, exactReference, options.InstallerArchive, options.InstallerToolLock); err != nil {
+		evidence, err := p.ISOValidator.ValidateISO(ctx, options.ISOPath, exactReference, options.InstallerArchive, options.InstallerToolLock)
+		if err != nil {
 			return Result{}, fmt.Errorf("independently inspect installer ISO: %w", err)
 		}
+		isoChecksum = evidence.ISOSHA256
 	}
-	record, err := p.inspect(img, exactReference, options.ISOPath, options.RegistryCA, options.PublicKey)
+	record, err := p.inspect(prepared.image, exactReference, options.RegistryCA, options.PublicKey)
 	if err != nil {
 		return Result{}, err
 	}
-	if err := p.Signer.SignImage(ctx, exactReference); err != nil {
-		return Result{}, fmt.Errorf("sign exact image digest: %w", err)
-	}
-	if err := p.Signer.VerifyImage(ctx, exactReference); err != nil {
-		return Result{}, fmt.Errorf("verify exact image signature: %w", err)
+	record.ISOChecksum = isoChecksum
+	if err := p.signExactImage(ctx, exactReference); err != nil {
+		return Result{}, err
 	}
 	if options.DeferCurrent {
 		return Result{ImageReference: exactReference}, nil
 	}
-
-	outputDir := options.OutputDir
-	if outputDir == "" {
-		outputDir = ".artifacts/releases"
-	}
-	if err := os.MkdirAll(outputDir, 0o755); err != nil {
-		return Result{}, fmt.Errorf("create release output: %w", err)
-	}
-	recordPath := filepath.Join(outputDir, "soda-os-"+p.Spec.Identity.Version+".release.json")
-	bundlePath := recordPath + ".sigstore.json"
-	encoded, err := json.Marshal(record)
+	recordPath, bundlePath, err := p.writeSignedRecord(ctx, record, options.OutputDir)
 	if err != nil {
 		return Result{}, err
 	}
-	encoded = append(encoded, '\n')
-	if err := os.WriteFile(recordPath, encoded, 0o644); err != nil {
-		return Result{}, fmt.Errorf("write canonical release record: %w", err)
-	}
-	if err := p.Signer.SignBlob(ctx, recordPath, bundlePath); err != nil {
-		return Result{}, fmt.Errorf("sign release record: %w", err)
-	}
-	if err := p.Signer.VerifyBlob(ctx, recordPath, bundlePath); err != nil {
-		return Result{}, fmt.Errorf("verify release record: %w", err)
-	}
-	if err := p.Registry.Push(ctx, Repository+":current", img); err != nil {
+	if err := p.Registry.Push(ctx, Repository+":current", prepared.image); err != nil {
 		return Result{}, fmt.Errorf("update current discovery tag: %w", err)
 	}
 	return Result{ImageReference: exactReference, RecordPath: recordPath, BundlePath: bundlePath}, nil
 }
 
-func (p *Publisher) inspect(img v1.Image, exactReference, isoPath, registryCAPath, publicKeyPath string) (Record, error) {
+func (p *Publisher) signExactImage(ctx context.Context, reference string) error {
+	if err := p.Signer.SignImage(ctx, reference); err != nil {
+		return fmt.Errorf("sign exact image digest: %w", err)
+	}
+	if err := p.Signer.VerifyImage(ctx, reference); err != nil {
+		return fmt.Errorf("verify exact image signature: %w", err)
+	}
+	return nil
+}
+
+func (p *Publisher) writeSignedRecord(ctx context.Context, record Record, outputDir string) (string, string, error) {
+	if outputDir == "" {
+		outputDir = ".artifacts/releases"
+	}
+	if err := os.MkdirAll(outputDir, 0o755); err != nil {
+		return "", "", fmt.Errorf("create release output: %w", err)
+	}
+	recordPath := filepath.Join(outputDir, "soda-os-"+p.Spec.Identity.Version+".release.json")
+	bundlePath := recordPath + ".sigstore.json"
+	encoded, err := json.Marshal(record)
+	if err != nil {
+		return "", "", err
+	}
+	encoded = append(encoded, '\n')
+	if err := os.WriteFile(recordPath, encoded, 0o644); err != nil {
+		return "", "", fmt.Errorf("write canonical release record: %w", err)
+	}
+	if err := p.Signer.SignBlob(ctx, recordPath, bundlePath); err != nil {
+		return "", "", fmt.Errorf("sign release record: %w", err)
+	}
+	if err := p.Signer.VerifyBlob(ctx, recordPath, bundlePath); err != nil {
+		return "", "", fmt.Errorf("verify release record: %w", err)
+	}
+	return recordPath, bundlePath, nil
+}
+
+func (p *Publisher) inspect(img v1.Image, exactReference, registryCAPath, publicKeyPath string) (Record, error) {
 	configFile, err := img.ConfigFile()
 	if err != nil {
 		return Record{}, fmt.Errorf("inspect image configuration: %w", err)
 	}
+	revision, err := p.inspectImageIdentity(configFile)
+	if err != nil {
+		return Record{}, err
+	}
+	if err := inspectEmbeddedTrust(img, registryCAPath, publicKeyPath); err != nil {
+		return Record{}, err
+	}
+	inventoryDigest, err := inspectRPMInventory(img)
+	if err != nil {
+		return Record{}, err
+	}
+	return Record{SchemaVersion: 1, SodaVersion: p.Spec.Identity.Version, SourceRevision: revision,
+		Platform: Platform, FedoraBaseReference: p.Spec.Base.Reference,
+		SodaImageReference: exactReference, StateSchema: p.Spec.Image.StateSchema,
+		RPMInventorySHA256: inventoryDigest}, nil
+}
+
+func (p *Publisher) inspectImageIdentity(configFile *v1.ConfigFile) (string, error) {
 	if configFile.OS != "linux" || configFile.Architecture != "arm64" {
-		return Record{}, fmt.Errorf("release image platform is %s/%s, expected %s", configFile.OS, configFile.Architecture, Platform)
+		return "", fmt.Errorf("release image platform is %s/%s, expected %s", configFile.OS, configFile.Architecture, Platform)
 	}
 	labels := configFile.Config.Labels
 	revision := labels["org.opencontainers.image.revision"]
 	if len(revision) != 40 || !hexadecimal(revision) {
-		return Record{}, errors.New("release image has no full source revision label")
+		return "", errors.New("release image has no full source revision label")
 	}
 	stateSchema, err := strconv.ParseUint(labels["org.sodaos.state-schema"], 10, 32)
 	if err != nil || uint32(stateSchema) != p.Spec.Image.StateSchema {
-		return Record{}, errors.New("release image state schema label differs from the Soda specification")
+		return "", errors.New("release image state schema label differs from the Soda specification")
 	}
 	if labels["org.opencontainers.image.version"] != p.Spec.Identity.Version {
-		return Record{}, errors.New("release image version label differs from the Soda specification")
+		return "", errors.New("release image version label differs from the Soda specification")
 	}
 	if labels["org.opencontainers.image.base.name"] != p.Spec.Base.Reference {
-		return Record{}, errors.New("release image Fedora base label differs from the Soda specification")
+		return "", errors.New("release image Fedora base label differs from the Soda specification")
 	}
+	return revision, nil
+}
+
+func inspectEmbeddedTrust(img v1.Image, registryCAPath, publicKeyPath string) error {
 	for _, trust := range []struct{ label, imagePath, suppliedPath string }{
 		{"registry CA", "usr/share/pki/ca-trust-source/anchors/soda-registry-ca.crt", registryCAPath},
 		{"signing public key", "usr/share/soda/release/cosign.pub", publicKeyPath},
 	} {
 		embedded, err := imageFile(img, trust.imagePath)
 		if err != nil {
-			return Record{}, fmt.Errorf("read embedded %s: %w", trust.label, err)
+			return fmt.Errorf("read embedded %s: %w", trust.label, err)
 		}
 		supplied, err := os.ReadFile(trust.suppliedPath)
 		if err != nil {
-			return Record{}, fmt.Errorf("read supplied %s: %w", trust.label, err)
+			return fmt.Errorf("read supplied %s: %w", trust.label, err)
 		}
 		if !bytes.Equal(embedded, supplied) {
-			return Record{}, fmt.Errorf("supplied %s differs from the file embedded in the release image", trust.label)
+			return fmt.Errorf("supplied %s differs from the file embedded in the release image", trust.label)
 		}
 	}
+	return nil
+}
+
+func inspectRPMInventory(img v1.Image) (string, error) {
 	inventory, err := imageFile(img, "usr/share/soda/rpm-inventory.txt")
 	if err != nil {
-		return Record{}, fmt.Errorf("read installed RPM inventory: %w", err)
+		return "", fmt.Errorf("read installed RPM inventory: %w", err)
 	}
 	sidecar, err := imageFile(img, "usr/share/soda/rpm-inventory.sha256")
 	if err != nil {
-		return Record{}, fmt.Errorf("read installed RPM inventory sidecar: %w", err)
+		return "", fmt.Errorf("read installed RPM inventory sidecar: %w", err)
 	}
 	inventoryDigest := sha256Hex(inventory)
 	fields := strings.Fields(string(sidecar))
 	if len(fields) != 2 || fields[0] != inventoryDigest || fields[1] != "rpm-inventory.txt" {
-		return Record{}, errors.New("installed RPM inventory does not match its image sidecar")
+		return "", errors.New("installed RPM inventory does not match its image sidecar")
 	}
-	record := Record{
-		SchemaVersion: 1, SodaVersion: p.Spec.Identity.Version, SourceRevision: revision,
-		Platform: Platform, FedoraBaseReference: p.Spec.Base.Reference,
-		SodaImageReference: exactReference, StateSchema: p.Spec.Image.StateSchema,
-		RPMInventorySHA256: inventoryDigest,
-	}
-	if isoPath != "" {
-		provenance, err := installer.ValidateProvenance(isoPath, exactReference)
-		if err != nil {
-			return Record{}, fmt.Errorf("validate installer payload: %w", err)
-		}
-		record.ISOChecksum = provenance.ISOSHA256
-	}
-	return record, nil
+	return inventoryDigest, nil
 }
 
 type remoteRegistry struct{ options []remote.Option }
@@ -395,26 +445,31 @@ func imageFromOCIArchive(path string) (v1.Image, func(), error) {
 		cleanup()
 		return nil, func() {}, fmt.Errorf("read OCI archive: %w", err)
 	}
-	manifest, err := index.IndexManifest()
+	image, err := arm64Image(index)
 	if err != nil {
 		cleanup()
 		return nil, func() {}, err
 	}
+	return image, cleanup, nil
+}
+
+func arm64Image(index v1.ImageIndex) (v1.Image, error) {
+	manifest, err := index.IndexManifest()
+	if err != nil {
+		return nil, err
+	}
 	if len(manifest.Manifests) != 1 {
-		cleanup()
-		return nil, func() {}, errors.New("OCI archive must contain exactly one manifest")
+		return nil, errors.New("OCI archive must contain exactly one manifest")
 	}
 	selected := &manifest.Manifests[0]
 	if selected.Platform == nil || selected.Platform.OS != "linux" || selected.Platform.Architecture != "arm64" {
-		cleanup()
-		return nil, func() {}, errors.New("OCI archive manifest must be linux/arm64")
+		return nil, errors.New("OCI archive manifest must be linux/arm64")
 	}
 	img, err := index.Image(selected.Digest)
 	if err != nil {
-		cleanup()
-		return nil, func() {}, fmt.Errorf("read AArch64 image: %w", err)
+		return nil, fmt.Errorf("read AArch64 image: %w", err)
 	}
-	return img, cleanup, nil
+	return img, nil
 }
 
 func extractOCIArchive(path, directory string) error {
@@ -432,35 +487,37 @@ func extractOCIArchive(path, directory string) error {
 		if err != nil {
 			return fmt.Errorf("read OCI archive: %w", err)
 		}
-		clean := filepath.Clean(header.Name)
-		if clean == "." || filepath.IsAbs(clean) || clean == ".." || strings.HasPrefix(clean, ".."+string(filepath.Separator)) {
-			return fmt.Errorf("OCI archive contains unsafe path %q", header.Name)
+		if err := writeOCIArchiveEntry(reader, header, directory); err != nil {
+			return err
 		}
-		target := filepath.Join(directory, clean)
-		switch header.Typeflag {
-		case tar.TypeDir:
-			if err := os.MkdirAll(target, 0o755); err != nil {
-				return err
-			}
-		case tar.TypeReg, tar.TypeRegA:
-			if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
-				return err
-			}
-			output, err := os.OpenFile(target, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o644)
-			if err != nil {
-				return err
-			}
-			_, copyErr := io.Copy(output, reader)
-			closeErr := output.Close()
-			if copyErr != nil {
-				return copyErr
-			}
-			if closeErr != nil {
-				return closeErr
-			}
-		default:
-			return fmt.Errorf("OCI archive contains unsupported entry %q", header.Name)
+	}
+}
+
+func writeOCIArchiveEntry(reader *tar.Reader, header *tar.Header, directory string) error {
+	clean := filepath.Clean(header.Name)
+	if clean == "." || filepath.IsAbs(clean) || clean == ".." || strings.HasPrefix(clean, ".."+string(filepath.Separator)) {
+		return fmt.Errorf("OCI archive contains unsafe path %q", header.Name)
+	}
+	target := filepath.Join(directory, clean)
+	switch header.Typeflag {
+	case tar.TypeDir:
+		return os.MkdirAll(target, 0o755)
+	case tar.TypeReg, tar.TypeRegA:
+		if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+			return err
 		}
+		output, err := os.OpenFile(target, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o644)
+		if err != nil {
+			return err
+		}
+		_, copyErr := io.Copy(output, reader)
+		closeErr := output.Close()
+		if copyErr != nil {
+			return copyErr
+		}
+		return closeErr
+	default:
+		return fmt.Errorf("OCI archive contains unsupported entry %q", header.Name)
 	}
 }
 

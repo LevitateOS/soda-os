@@ -7,6 +7,7 @@ import (
 	"net"
 	"os"
 	"os/user"
+	"path/filepath"
 	"runtime/debug"
 	"strconv"
 	"time"
@@ -17,17 +18,16 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+const apiGroup = "soda-api"
+
 type Server struct {
 	grpc     *grpc.Server
 	listener net.Listener
 	socket   string
 }
 
-func ListenUnix(socketPath, group string, service sodav2.SodaServiceServer, logger *slog.Logger) (*Server, error) {
-	if logger == nil {
-		logger = slog.Default()
-	}
-	if err := os.MkdirAll(filepathDir(socketPath), 0o755); err != nil {
+func ListenUnix(socketPath string, service sodav2.SodaServiceServer, logger *slog.Logger) (*Server, error) {
+	if err := os.MkdirAll(filepath.Dir(socketPath), 0o755); err != nil {
 		return nil, err
 	}
 	if err := os.Remove(socketPath); err != nil && !os.IsNotExist(err) {
@@ -42,21 +42,19 @@ func ListenUnix(socketPath, group string, service sodav2.SodaServiceServer, logg
 		cleanup()
 		return nil, err
 	}
-	if group != "" {
-		entry, lookupErr := user.LookupGroup(group)
-		if lookupErr != nil {
-			cleanup()
-			return nil, fmt.Errorf("look up socket group %q: %w", group, lookupErr)
-		}
-		gid, parseErr := strconv.Atoi(entry.Gid)
-		if parseErr != nil {
-			cleanup()
-			return nil, parseErr
-		}
-		if err = os.Chown(socketPath, -1, gid); err != nil {
-			cleanup()
-			return nil, err
-		}
+	entry, lookupErr := user.LookupGroup(apiGroup)
+	if lookupErr != nil {
+		cleanup()
+		return nil, fmt.Errorf("look up socket group %q: %w", apiGroup, lookupErr)
+	}
+	gid, parseErr := strconv.Atoi(entry.Gid)
+	if parseErr != nil {
+		cleanup()
+		return nil, parseErr
+	}
+	if err = os.Chown(socketPath, -1, gid); err != nil {
+		cleanup()
+		return nil, err
 	}
 	server := grpc.NewServer(
 		grpc.ChainUnaryInterceptor(recoveryUnary(logger), loggingUnary(logger)),
@@ -105,15 +103,4 @@ func loggingStream(logger *slog.Logger) grpc.StreamServerInterceptor {
 		logger.LogAttrs(stream.Context(), slog.LevelInfo, "gRPC stream", slog.String("method", info.FullMethod), slog.Duration("duration", time.Since(started)), slog.String("status", status.Code(err).String()))
 		return err
 	}
-}
-func filepathDir(path string) string {
-	for index := len(path) - 1; index >= 0; index-- {
-		if path[index] == '/' {
-			if index == 0 {
-				return "/"
-			}
-			return path[:index]
-		}
-	}
-	return "."
 }

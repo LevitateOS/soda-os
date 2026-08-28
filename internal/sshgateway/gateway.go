@@ -3,6 +3,7 @@
 package sshgateway
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -10,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/LevitateOS/soda-os/internal/domain"
 	"golang.org/x/sys/unix"
 )
 
@@ -39,6 +41,12 @@ type Invocation struct {
 	Env    []string
 	Dir    string
 	Banner string
+}
+
+type sessionLayout struct {
+	projectRoot string
+	worktree    string
+	home        string
 }
 
 // Executor replaces the gateway process with the requested session process.
@@ -87,77 +95,86 @@ func BuildInvocation(options Options) (Invocation, error) {
 		return Invocation{}, errors.New("invalid Soda project")
 	}
 
+	layout, err := resolveSessionLayout(options)
+	if err != nil {
+		return Invocation{}, err
+	}
+	if err := ensureGitWorktree(layout.worktree); err != nil {
+		return Invocation{}, err
+	}
+	path, argv, err := sessionCommand(options.OriginalCommand, options.Shell)
+	if err != nil {
+		return Invocation{}, err
+	}
+	environment := mergeEnvironment(options.Environment, map[string]string{
+		"HOME":            layout.home,
+		"PWD":             layout.worktree,
+		"SODA_ACTOR":      options.Actor,
+		"SODA_PROJECT":    options.Project,
+		"SODA_WORKTREE":   layout.worktree,
+		"XDG_CACHE_HOME":  filepath.Join(layout.home, ".cache"),
+		"XDG_CONFIG_HOME": filepath.Join(layout.home, ".config"),
+		"XDG_DATA_HOME":   filepath.Join(layout.home, ".local", "share"),
+		"XDG_STATE_HOME":  filepath.Join(layout.home, ".local", "state"),
+	})
+
+	profile, err := projectEnvironment(layout.projectRoot)
+	if err != nil {
+		return Invocation{}, err
+	}
+	if inherited := environmentValue(environment, "PATH"); inherited != "" {
+		profile["PATH"] += ":" + inherited
+	}
+	environment = mergeEnvironment(environment, profile)
+
+	banner := ""
+	if options.OriginalCommand == "" && environmentValue(options.Environment, "SSH_TTY") != "" {
+		banner = fmt.Sprintf("Soda OS\nPerson: %s\nProject: %s\nBranch: people/%s\nWorkspace: %s\n\n", options.Actor, options.Project, options.Actor, layout.worktree)
+	}
+	return Invocation{Path: path, Argv: argv, Env: environment, Dir: layout.worktree, Banner: banner}, nil
+}
+
+func resolveSessionLayout(options Options) (sessionLayout, error) {
 	projectsRoot := options.ProjectsRoot
 	if projectsRoot == "" {
 		projectsRoot = defaultProjectsRoot
 	}
 	root, err := canonicalDirectory(projectsRoot, "projects root")
 	if err != nil {
-		return Invocation{}, err
+		return sessionLayout{}, err
 	}
 	worktree, err := canonicalDirectory(options.Worktree, "worktree")
-	if err != nil {
-		return Invocation{}, err
-	}
-	if !containedBy(root, worktree) {
-		return Invocation{}, errors.New("worktree is outside the Soda projects root")
+	if err != nil || !containedBy(root, worktree) {
+		if err != nil {
+			return sessionLayout{}, err
+		}
+		return sessionLayout{}, errors.New("worktree is outside the Soda projects root")
 	}
 	projectRoot, err := canonicalDirectory(filepath.Join(root, options.Project), "project root")
 	if err != nil {
-		return Invocation{}, err
+		return sessionLayout{}, err
 	}
-	expectedWorktree := filepath.Join(projectRoot, "worktrees", options.Actor)
-	if worktree != expectedWorktree {
-		return Invocation{}, errors.New("worktree does not match the Soda actor and project")
+	if worktree != filepath.Join(projectRoot, "worktrees", options.Actor) {
+		return sessionLayout{}, errors.New("worktree does not match the Soda actor and project")
 	}
 	home, err := canonicalDirectory(options.Home, "session home")
 	if err != nil {
-		return Invocation{}, err
+		return sessionLayout{}, err
 	}
-	expectedHome := filepath.Join(projectRoot, ".soda", "people", options.Actor, "home")
-	if home != expectedHome {
-		return Invocation{}, errors.New("session home does not match the Soda actor and project")
+	if home != filepath.Join(projectRoot, ".soda", "people", options.Actor, "home") {
+		return sessionLayout{}, errors.New("session home does not match the Soda actor and project")
 	}
+	return sessionLayout{projectRoot: projectRoot, worktree: worktree, home: home}, nil
+}
+
+func ensureGitWorktree(worktree string) error {
 	if _, err := os.Stat(filepath.Join(worktree, ".git")); err != nil {
 		if os.IsNotExist(err) {
-			return Invocation{}, errors.New("worktree is not a Git worktree")
+			return errors.New("worktree is not a Git worktree")
 		}
-		return Invocation{}, fmt.Errorf("inspect worktree Git metadata: %w", err)
+		return fmt.Errorf("inspect worktree Git metadata: %w", err)
 	}
-
-	path, argv, err := sessionCommand(options.OriginalCommand, options.Shell)
-	if err != nil {
-		return Invocation{}, err
-	}
-	environment := mergeEnvironment(options.Environment, map[string]string{
-		"HOME":            home,
-		"PWD":             worktree,
-		"SODA_ACTOR":      options.Actor,
-		"SODA_PROJECT":    options.Project,
-		"SODA_WORKTREE":   worktree,
-		"XDG_CACHE_HOME":  filepath.Join(home, ".cache"),
-		"XDG_CONFIG_HOME": filepath.Join(home, ".config"),
-		"XDG_DATA_HOME":   filepath.Join(home, ".local", "share"),
-		"XDG_STATE_HOME":  filepath.Join(home, ".local", "state"),
-	})
-
-	profile, err := projectEnvironment(worktree, root)
-	if err != nil {
-		return Invocation{}, err
-	}
-	if profile != nil {
-		inheritedPath := environmentValue(environment, "PATH")
-		if inheritedPath != "" {
-			profile["PATH"] = profile["PATH"] + ":" + inheritedPath
-		}
-		environment = mergeEnvironment(environment, profile)
-	}
-
-	banner := ""
-	if options.OriginalCommand == "" && environmentValue(options.Environment, "SSH_TTY") != "" {
-		banner = fmt.Sprintf("Soda OS\nPerson: %s\nProject: %s\nBranch: people/%s\nWorkspace: %s\n\n", options.Actor, options.Project, options.Actor, worktree)
-	}
-	return Invocation{Path: path, Argv: argv, Env: environment, Dir: worktree, Banner: banner}, nil
+	return nil
 }
 
 func validateActor(actor string) error {
@@ -217,84 +234,63 @@ func sessionCommand(original, shell string) (string, []string, error) {
 	}
 }
 
-func projectEnvironment(worktree, projectsRoot string) (map[string]string, error) {
-	for directory := worktree; containedBy(projectsRoot, directory); directory = filepath.Dir(directory) {
-		environmentLink := filepath.Join(directory, ".soda", "env")
-		info, err := os.Stat(environmentLink)
-		if err == nil {
-			if !info.Mode().IsRegular() {
-				return nil, errors.New("project environment link is not a regular file")
-			}
-			return loadProjectEnvironment(environmentLink)
-		}
-		if !os.IsNotExist(err) {
-			return nil, fmt.Errorf("inspect project environment: %w", err)
-		}
-		if directory == projectsRoot {
-			break
-		}
-	}
-	return nil, nil
-}
-
-func loadProjectEnvironment(linkPath string) (map[string]string, error) {
-	contents, err := os.ReadFile(linkPath)
+func projectEnvironment(projectRoot string) (map[string]string, error) {
+	path := filepath.Join(projectRoot, ".soda", "environment.json")
+	contents, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("read project environment: %w", err)
 	}
-	lines := nonemptyLines(string(contents))
-	if len(lines) != 1 || !strings.HasPrefix(lines[0], "source ") {
-		return nil, errors.New("project environment does not name exactly one profile")
+	var value domain.ProjectEnvironment
+	if err := json.Unmarshal(contents, &value); err != nil {
+		return nil, fmt.Errorf("parse project environment: %w", err)
 	}
-	profilePath := strings.TrimSpace(strings.TrimPrefix(lines[0], "source "))
-	if profilePath == "" || !filepath.IsAbs(profilePath) || strings.ContainsAny(profilePath, "\x00\r\n") {
-		return nil, errors.New("project environment profile path is invalid")
-	}
-	profileContents, err := os.ReadFile(profilePath)
-	if err != nil {
-		return nil, fmt.Errorf("read profile environment: %w", err)
-	}
-
-	environment := make(map[string]string)
-	for _, line := range nonemptyLines(string(profileContents)) {
-		if !strings.HasPrefix(line, "export ") {
-			return nil, fmt.Errorf("profile environment contains unsupported line %q", line)
-		}
-		name, value, found := strings.Cut(strings.TrimPrefix(line, "export "), "=")
-		if !found || value == "" {
-			return nil, fmt.Errorf("profile environment contains malformed assignment %q", line)
-		}
-		if _, duplicate := environment[name]; duplicate {
-			return nil, fmt.Errorf("profile environment defines %s more than once", name)
-		}
-		switch name {
-		case "SODA_PROFILE", "RUSTUP_HOME", "CARGO_HOME":
-			environment[name] = value
-		case "PATH":
-			prefix, ok := strings.CutSuffix(value, ":$PATH")
-			if !ok || prefix == "" {
-				return nil, errors.New("profile PATH has an unsupported form")
-			}
-			environment[name] = prefix
-		default:
-			return nil, fmt.Errorf("profile environment variable %s is not allowed", name)
-		}
-	}
-	if environment["SODA_PROFILE"] == "" || environment["PATH"] == "" {
-		return nil, errors.New("profile environment is incomplete")
-	}
-	return environment, nil
+	return sessionEnvironment(value)
 }
 
-func nonemptyLines(contents string) []string {
-	var lines []string
-	for _, line := range strings.Split(contents, "\n") {
-		line = strings.TrimSpace(line)
-		if line != "" {
-			lines = append(lines, line)
+func sessionEnvironment(value domain.ProjectEnvironment) (map[string]string, error) {
+	path, err := environmentPath(value.Path)
+	if err != nil {
+		return nil, err
+	}
+	if value.Profile == "" || strings.ContainsAny(value.Profile, "\x00\r\n") {
+		return nil, errors.New("project environment profile is invalid")
+	}
+	variables, err := environmentVariables(value.Variables)
+	if err != nil {
+		return nil, err
+	}
+	variables["SODA_PROFILE"] = value.Profile
+	variables["PATH"] = path
+	return variables, nil
+}
+
+func environmentPath(entries []string) (string, error) {
+	if len(entries) == 0 {
+		return "", errors.New("project environment PATH is empty")
+	}
+	for _, entry := range entries {
+		if entry == "" || !filepath.IsAbs(entry) || strings.ContainsAny(entry, "\x00\r\n:") {
+			return "", errors.New("project environment PATH entry is invalid")
 		}
 	}
-	return lines
+	return strings.Join(entries, ":"), nil
+}
+
+func environmentVariables(variables map[string]string) (map[string]string, error) {
+	result := make(map[string]string, len(variables)+2)
+	for name, value := range variables {
+		if name != "RUSTUP_HOME" && name != "CARGO_HOME" {
+			return nil, fmt.Errorf("project environment variable %s is not allowed", name)
+		}
+		if value == "" || !filepath.IsAbs(value) || strings.ContainsAny(value, "\x00\r\n") {
+			return nil, fmt.Errorf("project environment variable %s is invalid", name)
+		}
+		result[name] = value
+	}
+	if (result["RUSTUP_HOME"] == "") != (result["CARGO_HOME"] == "") {
+		return nil, errors.New("project environment Rust variables must appear together")
+	}
+	return result, nil
 }
 
 func mergeEnvironment(base []string, replacements map[string]string) []string {

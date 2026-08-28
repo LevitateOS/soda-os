@@ -172,46 +172,30 @@ func TestSSHDeviceFingerprintConstraintIsConcurrent(t *testing.T) {
 }
 
 func TestMembershipWorktreeJobsAndToolchainResolution(t *testing.T) {
-	repository, err := Open(filepath.Join(t.TempDir(), "soda.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	repository := testRepository(t)
 	ctx := context.Background()
 	person := domain.Person{ID: uuid.NewString(), Username: "alice", DisplayName: "Alice", Email: "alice@example.test", Role: domain.RoleDeveloper}
 	project := domain.Project{ID: uuid.NewString(), Slug: "demo", Name: "Demo", UnixUser: "soda-p-demo", Profile: domain.ToolchainGo, Source: domain.GitProjectSource{RemoteURL: "git@example.com:team/demo.git"}}
-	if err = repository.CreatePerson(ctx, person); err != nil {
+	if err := repository.CreatePerson(ctx, person); err != nil {
 		t.Fatal(err)
 	}
-	if err = repository.CreateProject(ctx, project); err != nil {
+	if err := repository.CreateProject(ctx, project); err != nil {
 		t.Fatal(err)
 	}
 	tree := domain.Worktree{ID: uuid.NewString(), ProjectID: project.ID, PersonID: person.ID, Name: "default", Branch: "people/alice", Path: "/projects/demo/alice"}
 	membership := domain.Membership{ProjectID: project.ID, PersonID: person.ID}
-	if err = repository.AddMembershipAndWorktree(ctx, membership, tree); err != nil {
+	if err := repository.AddMembershipAndWorktree(ctx, membership, tree); err != nil {
 		t.Fatal(err)
 	}
-	if err = repository.AddMembershipAndWorktree(ctx, membership, tree); !errors.Is(err, ErrAlreadyExists) {
+	if err := repository.AddMembershipAndWorktree(ctx, membership, tree); !errors.Is(err, ErrAlreadyExists) {
 		t.Fatalf("duplicate membership = %v", err)
 	}
 	secondTree := tree
 	secondTree.ID, secondTree.Branch, secondTree.Path = uuid.NewString(), "people/alice-task", "/projects/demo/alice-task"
-	if err = repository.CreateWorktree(ctx, secondTree); !errors.Is(err, ErrAlreadyExists) {
+	if err := repository.CreateWorktree(ctx, secondTree); !errors.Is(err, ErrAlreadyExists) {
 		t.Fatalf("second personal workspace = %v", err)
 	}
-	job := domain.ProvisioningJob{ID: uuid.NewString(), ProjectID: project.ID, State: domain.JobInstalling}
-	if err = repository.CreateJob(ctx, job); err != nil {
-		t.Fatal(err)
-	}
-	message := "download failed"
-	job.State = domain.JobFailed
-	job.Error = &message
-	if err = repository.UpdateJob(ctx, job); err != nil {
-		t.Fatal(err)
-	}
-	jobs, err := repository.Jobs(ctx, project.ID)
-	if err != nil || len(jobs) != 1 || jobs[0].State != domain.JobFailed {
-		t.Fatalf("jobs = %#v, %v", jobs, err)
-	}
+	assertProvisioningJobHistory(t, repository, ctx, project.ID)
 	installation := domain.ToolchainInstallation{ID: uuid.NewString(), Profile: domain.ToolchainGo, Version: "go1.25", Path: "/opt/go", Checksum: "abc", State: domain.JobReady}
 	resolution, err := repository.SaveInstallation(ctx, project.ID, installation)
 	if err != nil {
@@ -223,6 +207,33 @@ func TestMembershipWorktreeJobsAndToolchainResolution(t *testing.T) {
 	}
 	if got.Version != installation.Version || gotResolution != resolution {
 		t.Fatalf("installation = %#v, resolution = %#v", got, gotResolution)
+	}
+}
+
+func testRepository(t *testing.T) *Store {
+	t.Helper()
+	repository, err := Open(filepath.Join(t.TempDir(), "soda.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return repository
+}
+
+func assertProvisioningJobHistory(t *testing.T, repository *Store, ctx context.Context, projectID string) {
+	t.Helper()
+	job := domain.ProvisioningJob{ID: uuid.NewString(), ProjectID: projectID, State: domain.JobInstalling}
+	if err := repository.CreateJob(ctx, job); err != nil {
+		t.Fatal(err)
+	}
+	message := "download failed"
+	job.State = domain.JobFailed
+	job.Error = &message
+	if err := repository.UpdateJob(ctx, job); err != nil {
+		t.Fatal(err)
+	}
+	jobs, err := repository.Jobs(ctx, projectID)
+	if err != nil || len(jobs) != 1 || jobs[0].State != domain.JobFailed {
+		t.Fatalf("jobs = %#v, %v", jobs, err)
 	}
 }
 
@@ -301,19 +312,25 @@ func TestBeginProvisioningEnforcesLatestState(t *testing.T) {
 }
 
 func TestFailInterruptedProvisioningAllowsRetryAfterRestart(t *testing.T) {
-	repository, err := Open(filepath.Join(t.TempDir(), "soda.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	repository := testRepository(t)
 	ctx := context.Background()
 	project := domain.Project{ID: uuid.NewString(), Slug: "demo", Name: "Demo", UnixUser: "soda-p-demo", Profile: domain.ToolchainGo, Source: domain.EmptyProjectSource{}}
-	if err = repository.CreateProject(ctx, project); err != nil {
+	if err := repository.CreateProject(ctx, project); err != nil {
 		t.Fatal(err)
 	}
 	abandoned := domain.ProvisioningJob{ID: uuid.NewString(), ProjectID: project.ID, State: domain.JobInstalling}
-	if err = repository.BeginProvisioning(ctx, abandoned); err != nil {
+	if err := repository.BeginProvisioning(ctx, abandoned); err != nil {
 		t.Fatal(err)
 	}
+	assertRestartMarksProvisioningFailed(t, repository, ctx, project.ID)
+	retry := domain.ProvisioningJob{ID: uuid.NewString(), ProjectID: project.ID, State: domain.JobInstalling}
+	if err := repository.BeginProvisioning(ctx, retry); err != nil {
+		t.Fatalf("manual retry after restart reconciliation: %v", err)
+	}
+}
+
+func assertRestartMarksProvisioningFailed(t *testing.T, repository *Store, ctx context.Context, projectID string) {
+	t.Helper()
 	count, err := repository.FailInterruptedProvisioning(ctx)
 	if err != nil {
 		t.Fatal(err)
@@ -321,15 +338,11 @@ func TestFailInterruptedProvisioningAllowsRetryAfterRestart(t *testing.T) {
 	if count != 1 {
 		t.Fatalf("reconciled jobs = %d, want 1", count)
 	}
-	jobs, err := repository.Jobs(ctx, project.ID)
+	jobs, err := repository.Jobs(ctx, projectID)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(jobs) != 1 || jobs[0].State != domain.JobFailed || jobs[0].Error == nil || !strings.Contains(*jobs[0].Error, "daemon restart") {
 		t.Fatalf("reconciled job = %#v", jobs)
-	}
-	retry := domain.ProvisioningJob{ID: uuid.NewString(), ProjectID: project.ID, State: domain.JobInstalling}
-	if err = repository.BeginProvisioning(ctx, retry); err != nil {
-		t.Fatalf("manual retry after restart reconciliation: %v", err)
 	}
 }

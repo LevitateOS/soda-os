@@ -20,7 +20,9 @@ func TestCreatesEmptyProjectAndAttributedWorktree(t *testing.T) {
 		}
 	}
 	root := t.TempDir()
-	system := New(root, false)
+	system := New(root)
+	system.Runner = managedTestRunner{}
+	system.AuthorizedKeysRoot = filepath.Join(t.TempDir(), "authorized_keys")
 	project := domain.Project{ID: uuid.NewString(), Slug: "demo", Name: "Demo", UnixUser: "soda-p-demo", Profile: domain.ToolchainGo, Source: domain.EmptyProjectSource{}}
 	projectCleanup, err := system.CreateProject(context.Background(), project)
 	if err != nil {
@@ -34,10 +36,6 @@ func TestCreatesEmptyProjectAndAttributedWorktree(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = worktreeCleanup(context.Background()) })
-	key := domain.SSHDeviceKey{ID: uuid.NewString(), PersonID: person.ID, Label: "Laptop", PublicKey: "ssh-ed25519 AAAA alice", Fingerprint: "SHA256:test", IdentityFileHint: "~/.ssh/id_ed25519"}
-	if err = system.ReconcileAuthorizedKeys(context.Background(), project, []domain.ProjectAccess{{Person: person, Worktree: tree, Keys: []domain.SSHDeviceKey{key}}}); err != nil {
-		t.Fatal(err)
-	}
 	for key, want := range map[string]string{"user.name": person.DisplayName, "user.email": person.Email, "core.bare": "false"} {
 		output, err := exec.Command("git", "-C", tree.Path, "config", "--worktree", "--get", key).Output()
 		if err != nil {
@@ -47,14 +45,7 @@ func TestCreatesEmptyProjectAndAttributedWorktree(t *testing.T) {
 			t.Fatalf("%s = %q", key, output)
 		}
 	}
-	keys, err := os.ReadFile(filepath.Join(system.AuthorizedKeysRoot, project.UnixUser))
-	if err != nil {
-		t.Fatal(err)
-	}
 	home := filepath.Join(root, "demo", ".soda", "people", "alice", "home")
-	if !strings.Contains(string(keys), "--actor alice --project demo --worktree "+tree.Path+" --home "+home) {
-		t.Fatalf("authorized_keys = %q", keys)
-	}
 	workspace, err := os.Readlink(filepath.Join(home, "workspace"))
 	if err != nil || workspace != tree.Path {
 		t.Fatalf("workspace link = %q, %v", workspace, err)
@@ -70,7 +61,9 @@ func TestGitCloneRetryResolvesNonMainDefaultBranch(t *testing.T) {
 	ctx := context.Background()
 	root := t.TempDir()
 	remote := filepath.Join(t.TempDir(), "remote.git")
-	system := New(root, false)
+	system := New(root)
+	system.Runner = managedTestRunner{}
+	system.AuthorizedKeysRoot = filepath.Join(t.TempDir(), "authorized_keys")
 	project := domain.Project{ID: uuid.NewString(), Slug: "demo", Name: "Demo", UnixUser: "soda-p-demo", Profile: domain.ToolchainGo, Source: domain.GitProjectSource{RemoteURL: remote}}
 	cleanup, err := system.CreateProject(ctx, project)
 	if err != nil {
@@ -80,10 +73,25 @@ func TestGitCloneRetryResolvesNonMainDefaultBranch(t *testing.T) {
 	if err = system.EnsureRepository(ctx, project); err == nil {
 		t.Fatal("missing private remote unexpectedly cloned")
 	}
-	if _, statErr := os.Stat(filepath.Join(root, project.Slug, "repository.git")); !errors.Is(statErr, os.ErrNotExist) {
-		t.Fatalf("failed clone was not removed: %v", statErr)
+	if _, err := os.Stat(filepath.Join(root, project.Slug, "repository.git")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("failed clone was not removed: %v", err)
 	}
-	if _, err = system.Runner.Run(ctx, "git", []string{"init", "--bare", "--initial-branch=trunk", remote}, nil, ""); err != nil {
+	initializeTestRemote(t, ctx, system, remote)
+	if err = system.EnsureRepository(ctx, project); err != nil {
+		t.Fatalf("clone retry failed: %v", err)
+	}
+	branch, err := system.DefaultBranch(ctx, project)
+	if err != nil || branch != "trunk" {
+		t.Fatalf("default branch = %q, %v", branch, err)
+	}
+	if err = system.EnsureRepository(ctx, project); err != nil {
+		t.Fatalf("successful repository was not idempotent: %v", err)
+	}
+}
+
+func initializeTestRemote(t *testing.T, ctx context.Context, system *System, remote string) {
+	t.Helper()
+	if _, err := system.Runner.Run(ctx, "git", []string{"init", "--bare", "--initial-branch=trunk", remote}, nil, ""); err != nil {
 		t.Fatal(err)
 	}
 	tree, err := system.Runner.Run(ctx, "git", []string{"--git-dir", remote, "mktree"}, nil, "")
@@ -98,22 +106,30 @@ func TestGitCloneRetryResolvesNonMainDefaultBranch(t *testing.T) {
 	if _, err = system.Runner.Run(ctx, "git", []string{"--git-dir", remote, "update-ref", "refs/heads/trunk", strings.TrimSpace(commit)}, nil, ""); err != nil {
 		t.Fatal(err)
 	}
-	if err = system.EnsureRepository(ctx, project); err != nil {
-		t.Fatalf("clone retry failed: %v", err)
-	}
-	branch, err := system.DefaultBranch(ctx, project)
-	if err != nil || branch != "trunk" {
-		t.Fatalf("default branch = %q, %v", branch, err)
-	}
-	if err = system.EnsureRepository(ctx, project); err != nil {
-		t.Fatalf("successful repository was not idempotent: %v", err)
-	}
 }
 
 type recordedCall struct {
 	name  string
 	args  []string
 	input string
+}
+
+type managedTestRunner struct{ ExecRunner }
+
+func (managedTestRunner) Run(ctx context.Context, name string, args []string, environment map[string]string, input string) (string, error) {
+	switch name {
+	case "useradd":
+		for index, arg := range args {
+			if arg == "--home-dir" && index+1 < len(args) {
+				return "", os.MkdirAll(args[index+1], 0o755)
+			}
+		}
+		return "", nil
+	case "userdel", "chown", "restorecon":
+		return "", nil
+	default:
+		return ExecRunner{}.Run(ctx, name, args, environment, input)
+	}
 }
 
 type recordingRunner struct {
@@ -132,7 +148,7 @@ func (r *recordingRunner) Run(_ context.Context, name string, args []string, _ m
 
 func TestCreatePersonUsesRelaxedSixCharacterPasswordPolicy(t *testing.T) {
 	runner := &recordingRunner{}
-	system := New(t.TempDir(), true)
+	system := New(t.TempDir())
 	system.Runner = runner
 	person := domain.Person{Username: "alice", Role: domain.RoleDeveloper}
 	for _, password := range []string{"simple", "with spaces", "colon:allowed"} {
@@ -158,7 +174,7 @@ func TestCreatePersonUsesRelaxedSixCharacterPasswordPolicy(t *testing.T) {
 
 func TestPersonAccountsDoNotUseSodaRoleGroups(t *testing.T) {
 	runner := &recordingRunner{}
-	system := New(t.TempDir(), true)
+	system := New(t.TempDir())
 	system.Runner = runner
 	person := domain.Person{Username: "alice", Role: domain.RoleAdmin}
 	if _, err := system.CreatePerson(context.Background(), person, "simple"); err != nil {
@@ -176,7 +192,7 @@ func TestPersonAccountsDoNotUseSodaRoleGroups(t *testing.T) {
 
 func TestImportPersonOnlyVerifiesLinuxAccount(t *testing.T) {
 	runner := &recordingRunner{}
-	system := New(t.TempDir(), true)
+	system := New(t.TempDir())
 	system.Runner = runner
 	if _, err := system.ImportPerson(context.Background(), domain.Person{Username: "alice", Role: domain.RoleDeveloper}); err != nil {
 		t.Fatal(err)
@@ -189,7 +205,7 @@ func TestImportPersonOnlyVerifiesLinuxAccount(t *testing.T) {
 func TestProjectAuthorizedKeysRemainRootOwnedOutsideProjectHome(t *testing.T) {
 	root := t.TempDir()
 	runner := &recordingRunner{}
-	system := New(root, true)
+	system := New(root)
 	system.Runner = runner
 	system.AuthorizedKeysRoot = filepath.Join(t.TempDir(), "authorized_keys")
 	project := domain.Project{Slug: "demo", UnixUser: "soda-p-demo", Source: domain.GitProjectSource{RemoteURL: "https://example.test/demo.git"}}
@@ -224,7 +240,12 @@ func TestProjectAuthorizedKeysRemainRootOwnedOutsideProjectHome(t *testing.T) {
 		{ID: uuid.NewString(), PersonID: person.ID, Label: "Workstation", PublicKey: "ssh-ed25519 AQ== workstation", Fingerprint: "SHA256:z"},
 		{ID: uuid.NewString(), PersonID: person.ID, Label: "Laptop", PublicKey: "ssh-ed25519 AAAA laptop", Fingerprint: "SHA256:a"},
 	}
-	if err = system.ReconcileAuthorizedKeys(context.Background(), project, []domain.ProjectAccess{{Person: person, Worktree: tree, Keys: keys}}); err != nil {
+	assertReconciledAuthorizedKeysOwnership(t, root, system, runner, project, person, tree, keys, keyFile)
+}
+
+func assertReconciledAuthorizedKeysOwnership(t *testing.T, root string, system *System, runner *recordingRunner, project domain.Project, person domain.Person, tree domain.Worktree, keys []domain.SSHDeviceKey, keyFile string) {
+	t.Helper()
+	if err := system.ReconcileAuthorizedKeys(context.Background(), project, []domain.ProjectAccess{{Person: person, Worktree: tree, Keys: keys}}); err != nil {
 		t.Fatal(err)
 	}
 	if !hasCall(runner.calls, "chown", "root:root", keyFile) {
@@ -240,7 +261,7 @@ func TestProjectAuthorizedKeysRemainRootOwnedOutsideProjectHome(t *testing.T) {
 func TestCreateSessionHomeMakesPeopleRootTraversableByProjectAccount(t *testing.T) {
 	root := t.TempDir()
 	runner := &recordingRunner{}
-	system := New(root, true)
+	system := New(root)
 	system.Runner = runner
 	project := domain.Project{Slug: "demo", UnixUser: "soda-p-demo"}
 	person := domain.Person{Username: "alice"}
@@ -261,7 +282,7 @@ func TestCreateSessionHomeMakesPeopleRootTraversableByProjectAccount(t *testing.
 
 func TestCreatePersonCleansPartialUserAfterChpasswdFailure(t *testing.T) {
 	runner := &recordingRunner{failName: "chpasswd"}
-	system := New(t.TempDir(), true)
+	system := New(t.TempDir())
 	system.Runner = runner
 	person := domain.Person{Username: "alice", Role: domain.RoleDeveloper}
 	if _, err := system.CreatePerson(context.Background(), person, "simple"); err == nil {
@@ -275,7 +296,7 @@ func TestCreatePersonCleansPartialUserAfterChpasswdFailure(t *testing.T) {
 func TestCreateProjectCleansPartialAccountAndFiles(t *testing.T) {
 	root := t.TempDir()
 	runner := &recordingRunner{failName: "ssh-keygen"}
-	system := New(root, true)
+	system := New(root)
 	system.Runner = runner
 	system.AuthorizedKeysRoot = filepath.Join(t.TempDir(), "authorized_keys")
 	project := domain.Project{Slug: "demo", UnixUser: "soda-p-demo", Source: domain.EmptyProjectSource{}}
@@ -313,7 +334,9 @@ func TestCreateWorktreeCleansPartialGitWorktreeAndBranch(t *testing.T) {
 		}
 	}
 	root := t.TempDir()
-	system := New(root, false)
+	system := New(root)
+	system.Runner = managedTestRunner{}
+	system.AuthorizedKeysRoot = filepath.Join(t.TempDir(), "authorized_keys")
 	project := domain.Project{ID: uuid.NewString(), Slug: "demo", UnixUser: "soda-p-demo", Source: domain.EmptyProjectSource{}}
 	projectCleanup, err := system.CreateProject(context.Background(), project)
 	if err != nil {

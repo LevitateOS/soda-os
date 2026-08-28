@@ -17,7 +17,6 @@ import (
 	"github.com/google/go-containerregistry/pkg/authn"
 	"github.com/google/go-containerregistry/pkg/name"
 	"github.com/google/go-containerregistry/pkg/v1/remote"
-	"github.com/google/go-containerregistry/pkg/v1/types"
 )
 
 const (
@@ -167,6 +166,10 @@ func (m *Manager) inspectRelease(ctx context.Context, exactReference string) (Ca
 	if err != nil {
 		return Candidate{}, fmt.Errorf("%w: signed image verification failed", ErrRejected)
 	}
+	return candidateFromMetadata(exactReference, metadata)
+}
+
+func candidateFromMetadata(exactReference string, metadata imageMetadata) (Candidate, error) {
 	if metadata.OS != "linux" || metadata.Architecture != "arm64" {
 		return Candidate{}, fmt.Errorf("%w: release platform is %s/%s, expected %s", ErrRejected, metadata.OS, metadata.Architecture, Platform)
 	}
@@ -192,6 +195,10 @@ func (m *Manager) Stage(ctx context.Context, exactReference string) (Status, err
 	if !isSodaDigestReference(exactReference) {
 		return Status{}, fmt.Errorf("%w: an exact %s digest reference is required", ErrInvalid, Repository)
 	}
+	return m.stageVerified(ctx, exactReference)
+}
+
+func (m *Manager) stageVerified(ctx context.Context, exactReference string) (Status, error) {
 	current, err := m.Status(ctx)
 	if err != nil {
 		return Status{}, err
@@ -209,10 +216,17 @@ func (m *Manager) Stage(ctx context.Context, exactReference string) (Status, err
 	if err != nil {
 		return Status{}, err
 	}
-	if status.Staged == nil || status.Staged.ImageReference != exactReference || !status.Staged.DownloadOnly || status.Staged.Signature != "containerPolicy" || status.Staged.Architecture != "arm64" || status.Staged.Incompatible {
+	if !matchesDownloadedDeployment(status.Staged, exactReference) {
 		return Status{}, fmt.Errorf("%w: bootc did not lock the exact signed AArch64 deployment", ErrPrecondition)
 	}
 	return status, nil
+}
+
+func matchesDownloadedDeployment(deployment *Deployment, exactReference string) bool {
+	if deployment == nil {
+		return false
+	}
+	return deployment.ImageReference == exactReference && deployment.DownloadOnly && deployment.Signature == "containerPolicy" && deployment.Architecture == "arm64" && !deployment.Incompatible
 }
 
 func (m *Manager) Activate(ctx context.Context, confirmed bool) error {
@@ -246,28 +260,10 @@ func (d remoteDiscovery) ResolveCurrent(ctx context.Context) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	exact := Repository + "@" + descriptor.Digest.String()
-	switch descriptor.MediaType {
-	case types.OCIManifestSchema1, types.DockerManifestSchema2:
-		return exact, nil
-	case types.OCIImageIndex, types.DockerManifestList:
-		index, err := descriptor.ImageIndex()
-		if err != nil {
-			return "", err
-		}
-		manifest, err := index.IndexManifest()
-		if err != nil {
-			return "", err
-		}
-		if len(manifest.Manifests) != 1 || manifest.Manifests[0].Platform == nil || manifest.Manifests[0].Platform.OS != "linux" || manifest.Manifests[0].Platform.Architecture != "arm64" {
-			return "", errors.New("current must contain exactly one linux/arm64 manifest")
-		}
-		imageDigest := manifest.Manifests[0].Digest
-		imageRef := Repository + "@" + imageDigest.String()
-		return imageRef, nil
-	default:
-		return "", fmt.Errorf("unsupported current manifest type %s", descriptor.MediaType)
+	if descriptor.MediaType.IsImage() {
+		return Repository + "@" + descriptor.Digest.String(), nil
 	}
+	return "", fmt.Errorf("current must be one linux/arm64 image manifest, got %s", descriptor.MediaType)
 }
 
 type imageMetadata struct {

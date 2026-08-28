@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"unicode/utf8"
 
 	pam "github.com/msteinert/pam/v2"
 )
@@ -41,29 +40,8 @@ func (PAM) Authenticate(username, password string) (Result, error) {
 }
 
 func (PAM) ChangePassword(username, currentPassword, newPassword string) error {
-	if err := validateNewPassword(newPassword); err != nil {
-		return err
-	}
-	changing := false
-	transaction, err := pam.StartFunc("soda-cockpit", username, func(style pam.Style, prompt string) (string, error) {
-		switch style {
-		case pam.PromptEchoOff:
-			if !changing {
-				return currentPassword, nil
-			}
-			lower := strings.ToLower(prompt)
-			if strings.Contains(lower, "current") || strings.Contains(lower, "old") {
-				return currentPassword, nil
-			}
-			return newPassword, nil
-		case pam.PromptEchoOn:
-			return username, nil
-		case pam.ErrorMsg, pam.TextInfo:
-			return "", nil
-		default:
-			return "", fmt.Errorf("unsupported PAM conversation style %d", style)
-		}
-	})
+	conversation := passwordChangeConversation{username: username, currentPassword: currentPassword, newPassword: newPassword}
+	transaction, err := pam.StartFunc("soda-cockpit", username, conversation.respond)
 	if err != nil {
 		return err
 	}
@@ -71,24 +49,46 @@ func (PAM) ChangePassword(username, currentPassword, newPassword string) error {
 	if err = transaction.Authenticate(pam.DisallowNullAuthtok); err != nil {
 		return err
 	}
-	accountErr := transaction.AcctMgmt(pam.Silent)
-	if accountErr != nil && !errors.Is(accountErr, pam.ErrNewAuthtokReqd) {
-		return accountErr
+	flags, err := passwordChangeFlags(transaction.AcctMgmt(pam.Silent))
+	if err != nil {
+		return err
 	}
-	changing = true
-	flags := pam.Flags(0)
-	if errors.Is(accountErr, pam.ErrNewAuthtokReqd) {
-		flags = pam.ChangeExpiredAuthtok
-	}
+	conversation.changing = true
 	return transaction.ChangeAuthTok(flags)
 }
 
-func validateNewPassword(password string) error {
-	if utf8.RuneCountInString(password) < 6 {
-		return errors.New("password must contain at least 6 characters")
+type passwordChangeConversation struct {
+	username, currentPassword, newPassword string
+	changing                               bool
+}
+
+func (c *passwordChangeConversation) respond(style pam.Style, prompt string) (string, error) {
+	switch style {
+	case pam.PromptEchoOff:
+		if !c.changing {
+			return c.currentPassword, nil
+		}
+		lower := strings.ToLower(prompt)
+		if strings.Contains(lower, "current") || strings.Contains(lower, "old") {
+			return c.currentPassword, nil
+		}
+		return c.newPassword, nil
+	case pam.PromptEchoOn:
+		return c.username, nil
+	case pam.ErrorMsg, pam.TextInfo:
+		return "", nil
+	default:
+		return "", fmt.Errorf("unsupported PAM conversation style %d", style)
 	}
-	if strings.ContainsAny(password, "\r\n\x00") {
-		return errors.New("password contains a line or NUL delimiter")
+}
+
+func passwordChangeFlags(accountErr error) (pam.Flags, error) {
+	switch {
+	case accountErr == nil:
+		return 0, nil
+	case errors.Is(accountErr, pam.ErrNewAuthtokReqd):
+		return pam.ChangeExpiredAuthtok, nil
+	default:
+		return 0, accountErr
 	}
-	return nil
 }

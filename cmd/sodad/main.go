@@ -31,14 +31,6 @@ func run(logger *slog.Logger) error {
 	database := env("SODA_DATABASE", filepath.Join(config.DefaultStateDir, "soda.db"))
 	projects := env("SODA_PROJECTS_ROOT", config.DefaultProjectsDir)
 	toolchains := env("SODA_TOOLCHAINS_ROOT", config.DefaultToolchainsDir)
-	for _, path := range []string{filepath.Dir(database), projects, toolchains} {
-		if err := os.MkdirAll(path, 0o755); err != nil {
-			return err
-		}
-		if err := os.Chmod(path, 0o755); err != nil {
-			return err
-		}
-	}
 	persistence, err := store.Open(database)
 	if err != nil {
 		return err
@@ -50,7 +42,7 @@ func run(logger *slog.Logger) error {
 	if interrupted != 0 {
 		logger.Warn("marked interrupted provisioning jobs failed", slog.Int64("jobs", interrupted))
 	}
-	system := host.New(projects, true)
+	system := host.New(projects)
 	observer, err := observe.NewManager(observe.NewSystemHostSampler(nil, nil))
 	if err != nil {
 		return err
@@ -65,7 +57,7 @@ func run(logger *slog.Logger) error {
 	if err = service.ReconcileAllAuthorizedKeys(runContext); err != nil {
 		return err
 	}
-	server, err := daemon.ListenUnix(socket, "soda-api", service, logger)
+	server, err := daemon.ListenUnix(socket, service, logger)
 	if err != nil {
 		return err
 	}

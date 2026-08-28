@@ -7,6 +7,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"io"
 	"net/http"
 	"os"
@@ -15,6 +16,7 @@ import (
 	"testing"
 
 	"github.com/LevitateOS/soda-os/internal/domain"
+	"github.com/stretchr/testify/require"
 )
 
 type fixtureClient struct {
@@ -110,6 +112,24 @@ func TestCompletedToolchainAncestorsAreTraversable(t *testing.T) {
 			t.Fatalf("%s mode = %o", path, info.Mode().Perm())
 		}
 	}
+}
+
+func TestWriteInstallationEmitsStructuredRustEnvironment(t *testing.T) {
+	root := t.TempDir()
+	manager := New(root)
+	paths := []string{filepath.Join(root, "rust", "1.90.0", "cargo", "bin")}
+	installation, err := manager.writeInstallation(domain.ToolchainRust, []artifact{{tool: "rust", version: "1.90.0", checksum: strings.Repeat("a", 64)}}, "rust=1.90.0", paths)
+	require.NoError(t, err)
+	encoded, err := os.ReadFile(filepath.Join(installation.Path, "environment.json"))
+	require.NoError(t, err)
+	var environment domain.ProjectEnvironment
+	require.NoError(t, json.Unmarshal(encoded, &environment))
+	wantVariables := map[string]string{
+		"RUSTUP_HOME": filepath.Join(root, "rust", "1.90.0", "rustup"),
+		"CARGO_HOME":  filepath.Join(root, "rust", "1.90.0", "cargo"),
+	}
+	require.Equal(t, domain.ProjectEnvironment{Profile: string(domain.ToolchainRust), Path: paths, Variables: wantVariables}, environment)
+	require.NoFileExists(t, filepath.Join(installation.Path, "env"))
 }
 
 func TestDefaultHTTPClientHasRequestTimeout(t *testing.T) {

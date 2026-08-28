@@ -54,33 +54,22 @@ type artifact struct {
 
 const defaultHTTPRequestTimeout = 10 * time.Minute
 
+var normalizedToolBinaries = map[string]bool{"uv": true, "bun": true}
+
 func New(root string) *Manager {
 	return &Manager{Root: root, Client: &http.Client{Timeout: defaultHTTPRequestTimeout}}
 }
 
 func (m *Manager) Install(ctx context.Context, profile domain.ToolchainProfile) (domain.ToolchainInstallation, error) {
-	if !validProfile(profile) {
-		return domain.ToolchainInstallation{}, fmt.Errorf("unknown toolchain profile %q", profile)
-	}
-	if err := os.MkdirAll(m.Root, 0o755); err != nil {
-		return domain.ToolchainInstallation{}, err
-	}
-	if err := os.Chmod(m.Root, 0o755); err != nil {
-		return domain.ToolchainInstallation{}, err
-	}
-	lock, err := os.OpenFile(filepath.Join(m.Root, "."+string(profile)+".lock"), os.O_CREATE|os.O_RDWR, 0o600)
-	if err != nil {
-		return domain.ToolchainInstallation{}, err
-	}
-	defer lock.Close()
-	if err = unix.Flock(int(lock.Fd()), unix.LOCK_EX); err != nil {
-		return domain.ToolchainInstallation{}, err
-	}
-	defer unix.Flock(int(lock.Fd()), unix.LOCK_UN)
 	artifacts, err := m.resolve(ctx, profile)
 	if err != nil {
 		return domain.ToolchainInstallation{}, err
 	}
+	release, err := m.lockProfile(profile)
+	if err != nil {
+		return domain.ToolchainInstallation{}, err
+	}
+	defer release()
 	versions := make([]string, 0, len(artifacts))
 	paths := make([]string, 0, len(artifacts))
 	for _, item := range artifacts {
@@ -100,23 +89,52 @@ func (m *Manager) Install(ctx context.Context, profile domain.ToolchainProfile) 
 		paths = append(paths, pythonPath)
 		version += ",python=" + pythonVersion
 	}
+	return m.writeInstallation(profile, artifacts, version, paths)
+}
+
+func (m *Manager) lockProfile(profile domain.ToolchainProfile) (func(), error) {
+	if err := os.MkdirAll(m.Root, 0o755); err != nil {
+		return nil, err
+	}
+	if err := os.Chmod(m.Root, 0o755); err != nil {
+		return nil, err
+	}
+	lock, err := os.OpenFile(filepath.Join(m.Root, "."+string(profile)+".lock"), os.O_CREATE|os.O_RDWR, 0o600)
+	if err != nil {
+		return nil, err
+	}
+	if err := unix.Flock(int(lock.Fd()), unix.LOCK_EX); err != nil {
+		lock.Close()
+		return nil, err
+	}
+	return func() {
+		_ = unix.Flock(int(lock.Fd()), unix.LOCK_UN)
+		_ = lock.Close()
+	}, nil
+}
+
+func (m *Manager) writeInstallation(profile domain.ToolchainProfile, artifacts []artifact, version string, paths []string) (domain.ToolchainInstallation, error) {
 	digest := sha256.Sum256([]byte(version))
 	profileRoot := filepath.Join(m.Root, "profiles", string(profile), hex.EncodeToString(digest[:]))
-	if err = os.MkdirAll(profileRoot, 0o755); err != nil {
+	if err := os.MkdirAll(profileRoot, 0o755); err != nil {
 		return domain.ToolchainInstallation{}, err
 	}
-	var env strings.Builder
-	fmt.Fprintf(&env, "export SODA_PROFILE=%s\n", profile)
+	environment := domain.ProjectEnvironment{Profile: string(profile), Path: paths}
 	if profile == domain.ToolchainRust {
 		rust := findArtifact(artifacts, "rust")
 		if rust == nil {
 			return domain.ToolchainInstallation{}, errors.New("Rust profile is missing rustup")
 		}
-		fmt.Fprintf(&env, "export RUSTUP_HOME=%s\n", filepath.Join(m.Root, "rust", rust.version, "rustup"))
-		fmt.Fprintf(&env, "export CARGO_HOME=%s\n", filepath.Join(m.Root, "rust", rust.version, "cargo"))
+		environment.Variables = map[string]string{
+			"RUSTUP_HOME": filepath.Join(m.Root, "rust", rust.version, "rustup"),
+			"CARGO_HOME":  filepath.Join(m.Root, "rust", rust.version, "cargo"),
+		}
 	}
-	fmt.Fprintf(&env, "export PATH=%s:$PATH\n", strings.Join(paths, ":"))
-	if err = os.WriteFile(filepath.Join(profileRoot, "env"), []byte(env.String()), 0o644); err != nil {
+	encoded, err := json.Marshal(environment)
+	if err != nil {
+		return domain.ToolchainInstallation{}, err
+	}
+	if err = os.WriteFile(filepath.Join(profileRoot, "environment.json"), append(encoded, '\n'), 0o644); err != nil {
 		return domain.ToolchainInstallation{}, err
 	}
 	if err = makeReadable(m.Root, profileRoot); err != nil {
@@ -258,40 +276,35 @@ func (m *Manager) resolveGitHub(ctx context.Context, repository, assetName, tool
 
 func (m *Manager) installArtifact(ctx context.Context, item artifact) (string, error) {
 	destination := filepath.Join(m.Root, item.tool, item.version)
-	ready := filepath.Join(destination, ".ready")
-	if _, err := os.Stat(ready); err == nil {
-		if err = makeReadable(m.Root, destination); err != nil {
+	if _, err := os.Stat(filepath.Join(destination, ".ready")); err == nil {
+		if err := makeReadable(m.Root, destination); err != nil {
 			return "", err
 		}
 		return artifactBin(item, destination), nil
 	}
+	payload, err := m.getBytes(ctx, item.url)
+	if err != nil {
+		return "", err
+	}
+	if err := VerifyChecksum(payload, item.checksum); err != nil {
+		return "", err
+	}
+	return m.materializeArtifact(ctx, item, destination, payload)
+}
+
+func (m *Manager) materializeArtifact(ctx context.Context, item artifact, destination string, payload []byte) (string, error) {
+	ready := filepath.Join(destination, ".ready")
 	if err := os.RemoveAll(destination); err != nil {
 		return "", err
 	}
 	if err := os.MkdirAll(destination, 0o755); err != nil {
 		return "", err
 	}
-	payload, err := m.getBytes(ctx, item.url)
+	err := m.unpackArtifact(ctx, item, payload, destination)
 	if err != nil {
 		return "", err
 	}
-	if err = VerifyChecksum(payload, item.checksum); err != nil {
-		return "", err
-	}
-	switch item.kind {
-	case tarGz:
-		err = extractTarGz(payload, destination)
-	case tarXz:
-		err = extractTarXz(ctx, payload, destination)
-	case zipArchive:
-		err = extractZip(payload, destination)
-	case executable:
-		err = m.installRustup(ctx, payload, destination)
-	}
-	if err != nil {
-		return "", err
-	}
-	if item.tool == "uv" || item.tool == "bun" {
+	if normalizedToolBinaries[item.tool] {
 		if err = normalizeBinary(destination, item.tool); err != nil {
 			return "", err
 		}
@@ -303,6 +316,21 @@ func (m *Manager) installArtifact(ctx context.Context, item artifact) (string, e
 		return "", err
 	}
 	return artifactBin(item, destination), nil
+}
+
+func (m *Manager) unpackArtifact(ctx context.Context, item artifact, payload []byte, destination string) error {
+	switch item.kind {
+	case tarGz:
+		return extractTarGz(payload, destination)
+	case tarXz:
+		return extractTarXz(ctx, payload, destination)
+	case zipArchive:
+		return extractZip(payload, destination)
+	case executable:
+		return m.installRustup(ctx, payload, destination)
+	default:
+		return errors.New("unsupported toolchain artifact")
+	}
 }
 func (m *Manager) installRustup(ctx context.Context, payload []byte, destination string) error {
 	temporary, err := os.CreateTemp(m.Root, ".rustup-init-")
@@ -410,9 +438,6 @@ func aggregateChecksum(items []artifact) string {
 	}
 	return hex.EncodeToString(hash.Sum(nil))
 }
-func validProfile(profile domain.ToolchainProfile) bool {
-	return profile == domain.ToolchainWeb || profile == domain.ToolchainPython || profile == domain.ToolchainRust || profile == domain.ToolchainGo
-}
 func contains(values []string, want string) bool {
 	for _, value := range values {
 		if value == want {
@@ -458,40 +483,41 @@ func extractTar(reader io.Reader, destination string) error {
 		if len(parts) < 2 {
 			continue
 		}
-		relative := filepath.Join(parts[1:]...)
-		target := filepath.Join(destination, relative)
+		target := filepath.Join(destination, filepath.Join(parts[1:]...))
 		if !within(destination, target) {
 			return errors.New("archive path escapes destination")
 		}
-		switch header.Typeflag {
-		case tar.TypeDir:
-			if err = os.MkdirAll(target, os.FileMode(header.Mode)); err != nil {
-				return err
-			}
-		case tar.TypeReg:
-			if err = os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
-				return err
-			}
-			file, openErr := os.OpenFile(target, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, os.FileMode(header.Mode))
-			if openErr != nil {
-				return openErr
-			}
-			_, copyErr := io.Copy(file, archive)
-			closeErr := file.Close()
-			if copyErr != nil {
-				return copyErr
-			}
-			if closeErr != nil {
-				return closeErr
-			}
-		case tar.TypeSymlink:
-			if err = os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
-				return err
-			}
-			if err = os.Symlink(header.Linkname, target); err != nil {
-				return err
-			}
+		if err := writeTarEntry(archive, header, target); err != nil {
+			return err
 		}
+	}
+}
+
+func writeTarEntry(archive *tar.Reader, header *tar.Header, target string) error {
+	switch header.Typeflag {
+	case tar.TypeDir:
+		return os.MkdirAll(target, os.FileMode(header.Mode))
+	case tar.TypeReg:
+		if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+			return err
+		}
+		file, err := os.OpenFile(target, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, os.FileMode(header.Mode))
+		if err != nil {
+			return err
+		}
+		_, copyErr := io.Copy(file, archive)
+		closeErr := file.Close()
+		if copyErr != nil {
+			return copyErr
+		}
+		return closeErr
+	case tar.TypeSymlink:
+		if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+			return err
+		}
+		return os.Symlink(header.Linkname, target)
+	default:
+		return nil
 	}
 }
 func extractTarXz(ctx context.Context, payload []byte, destination string) error {
@@ -520,42 +546,43 @@ func extractZip(payload []byte, destination string) error {
 		return err
 	}
 	for _, entry := range reader.File {
-		target := filepath.Join(destination, entry.Name)
-		if !within(destination, target) {
-			return errors.New("archive path escapes destination")
-		}
-		if entry.FileInfo().IsDir() {
-			if err = os.MkdirAll(target, entry.Mode()); err != nil {
-				return err
-			}
-			continue
-		}
-		if err = os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+		if err := writeZipEntry(entry, destination); err != nil {
 			return err
-		}
-		source, err := entry.Open()
-		if err != nil {
-			return err
-		}
-		file, err := os.OpenFile(target, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, entry.Mode())
-		if err != nil {
-			source.Close()
-			return err
-		}
-		_, copyErr := io.Copy(file, source)
-		closeErr := file.Close()
-		sourceErr := source.Close()
-		if copyErr != nil {
-			return copyErr
-		}
-		if closeErr != nil {
-			return closeErr
-		}
-		if sourceErr != nil {
-			return sourceErr
 		}
 	}
 	return nil
+}
+
+func writeZipEntry(entry *zip.File, destination string) error {
+	target := filepath.Join(destination, entry.Name)
+	if !within(destination, target) {
+		return errors.New("archive path escapes destination")
+	}
+	if entry.FileInfo().IsDir() {
+		return os.MkdirAll(target, entry.Mode())
+	}
+	if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+		return err
+	}
+	source, err := entry.Open()
+	if err != nil {
+		return err
+	}
+	file, err := os.OpenFile(target, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, entry.Mode())
+	if err != nil {
+		source.Close()
+		return err
+	}
+	_, copyErr := io.Copy(file, source)
+	closeErr := file.Close()
+	sourceErr := source.Close()
+	if copyErr != nil {
+		return copyErr
+	}
+	if closeErr != nil {
+		return closeErr
+	}
+	return sourceErr
 }
 func within(root, target string) bool {
 	relative, err := filepath.Rel(root, target)

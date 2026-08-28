@@ -109,32 +109,32 @@ func Open(path string) (*Store, error) {
 	// deterministic. Calls still queue safely through database/sql.
 	sqlDB.SetMaxOpenConns(1)
 	sqlDB.SetMaxIdleConns(1)
-	if err := db.Exec("PRAGMA busy_timeout = 5000").Error; err != nil {
+	if err = db.Exec("PRAGMA busy_timeout = 5000").Error; err != nil {
 		return nil, fmt.Errorf("configure SQLite busy timeout: %w", err)
 	}
-	if err := db.Exec("PRAGMA foreign_keys = ON").Error; err != nil {
+	if err = db.Exec("PRAGMA foreign_keys = ON").Error; err != nil {
 		return nil, fmt.Errorf("enable SQLite foreign keys: %w", err)
 	}
+	if err := ensureSchemaV2(db); err != nil {
+		return nil, err
+	}
+	return &Store{db: db}, nil
+}
+
+func ensureSchemaV2(db *gorm.DB) error {
 	var version int
 	if err := db.Raw("PRAGMA user_version").Scan(&version).Error; err != nil {
-		return nil, fmt.Errorf("read Soda schema version: %w", err)
-	}
-	var tables int64
-	if err := db.Raw("SELECT count(*) FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'").Scan(&tables).Error; err != nil {
-		return nil, fmt.Errorf("inspect Soda schema: %w", err)
-	}
-	if version == 0 && tables != 0 {
-		return nil, fmt.Errorf("%w: unversioned database; this Soda OS release requires a fresh installation", ErrUnsupportedSchema)
+		return fmt.Errorf("read Soda schema version: %w", err)
 	}
 	if version != 0 && version != SchemaVersion {
-		return nil, fmt.Errorf("%w: found version %d, expected %d; this Soda OS release requires a fresh installation", ErrUnsupportedSchema, version, SchemaVersion)
+		return fmt.Errorf("%w: found version %d, expected %d; this Soda OS release requires a fresh installation", ErrUnsupportedSchema, version, SchemaVersion)
 	}
 	if version == 0 {
 		if err := initializeSchema(db, nil); err != nil {
-			return nil, err
+			return err
 		}
 	}
-	return &Store{db: db}, nil
+	return nil
 }
 
 func initializeSchema(db *gorm.DB, beforeVersion func(*gorm.DB) error) error {

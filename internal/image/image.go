@@ -4,10 +4,7 @@ package image
 import (
 	"context"
 	"crypto/sha256"
-	"crypto/x509"
 	"encoding/hex"
-	"encoding/json"
-	"encoding/pem"
 	"errors"
 	"fmt"
 	"io"
@@ -34,23 +31,6 @@ const (
 
 var targetRPMs = []string{"soda-release", "soda-runtime", "soda-cockpit"}
 
-var builderPackageNames = []string{
-	"ca-certificates",
-	"cpio",
-	"gcc",
-	"gcc-c++",
-	"git",
-	"golang",
-	"make",
-	"pam-devel",
-	"pkgconf-pkg-config",
-	"rpm-build",
-	"systemd-rpm-macros",
-	"tar",
-	"unzip",
-	"xz",
-}
-
 type packageLock struct {
 	SchemaVersion uint32          `toml:"schema_version"`
 	BaseReference string          `toml:"base_reference"`
@@ -64,19 +44,6 @@ type lockedPackage struct {
 	File   string `toml:"file"`
 }
 
-type builderPackageLock struct {
-	SchemaVersion   uint32                 `toml:"schema_version"`
-	BaseReference   string                 `toml:"base_reference"`
-	Platform        string                 `toml:"platform"`
-	InventorySHA256 string                 `toml:"inventory_sha256"`
-	Package         []builderLockedPackage `toml:"package"`
-}
-
-type builderLockedPackage struct {
-	Name  string `toml:"name"`
-	NEVRA string `toml:"nevra"`
-}
-
 type releaseToolLock struct {
 	Version string              `toml:"version"`
 	Binary  []releaseToolBinary `toml:"binary"`
@@ -86,22 +53,6 @@ type releaseToolBinary struct {
 	OS     string `toml:"os"`
 	Arch   string `toml:"arch"`
 	SHA256 string `toml:"sha256"`
-}
-
-type rpmInventory struct {
-	SchemaVersion    uint32             `json:"schema_version"`
-	BaseReference    string             `json:"base_reference"`
-	Platform         string             `json:"platform"`
-	SodaVersion      string             `json:"soda_version"`
-	SourceRevision   string             `json:"source_revision"`
-	SourceDateEpoch  int64              `json:"source_date_epoch"`
-	DirectRPMPackage []rpmInventoryItem `json:"direct_rpm_packages"`
-}
-
-type rpmInventoryItem struct {
-	Name   string `json:"name"`
-	File   string `json:"file"`
-	SHA256 string `json:"sha256"`
 }
 
 // Builder owns no system state. It writes only disposable OCI build artifacts
@@ -152,115 +103,82 @@ func (b *Builder) imageName() string {
 // registry, starting a container, or creating an artifact.
 func (b *Builder) Check(_ context.Context) error {
 	spec := b.Spec
-	if spec.Identity.Architecture != "aarch64" {
-		return errors.New("only AArch64 bootc image builds are supported")
-	}
-	if spec.Base.Reference != bootcBaseReference {
-		return errors.New("Fedora bootc base reference differs from the approved digest")
-	}
-	if spec.Base.Platform != bootcPlatform {
-		return fmt.Errorf("bootc platform must be %s", bootcPlatform)
-	}
-	if spec.Image.Registry != sodaRegistry {
-		return fmt.Errorf("Soda image registry must be %s", sodaRegistry)
-	}
-	if spec.Image.StateSchema != 2 {
-		return errors.New("Soda runtime state schema must be 2")
-	}
-	if spec.Build.SourceDateEpoch < 0 {
-		return errors.New("SOURCE_DATE_EPOCH must be non-negative")
-	}
-	if err := b.checkBuilderPackageLock(); err != nil {
-		return err
-	}
 	lock, err := b.packageLock()
 	if err != nil {
 		return err
-	}
-	if lock.SchemaVersion != 1 || lock.BaseReference != spec.Base.Reference {
-		return errors.New("package lock does not bind the configured Fedora bootc base")
-	}
-	if len(lock.Package) <= len(targetRPMs) {
-		return errors.New("package lock must contain Fedora dependencies and the three Soda RPM inputs")
-	}
-	seen := make(map[string]bool, len(lock.Package))
-	var local []string
-	bootcLocked := false
-	for _, item := range lock.Package {
-		if item.Name == "" || item.NEVRA == "" || seen[item.Name] {
-			return errors.New("package lock contains an empty or duplicate package")
-		}
-		seen[item.Name] = true
-		switch item.Source {
-		case "fedora":
-			if item.File != "" {
-				return errors.New("Fedora package lock entries must not name local files")
-			}
-			if item.Name == "bootc" {
-				if item.NEVRA != bootcRuntimeNEVRA {
-					return fmt.Errorf("bootc package lock must pin %s", bootcRuntimeNEVRA)
-				}
-				bootcLocked = true
-			}
-		case "local-rpm":
-			if item.File == "" || filepath.Base(item.File) != item.File {
-				return errors.New("local package lock entries require a plain RPM filename")
-			}
-			local = append(local, item.Name)
-		default:
-			return fmt.Errorf("unsupported package source %q", item.Source)
-		}
-	}
-	if !bootcLocked {
-		return fmt.Errorf("package lock must include %s from Fedora", bootcRuntimeNEVRA)
 	}
 	toolLock, err := b.releaseToolLock()
 	if err != nil {
 		return err
 	}
-	if toolLock.Version != cosignVersion || toolLock.checksum("linux", "arm64") != cosignArm64SHA256 {
-		return errors.New("release tool lock must pin the approved Cosign v3.1.2 Linux/AArch64 binary")
-	}
-	if strings.Join(local, ",") != strings.Join(targetRPMs, ",") {
-		return errors.New("package lock must contain exactly the three Soda RPM build inputs")
-	}
-	for _, path := range []string{
-		"packaging/bootc/Containerfile",
-		"packaging/builder/Containerfile",
-		"packaging/builder/packages.lock",
-		"packaging/rpm/soda-release.spec",
-		"packaging/rpm/soda-runtime.spec",
-		"packaging/rpm/soda-cockpit.spec",
-		"packaging/sysusers.d/soda.conf",
-		"packaging/release/policy.json",
-		"packaging/release/registries.d.yaml",
-		"packaging/release/tools.lock",
-	} {
-		if !isFile(b.path(path)) {
-			return fmt.Errorf("required bootc build input %s is missing", path)
-		}
+	return errors.Join(
+		validateImageSpec(spec),
+		validateRuntimePackageLock(lock, spec),
+		validateReleaseToolLock(toolLock),
+		b.validateBuildInputs(),
+	)
+}
+
+func validateImageSpec(spec config.DistroSpec) error {
+	if spec.Identity.Architecture != "aarch64" || spec.Base.Reference != bootcBaseReference || spec.Base.Platform != bootcPlatform || spec.Image.Registry != sodaRegistry || spec.Image.StateSchema != 2 || spec.Build.SourceDateEpoch < 0 {
+		return errors.New("Soda image specification differs from the approved AArch64 bootc contract")
 	}
 	return nil
 }
 
-func (b *Builder) checkBuilderPackageLock() error {
-	lock, err := b.builderPackageLock()
+func validateRuntimePackageLock(lock packageLock, spec config.DistroSpec) error {
+	if lock.SchemaVersion != 1 || lock.BaseReference != spec.Base.Reference || len(lock.Package) <= len(targetRPMs) {
+		return errors.New("package lock does not bind the configured Fedora bootc base")
+	}
+	local, bootcLocked, err := classifyRuntimePackages(lock.Package)
 	if err != nil {
 		return err
 	}
-	if lock.SchemaVersion != 1 || lock.BaseReference != builderBaseReference || lock.Platform != bootcPlatform {
-		return errors.New("RPM builder package lock does not bind the approved Fedora AArch64 base")
+	if !bootcLocked || strings.Join(local, ",") != strings.Join(targetRPMs, ",") {
+		return errors.New("package lock must contain the locked bootc package and exactly the three Soda RPM inputs")
 	}
-	if len(lock.InventorySHA256) != 64 || !hexDigest(lock.InventorySHA256) {
-		return errors.New("RPM builder package lock must pin the complete installed RPM inventory SHA-256")
+	return nil
+}
+
+func classifyRuntimePackages(packages []lockedPackage) ([]string, bool, error) {
+	seen, local, bootcLocked := make(map[string]bool, len(packages)), make([]string, 0, len(targetRPMs)), false
+	for _, item := range packages {
+		if err := validateLockedPackage(item, seen); err != nil {
+			return nil, false, err
+		}
+		if item.Source == "local-rpm" {
+			local = append(local, item.Name)
+		}
+		bootcLocked = bootcLocked || item.Name == "bootc" && item.NEVRA == bootcRuntimeNEVRA
 	}
-	if len(lock.Package) != len(builderPackageNames) {
-		return errors.New("RPM builder package lock must contain exactly the required build packages")
+	return local, bootcLocked, nil
+}
+
+func validateLockedPackage(item lockedPackage, seen map[string]bool) error {
+	if item.Name == "" || item.NEVRA == "" || seen[item.Name] {
+		return errors.New("package lock contains an empty or duplicate package")
 	}
-	for index, name := range builderPackageNames {
-		item := lock.Package[index]
-		if item.Name != name || !strings.HasPrefix(item.NEVRA, name+"-") || !strings.Contains(item.NEVRA, ":") || (!strings.HasSuffix(item.NEVRA, ".aarch64") && !strings.HasSuffix(item.NEVRA, ".noarch")) {
-			return fmt.Errorf("RPM builder package %s does not pin an exact NEVRA", name)
+	seen[item.Name] = true
+	if item.Source == "fedora" && item.File == "" {
+		return nil
+	}
+	if item.Source == "local-rpm" && item.File != "" && filepath.Base(item.File) == item.File {
+		return nil
+	}
+	return fmt.Errorf("package lock entry %s has an unsupported source or file", item.Name)
+}
+
+func validateReleaseToolLock(lock releaseToolLock) error {
+	if lock.Version != cosignVersion || lock.checksum("linux", "arm64") != cosignArm64SHA256 {
+		return errors.New("release tool lock must pin the approved Cosign v3.1.2 Linux/AArch64 binary")
+	}
+	return nil
+}
+
+func (b *Builder) validateBuildInputs() error {
+	for _, path := range []string{"packaging/bootc/Containerfile", "packaging/builder/Containerfile", "packaging/builder/packages.lock", "packaging/rpm/soda-release.spec", "packaging/rpm/soda-runtime.spec", "packaging/rpm/soda-cockpit.spec", "packaging/sysusers.d/soda.conf", "packaging/release/policy.json", "packaging/release/registries.d.yaml", "packaging/release/tools.lock"} {
+		if !isFile(b.path(path)) {
+			return fmt.Errorf("required bootc build input %s is missing", path)
 		}
 	}
 	return nil
@@ -282,44 +200,53 @@ func (b *Builder) BuildRPMs(ctx context.Context) error {
 	if err := b.buildContainer(ctx); err != nil {
 		return err
 	}
-	build := b.artifactPath("build")
-	topdir := b.artifactPath("rpmbuild")
-	rpms := b.artifactPath("rpms")
-	for _, path := range []string{build, topdir, rpms} {
+	workspace, err := b.prepareRPMWorkspace()
+	if err != nil {
+		return err
+	}
+	return b.buildLockedRPMs(ctx, workspace, revision)
+}
+
+type rpmWorkspace struct{ build, topdir, rpms string }
+
+func (b *Builder) prepareRPMWorkspace() (rpmWorkspace, error) {
+	workspace := rpmWorkspace{b.artifactPath("build"), b.artifactPath("rpmbuild"), b.artifactPath("rpms")}
+	for _, path := range []string{workspace.build, workspace.topdir, workspace.rpms} {
 		if err := recreate(path); err != nil {
-			return err
+			return rpmWorkspace{}, err
 		}
 	}
 	for _, directory := range []string{"BUILD", "BUILDROOT", "RPMS", "SOURCES", "SPECS", "SRPMS"} {
-		if err := os.MkdirAll(filepath.Join(topdir, directory), 0o755); err != nil {
-			return err
+		if err := os.MkdirAll(filepath.Join(workspace.topdir, directory), 0o755); err != nil {
+			return rpmWorkspace{}, err
 		}
 	}
+	return workspace, nil
+}
+
+func (b *Builder) buildLockedRPMs(ctx context.Context, workspace rpmWorkspace, revision string) error {
 	if err := b.buildGoBinaries(ctx, revision); err != nil {
 		return err
 	}
-	if err := b.stageRPMSources(build, filepath.Join(topdir, "SOURCES")); err != nil {
+	if err := b.stageRPMSources(workspace.build, filepath.Join(workspace.topdir, "SOURCES")); err != nil {
 		return err
 	}
 	for _, name := range targetRPMs {
 		if err := b.rpmbuild(ctx, name); err != nil {
 			return err
 		}
-		rpm, err := findSingleRPM(filepath.Join(topdir, "RPMS"), name)
+		rpm, err := findSingleRPM(filepath.Join(workspace.topdir, "RPMS"), name)
 		if err != nil {
 			return err
 		}
-		if err := copyFile(rpm, filepath.Join(rpms, filepath.Base(rpm))); err != nil {
+		if err := copyFile(rpm, filepath.Join(workspace.rpms, filepath.Base(rpm))); err != nil {
 			return err
 		}
 	}
-	if err := b.writeRPMInventory(rpms, revision); err != nil {
+	if err := b.writeLockedInstallInputs(workspace.rpms); err != nil {
 		return err
 	}
-	if err := b.writeLockedInstallInputs(rpms); err != nil {
-		return err
-	}
-	fmt.Printf("Built locked Soda RPM inputs at %s\n", rpms)
+	fmt.Printf("Built locked Soda RPM inputs at %s\n", workspace.rpms)
 	return nil
 }
 
@@ -400,34 +327,28 @@ func PrepareLocalBootcBase(ctx context.Context, root string, runner Runner, refe
 }
 
 func (b *Builder) stageReleaseTrust() error {
-	ca, err := os.ReadFile(b.RegistryCA)
-	if err != nil {
-		return fmt.Errorf("read registry CA build input: %w", err)
-	}
-	pool := x509.NewCertPool()
-	if !pool.AppendCertsFromPEM(ca) {
-		return errors.New("registry CA build input is not a PEM certificate")
-	}
-	publicKey, err := os.ReadFile(b.SigningPublicKey)
-	if err != nil {
-		return fmt.Errorf("read signing public key build input: %w", err)
-	}
-	block, rest := pem.Decode(publicKey)
-	if block == nil || block.Type != "PUBLIC KEY" || len(strings.TrimSpace(string(rest))) != 0 {
-		return errors.New("signing public key build input is not one PEM public key")
-	}
-	if _, err := x509.ParsePKIXPublicKey(block.Bytes); err != nil {
-		return fmt.Errorf("parse signing public key build input: %w", err)
+	inputs := make([]struct {
+		contents []byte
+		name     string
+	}, 0, 2)
+	for _, input := range []struct{ source, name string }{{b.RegistryCA, "registry-ca.crt"}, {b.SigningPublicKey, "cosign.pub"}} {
+		contents, err := os.ReadFile(input.source)
+		if err != nil {
+			return fmt.Errorf("read release trust input %s: %w", input.name, err)
+		}
+		inputs = append(inputs, struct {
+			contents []byte
+			name     string
+		}{contents, input.name})
 	}
 	destination := b.artifactPath("bootc", "trust")
 	if err := recreate(destination); err != nil {
 		return err
 	}
-	if err := os.WriteFile(filepath.Join(destination, "registry-ca.crt"), ca, 0o644); err != nil {
-		return err
-	}
-	if err := os.WriteFile(filepath.Join(destination, "cosign.pub"), publicKey, 0o644); err != nil {
-		return err
+	for _, input := range inputs {
+		if err := os.WriteFile(filepath.Join(destination, input.name), input.contents, 0o644); err != nil {
+			return fmt.Errorf("stage release trust input %s: %w", input.name, err)
+		}
 	}
 	return nil
 }
@@ -507,47 +428,6 @@ func (b *Builder) stageRPMSources(build, sources string) error {
 	return nil
 }
 
-func (b *Builder) writeRPMInventory(rpms, revision string) error {
-	entries, err := os.ReadDir(rpms)
-	if err != nil {
-		return err
-	}
-	byName := make(map[string]string, len(targetRPMs))
-	for _, entry := range entries {
-		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".rpm") {
-			continue
-		}
-		for _, name := range targetRPMs {
-			if strings.HasPrefix(entry.Name(), name+"-") {
-				if _, exists := byName[name]; exists {
-					return fmt.Errorf("found more than one %s RPM", name)
-				}
-				byName[name] = entry.Name()
-			}
-		}
-	}
-	inventory := rpmInventory{SchemaVersion: 1, BaseReference: b.Spec.Base.Reference, Platform: b.Spec.Base.Platform, SodaVersion: b.Spec.Identity.Version, SourceRevision: revision, SourceDateEpoch: b.Spec.Build.SourceDateEpoch}
-	for _, name := range targetRPMs {
-		file, found := byName[name]
-		if !found {
-			return fmt.Errorf("locked RPM input %s is missing", name)
-		}
-		digest, err := sha256File(filepath.Join(rpms, file))
-		if err != nil {
-			return err
-		}
-		inventory.DirectRPMPackage = append(inventory.DirectRPMPackage, rpmInventoryItem{Name: name, File: file, SHA256: digest})
-	}
-	encoded, err := json.MarshalIndent(inventory, "", "  ")
-	if err != nil {
-		return err
-	}
-	if err := os.MkdirAll(b.artifactPath("metadata"), 0o755); err != nil {
-		return err
-	}
-	return os.WriteFile(b.artifactPath("metadata", "added-rpms.json"), append(encoded, '\n'), 0o644)
-}
-
 func (b *Builder) writeLockedInstallInputs(rpms string) error {
 	lock, err := b.packageLock()
 	if err != nil {
@@ -583,14 +463,6 @@ func (b *Builder) packageLock() (packageLock, error) {
 	var lock packageLock
 	if _, err := toml.DecodeFile(b.path(b.Spec.Image.PackageLock), &lock); err != nil {
 		return packageLock{}, fmt.Errorf("parse package lock: %w", err)
-	}
-	return lock, nil
-}
-
-func (b *Builder) builderPackageLock() (builderPackageLock, error) {
-	var lock builderPackageLock
-	if _, err := toml.DecodeFile(b.path("packaging/builder/packages.lock"), &lock); err != nil {
-		return builderPackageLock{}, fmt.Errorf("parse RPM builder package lock: %w", err)
 	}
 	return lock, nil
 }

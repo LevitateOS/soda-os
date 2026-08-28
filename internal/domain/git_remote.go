@@ -24,6 +24,10 @@ func ValidateGitRemoteURL(remote string) error {
 	if err != nil {
 		return fmt.Errorf("parse Git remote URL: %w", err)
 	}
+	return validateGitURL(parsed)
+}
+
+func validateGitURL(parsed *url.URL) error {
 	if parsed.Host == "" {
 		return fmt.Errorf("Git remote URL must include a host")
 	}
@@ -62,15 +66,22 @@ func isSCPLikeRemote(remote string) bool {
 	if strings.Contains(remote, "://") {
 		return false
 	}
-	hostPath := remote
-	if at := strings.IndexByte(remote, '@'); at >= 0 {
-		username := remote[:at]
-		if username == "" || strings.ContainsAny(username, ":/") || strings.Contains(remote[at+1:], "@") {
-			return false
-		}
-		hostPath = remote[at+1:]
+	_, hostPath, hasUser := strings.Cut(remote, "@")
+	if !hasUser {
+		hostPath = remote
 	}
+	if hasUser && !validSCPUsername(remote, hostPath) {
+		return false
+	}
+	return validSCPHostPath(hostPath)
+}
 
+func validSCPUsername(remote, hostPath string) bool {
+	username := strings.TrimSuffix(remote, "@"+hostPath)
+	return username != "" && !strings.ContainsAny(username, ":/") && !strings.Contains(hostPath, "@")
+}
+
+func validSCPHostPath(hostPath string) bool {
 	if strings.HasPrefix(hostPath, "[") {
 		closeBracket := strings.IndexByte(hostPath, ']')
 		return closeBracket > 1 && len(hostPath) > closeBracket+2 && hostPath[closeBracket+1] == ':'

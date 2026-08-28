@@ -78,10 +78,12 @@ type projectCardView struct {
 	Project    soda.Project
 	State      string
 	StateClass string
-	SSHHost    string
-	Member     bool
-	CanConnect bool
-	NeedsKey   bool
+}
+
+type connectResources struct {
+	Worktrees  []soda.Worktree
+	DeviceKeys []soda.SSHDeviceKey
+	Jobs       []soda.ProvisioningJob
 }
 
 type memberWorkspaceView struct {
@@ -244,7 +246,7 @@ func (s *Server) home(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	data := pageData{Title: "Soda OS", Version: version.Version, User: user, Projects: projects}
-	data.ProjectCards, err = s.projectCards(r.Context(), user, projects)
+	data.ProjectCards, err = s.projectCards(r.Context(), projects)
 	if err != nil {
 		data.ProjectsError = "Projects are temporarily unavailable."
 	}
@@ -386,7 +388,7 @@ func (s *Server) projects(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	data := pageData{Title: "Projects · Soda OS", Version: version.Version, User: user, Projects: projects}
-	data.ProjectCards, err = s.projectCards(r.Context(), user, projects)
+	data.ProjectCards, err = s.projectCards(r.Context(), projects)
 	if err != nil {
 		data.ProjectsError = "Projects are temporarily unavailable."
 	}
@@ -524,59 +526,72 @@ func (s *Server) sshConfig(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) addConnectData(ctx context.Context, data *pageData) {
-	if err := s.loadConnectData(ctx, data, ""); err != nil {
+	keys, err := s.api.SSHDeviceKeys(ctx, data.User.ID)
+	if err != nil {
+		data.ConnectError = "Connection details are temporarily unavailable."
+		return
+	}
+	if err := populateConnectData(data, connectResources{Worktrees: data.Worktrees, DeviceKeys: keys, Jobs: data.Jobs}, ""); err != nil {
 		data.ConnectError = "Connection details are temporarily unavailable."
 	}
 }
 
 func (s *Server) loadConnectData(ctx context.Context, data *pageData, selectedKeyID string) error {
-	if data.Project == nil {
-		return fmt.Errorf("project is required")
-	}
-	worktrees := data.Worktrees
-	if worktrees == nil {
-		var err error
-		worktrees, err = s.api.Worktrees(ctx, data.Project.ID)
-		if err != nil {
-			return err
-		}
-		data.Worktrees = worktrees
-	}
-	for i := range worktrees {
-		if worktrees[i].PersonID == data.User.ID {
-			workspace := worktrees[i]
-			data.PersonalWorkspace = &workspace
-			break
-		}
+	worktrees, err := s.api.Worktrees(ctx, data.Project.ID)
+	if err != nil {
+		return err
 	}
 	keys, err := s.api.SSHDeviceKeys(ctx, data.User.ID)
 	if err != nil {
 		return err
 	}
-	data.DeviceKeys = keys
-	for i := range keys {
-		if selectedKeyID == "" || keys[i].ID == selectedKeyID {
-			selected := keys[i]
-			data.SelectedDeviceKey = &selected
+	jobs, _, err := s.provisioningState(ctx, data.Project.ID)
+	if err != nil {
+		return err
+	}
+	return populateConnectData(data, connectResources{Worktrees: worktrees, DeviceKeys: keys, Jobs: jobs}, selectedKeyID)
+}
+
+func populateConnectData(data *pageData, resources connectResources, selectedKeyID string) error {
+	data.Worktrees = resources.Worktrees
+	data.DeviceKeys = resources.DeviceKeys
+	data.PersonalWorkspace = nil
+	for i := range resources.Worktrees {
+		if resources.Worktrees[i].PersonID == data.User.ID {
+			workspace := resources.Worktrees[i]
+			data.PersonalWorkspace = &workspace
 			break
 		}
 	}
-	if selectedKeyID != "" && data.SelectedDeviceKey == nil {
-		return fmt.Errorf("SSH device is not registered to this account")
+	key, err := selectDeviceKey(resources.DeviceKeys, selectedKeyID)
+	if err != nil {
+		return err
 	}
-	if data.ProjectState == "" {
-		jobs, _, jobsErr := s.provisioningState(ctx, data.Project.ID)
-		if jobsErr != nil {
-			return jobsErr
-		}
-		data.ProjectState, data.ProjectStateClass = projectState(jobs)
-		data.ProjectReady = data.ProjectStateClass == "ready"
-	}
+	data.SelectedDeviceKey = key
+	data.ProjectState, data.ProjectStateClass = projectState(resources.Jobs)
+	data.ProjectReady = data.ProjectStateClass == "ready"
 	if data.ProjectReady && data.PersonalWorkspace != nil && data.SelectedDeviceKey != nil {
 		data.SSHConfig = personalizedSSHConfig(*data.Project, *data.SelectedDeviceKey)
 		data.SSHCommand = personalizedSSHCommand(*data.Project, *data.SelectedDeviceKey)
 	}
 	return nil
+}
+
+func selectDeviceKey(keys []soda.SSHDeviceKey, selectedKeyID string) (*soda.SSHDeviceKey, error) {
+	if selectedKeyID == "" {
+		if len(keys) == 0 {
+			return nil, nil
+		}
+		selected := keys[0]
+		return &selected, nil
+	}
+	for i := range keys {
+		if keys[i].ID == selectedKeyID {
+			selected := keys[i]
+			return &selected, nil
+		}
+	}
+	return nil, fmt.Errorf("SSH device is not registered to this account")
 }
 
 func (s *Server) collaborationData(w http.ResponseWriter, r *http.Request) (pageData, bool) {
@@ -832,43 +847,16 @@ func projectState(jobs []soda.ProvisioningJob) (string, string) {
 	}
 }
 
-func (s *Server) projectCards(ctx context.Context, user soda.Person, projects []soda.Project) ([]projectCardView, error) {
-	keys, err := s.api.SSHDeviceKeys(ctx, user.ID)
-	if err != nil {
-		return nil, err
-	}
+func (s *Server) projectCards(ctx context.Context, projects []soda.Project) ([]projectCardView, error) {
 	cards := make([]projectCardView, 0, len(projects))
 	for _, project := range projects {
-		jobs, _, loadErr := s.provisioningState(ctx, project.ID)
+		jobs, loadErr := s.api.Jobs(ctx, project.ID)
 		if loadErr != nil {
 			return nil, loadErr
 		}
 		state, stateClass := projectState(jobs)
-		worktrees, loadErr := s.api.Worktrees(ctx, project.ID)
-		if loadErr != nil {
-			return nil, loadErr
-		}
-		members, loadErr := s.api.Members(ctx, project.ID)
-		if loadErr != nil {
-			return nil, loadErr
-		}
-		member := false
-		for _, person := range members {
-			if person.ID == user.ID {
-				member = true
-			}
-		}
-		hasWorkspace := false
-		for _, worktree := range worktrees {
-			if worktree.PersonID == user.ID {
-				hasWorkspace = true
-				break
-			}
-		}
 		cards = append(cards, projectCardView{
-			Project: project, State: state, StateClass: stateClass, SSHHost: "soda-" + project.Slug,
-			Member: member, NeedsKey: member && len(keys) == 0,
-			CanConnect: member && hasWorkspace && len(keys) > 0 && stateClass == "ready",
+			Project: project, State: state, StateClass: stateClass,
 		})
 	}
 	return cards, nil
