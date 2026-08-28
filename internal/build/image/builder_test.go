@@ -193,7 +193,8 @@ func TestSodaRPMsAreScriptletFree(t *testing.T) {
 	require.NoError(t, err)
 	scriptlet := regexp.MustCompile(`(?m)^%(?:pre(?:un|trans)?|post(?:un|trans)?|trigger\w*|filetrigger\w*|transfiletrigger\w*|verifyscript)(?:\s|$)`)
 	for _, name := range targetRPMs {
-		spec, err := os.ReadFile(filepath.Join(root, "packaging", "rpm", name+".spec"))
+		owner := strings.TrimPrefix(name, "soda-")
+		spec, err := os.ReadFile(filepath.Join(root, "packaging", "rpm", owner, name+".spec"))
 		require.NoError(t, err)
 		require.NotRegexp(t, scriptlet, string(spec), "%s must be an image-build input without RPM lifecycle scriptlets", name)
 	}
@@ -206,7 +207,7 @@ func TestRuntimeCosignInputIsPinnedForLinuxAArch64(t *testing.T) {
 	require.Contains(t, string(script), cosignArm64SHA256)
 	require.Contains(t, string(script), "releases/download/v3.1.2")
 
-	spec, err := os.ReadFile(filepath.Join("..", "..", "..", "packaging", "rpm", "soda-runtime.spec"))
+	spec, err := os.ReadFile(filepath.Join("..", "..", "..", "packaging", "rpm", "runtime", "soda-runtime.spec"))
 	require.NoError(t, err)
 	require.Contains(t, string(spec), "install -m 0755 %{_sourcedir}/cosign %{buildroot}%{_libexecdir}/soda/cosign")
 	require.Contains(t, string(spec), "%{_libexecdir}/soda/cosign")
@@ -236,12 +237,12 @@ func TestStageReleaseTrustAcceptsExplicitCAAndPublicKey(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, wantKey, stagedKey)
 
-	policy, err := os.ReadFile(filepath.Join("..", "..", "..", "packaging", "release", "policy.json"))
+	policy, err := os.ReadFile(filepath.Join("..", "..", "..", "packaging", "bootc", "trust", "policy.json"))
 	require.NoError(t, err)
 	require.Contains(t, string(policy), `"registry.soda.local/soda/os"`)
 	require.Contains(t, string(policy), `"type": "sigstoreSigned"`)
 	require.Contains(t, string(policy), `"keyPath": "/usr/share/soda/release/cosign.pub"`)
-	registries, err := os.ReadFile(filepath.Join("..", "..", "..", "packaging", "release", "registries.d.yaml"))
+	registries, err := os.ReadFile(filepath.Join("..", "..", "..", "packaging", "bootc", "trust", "registries.d.yaml"))
 	require.NoError(t, err)
 	require.Contains(t, string(registries), "use-sigstore-attachments: true")
 }

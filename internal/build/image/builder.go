@@ -1,4 +1,3 @@
-// Package image builds Soda's pinned Fedora bootc OCI runtime image.
 package image
 
 import (
@@ -55,8 +54,6 @@ type releaseToolBinary struct {
 	SHA256 string `toml:"sha256"`
 }
 
-// Builder owns no system state. It writes only disposable OCI build artifacts
-// below Root/.artifacts; BuildImage never pushes or loads an image.
 type Builder struct {
 	Root             string
 	Spec             config.DistroSpec
@@ -95,8 +92,6 @@ func (b *Builder) artifactPath(parts ...string) string {
 	return filepath.Join(append([]string{b.Root, ".artifacts"}, parts...)...)
 }
 
-// Check validates the pinned bootc runtime contract without accessing a
-// registry, starting a container, or creating an artifact.
 func (b *Builder) Check(_ context.Context) error {
 	spec := b.Spec
 	lock, err := b.packageLock()
@@ -172,7 +167,7 @@ func validateReleaseToolLock(lock releaseToolLock) error {
 }
 
 func (b *Builder) validateBuildInputs() error {
-	for _, path := range []string{"packaging/bootc/Containerfile", "packaging/builder/Containerfile", "distro/locks/builder-packages.toml", "packaging/rpm/soda-release.spec", "packaging/rpm/soda-runtime.spec", "packaging/rpm/soda-cockpit.spec", "packaging/sysusers.d/soda.conf", "packaging/release/policy.json", "packaging/release/registries.d.yaml", "distro/locks/release-tools.toml"} {
+	for _, path := range []string{"packaging/bootc/Containerfile", "packaging/builder/Containerfile", "distro/locks/builder-packages.toml", "packaging/rpm/release/soda-release.spec", "packaging/rpm/runtime/soda-runtime.spec", "packaging/rpm/cockpit/soda-cockpit.spec", "packaging/rpm/runtime/sources/sysusers/soda.conf", "packaging/bootc/trust/policy.json", "packaging/bootc/trust/registries.d.yaml", "distro/locks/release-tools.toml"} {
 		if !isFile(b.path(path)) {
 			return fmt.Errorf("required bootc build input %s is missing", path)
 		}
@@ -180,8 +175,6 @@ func (b *Builder) validateBuildInputs() error {
 	return nil
 }
 
-// BuildImage emits a local OCI archive. It deliberately omits --push and
-// --load: publication and local container storage are separate operations.
 func (b *Builder) BuildImage(ctx context.Context) error {
 	if err := b.BuildRPMs(ctx); err != nil {
 		return err

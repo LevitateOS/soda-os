@@ -9,7 +9,6 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-// Telemetry adapts host status to sodad's gRPC service.
 type TelemetryAdapter struct{ manager *telemetry.Manager }
 
 func NewTelemetryAdapter(manager *telemetry.Manager) *TelemetryAdapter {

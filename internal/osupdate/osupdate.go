@@ -1,4 +1,3 @@
-// Package osupdate implements Soda OS's administrator-controlled bootc update path.
 package osupdate
 
 import (

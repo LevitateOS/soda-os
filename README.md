@@ -14,13 +14,15 @@ base, kernel, userspace, RPM/DNF, systemd, SELinux, and SSH.
 
 ## Repository layout
 
-- `api`: protobuf contract for Soda's private gRPC API
-- `cmd`: Go executables for the daemon, CLI, SSH gateway, and image builder
-- `internal`: Go domain, persistence, runtime, toolchain, and image packages
-- `cockpit`: Go/HTMX management website and local PAM helper
-- `distro`: Soda identity and toolchain profile specifications
-- `packaging`: bootc Containerfile, package lock, RPM, systemd, and Avahi inputs
-- `tests`: repository-level contract and scenario tests
+- `cmd`: executable-specific daemon, CLI, SSH gateway, and image-builder code
+- `cockpit`: Cockpit and PAM executables, daemon client, and HTTP presentation
+- `internal`: runtime control plus the artifact pipeline under `internal/build`
+- `distro`: Soda identity, profiles, distribution locks, and Fedora base metadata
+- `packaging`: bootc trust and RPM inputs grouped by shipped package
+- `assets`: canonical Soda branding sources and rendered assets
+- `docs`: architecture, artifact, branding, and release operations
+- `tests/acceptance`: blank-disk bootc acceptance scenario and runner
+- `scripts` and `tools`: repository checks and developer tooling
 
 ## Development
 

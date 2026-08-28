@@ -14,8 +14,6 @@ import (
 	"github.com/LevitateOS/soda-os/internal/process"
 )
 
-// BuildRPMs builds exactly the three direct Soda RPM inputs and records their
-// names and SHA-256 values. Runtime dependencies resolve from the pinned base.
 func (b *Builder) BuildRPMs(ctx context.Context) error {
 	if err := b.Check(ctx); err != nil {
 		return err
@@ -110,19 +108,19 @@ func (b *Builder) stageRPMSources(build, sources string) error {
 		{filepath.Join(build, "soda-ssh"), filepath.Join(sources, "soda-ssh")},
 		{filepath.Join(build, "soda-cockpit"), filepath.Join(sources, "soda-cockpit")},
 		{filepath.Join(build, "soda-authd"), filepath.Join(sources, "soda-authd")},
-		{b.path("packaging/systemd/sodad.service"), filepath.Join(sources, "sodad.service")},
-		{b.path("packaging/systemd/soda-state-directories.service"), filepath.Join(sources, "soda-state-directories.service")},
-		{b.path("packaging/systemd/var-srv-soda-projects.mount"), filepath.Join(sources, "var-srv-soda-projects.mount")},
-		{b.path("packaging/systemd/opt-soda-toolchains.mount"), filepath.Join(sources, "opt-soda-toolchains.mount")},
-		{b.path("packaging/systemd/90-soda.preset"), filepath.Join(sources, "90-soda.preset")},
-		{b.path("packaging/tmpfiles.d/soda.conf"), filepath.Join(sources, "soda.conf")},
-		{b.path("packaging/sysusers.d/soda.conf"), filepath.Join(sources, "soda.sysusers")},
-		{b.path("packaging/sshd/41-soda-project-accounts.conf"), filepath.Join(sources, "41-soda-project-accounts.conf")},
-		{b.path("packaging/systemd/soda-cockpit.service"), filepath.Join(sources, "soda-cockpit.service")},
-		{b.path("packaging/systemd/soda-authd.service"), filepath.Join(sources, "soda-authd.service")},
-		{b.path("packaging/avahi/soda-cockpit.service"), filepath.Join(sources, "soda-cockpit.avahi.service")},
-		{b.path("packaging/pam/soda-cockpit"), filepath.Join(sources, "soda-cockpit.pam")},
-		{b.path("packaging/bootc/BASE_SYSTEM.md"), filepath.Join(sources, "BASE_SYSTEM.md")},
+		{b.path("packaging/rpm/runtime/sources/systemd/sodad.service"), filepath.Join(sources, "sodad.service")},
+		{b.path("packaging/rpm/runtime/sources/systemd/soda-state-directories.service"), filepath.Join(sources, "soda-state-directories.service")},
+		{b.path("packaging/rpm/runtime/sources/systemd/var-srv-soda-projects.mount"), filepath.Join(sources, "var-srv-soda-projects.mount")},
+		{b.path("packaging/rpm/runtime/sources/systemd/opt-soda-toolchains.mount"), filepath.Join(sources, "opt-soda-toolchains.mount")},
+		{b.path("packaging/rpm/runtime/sources/systemd/90-soda.preset"), filepath.Join(sources, "90-soda.preset")},
+		{b.path("packaging/rpm/runtime/sources/tmpfiles/soda.conf"), filepath.Join(sources, "soda.conf")},
+		{b.path("packaging/rpm/runtime/sources/sysusers/soda.conf"), filepath.Join(sources, "soda.sysusers")},
+		{b.path("packaging/rpm/runtime/sources/sshd/41-soda-project-accounts.conf"), filepath.Join(sources, "41-soda-project-accounts.conf")},
+		{b.path("packaging/rpm/cockpit/sources/systemd/soda-cockpit.service"), filepath.Join(sources, "soda-cockpit.service")},
+		{b.path("packaging/rpm/cockpit/sources/systemd/soda-authd.service"), filepath.Join(sources, "soda-authd.service")},
+		{b.path("packaging/rpm/cockpit/sources/avahi/soda-cockpit.service"), filepath.Join(sources, "soda-cockpit.avahi.service")},
+		{b.path("packaging/rpm/cockpit/sources/pam/soda-cockpit"), filepath.Join(sources, "soda-cockpit.pam")},
+		{b.path("packaging/rpm/release/sources/BASE_SYSTEM.md"), filepath.Join(sources, "BASE_SYSTEM.md")},
 		{b.path("assets/branding/source/soda-symbol.svg"), filepath.Join(sources, "soda-symbol.svg")},
 	}
 	for _, size := range []string{"16", "24", "32", "48", "64", "128", "256", "512"} {
@@ -204,10 +202,11 @@ func (b *Builder) dockerCommand(environment []string, name string, args ...strin
 
 func (b *Builder) rpmbuild(ctx context.Context, name string) error {
 	epoch := fmt.Sprint(b.Spec.Build.SourceDateEpoch)
+	spec := "packaging/rpm/" + strings.TrimPrefix(name, "soda-") + "/" + name + ".spec"
 	return b.docker(ctx, []string{"SOURCE_DATE_EPOCH=" + epoch}, "rpmbuild", "-bb",
 		"--define", "_topdir /src/.artifacts/rpmbuild",
 		"--define", "_source_date_epoch "+epoch,
 		"--define", "use_source_date_epoch_as_buildtime 1",
 		"--define", "_buildhost soda-builder",
-		"packaging/rpm/"+name+".spec")
+		spec)
 }

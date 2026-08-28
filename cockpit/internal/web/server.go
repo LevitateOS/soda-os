@@ -28,8 +28,6 @@ type Server struct {
 	sessions   *sessionStore
 }
 
-// These ports stay with the HTTP consumers. The daemon client is only one
-// implementation; each page receives the smallest capability it needs.
 type accountPort interface {
 	People(context.Context) ([]daemonclient.Person, error)
 	CreatePerson(context.Context, daemonclient.CreatePersonRequest) error

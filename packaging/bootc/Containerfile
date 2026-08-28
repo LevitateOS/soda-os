@@ -22,8 +22,8 @@ COPY .artifacts/bootc/fedora-packages.txt /var/tmp/soda-lock/fedora-packages.txt
 COPY .artifacts/bootc/expected-packages.txt /var/tmp/soda-lock/expected-packages.txt
 COPY .artifacts/bootc/trust/registry-ca.crt /usr/share/pki/ca-trust-source/anchors/soda-registry-ca.crt
 COPY .artifacts/bootc/trust/cosign.pub /usr/share/soda/release/cosign.pub
-COPY packaging/release/policy.json /etc/containers/policy.json
-COPY packaging/release/registries.d.yaml /etc/containers/registries.d/soda.yaml
+COPY packaging/bootc/trust/policy.json /etc/containers/policy.json
+COPY packaging/bootc/trust/registries.d.yaml /etc/containers/registries.d/soda.yaml
 
 RUN dnf -y --setopt=install_weak_deps=False --enablerepo=updates-testing install \
       $(cat /var/tmp/soda-lock/fedora-packages.txt) \

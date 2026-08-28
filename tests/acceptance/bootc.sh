@@ -3,7 +3,7 @@ set -eu
 
 usage() {
 	cat <<'EOF'
-Usage: scripts/bootc-acceptance.sh COMMAND [ARG]
+Usage: tests/acceptance/bootc.sh COMMAND [ARG]
 
 Commands:
   launch install       Create a blank disk and boot the configured installer ISO

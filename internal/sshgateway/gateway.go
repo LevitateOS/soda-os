@@ -1,5 +1,3 @@
-// Package sshgateway validates and enters a Soda project worktree for an SSH
-// session forced by the project's authorized_keys entry.
 package sshgateway
 
 import (
@@ -21,8 +19,6 @@ const (
 	sftpServer          = "/usr/libexec/openssh/sftp-server"
 )
 
-// Options contains the trusted forced-command arguments and inherited SSH
-// session environment used to build a gateway invocation.
 type Options struct {
 	Actor           string
 	Project         string
@@ -34,8 +30,6 @@ type Options struct {
 	Environment     []string
 }
 
-// Invocation is the fully validated process replacement requested by a Soda
-// SSH session.
 type Invocation struct {
 	Path   string
 	Argv   []string
@@ -50,14 +44,10 @@ type sessionLayout struct {
 	home        string
 }
 
-// Executor replaces the gateway process with the requested session process.
-// It is an interface so validation and the final argv/environment can be
-// tested without replacing the test process.
 type Executor interface {
 	Exec(Invocation) error
 }
 
-// UnixExecutor is the production process-replacing executor.
 type UnixExecutor struct{}
 
 func (UnixExecutor) Exec(invocation Invocation) error {
@@ -72,7 +62,6 @@ func (UnixExecutor) Exec(invocation Invocation) error {
 	return unix.Exec(invocation.Path, invocation.Argv, invocation.Env)
 }
 
-// Run validates a session and delegates process replacement to executor.
 func Run(options Options, executor Executor) error {
 	invocation, err := BuildInvocation(options)
 	if err != nil {
@@ -87,7 +76,6 @@ func Run(options Options, executor Executor) error {
 	return nil
 }
 
-// BuildInvocation validates all inputs without executing a process.
 func BuildInvocation(options Options) (Invocation, error) {
 	if err := validateActor(options.Actor); err != nil {
 		return Invocation{}, err

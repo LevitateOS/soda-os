@@ -13,8 +13,6 @@ func Dial(ctx context.Context, socketPath string, options ...grpc.DialOption) (*
 	return dial(ctx, socketPath, append(options, grpc.WithBlock())...)
 }
 
-// New creates a reconnecting Unix-domain gRPC connection without waiting for
-// the daemon socket to exist. RPCs initiate connection attempts as needed.
 func New(socketPath string, options ...grpc.DialOption) (*grpc.ClientConn, error) {
 	if socketPath == "" {
 		socketPath = config.DefaultDaemonSocket

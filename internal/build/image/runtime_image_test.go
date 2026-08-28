@@ -33,8 +33,8 @@ func TestRuntimeImageBootcContainerContract(t *testing.T) {
 		"/var/cache/ldconfig/aux-cache", "/var/cache/libdnf5", "/var/lib/dnf/repos", "/var/log/dnf5.log", "/run/dnf",
 		"COPY .artifacts/bootc/trust/registry-ca.crt /usr/share/pki/ca-trust-source/anchors/soda-registry-ca.crt",
 		"COPY .artifacts/bootc/trust/cosign.pub /usr/share/soda/release/cosign.pub",
-		"COPY packaging/release/policy.json /etc/containers/policy.json",
-		"COPY packaging/release/registries.d.yaml /etc/containers/registries.d/soda.yaml", "update-ca-trust extract",
+		"COPY packaging/bootc/trust/policy.json /etc/containers/policy.json",
+		"COPY packaging/bootc/trust/registries.d.yaml /etc/containers/registries.d/soda.yaml", "update-ca-trust extract",
 	} {
 		require.Contains(t, containerfile, expected)
 	}
@@ -42,12 +42,12 @@ func TestRuntimeImageBootcContainerContract(t *testing.T) {
 }
 
 func TestRuntimeImageStateDirectoriesAndSELinuxContract(t *testing.T) {
-	sysusers, err := os.ReadFile(filepath.Join("..", "..", "..", "packaging", "sysusers.d", "soda.conf"))
+	sysusers, err := os.ReadFile(filepath.Join("..", "..", "..", "packaging", "rpm", "runtime", "sources", "sysusers", "soda.conf"))
 	require.NoError(t, err)
 	require.Contains(t, string(sysusers), "g soda-api 976")
 	require.Contains(t, string(sysusers), "u soda-cockpit 976:soda-api")
 
-	tmpfiles, err := os.ReadFile(filepath.Join("..", "..", "..", "packaging", "tmpfiles.d", "soda.conf"))
+	tmpfiles, err := os.ReadFile(filepath.Join("..", "..", "..", "packaging", "rpm", "runtime", "sources", "tmpfiles", "soda.conf"))
 	require.NoError(t, err)
 	for _, path := range []string{"/var/lib/soda", "/var/lib/soda/projects", "/var/lib/soda/toolchains", "/var/log/soda", "/var/log/soda/sodad", "/var/log/soda/soda-authd", "/var/log/soda/soda-cockpit", "/var/srv/soda", "/var/srv/soda/projects"} {
 		require.Contains(t, string(tmpfiles), "d "+path+" ", "first-boot tmpfiles must create %s after the image installs its SELinux fcontext mapping", path)
@@ -60,11 +60,11 @@ func TestRuntimeImageStateDirectoriesAndSELinuxContract(t *testing.T) {
 func TestRuntimeImageRPMStagingAndPackageContract(t *testing.T) {
 	staging, err := os.ReadFile("rpm.go")
 	require.NoError(t, err)
-	require.Contains(t, string(staging), `b.path("packaging/systemd/soda-state-directories.service"), filepath.Join(sources, "soda-state-directories.service")`)
-	require.Contains(t, string(staging), `b.path("packaging/systemd/var-srv-soda-projects.mount"), filepath.Join(sources, "var-srv-soda-projects.mount")`)
+	require.Contains(t, string(staging), `b.path("packaging/rpm/runtime/sources/systemd/soda-state-directories.service"), filepath.Join(sources, "soda-state-directories.service")`)
+	require.Contains(t, string(staging), `b.path("packaging/rpm/runtime/sources/systemd/var-srv-soda-projects.mount"), filepath.Join(sources, "var-srv-soda-projects.mount")`)
 	require.NotContains(t, string(staging), "00-soda-var-srv.conf")
 
-	runtimeSpec, err := os.ReadFile(filepath.Join("..", "..", "..", "packaging", "rpm", "soda-runtime.spec"))
+	runtimeSpec, err := os.ReadFile(filepath.Join("..", "..", "..", "packaging", "rpm", "runtime", "soda-runtime.spec"))
 	require.NoError(t, err)
 	require.Contains(t, string(runtimeSpec), "install -m 0644 %{_sourcedir}/soda-state-directories.service %{buildroot}%{_unitdir}/soda-state-directories.service")
 	require.Contains(t, string(runtimeSpec), "%{_unitdir}/soda-state-directories.service")
@@ -74,13 +74,14 @@ func TestRuntimeImageRPMStagingAndPackageContract(t *testing.T) {
 }
 
 func TestRuntimeImageSystemdMountAndLoggingContract(t *testing.T) {
-	preset, err := os.ReadFile(filepath.Join("..", "..", "..", "packaging", "systemd", "90-soda.preset"))
+	runtimeSources := filepath.Join("..", "..", "..", "packaging", "rpm", "runtime", "sources")
+	preset, err := os.ReadFile(filepath.Join(runtimeSources, "systemd", "90-soda.preset"))
 	require.NoError(t, err)
 	for _, unit := range []string{"sshd.service", "sodad.service", "soda-authd.service", "soda-cockpit.service", "avahi-daemon.service", "var-srv-soda-projects.mount", "opt-soda-toolchains.mount"} {
 		require.True(t, strings.Contains(string(preset), "enable "+unit))
 	}
 
-	projectMount, err := os.ReadFile(filepath.Join("..", "..", "..", "packaging", "systemd", "var-srv-soda-projects.mount"))
+	projectMount, err := os.ReadFile(filepath.Join(runtimeSources, "systemd", "var-srv-soda-projects.mount"))
 	require.NoError(t, err)
 	require.Contains(t, string(projectMount), "Requires=soda-state-directories.service")
 	require.Contains(t, string(projectMount), "After=soda-state-directories.service")
@@ -89,31 +90,36 @@ func TestRuntimeImageSystemdMountAndLoggingContract(t *testing.T) {
 	require.Contains(t, string(projectMount), "Where=/var/srv/soda/projects")
 	require.Contains(t, string(projectMount), "Options=bind")
 
-	stateDirectories, err := os.ReadFile(filepath.Join("..", "..", "..", "packaging", "systemd", "soda-state-directories.service"))
+	stateDirectories, err := os.ReadFile(filepath.Join(runtimeSources, "systemd", "soda-state-directories.service"))
 	require.NoError(t, err)
 	require.Contains(t, string(stateDirectories), "DefaultDependencies=no")
 	require.Contains(t, string(stateDirectories), "RequiresMountsFor=/var")
 	require.Contains(t, string(stateDirectories), "Before=local-fs.target var-srv-soda-projects.mount opt-soda-toolchains.mount")
 	require.Contains(t, string(stateDirectories), "ExecStart=/usr/bin/systemd-tmpfiles --create --prefix=/var/lib/soda --prefix=/var/srv/soda")
 
-	toolchainMount, err := os.ReadFile(filepath.Join("..", "..", "..", "packaging", "systemd", "opt-soda-toolchains.mount"))
+	toolchainMount, err := os.ReadFile(filepath.Join(runtimeSources, "systemd", "opt-soda-toolchains.mount"))
 	require.NoError(t, err)
 	require.Contains(t, string(toolchainMount), "Requires=soda-state-directories.service")
 	require.Contains(t, string(toolchainMount), "After=soda-state-directories.service")
 	require.NotContains(t, string(toolchainMount), "After=systemd-tmpfiles-setup.service")
 
-	sodadUnit, err := os.ReadFile(filepath.Join("..", "..", "..", "packaging", "systemd", "sodad.service"))
+	sodadUnit, err := os.ReadFile(filepath.Join(runtimeSources, "systemd", "sodad.service"))
 	require.NoError(t, err)
 	require.Contains(t, string(sodadUnit), "Requires=var-srv-soda-projects.mount opt-soda-toolchains.mount")
 	require.Contains(t, string(sodadUnit), "After=local-fs.target network-online.target var-srv-soda-projects.mount opt-soda-toolchains.mount")
 
-	for _, service := range []string{"sodad.service", "soda-authd.service", "soda-cockpit.service"} {
-		unit, readErr := os.ReadFile(filepath.Join("..", "..", "..", "packaging", "systemd", service))
+	services := []string{
+		filepath.Join(runtimeSources, "systemd", "sodad.service"),
+		filepath.Join("..", "..", "..", "packaging", "rpm", "cockpit", "sources", "systemd", "soda-authd.service"),
+		filepath.Join("..", "..", "..", "packaging", "rpm", "cockpit", "sources", "systemd", "soda-cockpit.service"),
+	}
+	for _, service := range services {
+		unit, readErr := os.ReadFile(service)
 		require.NoError(t, readErr)
 		require.Contains(t, string(unit), "StandardOutput=append:/var/log/soda/")
 		require.NotContains(t, string(unit), "LogsDirectory=")
 	}
-	cockpitUnit, err := os.ReadFile(filepath.Join("..", "..", "..", "packaging", "systemd", "soda-cockpit.service"))
+	cockpitUnit, err := os.ReadFile(filepath.Join("..", "..", "..", "packaging", "rpm", "cockpit", "sources", "systemd", "soda-cockpit.service"))
 	require.NoError(t, err)
 	require.Contains(t, string(cockpitUnit), "ReadWritePaths=/var/lib/soda/certs /var/log/soda/soda-cockpit")
 }

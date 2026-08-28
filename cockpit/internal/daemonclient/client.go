@@ -67,7 +67,6 @@ type Client struct {
 	connection *grpc.ClientConn
 }
 
-// NewClient connects to the private Soda daemon over its Unix-domain gRPC socket.
 func NewClient(socketPath string) (*Client, error) {
 	connection, err := grpcclient.New(socketPath)
 	if err != nil {

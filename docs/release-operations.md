@@ -87,7 +87,7 @@ state rollback across incompatible schemas.
 
 ## Local AArch64 acceptance
 
-`scripts/bootc-acceptance.sh` separates repeatable evidence collection from
+`tests/acceptance/bootc.sh` separates repeatable evidence collection from
 operator-owned authentication. Set an untracked evidence directory, the
 Anaconda administrator's SSH identity, and the exact digest under test before
 using `launch`, `wait`, `capture`, `workload`, or `stop`. Run `--help` for the

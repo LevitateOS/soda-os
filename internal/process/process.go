@@ -9,8 +9,6 @@ import (
 	"strings"
 )
 
-// Command describes one external process invocation. It keeps process execution
-// injectable, so the image contract can be tested without Docker or a registry.
 type Command struct {
 	Dir  string
 	Env  []string
@@ -22,13 +20,11 @@ func (c Command) String() string {
 	return strings.TrimSpace(strings.Join(append([]string{c.Name}, c.Args...), " "))
 }
 
-// Runner executes external commands for the image builder.
 type Runner interface {
 	Run(context.Context, Command) error
 	Output(context.Context, Command) (string, error)
 }
 
-// OSRunner is the production process runner.
 type OSRunner struct {
 	Stdin  io.Reader
 	Stdout io.Writer

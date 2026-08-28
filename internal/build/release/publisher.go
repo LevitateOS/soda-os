@@ -1,4 +1,3 @@
-// Package release publishes one signed Soda OS AArch64 bootc release.
 package release
 
 import (
@@ -29,8 +28,6 @@ const (
 	CosignVersion = "v3.1.2"
 )
 
-// SigningOptions are constructor-time inputs. The private key is never copied
-// into output; cosign reads its passphrase interactively.
 type SigningOptions struct {
 	RegistryCA string
 	PublicKey  string
@@ -39,7 +36,6 @@ type SigningOptions struct {
 	ToolLock   string
 }
 
-// PublicationOptions are inputs for the final ISO-bound release publication.
 type PublicationOptions struct {
 	ArchivePath       string
 	ISOPath           string
@@ -48,7 +44,6 @@ type PublicationOptions struct {
 	InstallerToolLock string
 }
 
-// Record is the minimal signed identity shared by the OCI and installer.
 type Record struct {
 	SchemaVersion       uint32 `json:"schema_version"`
 	SodaVersion         string `json:"soda_version"`
@@ -83,8 +78,6 @@ type isoValidator interface {
 	ValidateISO(context.Context, string, string, string, string) (string, error)
 }
 
-// Publisher is injectable so ordering and exact-digest behavior can be tested
-// without contacting the production registry or using a production key.
 type Publisher struct {
 	spec         config.DistroSpec
 	registry     registryClient
@@ -131,8 +124,6 @@ func NewPublisher(root string, spec config.DistroSpec, options SigningOptions, r
 	}, nil
 }
 
-// Prepare publishes, resolves, signs, and verifies one exact image for ISO
-// construction. It intentionally writes neither a release record nor current.
 func (p *Publisher) Prepare(ctx context.Context, archive string) (string, error) {
 	prepared, err := p.prepareExactImage(ctx, archive)
 	if err != nil {
@@ -148,7 +139,6 @@ func (p *Publisher) Prepare(ctx context.Context, archive string) (string, error)
 	return prepared.reference, nil
 }
 
-// Publish follows the final ISO-bound release path and updates current last.
 func (p *Publisher) Publish(ctx context.Context, options PublicationOptions) (Result, error) {
 	prepared, err := p.prepareExactImage(ctx, options.ArchivePath)
 	if err != nil {

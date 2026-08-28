@@ -26,8 +26,6 @@ type ToolchainInstallation struct {
 	State    JobState
 }
 
-// ProjectEnvironment is the generated environment contract copied from a
-// resolved toolchain installation into a project for SSH sessions.
 type ProjectEnvironment struct {
 	Profile   string            `json:"profile"`
 	Path      []string          `json:"path"`

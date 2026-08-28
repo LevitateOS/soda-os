@@ -1,4 +1,3 @@
-// Package installer builds and inspects Soda OS bootc installer media.
 package installer
 
 import (
@@ -35,9 +34,6 @@ type toolLock struct {
 	Platform  string `toml:"platform"`
 }
 
-// Options are explicit local build inputs. ArchivePath must contain the same
-// image digest named by ImageReference; inspection proves that exact payload
-// was copied into the finished ISO before the checksum is recorded.
 type Options struct {
 	ImageReference string
 	ArchivePath    string
@@ -48,9 +44,6 @@ type Options struct {
 	OutputDir      string
 }
 
-// ValidateISO independently re-opens an already-built ISO, extracts its
-// squashfs, and checks the exact kickstart and embedded containers-storage
-// payload before release publication records its checksum.
 func (b *Builder) ValidateISO(ctx context.Context, isoPath, reference, installerArchive, toolLockPath string) (string, error) {
 	if !exactImagePattern.MatchString(reference) {
 		return "", errors.New("installer payload must be an exact registry.soda.local/soda/os@sha256 reference")
