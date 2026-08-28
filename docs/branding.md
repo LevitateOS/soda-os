@@ -13,10 +13,15 @@ Use `soda-logo-horizontal.svg` as the primary mark on white or very light
 backgrounds. Use `soda-logo-horizontal-dark.svg` on midnight-navy or other
 dark backgrounds. `soda-logo-white.svg` is the reverse-wordmark variant;
 `soda-logo-navy.svg` and `soda-logo-black.svg` are single-colour marks for
-restricted reproduction. Use `soda-symbol.svg` whenever the name is already
-visible or space is square. Its white, navy, and black counterparts have
-matching filenames. `soda-symbol-monochrome.svg` is retained as the earlier
-black-symbol filename for compatibility.
+restricted reproduction. Use the approved full-colour `soda-symbol.svg`
+whenever the name is already visible or space is square.
+
+The symbol's white, navy, and black counterparts are reduced one-colour line
+marks for flat, high-contrast backgrounds. They retain the outer circle,
+terminal prompt, command line, and three bubbles while omitting the liquid wave
+that cannot remain distinct in one colour. Use each only where it contrasts
+clearly with the background. `soda-symbol-monochrome.svg` is byte-identical to
+the black variant and retained as the earlier compatibility filename.
 
 There is intentionally no stacked lockup: no shipped Soda OS surface needs one
 and the horizontal mark remains more legible at the available Cockpit widths.

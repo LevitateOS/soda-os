@@ -3,31 +3,19 @@
      role="img"
      aria-labelledby="soda-os-symbol-title">
   <title id="soda-os-symbol-title">
-    Soda OS terminal and bubbles symbol
+    Soda OS one-color terminal and bubbles symbol
   </title>
-  <style>
-    circle, path { fill: #fff; }
-    path[stroke] { fill: none; stroke: #fff; }
-  </style>
 
   <circle
     cx="128"
     cy="128"
     r="116"
-    fill="#06245B"
+    fill="none"
+    stroke="#FFFFFF"
+    stroke-width="12"
   />
 
-  <path
-    d="M21.5106 174
-       C49 154 77 151 105 171
-       C134 191 164 196 195 174
-       C212 162 224 161 234.4894 174
-       A116 116 0 0 1 21.5106 174
-       Z"
-    fill="#10D7E8"
-  />
-
-  <g fill="#10D7E8">
+  <g fill="#FFFFFF">
     <circle cx="193" cy="65" r="11"/>
     <circle cx="213" cy="96" r="7"/>
     <circle cx="217" cy="131" r="9"/>
@@ -45,7 +33,7 @@
   <path
     d="M145 138H187"
     fill="none"
-    stroke="#10D7E8"
+    stroke="#FFFFFF"
     stroke-width="16"
     stroke-linecap="round"
   />
