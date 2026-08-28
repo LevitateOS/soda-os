@@ -6,8 +6,8 @@ import (
 
 	"github.com/LevitateOS/soda-os/cockpit/internal/auth"
 	"github.com/LevitateOS/soda-os/cockpit/internal/cert"
-	"github.com/LevitateOS/soda-os/cockpit/internal/server"
-	"github.com/LevitateOS/soda-os/cockpit/internal/soda"
+	"github.com/LevitateOS/soda-os/cockpit/internal/daemonclient"
+	"github.com/LevitateOS/soda-os/cockpit/internal/web"
 )
 
 func main() {
@@ -20,12 +20,12 @@ func main() {
 	if err := cert.Ensure(certFile, keyFile); err != nil {
 		log.Fatal(err)
 	}
-	api, err := soda.NewClient(socket)
+	api, err := daemonclient.NewClient(socket)
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer api.Close()
-	app, err := server.New(api, api, api, api, auth.NewClient(pamSocket))
+	app, err := web.New(api, api, api, api, auth.NewClient(pamSocket))
 	if err != nil {
 		log.Fatal(err)
 	}

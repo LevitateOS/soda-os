@@ -68,11 +68,11 @@ do {
         try render(asset)
     }
     for (source, output) in [
-        ("assets/branding/source/soda-logo-horizontal.svg", "cockpit/internal/server/static/soda-logo.svg"),
-        ("assets/branding/source/soda-logo-horizontal-dark.svg", "cockpit/internal/server/static/soda-logo-dark.svg"),
-        ("assets/branding/source/soda-symbol-small.svg", "cockpit/internal/server/static/favicon.svg"),
-        ("assets/branding/web/favicon-32.png", "cockpit/internal/server/static/favicon-32.png"),
-        ("assets/branding/web/apple-touch-icon.png", "cockpit/internal/server/static/apple-touch-icon.png"),
+        ("assets/branding/source/soda-logo-horizontal.svg", "cockpit/internal/web/static/soda-logo.svg"),
+        ("assets/branding/source/soda-logo-horizontal-dark.svg", "cockpit/internal/web/static/soda-logo-dark.svg"),
+        ("assets/branding/source/soda-symbol-small.svg", "cockpit/internal/web/static/favicon.svg"),
+        ("assets/branding/web/favicon-32.png", "cockpit/internal/web/static/favicon-32.png"),
+        ("assets/branding/web/apple-touch-icon.png", "cockpit/internal/web/static/apple-touch-icon.png"),
     ] {
         try copy(source, output)
     }

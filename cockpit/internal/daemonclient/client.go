@@ -1,4 +1,4 @@
-package soda
+package daemonclient
 
 import (
 	"fmt"

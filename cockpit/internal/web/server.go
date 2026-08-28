@@ -1,4 +1,4 @@
-package server
+package web
 
 import (
 	"context"
@@ -6,10 +6,9 @@ import (
 	"html/template"
 	"io/fs"
 	"net/http"
-	"sync"
 
 	"github.com/LevitateOS/soda-os/cockpit/internal/auth"
-	"github.com/LevitateOS/soda-os/cockpit/internal/soda"
+	"github.com/LevitateOS/soda-os/cockpit/internal/daemonclient"
 	"github.com/LevitateOS/soda-os/internal/version"
 )
 
@@ -32,171 +31,43 @@ type Server struct {
 // These ports stay with the HTTP consumers. The daemon client is only one
 // implementation; each page receives the smallest capability it needs.
 type accountPort interface {
-	People(context.Context) ([]soda.Person, error)
-	CreatePerson(context.Context, soda.CreatePersonRequest) error
-	SSHDeviceKeys(context.Context, string) ([]soda.SSHDeviceKey, error)
+	People(context.Context) ([]daemonclient.Person, error)
+	CreatePerson(context.Context, daemonclient.CreatePersonRequest) error
+	SSHDeviceKeys(context.Context, string) ([]daemonclient.SSHDeviceKey, error)
 	CreateSSHDeviceKey(context.Context, string, string, string, string) error
 	RevokeSSHDeviceKey(context.Context, string, string) error
 }
 
 type projectPort interface {
-	Projects(context.Context) ([]soda.Project, error)
-	ProjectsForPerson(context.Context, string) ([]soda.Project, error)
-	CreateProject(context.Context, soda.CreateProjectRequest) (soda.Project, error)
-	Members(context.Context, string) ([]soda.Person, error)
-	AddCollaborator(context.Context, soda.AddCollaboratorCommand) error
-	Worktrees(context.Context, string) ([]soda.Worktree, error)
-	Jobs(context.Context, string) ([]soda.ProvisioningJob, error)
+	Projects(context.Context) ([]daemonclient.Project, error)
+	ProjectsForPerson(context.Context, string) ([]daemonclient.Project, error)
+	CreateProject(context.Context, daemonclient.CreateProjectRequest) (daemonclient.Project, error)
+	Members(context.Context, string) ([]daemonclient.Person, error)
+	AddCollaborator(context.Context, daemonclient.AddCollaboratorCommand) error
+	Worktrees(context.Context, string) ([]daemonclient.Worktree, error)
+	Jobs(context.Context, string) ([]daemonclient.ProvisioningJob, error)
 	RetryProvisioning(context.Context, string) error
-	Toolchain(context.Context, string) (*soda.ToolchainInstallation, error)
+	Toolchain(context.Context, string) (*daemonclient.ToolchainInstallation, error)
 	DeployKey(context.Context, string) (string, error)
 }
 
 type hostPort interface {
-	HostStatus(context.Context) (soda.HostStatus, error)
+	HostStatus(context.Context) (daemonclient.HostStatus, error)
 }
 
 type updatePort interface {
-	OSUpdateStatus(context.Context) (soda.OSUpdateStatus, error)
-	CheckOSUpdate(context.Context) (soda.OSRelease, error)
-	StageOSUpdate(context.Context, string) (soda.OSUpdateStatus, error)
+	OSUpdateStatus(context.Context) (daemonclient.OSUpdateStatus, error)
+	CheckOSUpdate(context.Context) (daemonclient.OSRelease, error)
+	StageOSUpdate(context.Context, string) (daemonclient.OSUpdateStatus, error)
 	ActivateOSUpdate(context.Context) error
-}
-
-type sessionStore struct {
-	mu      sync.RWMutex
-	byToken map[string]soda.Person
 }
 
 type pageIdentity struct {
 	Title string
-	User  soda.Person
+	User  daemonclient.Person
 }
 
-func (view pageIdentity) Admin() bool { return view.User.Role == soda.RoleAdmin }
-
-type loginView struct {
-	pageIdentity
-	Error                  string
-	PasswordChangeRequired bool
-	Username               string
-}
-
-type projectListView struct {
-	ProjectCards  []projectCardView
-	ProjectsError string
-}
-
-type homeView struct {
-	pageIdentity
-	projectListView
-	Host      *soda.HostStatus
-	HostError string
-}
-
-type accountView struct {
-	pageIdentity
-	DeviceKeys []soda.SSHDeviceKey
-	Message    string
-	Error      string
-}
-
-type peopleView struct {
-	pageIdentity
-	People  []soda.Person
-	Message string
-	Error   string
-}
-
-type projectsView struct {
-	pageIdentity
-	projectListView
-	People []soda.Person
-	Error  string
-}
-
-type projectStateView struct {
-	Label  string
-	Class  string
-	Ready  bool
-	Active bool
-}
-
-type provisioningView struct {
-	Project   soda.Project
-	Admin     bool
-	State     projectStateView
-	Jobs      []soda.ProvisioningJob
-	Toolchain *soda.ToolchainInstallation
-	Error     string
-}
-
-type collaborationView struct {
-	Project   soda.Project
-	User      soda.Person
-	Admin     bool
-	Members   []memberWorkspaceView
-	Available []soda.Person
-	Ready     bool
-	Message   string
-	Error     string
-}
-
-type connectView struct {
-	Project     soda.Project
-	User        soda.Person
-	State       projectStateView
-	DeviceKeys  []soda.SSHDeviceKey
-	SelectedKey *soda.SSHDeviceKey
-	Workspace   *soda.Worktree
-	SSHConfig   string
-	SSHCommand  string
-	Error       string
-}
-
-type projectView struct {
-	pageIdentity
-	Project       soda.Project
-	State         projectStateView
-	Connection    connectView
-	Provisioning  provisioningView
-	Collaboration collaborationView
-	DeployKey     string
-}
-
-type profilesView struct {
-	pageIdentity
-	Projects []soda.Project
-}
-
-type osUpdatePageView struct {
-	pageIdentity
-	OSUpdate  *soda.OSUpdateStatus
-	OSRelease *soda.OSRelease
-	Message   string
-	Error     string
-}
-
-type projectCardView struct {
-	Project    soda.Project
-	State      string
-	StateClass string
-}
-
-type memberWorkspaceView struct {
-	Person    soda.Person
-	Workspace *soda.Worktree
-}
-
-type osUpdateView struct {
-	status  int
-	message string
-	error   string
-	release *soda.OSRelease
-	value   *soda.OSUpdateStatus
-}
-
-type userContextKey struct{}
+func (view pageIdentity) Admin() bool { return view.User.Role == daemonclient.RoleAdmin }
 
 func New(accounts accountPort, projects projectPort, host hostPort, updates updatePort, authenticator auth.Authenticator) (*Server, error) {
 	templates, err := template.New("root").Funcs(template.FuncMap{
@@ -222,7 +93,7 @@ func New(accounts accountPort, projects projectPort, host hostPort, updates upda
 		host:       host,
 		updates:    updates,
 		auth:       authenticator,
-		sessions:   &sessionStore{byToken: make(map[string]soda.Person)},
+		sessions:   &sessionStore{byToken: make(map[string]daemonclient.Person)},
 	}, nil
 }
 

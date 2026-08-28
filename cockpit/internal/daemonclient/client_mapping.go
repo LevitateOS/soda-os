@@ -1,4 +1,4 @@
-package soda
+package daemonclient
 
 import sodav2 "github.com/LevitateOS/soda-os/internal/gen/soda/v2"
 

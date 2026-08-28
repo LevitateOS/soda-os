@@ -1,4 +1,4 @@
-package server
+package web
 
 import (
 	"errors"
@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/LevitateOS/soda-os/cockpit/internal/auth"
-	"github.com/LevitateOS/soda-os/cockpit/internal/soda"
+	"github.com/LevitateOS/soda-os/cockpit/internal/daemonclient"
 )
 
 func TestHealthAndLoginPageArePublic(t *testing.T) {
@@ -30,9 +30,9 @@ func TestProtectedPageRedirectsToLogin(t *testing.T) {
 }
 
 func TestProjectCardsLeaveConnectionGuidanceToProjectDetail(t *testing.T) {
-	admin := soda.Person{ID: "admin-1", Username: "admin", DisplayName: "Admin", Role: soda.RoleAdmin}
-	project := soda.Project{ID: "project-1", Slug: "demo", Name: "Demo", UnixUser: "soda-p-demo", Profile: "go"}
-	app := testServer(t, &fakePorts{accounts: fakeAccounts{people: []soda.Person{admin}}, projects: fakeProjects{projects: []soda.Project{project}, jobs: []soda.ProvisioningJob{{ProjectID: project.ID, State: "ready"}}}}, &changingAuth{})
+	admin := daemonclient.Person{ID: "admin-1", Username: "admin", DisplayName: "Admin", Role: daemonclient.RoleAdmin}
+	project := daemonclient.Project{ID: "project-1", Slug: "demo", Name: "Demo", UnixUser: "soda-p-demo", Profile: "go"}
+	app := testServer(t, &fakePorts{accounts: fakeAccounts{people: []daemonclient.Person{admin}}, projects: fakeProjects{projects: []daemonclient.Project{project}, jobs: []daemonclient.ProvisioningJob{{ProjectID: project.ID, State: "ready"}}}}, &changingAuth{})
 	token, err := app.sessions.create(admin)
 	if err != nil {
 		t.Fatal(err)
@@ -51,11 +51,11 @@ func TestProjectCardsLeaveConnectionGuidanceToProjectDetail(t *testing.T) {
 func TestOSUpdateControlsAreAdministratorOnlyAndUseVerifiedExactRelease(t *testing.T) {
 	digest := "sha256:" + strings.Repeat("b", 64)
 	exact := "registry.soda.local/soda/os@" + digest
-	status := soda.OSUpdateStatus{Booted: &soda.OSDeployment{Version: "0.2.0", Digest: "sha256:" + strings.Repeat("a", 64), Architecture: "arm64", Signature: "containerPolicy"}}
-	release := soda.OSRelease{ImageReference: exact, Version: "0.3.0", Digest: digest, StateSchema: 2, Available: true}
+	status := daemonclient.OSUpdateStatus{Booted: &daemonclient.OSDeployment{Version: "0.2.0", Digest: "sha256:" + strings.Repeat("a", 64), Architecture: "arm64", Signature: "containerPolicy"}}
+	release := daemonclient.OSRelease{ImageReference: exact, Version: "0.3.0", Digest: digest, StateSchema: 2, Available: true}
 
-	developer := soda.Person{ID: "dev-1", Username: "dev", DisplayName: "Developer", Role: soda.RoleDeveloper}
-	developerServer := testServer(t, &fakePorts{accounts: fakeAccounts{people: []soda.Person{developer}}}, &changingAuth{})
+	developer := daemonclient.Person{ID: "dev-1", Username: "dev", DisplayName: "Developer", Role: daemonclient.RoleDeveloper}
+	developerServer := testServer(t, &fakePorts{accounts: fakeAccounts{people: []daemonclient.Person{developer}}}, &changingAuth{})
 	developerToken, err := developerServer.sessions.create(developer)
 	if err != nil {
 		t.Fatal(err)
@@ -65,8 +65,8 @@ func TestOSUpdateControlsAreAdministratorOnlyAndUseVerifiedExactRelease(t *testi
 		t.Fatalf("developer accessed OS updates: %d", response.Code)
 	}
 
-	admin := soda.Person{ID: "admin-1", Username: "admin", DisplayName: "Admin", Role: soda.RoleAdmin}
-	api := &fakePorts{accounts: fakeAccounts{people: []soda.Person{admin}}, updates: fakeUpdates{status: status, release: release}}
+	admin := daemonclient.Person{ID: "admin-1", Username: "admin", DisplayName: "Admin", Role: daemonclient.RoleAdmin}
+	api := &fakePorts{accounts: fakeAccounts{people: []daemonclient.Person{admin}}, updates: fakeUpdates{status: status, release: release}}
 	app := testServer(t, api, &changingAuth{})
 	token, err := app.sessions.create(admin)
 	if err != nil {
@@ -90,7 +90,7 @@ func TestOSUpdateControlsAreAdministratorOnlyAndUseVerifiedExactRelease(t *testi
 }
 
 func TestPAMLoginCreatesSessionForRegisteredPerson(t *testing.T) {
-	api := &fakePorts{accounts: fakeAccounts{people: []soda.Person{{ID: "person-1", Username: "alice", DisplayName: "Alice", Role: soda.RoleDeveloper}}}}
+	api := &fakePorts{accounts: fakeAccounts{people: []daemonclient.Person{{ID: "person-1", Username: "alice", DisplayName: "Alice", Role: daemonclient.RoleDeveloper}}}}
 	app := testServer(t, api, &changingAuth{})
 	form := url.Values{"username": {"alice"}, "password": {"correct"}}.Encode()
 	login := request(app, http.MethodPost, "/login", form, nil)
@@ -142,9 +142,9 @@ func (a *changingAuth) ChangePassword(username, current, replacement string) err
 }
 
 func TestFirstLoginRequiresPasswordReplacementThenSignsIn(t *testing.T) {
-	alice := soda.Person{ID: "person-1", Username: "alice", DisplayName: "Alice", Role: soda.RoleDeveloper}
+	alice := daemonclient.Person{ID: "person-1", Username: "alice", DisplayName: "Alice", Role: daemonclient.RoleDeveloper}
 	authenticator := &changingAuth{result: auth.PasswordChangeRequired}
-	app := testServer(t, &fakePorts{accounts: fakeAccounts{people: []soda.Person{alice}}}, authenticator)
+	app := testServer(t, &fakePorts{accounts: fakeAccounts{people: []daemonclient.Person{alice}}}, authenticator)
 	login := request(app, http.MethodPost, "/login", url.Values{"username": {"alice"}, "password": {"temporary"}}.Encode(), nil)
 	if login.Code != http.StatusOK || len(login.Result().Cookies()) != 0 {
 		t.Fatalf("unexpected activation response: %d %q", login.Code, login.Body.String())

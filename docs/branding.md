@@ -35,7 +35,7 @@ belongs in technical documentation.
 `assets/branding/icons` contains the hicolor installed-system icons at 16, 24,
 32, 48, 64, 128, 256,
 and 512 px. `assets/branding/web` contains favicon and touch-icon PNGs. Cockpit
-embeds its synchronized copies from `cockpit/internal/server/static`.
+embeds its synchronized copies from `cockpit/internal/web/static`.
 
 Run the following from the repository root after changing an SVG:
 

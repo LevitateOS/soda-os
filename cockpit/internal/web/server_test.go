@@ -1,4 +1,4 @@
-package server
+package web
 
 import (
 	"net/http"
@@ -8,15 +8,15 @@ import (
 	"testing"
 
 	"github.com/LevitateOS/soda-os/cockpit/internal/auth"
-	"github.com/LevitateOS/soda-os/cockpit/internal/soda"
+	"github.com/LevitateOS/soda-os/cockpit/internal/daemonclient"
 )
 
 func TestProvisioningFragmentShowsCurrentState(t *testing.T) {
-	admin := soda.Person{ID: "admin-1", Username: "admin", DisplayName: "Admin", Role: soda.RoleAdmin}
-	project := soda.Project{ID: "project-1", Name: "Live project"}
+	admin := daemonclient.Person{ID: "admin-1", Username: "admin", DisplayName: "Admin", Role: daemonclient.RoleAdmin}
+	project := daemonclient.Project{ID: "project-1", Name: "Live project"}
 	api := &fakePorts{
-		accounts: fakeAccounts{people: []soda.Person{admin}},
-		projects: fakeProjects{projects: []soda.Project{project}, jobs: []soda.ProvisioningJob{{ID: "job-1", ProjectID: project.ID, State: "installing"}}},
+		accounts: fakeAccounts{people: []daemonclient.Person{admin}},
+		projects: fakeProjects{projects: []daemonclient.Project{project}, jobs: []daemonclient.ProvisioningJob{{ID: "job-1", ProjectID: project.ID, State: "installing"}}},
 	}
 	app := testServer(t, api, &changingAuth{})
 	token, err := app.sessions.create(admin)
@@ -41,9 +41,9 @@ func TestProvisioningFragmentShowsCurrentState(t *testing.T) {
 }
 
 func TestHTMXRetryReturnsInstallingFragment(t *testing.T) {
-	admin := soda.Person{ID: "admin-1", Username: "admin", DisplayName: "Admin", Role: soda.RoleAdmin}
-	project := soda.Project{ID: "project-1", Name: "Live project"}
-	api := &fakePorts{accounts: fakeAccounts{people: []soda.Person{admin}}, projects: fakeProjects{projects: []soda.Project{project}}}
+	admin := daemonclient.Person{ID: "admin-1", Username: "admin", DisplayName: "Admin", Role: daemonclient.RoleAdmin}
+	project := daemonclient.Project{ID: "project-1", Name: "Live project"}
+	api := &fakePorts{accounts: fakeAccounts{people: []daemonclient.Person{admin}}, projects: fakeProjects{projects: []daemonclient.Project{project}}}
 	app := testServer(t, api, &changingAuth{})
 	token, err := app.sessions.create(admin)
 	if err != nil {
@@ -63,8 +63,8 @@ func TestHTMXRetryReturnsInstallingFragment(t *testing.T) {
 }
 
 func TestAdminHTMXPersonFlow(t *testing.T) {
-	admin := soda.Person{ID: "admin-1", Username: "admin", DisplayName: "Admin", Role: soda.RoleAdmin}
-	api := &fakePorts{accounts: fakeAccounts{people: []soda.Person{admin}}}
+	admin := daemonclient.Person{ID: "admin-1", Username: "admin", DisplayName: "Admin", Role: daemonclient.RoleAdmin}
+	api := &fakePorts{accounts: fakeAccounts{people: []daemonclient.Person{admin}}}
 	app := testServer(t, api, &changingAuth{})
 	token, err := app.sessions.create(admin)
 	if err != nil {
@@ -90,9 +90,9 @@ func TestAdminHTMXPersonFlow(t *testing.T) {
 }
 
 func TestMyAccountManagesOnlyCurrentUsersSSHDevices(t *testing.T) {
-	alice := soda.Person{ID: "person-1", Username: "alice", DisplayName: "Alice", Role: soda.RoleAdmin}
-	bob := soda.Person{ID: "person-2", Username: "bob", DisplayName: "Bob", Role: soda.RoleDeveloper}
-	api := &fakePorts{accounts: fakeAccounts{people: []soda.Person{alice, bob}, keys: []soda.SSHDeviceKey{{ID: "bob-key", PersonID: bob.ID, Label: "Bob laptop"}}}}
+	alice := daemonclient.Person{ID: "person-1", Username: "alice", DisplayName: "Alice", Role: daemonclient.RoleAdmin}
+	bob := daemonclient.Person{ID: "person-2", Username: "bob", DisplayName: "Bob", Role: daemonclient.RoleDeveloper}
+	api := &fakePorts{accounts: fakeAccounts{people: []daemonclient.Person{alice, bob}, keys: []daemonclient.SSHDeviceKey{{ID: "bob-key", PersonID: bob.ID, Label: "Bob laptop"}}}}
 	app := testServer(t, api, &changingAuth{})
 	token, err := app.sessions.create(alice)
 	if err != nil {
@@ -111,9 +111,9 @@ func TestMyAccountManagesOnlyCurrentUsersSSHDevices(t *testing.T) {
 }
 
 func TestProjectCreationForwardsInitialTeamAndHasNoWorktreeCreationRoute(t *testing.T) {
-	admin := soda.Person{ID: "admin-1", Username: "admin", DisplayName: "Admin", Role: soda.RoleAdmin}
-	bob := soda.Person{ID: "person-2", Username: "bob", DisplayName: "Bob", Role: soda.RoleDeveloper}
-	api := &fakePorts{accounts: fakeAccounts{people: []soda.Person{admin, bob}}}
+	admin := daemonclient.Person{ID: "admin-1", Username: "admin", DisplayName: "Admin", Role: daemonclient.RoleAdmin}
+	bob := daemonclient.Person{ID: "person-2", Username: "bob", DisplayName: "Bob", Role: daemonclient.RoleDeveloper}
+	api := &fakePorts{accounts: fakeAccounts{people: []daemonclient.Person{admin, bob}}}
 	app := testServer(t, api, &changingAuth{})
 	token, err := app.sessions.create(admin)
 	if err != nil {
@@ -132,12 +132,12 @@ func TestProjectCreationForwardsInitialTeamAndHasNoWorktreeCreationRoute(t *test
 }
 
 func TestProjectShowsMembershipWhilePersonalWorkspaceIsPreparing(t *testing.T) {
-	admin := soda.Person{ID: "admin-1", Username: "admin", DisplayName: "Admin", Role: soda.RoleAdmin}
-	bob := soda.Person{ID: "person-2", Username: "bob", DisplayName: "Bob", Role: soda.RoleDeveloper}
-	project := soda.Project{ID: "project-1", Slug: "demo", Name: "Demo", UnixUser: "soda-p-demo", Profile: "go"}
+	admin := daemonclient.Person{ID: "admin-1", Username: "admin", DisplayName: "Admin", Role: daemonclient.RoleAdmin}
+	bob := daemonclient.Person{ID: "person-2", Username: "bob", DisplayName: "Bob", Role: daemonclient.RoleDeveloper}
+	project := daemonclient.Project{ID: "project-1", Slug: "demo", Name: "Demo", UnixUser: "soda-p-demo", Profile: "go"}
 	api := &fakePorts{
-		accounts: fakeAccounts{people: []soda.Person{admin, bob}},
-		projects: fakeProjects{members: []soda.Person{bob}, projects: []soda.Project{project}, jobs: []soda.ProvisioningJob{{ID: "job-1", ProjectID: project.ID, State: "installing"}}},
+		accounts: fakeAccounts{people: []daemonclient.Person{admin, bob}},
+		projects: fakeProjects{members: []daemonclient.Person{bob}, projects: []daemonclient.Project{project}, jobs: []daemonclient.ProvisioningJob{{ID: "job-1", ProjectID: project.ID, State: "installing"}}},
 	}
 	app := testServer(t, api, &changingAuth{})
 	token, err := app.sessions.create(admin)
@@ -156,13 +156,13 @@ func TestProjectShowsMembershipWhilePersonalWorkspaceIsPreparing(t *testing.T) {
 }
 
 func TestConnectFragmentRendersPersonalizedSSHConfiguration(t *testing.T) {
-	alice := soda.Person{ID: "person-1", Username: "alice", DisplayName: "Alice", Role: soda.RoleDeveloper}
-	project := soda.Project{ID: "project-1", Slug: "storefront", Name: "Storefront", UnixUser: "soda-p-storefront", Profile: "go"}
-	key := soda.SSHDeviceKey{ID: "key-1", PersonID: alice.ID, Label: "Laptop", Fingerprint: "SHA256:test", IdentityFileHint: "~/.ssh/key with space"}
-	workspace := soda.Worktree{ID: "workspace-1", ProjectID: project.ID, PersonID: alice.ID, Branch: "people/alice", Path: "/srv/soda/projects/storefront/worktrees/alice"}
+	alice := daemonclient.Person{ID: "person-1", Username: "alice", DisplayName: "Alice", Role: daemonclient.RoleDeveloper}
+	project := daemonclient.Project{ID: "project-1", Slug: "storefront", Name: "Storefront", UnixUser: "soda-p-storefront", Profile: "go"}
+	key := daemonclient.SSHDeviceKey{ID: "key-1", PersonID: alice.ID, Label: "Laptop", Fingerprint: "SHA256:test", IdentityFileHint: "~/.ssh/key with space"}
+	workspace := daemonclient.Worktree{ID: "workspace-1", ProjectID: project.ID, PersonID: alice.ID, Branch: "people/alice", Path: "/srv/soda/projects/storefront/worktrees/alice"}
 	api := &fakePorts{
-		accounts: fakeAccounts{people: []soda.Person{alice}, keys: []soda.SSHDeviceKey{key}},
-		projects: fakeProjects{members: []soda.Person{alice}, projects: []soda.Project{project}, worktrees: []soda.Worktree{workspace}, jobs: []soda.ProvisioningJob{{ID: "job-1", ProjectID: project.ID, State: "ready"}}},
+		accounts: fakeAccounts{people: []daemonclient.Person{alice}, keys: []daemonclient.SSHDeviceKey{key}},
+		projects: fakeProjects{members: []daemonclient.Person{alice}, projects: []daemonclient.Project{project}, worktrees: []daemonclient.Worktree{workspace}, jobs: []daemonclient.ProvisioningJob{{ID: "job-1", ProjectID: project.ID, State: "ready"}}},
 	}
 	app := testServer(t, api, &changingAuth{})
 	token, err := app.sessions.create(alice)

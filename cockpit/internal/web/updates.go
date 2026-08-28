@@ -1,6 +1,26 @@
-package server
+package web
 
-import "net/http"
+import (
+	"net/http"
+
+	"github.com/LevitateOS/soda-os/cockpit/internal/daemonclient"
+)
+
+type osUpdatePageView struct {
+	pageIdentity
+	OSUpdate  *daemonclient.OSUpdateStatus
+	OSRelease *daemonclient.OSRelease
+	Message   string
+	Error     string
+}
+
+type osUpdateView struct {
+	status  int
+	message string
+	error   string
+	release *daemonclient.OSRelease
+	value   *daemonclient.OSUpdateStatus
+}
 
 func (s *Server) osUpdate(w http.ResponseWriter, r *http.Request) {
 	if !requireAdmin(w, r) {

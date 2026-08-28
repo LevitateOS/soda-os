@@ -1,4 +1,4 @@
-package server
+package web
 
 import (
 	"context"
@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/LevitateOS/soda-os/cockpit/internal/soda"
+	"github.com/LevitateOS/soda-os/cockpit/internal/daemonclient"
 )
 
 func (s *Server) projects(w http.ResponseWriter, r *http.Request) {
@@ -21,7 +21,7 @@ func (s *Server) projects(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		data.ProjectsError = "Projects are temporarily unavailable."
 	}
-	if user.Role == soda.RoleAdmin {
+	if user.Role == daemonclient.RoleAdmin {
 		data.People, err = s.accounts.People(r.Context())
 		if err != nil {
 			http.Error(w, "load team", http.StatusBadGateway)
@@ -39,12 +39,12 @@ func (s *Server) createProject(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid project", http.StatusBadRequest)
 		return
 	}
-	var source soda.ProjectSource = soda.EmptyProjectSource{}
+	var source daemonclient.ProjectSource = daemonclient.EmptyProjectSource{}
 	if remote := strings.TrimSpace(r.FormValue("remote_url")); remote != "" {
-		source = soda.GitProjectSource{RemoteURL: remote}
+		source = daemonclient.GitProjectSource{RemoteURL: remote}
 	}
 	members := append([]string(nil), r.Form["member_ids"]...)
-	project, err := s.projectAPI.CreateProject(r.Context(), soda.CreateProjectRequest{
+	project, err := s.projectAPI.CreateProject(r.Context(), daemonclient.CreateProjectRequest{
 		Slug: r.FormValue("slug"), Name: r.FormValue("name"), Profile: r.FormValue("profile"), Source: source, InitialPersonIDs: members,
 	})
 	if err != nil {
@@ -96,12 +96,12 @@ func (s *Server) project(w http.ResponseWriter, r *http.Request) {
 		pageIdentity:  pageIdentity{Title: "Project · Soda OS", User: user},
 		Project:       project,
 		State:         projectState,
-		Provisioning:  provisioningView{Project: project, Admin: user.Role == soda.RoleAdmin, State: projectState, Jobs: jobs, Toolchain: installation},
-		Collaboration: collaborationView{Project: project, User: user, Admin: user.Role == soda.RoleAdmin, Members: memberWorkspaceViews(members, worktrees), Available: peopleWithoutMembers(people, members), Ready: projectState.Ready},
+		Provisioning:  provisioningView{Project: project, Admin: user.Role == daemonclient.RoleAdmin, State: projectState, Jobs: jobs, Toolchain: installation},
+		Collaboration: collaborationView{Project: project, User: user, Admin: user.Role == daemonclient.RoleAdmin, Members: memberWorkspaceViews(members, worktrees), Available: peopleWithoutMembers(people, members), Ready: projectState.Ready},
 		Connection:    connectView{Project: project, User: user, State: projectState},
 	}
 	s.addConnectionKeys(r.Context(), &data.Connection, worktrees)
-	if user.Role == soda.RoleAdmin {
+	if user.Role == daemonclient.RoleAdmin {
 		key, err := s.projectAPI.DeployKey(r.Context(), project.ID)
 		if err != nil {
 			http.Error(w, "load deploy key", http.StatusBadGateway)
@@ -155,7 +155,7 @@ func (s *Server) sshConfig(w http.ResponseWriter, r *http.Request) {
 	_, _ = fmt.Fprint(w, data.SSHConfig)
 }
 
-func (s *Server) addConnectionKeys(ctx context.Context, data *connectView, worktrees []soda.Worktree) {
+func (s *Server) addConnectionKeys(ctx context.Context, data *connectView, worktrees []daemonclient.Worktree) {
 	keys, err := s.accounts.SSHDeviceKeys(ctx, data.User.ID)
 	if err != nil {
 		data.Error = "Connection details are temporarily unavailable."
@@ -184,7 +184,7 @@ func (s *Server) loadConnectData(ctx context.Context, data *connectView, selecte
 	return populateConnectData(data, worktrees, keys, selectedKeyID)
 }
 
-func populateConnectData(data *connectView, worktrees []soda.Worktree, keys []soda.SSHDeviceKey, selectedKeyID string) error {
+func populateConnectData(data *connectView, worktrees []daemonclient.Worktree, keys []daemonclient.SSHDeviceKey, selectedKeyID string) error {
 	data.DeviceKeys = keys
 	data.Workspace = nil
 	for i := range worktrees {
@@ -206,7 +206,7 @@ func populateConnectData(data *connectView, worktrees []soda.Worktree, keys []so
 	return nil
 }
 
-func selectDeviceKey(keys []soda.SSHDeviceKey, selectedKeyID string) (*soda.SSHDeviceKey, error) {
+func selectDeviceKey(keys []daemonclient.SSHDeviceKey, selectedKeyID string) (*daemonclient.SSHDeviceKey, error) {
 	if selectedKeyID == "" {
 		if len(keys) == 0 {
 			return nil, nil
@@ -249,7 +249,7 @@ func (s *Server) collaborationData(w http.ResponseWriter, r *http.Request) (coll
 		http.Error(w, "load project members", http.StatusBadGateway)
 		return collaborationView{}, false
 	}
-	data := collaborationView{Project: project, User: user, Admin: user.Role == soda.RoleAdmin, Members: memberWorkspaceViews(members, worktrees), Available: peopleWithoutMembers(people, members)}
+	data := collaborationView{Project: project, User: user, Admin: user.Role == daemonclient.RoleAdmin, Members: memberWorkspaceViews(members, worktrees), Available: peopleWithoutMembers(people, members)}
 	jobs, _, setupErr := s.provisioningState(r.Context(), project.ID)
 	if setupErr == nil {
 		_, stateClass := projectState(jobs)
@@ -275,7 +275,7 @@ func (s *Server) provisioning(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	state, class := projectState(jobs)
-	s.render(w, http.StatusOK, "provisioning", provisioningView{Project: project, Admin: user.Role == soda.RoleAdmin, State: projectStateView{Label: state, Class: class, Active: provisioningActive(jobs)}, Jobs: jobs, Toolchain: installation})
+	s.render(w, http.StatusOK, "provisioning", provisioningView{Project: project, Admin: user.Role == daemonclient.RoleAdmin, State: projectStateView{Label: state, Class: class, Active: provisioningActive(jobs)}, Jobs: jobs, Toolchain: installation})
 }
 
 func (s *Server) addCollaborator(w http.ResponseWriter, r *http.Request) {
@@ -287,7 +287,7 @@ func (s *Server) addCollaborator(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	projectID := r.PathValue("project_id")
-	command := soda.AddCollaboratorCommand{ProjectID: projectID, PersonID: r.FormValue("person_id")}
+	command := daemonclient.AddCollaboratorCommand{ProjectID: projectID, PersonID: r.FormValue("person_id")}
 	commandErr := s.projectAPI.AddCollaborator(r.Context(), command)
 	s.respondToCollaboratorCommand(w, r, projectID, commandErr)
 }
@@ -329,7 +329,7 @@ func (s *Server) retryProvisioning(w http.ResponseWriter, r *http.Request) {
 			}
 			jobs, installation, _ := s.provisioningState(r.Context(), projectID)
 			state, class := projectState(jobs)
-			s.render(w, http.StatusUnprocessableEntity, "provisioning", provisioningView{Project: project, Admin: user.Role == soda.RoleAdmin, State: projectStateView{Label: state, Class: class, Active: provisioningActive(jobs)}, Jobs: jobs, Toolchain: installation, Error: err.Error()})
+			s.render(w, http.StatusUnprocessableEntity, "provisioning", provisioningView{Project: project, Admin: user.Role == daemonclient.RoleAdmin, State: projectStateView{Label: state, Class: class, Active: provisioningActive(jobs)}, Jobs: jobs, Toolchain: installation, Error: err.Error()})
 			return
 		}
 		http.Error(w, err.Error(), http.StatusBadRequest)

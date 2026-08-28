@@ -1,11 +1,45 @@
-package server
+package web
 
 import (
+	"fmt"
 	"net/http"
+	"strings"
+	"unicode/utf8"
 
 	"github.com/LevitateOS/soda-os/cockpit/internal/auth"
-	"github.com/LevitateOS/soda-os/cockpit/internal/soda"
+	"github.com/LevitateOS/soda-os/cockpit/internal/daemonclient"
 )
+
+type loginView struct {
+	pageIdentity
+	Error                  string
+	PasswordChangeRequired bool
+	Username               string
+}
+
+type accountView struct {
+	pageIdentity
+	DeviceKeys []daemonclient.SSHDeviceKey
+	Message    string
+	Error      string
+}
+
+type peopleView struct {
+	pageIdentity
+	People  []daemonclient.Person
+	Message string
+	Error   string
+}
+
+func validatePassword(password string) error {
+	if strings.ContainsAny(password, "\r\n\x00") {
+		return fmt.Errorf("password cannot contain line breaks")
+	}
+	if utf8.RuneCountInString(password) < 6 {
+		return fmt.Errorf("password must be at least six characters")
+	}
+	return nil
+}
 
 func (s *Server) loginPage(w http.ResponseWriter, _ *http.Request) {
 	s.render(w, http.StatusOK, "login.html", loginView{pageIdentity: pageIdentity{Title: "Sign in · Soda OS"}})
@@ -58,7 +92,7 @@ func (s *Server) finishLogin(w http.ResponseWriter, r *http.Request, username, d
 		http.Error(w, "Soda service unavailable", http.StatusBadGateway)
 		return
 	}
-	var person *soda.Person
+	var person *daemonclient.Person
 	for i := range people {
 		if people[i].Username == username {
 			person = &people[i]
@@ -84,29 +118,6 @@ func (s *Server) logout(w http.ResponseWriter, r *http.Request) {
 	}
 	http.SetCookie(w, &http.Cookie{Name: sessionCookie, Path: "/", MaxAge: -1, HttpOnly: true, Secure: true, SameSite: http.SameSiteStrictMode})
 	http.Redirect(w, r, "/login", http.StatusSeeOther)
-}
-
-func (s *Server) home(w http.ResponseWriter, r *http.Request) {
-	user := currentUser(r)
-	projects, err := s.visibleProjects(r.Context(), user)
-	if err != nil {
-		http.Error(w, "load projects", http.StatusBadGateway)
-		return
-	}
-	data := homeView{pageIdentity: pageIdentity{Title: "Soda OS", User: user}}
-	data.ProjectCards, err = s.projectCards(r.Context(), projects)
-	if err != nil {
-		data.ProjectsError = "Projects are temporarily unavailable."
-	}
-	if user.Role == soda.RoleAdmin {
-		host, hostErr := s.host.HostStatus(r.Context())
-		if hostErr != nil {
-			data.HostError = "Host status is temporarily unavailable."
-		} else {
-			data.Host = &host
-		}
-	}
-	s.render(w, http.StatusOK, "index.html", data)
 }
 
 func (s *Server) account(w http.ResponseWriter, r *http.Request) {
@@ -198,9 +209,9 @@ func (s *Server) createPerson(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid person", http.StatusBadRequest)
 		return
 	}
-	err := s.accounts.CreatePerson(r.Context(), soda.CreatePersonRequest{
+	err := s.accounts.CreatePerson(r.Context(), daemonclient.CreatePersonRequest{
 		Username: r.FormValue("username"), DisplayName: r.FormValue("display_name"),
-		Email: r.FormValue("email"), Role: soda.Role(r.FormValue("role")),
+		Email: r.FormValue("email"), Role: daemonclient.Role(r.FormValue("role")),
 		Password: r.FormValue("password"),
 	})
 	if err != nil {
