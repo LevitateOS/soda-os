@@ -58,24 +58,6 @@ type PathSpec struct {
 	DaemonSocket  string `toml:"daemon_socket"`
 }
 
-type ProfileSpec struct {
-	SchemaVersion uint32          `toml:"schema_version"`
-	Profile       ProfileIdentity `toml:"profile"`
-	Tools         []ToolSpec      `toml:"tools"`
-}
-
-type ProfileIdentity struct {
-	ID          string `toml:"id"`
-	DisplayName string `toml:"display_name"`
-}
-
-type ToolSpec struct {
-	ID       string   `toml:"id"`
-	Resolver string   `toml:"resolver"`
-	Channel  string   `toml:"channel"`
-	BinPaths []string `toml:"bin_paths"`
-}
-
 func LoadDistro(path string) (DistroSpec, error) {
 	var spec DistroSpec
 	if _, err := toml.DecodeFile(path, &spec); err != nil {
@@ -83,17 +65,6 @@ func LoadDistro(path string) (DistroSpec, error) {
 	}
 	if spec.SchemaVersion != 2 {
 		return DistroSpec{}, fmt.Errorf("unsupported distro schema version %d; expected 2", spec.SchemaVersion)
-	}
-	return spec, nil
-}
-
-func LoadProfile(path string) (ProfileSpec, error) {
-	var spec ProfileSpec
-	if _, err := toml.DecodeFile(path, &spec); err != nil {
-		return ProfileSpec{}, fmt.Errorf("decode profile specification %q: %w", path, err)
-	}
-	if spec.SchemaVersion != 1 {
-		return ProfileSpec{}, fmt.Errorf("unsupported profile schema version %d; expected 1", spec.SchemaVersion)
 	}
 	return spec, nil
 }

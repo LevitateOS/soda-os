@@ -109,51 +109,57 @@ func TestSessionCommandsAndFinalEnvironment(t *testing.T) {
 		Variables: map[string]string{"RUSTUP_HOME": "/opt/soda/rustup", "CARGO_HOME": "/opt/soda/cargo"},
 	})
 
-	tests := []struct {
-		name     string
-		original string
-		shell    string
-		path     string
-		argv     []string
-		wantPWD  bool
-	}{
+	tests := []sessionMode{
 		{name: "login shell", shell: "/bin/bash", path: "/bin/bash", argv: []string{"/bin/bash", "-l"}},
-		{name: "command", original: "printf hello", path: "/bin/bash", argv: []string{"/bin/bash", "-lc", "printf hello"}, wantPWD: true},
+		{name: "command", original: "printf hello", path: "/bin/bash", argv: []string{"/bin/bash", "-lc", "printf hello"}},
 		{name: "SFTP", original: "internal-sftp", path: sftpServer, argv: []string{sftpServer}},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			options := fixture.options()
-			options.OriginalCommand = test.original
-			options.Shell = test.shell
-			options.Environment = []string{"PATH=/usr/local/bin:/usr/bin", "LANG=en_US.UTF-8", "SODA_ACTOR=wrong"}
-			invocation, err := BuildInvocation(options)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if invocation.Path != test.path || !reflect.DeepEqual(invocation.Argv, test.argv) {
-				t.Fatalf("command = %q %#v, want %q %#v", invocation.Path, invocation.Argv, test.path, test.argv)
-			}
-			if invocation.Dir != fixture.worktree {
-				t.Fatalf("Dir = %q", invocation.Dir)
-			}
-			assertEnv(t, invocation.Env, "SODA_ACTOR", "alice-2")
-			assertEnv(t, invocation.Env, "SODA_PROJECT", "example")
-			assertEnv(t, invocation.Env, "SODA_WORKTREE", fixture.worktree)
-			assertEnv(t, invocation.Env, "HOME", fixture.home)
-			assertEnv(t, invocation.Env, "XDG_CONFIG_HOME", filepath.Join(fixture.home, ".config"))
-			assertEnv(t, invocation.Env, "XDG_CACHE_HOME", filepath.Join(fixture.home, ".cache"))
-			assertEnv(t, invocation.Env, "XDG_DATA_HOME", filepath.Join(fixture.home, ".local", "share"))
-			assertEnv(t, invocation.Env, "XDG_STATE_HOME", filepath.Join(fixture.home, ".local", "state"))
-			assertEnv(t, invocation.Env, "SODA_PROFILE", "rust")
-			assertEnv(t, invocation.Env, "RUSTUP_HOME", "/opt/soda/rustup")
-			assertEnv(t, invocation.Env, "CARGO_HOME", "/opt/soda/cargo")
-			assertEnv(t, invocation.Env, "PATH", "/opt/soda/bin:/opt/soda/cargo/bin:/usr/local/bin:/usr/bin")
-			assertEnv(t, invocation.Env, "LANG", "en_US.UTF-8")
-			if got := environmentValue(invocation.Env, "PWD"); test.wantPWD && got != fixture.worktree {
-				t.Fatalf("PWD = %q, want %q", got, fixture.worktree)
-			}
+			assertSessionMode(t, fixture, test)
 		})
+	}
+}
+
+type sessionMode struct {
+	name, original, shell, path string
+	argv                        []string
+}
+
+func assertSessionMode(t *testing.T, fixture fixture, mode sessionMode) {
+	t.Helper()
+	options := fixture.options()
+	options.OriginalCommand, options.Shell = mode.original, mode.shell
+	options.Environment = []string{"PATH=/usr/local/bin:/usr/bin", "LANG=en_US.UTF-8", "SODA_ACTOR=wrong"}
+	invocation, err := BuildInvocation(options)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if invocation.Path != mode.path || !reflect.DeepEqual(invocation.Argv, mode.argv) {
+		t.Fatalf("command = %q %#v, want %q %#v", invocation.Path, invocation.Argv, mode.path, mode.argv)
+	}
+	if invocation.Dir != fixture.worktree {
+		t.Fatalf("Dir = %q", invocation.Dir)
+	}
+	for name, want := range map[string]string{
+		"SODA_ACTOR":      "alice-2",
+		"SODA_PROJECT":    "example",
+		"SODA_WORKTREE":   fixture.worktree,
+		"HOME":            fixture.home,
+		"XDG_CONFIG_HOME": filepath.Join(fixture.home, ".config"),
+		"XDG_CACHE_HOME":  filepath.Join(fixture.home, ".cache"),
+		"XDG_DATA_HOME":   filepath.Join(fixture.home, ".local", "share"),
+		"XDG_STATE_HOME":  filepath.Join(fixture.home, ".local", "state"),
+		"SODA_PROFILE":    "rust",
+		"RUSTUP_HOME":     "/opt/soda/rustup",
+		"CARGO_HOME":      "/opt/soda/cargo",
+		"PATH":            "/opt/soda/bin:/opt/soda/cargo/bin:/usr/local/bin:/usr/bin",
+		"LANG":            "en_US.UTF-8",
+	} {
+		assertEnv(t, invocation.Env, name, want)
+	}
+	if mode.original != "" && environmentValue(invocation.Env, "PWD") != fixture.worktree {
+		t.Fatalf("PWD was not set for command session")
 	}
 }
 

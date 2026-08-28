@@ -58,7 +58,7 @@ func (m *Manager) runEvery(ctx context.Context, interval time.Duration, refresh 
 func (m *Manager) RefreshHost(ctx context.Context) {
 	status, err := m.host.SampleHost(ctx)
 	if err != nil {
-		status = domain.HostStatus{SampledAt: time.Now(), Overall: domain.RuntimeUnavailable}
+		status = domain.HostStatus{SampledAt: time.Now(), Health: domain.HostHealth{Overall: domain.RuntimeUnavailable}}
 	}
 	m.mu.Lock()
 	m.hostStatus = status
@@ -66,8 +66,8 @@ func (m *Manager) RefreshHost(ctx context.Context) {
 }
 
 func cloneHost(status domain.HostStatus) domain.HostStatus {
-	status.Services = append([]domain.ServiceStatus(nil), status.Services...)
-	status.Interfaces = append([]domain.NetworkInterface(nil), status.Interfaces...)
-	status.Filesystems = append([]domain.FilesystemStatus(nil), status.Filesystems...)
+	status.Health.Services = append([]domain.ServiceStatus(nil), status.Health.Services...)
+	status.Network.Interfaces = append([]domain.NetworkInterface(nil), status.Network.Interfaces...)
+	status.Resources.Filesystems = append([]domain.FilesystemStatus(nil), status.Resources.Filesystems...)
 	return status
 }

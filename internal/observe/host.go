@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -76,23 +75,27 @@ func NewSystemHostSampler(commands CommandRunner, files HostFiles) *SystemHostSa
 func (s *SystemHostSampler) SampleHost(ctx context.Context) (domain.HostStatus, error) {
 	services := s.sampleServices(ctx)
 	interfaces, interfaceErr := networkInterfaces(ctx, s.Commands)
-	ssh := firewallReady(ctx, s.Commands, "--query-service", "ssh")
-	cockpit := firewallReady(ctx, s.Commands, "--query-port", "9090/tcp")
+	firewall := domain.FirewallStatus{
+		SSHReady:     firewallReady(ctx, s.Commands, "--query-service", "ssh"),
+		CockpitReady: firewallReady(ctx, s.Commands, "--query-port", "9090/tcp"),
+	}
 	total, available := memoryStatus(s.Files)
-	resources := hostResources{cpu: s.cpuPercent(), load: loadAverage(s.Files), uptime: uptimeSeconds(s.Files), memoryTotal: total, memoryAvailable: available, filesystems: filesystemStatus(s.Files)}
 	return domain.HostStatus{
-		SampledAt:            time.Now(),
-		Overall:              hostReadiness(services, interfaces, interfaceErr, ssh, cockpit),
-		Services:             services,
-		SSHFirewallReady:     ssh,
-		CockpitFirewallReady: cockpit,
-		Interfaces:           interfaces,
-		CPUPercent:           resources.cpu,
-		LoadAverage:          resources.load,
-		UptimeSeconds:        resources.uptime,
-		MemoryTotalBytes:     resources.memoryTotal,
-		MemoryAvailableBytes: resources.memoryAvailable,
-		Filesystems:          resources.filesystems,
+		SampledAt: time.Now(),
+		Health: domain.HostHealth{
+			Overall:  hostReadiness(services, interfaces, interfaceErr, firewall),
+			Services: services,
+		},
+		Network:  domain.HostNetwork{Interfaces: interfaces},
+		Firewall: firewall,
+		Resources: domain.HostResources{
+			CPUPercent:           s.cpuPercent(),
+			LoadAverage:          loadAverage(s.Files),
+			UptimeSeconds:        uptimeSeconds(s.Files),
+			MemoryTotalBytes:     total,
+			MemoryAvailableBytes: available,
+			Filesystems:          filesystemStatus(s.Files),
+		},
 	}, nil
 }
 
@@ -102,15 +105,6 @@ func (s *SystemHostSampler) sampleServices(ctx context.Context) []domain.Service
 		services = append(services, domain.ServiceStatus{Name: name, State: serviceState(ctx, s.Commands, name)})
 	}
 	return services
-}
-
-type hostResources struct {
-	cpu             *float64
-	load            [3]float64
-	uptime          uint64
-	memoryTotal     uint64
-	memoryAvailable uint64
-	filesystems     []domain.FilesystemStatus
 }
 
 func filesystemStatus(files HostFiles) []domain.FilesystemStatus {
@@ -123,8 +117,8 @@ func filesystemStatus(files HostFiles) []domain.FilesystemStatus {
 	return result
 }
 
-func hostReadiness(services []domain.ServiceStatus, interfaces []domain.NetworkInterface, interfaceErr error, ssh, cockpit bool) domain.RuntimeState {
-	if interfaceErr != nil || !ssh || !cockpit || len(interfaces) == 0 {
+func hostReadiness(services []domain.ServiceStatus, interfaces []domain.NetworkInterface, interfaceErr error, firewall domain.FirewallStatus) domain.RuntimeState {
+	if interfaceErr != nil || !firewall.SSHReady || !firewall.CockpitReady || len(interfaces) == 0 {
 		return domain.RuntimeDegraded
 	}
 	for _, service := range services {
@@ -170,20 +164,27 @@ func networkInterfaces(ctx context.Context, runner CommandRunner) ([]domain.Netw
 	}
 	interfaces := make([]domain.NetworkInterface, 0, len(addresses))
 	for _, item := range addresses {
-		if item.Name == "" || item.Name == "lo" {
-			continue
-		}
-		var globals []string
-		for _, address := range item.Addresses {
-			if address.Scope == "global" && address.Local != "" {
-				globals = append(globals, address.Local)
-			}
-		}
-		if len(globals) > 0 {
-			interfaces = append(interfaces, domain.NetworkInterface{Name: item.Name, Addresses: globals})
+		if value, ok := projectNetworkInterface(item); ok {
+			interfaces = append(interfaces, value)
 		}
 	}
 	return interfaces, nil
+}
+
+func projectNetworkInterface(item ipAddress) (domain.NetworkInterface, bool) {
+	if item.Name == "" || item.Name == "lo" {
+		return domain.NetworkInterface{}, false
+	}
+	addresses := make([]string, 0, len(item.Addresses))
+	for _, address := range item.Addresses {
+		if address.Scope == "global" && address.Local != "" {
+			addresses = append(addresses, address.Local)
+		}
+	}
+	if len(addresses) == 0 {
+		return domain.NetworkInterface{}, false
+	}
+	return domain.NetworkInterface{Name: item.Name, Addresses: addresses}, true
 }
 
 func memoryStatus(files HostFiles) (uint64, uint64) {
@@ -256,9 +257,4 @@ func (s *SystemHostSampler) cpuPercent() *float64 {
 	deltaIdle := idle - previous.idle
 	percent := 100 * float64(deltaTotal-deltaIdle) / float64(deltaTotal)
 	return &percent
-}
-
-func pathExists(path string) bool {
-	_, err := os.Stat(filepath.Clean(path))
-	return err == nil
 }

@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"strings"
 	"time"
 
 	"github.com/LevitateOS/soda-os/internal/config"
@@ -65,51 +64,6 @@ func (a *App) Command() *cobra.Command {
 	return root
 }
 
-func (a *App) osCommand(socket *string) *cobra.Command {
-	osCommand := &cobra.Command{Use: "os", Short: "Administer the Soda OS base image"}
-	update := &cobra.Command{Use: "update", Short: "Manually check, stage, and activate OS updates"}
-	update.AddCommand(
-		&cobra.Command{Use: "status", RunE: func(cmd *cobra.Command, _ []string) error {
-			return a.callWithTimeout(cmd, *socket, defaultOSReadTimeout, func(ctx context.Context, client sodav2.SodaServiceClient) (any, error) {
-				response, err := client.GetOSUpdateStatus(ctx, &sodav2.GetOSUpdateStatusRequest{})
-				return osUpdateStatusJSON(response.GetStatus()), err
-			})
-		}},
-		&cobra.Command{Use: "check", RunE: func(cmd *cobra.Command, _ []string) error {
-			return a.callWithTimeout(cmd, *socket, defaultOSReadTimeout, func(ctx context.Context, client sodav2.SodaServiceClient) (any, error) {
-				response, err := client.CheckOSUpdate(ctx, &sodav2.CheckOSUpdateRequest{})
-				return osReleaseJSON(response.GetRelease()), err
-			})
-		}},
-		&cobra.Command{Use: "stage", RunE: func(cmd *cobra.Command, _ []string) error {
-			return a.callWithTimeout(cmd, *socket, defaultOSStageTimeout, func(ctx context.Context, client sodav2.SodaServiceClient) (any, error) {
-				checked, err := client.CheckOSUpdate(ctx, &sodav2.CheckOSUpdateRequest{})
-				if err != nil {
-					return nil, err
-				}
-				release := checked.GetRelease()
-				if release == nil || !release.GetAvailable() {
-					return nil, status.Error(codes.FailedPrecondition, "no newer signed Soda OS release is available")
-				}
-				response, err := client.StageOSUpdate(ctx, &sodav2.StageOSUpdateRequest{ImageReference: release.GetImageReference()})
-				return osUpdateStatusJSON(response.GetStatus()), err
-			})
-		}},
-	)
-	var confirmReboot bool
-	activate := &cobra.Command{Use: "activate", RunE: func(cmd *cobra.Command, _ []string) error {
-		return a.callWithTimeout(cmd, *socket, defaultOSActivateTimeout, func(ctx context.Context, client sodav2.SodaServiceClient) (any, error) {
-			response, err := client.ActivateOSUpdate(ctx, &sodav2.ActivateOSUpdateRequest{ConfirmReboot: confirmReboot})
-			return map[string]any{"reboot_requested": response.GetRebootRequested()}, err
-		})
-	}}
-	activate.Flags().BoolVar(&confirmReboot, "confirm-reboot", false, "confirm immediate maintenance reboot into the staged image")
-	_ = activate.MarkFlagRequired("confirm-reboot")
-	update.AddCommand(activate)
-	osCommand.AddCommand(update)
-	return osCommand
-}
-
 func (a *App) healthCommand(socket *string) *cobra.Command {
 	return &cobra.Command{
 		Use: "health",
@@ -133,48 +87,59 @@ func (a *App) peopleCommand(socket *string) *cobra.Command {
 			})
 		},
 	})
-	people.AddCommand(a.personCommand(socket, false), a.personCommand(socket, true))
+	people.AddCommand(a.addPersonCommand(socket), a.importPersonCommand(socket))
 	return people
 }
 
-func (a *App) personCommand(socket *string, imported bool) *cobra.Command {
-	var username, displayName, email, role string
-	use := "add"
-	if imported {
-		use = "import"
-	}
+func (a *App) addPersonCommand(socket *string) *cobra.Command {
+	var input personInput
 	command := &cobra.Command{
-		Use: use,
+		Use: "add",
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			password := ""
-			if !imported {
-				password = a.Getenv("SODA_PERSON_PASSWORD")
-				if password == "" {
-					return errors.New("SODA_PERSON_PASSWORD is required")
-				}
+			password := a.Getenv("SODA_PERSON_PASSWORD")
+			if password == "" {
+				return errors.New("SODA_PERSON_PASSWORD is required")
 			}
-			parsedRole, err := roleValue(role)
+			parsedRole, err := roleValue(input.role)
 			if err != nil {
 				return err
 			}
 			return a.call(cmd, *socket, func(ctx context.Context, client sodav2.SodaServiceClient) (any, error) {
-				if imported {
-					response, callErr := client.ImportPerson(ctx, &sodav2.ImportPersonRequest{Username: username, DisplayName: displayName, Email: email, Role: parsedRole})
-					return personJSON(response.GetPerson()), callErr
-				}
-				response, callErr := client.CreatePerson(ctx, &sodav2.CreatePersonRequest{Username: username, DisplayName: displayName, Email: email, Role: parsedRole, Password: password})
+				response, callErr := client.CreatePerson(ctx, &sodav2.CreatePersonRequest{Username: input.username, DisplayName: input.displayName, Email: input.email, Role: parsedRole, Password: password})
 				return personJSON(response.GetPerson()), callErr
 			})
 		},
 	}
-	command.Flags().StringVar(&username, "username", "", "Linux username")
-	command.Flags().StringVar(&displayName, "display-name", "", "display name")
-	command.Flags().StringVar(&email, "email", "", "email address")
-	command.Flags().StringVar(&role, "role", "developer", "role: admin or developer")
+	input.bind(command)
+	return command
+}
+
+func (a *App) importPersonCommand(socket *string) *cobra.Command {
+	var input personInput
+	command := &cobra.Command{Use: "import", RunE: func(cmd *cobra.Command, _ []string) error {
+		parsedRole, err := roleValue(input.role)
+		if err != nil {
+			return err
+		}
+		return a.call(cmd, *socket, func(ctx context.Context, client sodav2.SodaServiceClient) (any, error) {
+			response, callErr := client.ImportPerson(ctx, &sodav2.ImportPersonRequest{Username: input.username, DisplayName: input.displayName, Email: input.email, Role: parsedRole})
+			return personJSON(response.GetPerson()), callErr
+		})
+	}}
+	input.bind(command)
+	return command
+}
+
+type personInput struct{ username, displayName, email, role string }
+
+func (input *personInput) bind(command *cobra.Command) {
+	command.Flags().StringVar(&input.username, "username", "", "Linux username")
+	command.Flags().StringVar(&input.displayName, "display-name", "", "display name")
+	command.Flags().StringVar(&input.email, "email", "", "email address")
+	command.Flags().StringVar(&input.role, "role", "developer", "role: admin or developer")
 	_ = command.MarkFlagRequired("username")
 	_ = command.MarkFlagRequired("display-name")
 	_ = command.MarkFlagRequired("email")
-	return command
 }
 
 func (a *App) projectsCommand(socket *string) *cobra.Command {
@@ -387,177 +352,4 @@ func canonicalError(err error) error {
 		return errors.New("sodad error: internal service error")
 	}
 	return fmt.Errorf("%s: %s", prefix, grpcStatus.Message())
-}
-
-func healthJSON(health *sodav2.HealthResponse) any {
-	if health == nil {
-		return nil
-	}
-	return map[string]any{"status": health.Status, "service": health.Service, "version": health.Version}
-}
-
-func personJSON(person *sodav2.Person) any {
-	if person == nil {
-		return nil
-	}
-	return map[string]any{
-		"id": person.Id, "username": person.Username, "display_name": person.DisplayName,
-		"email": person.Email, "role": roleName(person.Role),
-	}
-}
-
-func peopleJSON(people []*sodav2.Person) []any {
-	result := make([]any, len(people))
-	for index, person := range people {
-		result[index] = personJSON(person)
-	}
-	return result
-}
-
-func projectJSON(project *sodav2.Project) any {
-	if project == nil {
-		return nil
-	}
-	return map[string]any{
-		"id": project.Id, "slug": project.Slug, "name": project.Name, "unix_user": project.UnixUser,
-		"profile": profileName(project.Profile), "source": projectSourceJSON(project.Source),
-	}
-}
-
-func projectsJSON(projects []*sodav2.Project) []any {
-	result := make([]any, len(projects))
-	for index, project := range projects {
-		result[index] = projectJSON(project)
-	}
-	return result
-}
-
-func projectSourceJSON(source *sodav2.ProjectSource) any {
-	if source == nil || source.GetEmpty() != nil {
-		return map[string]any{"kind": "empty"}
-	}
-	if git := source.GetGit(); git != nil {
-		return map[string]any{"kind": "git", "remote_url": git.RemoteUrl}
-	}
-	return nil
-}
-
-func membershipJSON(membership *sodav2.Membership) any {
-	if membership == nil {
-		return nil
-	}
-	return map[string]any{"project_id": membership.ProjectId, "person_id": membership.PersonId}
-}
-
-func collaboratorJSON(collaborator *sodav2.Collaborator) any {
-	if collaborator == nil {
-		return nil
-	}
-	return map[string]any{
-		"person": personJSON(collaborator.Person), "membership": membershipJSON(collaborator.Membership),
-		"workspaces": worktreesJSON(collaborator.Worktrees),
-	}
-}
-
-func collaboratorsJSON(collaborators []*sodav2.Collaborator) []any {
-	result := make([]any, len(collaborators))
-	for index, collaborator := range collaborators {
-		result[index] = collaboratorJSON(collaborator)
-	}
-	return result
-}
-
-func worktreeJSON(worktree *sodav2.Worktree) any {
-	if worktree == nil {
-		return nil
-	}
-	return map[string]any{
-		"id": worktree.Id, "project_id": worktree.ProjectId, "person_id": worktree.PersonId,
-		"name": worktree.Name, "branch": worktree.Branch, "path": worktree.Path,
-	}
-}
-
-func worktreesJSON(worktrees []*sodav2.Worktree) []any {
-	result := make([]any, len(worktrees))
-	for index, worktree := range worktrees {
-		result[index] = worktreeJSON(worktree)
-	}
-	return result
-}
-
-func jobJSON(job *sodav2.ProvisioningJob) any {
-	if job == nil {
-		return nil
-	}
-	var jobError any
-	if job.Error != nil {
-		jobError = job.GetError()
-	}
-	return map[string]any{"id": job.Id, "project_id": job.ProjectId, "state": jobStateName(job.State), "error": jobError}
-}
-
-func jobsJSON(jobs []*sodav2.ProvisioningJob) []any {
-	result := make([]any, len(jobs))
-	for index, job := range jobs {
-		result[index] = jobJSON(job)
-	}
-	return result
-}
-
-func deployKeyJSON(key *sodav2.DeployKey) any {
-	if key == nil {
-		return nil
-	}
-	return map[string]any{"project_id": key.ProjectId, "public_key": key.PublicKey}
-}
-
-func toolchainJSON(toolchain *sodav2.ToolchainInstallation) any {
-	if toolchain == nil {
-		return nil
-	}
-	return map[string]any{
-		"id": toolchain.Id, "profile": profileName(toolchain.Profile), "version": toolchain.Version,
-		"path": toolchain.Path, "checksum": toolchain.Checksum, "state": jobStateName(toolchain.State),
-	}
-}
-
-func osDeploymentJSON(deployment *sodav2.OSDeployment) any {
-	if deployment == nil {
-		return nil
-	}
-	return map[string]any{
-		"image_reference": deployment.ImageReference, "version": deployment.Version, "digest": deployment.Digest,
-		"architecture": deployment.Architecture, "signature": deployment.Signature,
-		"incompatible": deployment.Incompatible, "download_only": deployment.DownloadOnly,
-	}
-}
-
-func osUpdateStatusJSON(value *sodav2.OSUpdateStatus) any {
-	if value == nil {
-		return nil
-	}
-	return map[string]any{"booted": osDeploymentJSON(value.Booted), "staged": osDeploymentJSON(value.Staged), "read_only": value.ReadOnly}
-}
-
-func osReleaseJSON(value *sodav2.OSRelease) any {
-	if value == nil {
-		return nil
-	}
-	return map[string]any{
-		"image_reference": value.ImageReference, "version": value.Version,
-		"source_revision": value.SourceRevision, "fedora_base_reference": value.FedoraBaseReference,
-		"digest": value.Digest, "state_schema": value.StateSchema, "available": value.Available,
-	}
-}
-
-func roleName(role sodav2.Role) string {
-	return strings.ToLower(strings.TrimPrefix(role.String(), "ROLE_"))
-}
-
-func profileName(profile sodav2.ToolchainProfile) string {
-	return strings.ToLower(strings.TrimPrefix(profile.String(), "TOOLCHAIN_PROFILE_"))
-}
-
-func jobStateName(state sodav2.JobState) string {
-	return strings.ToLower(strings.TrimPrefix(state.String(), "JOB_STATE_"))
 }

@@ -1,11 +1,10 @@
 package installer
 
 import (
-	"archive/tar"
 	"context"
 	"fmt"
-	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -20,6 +19,22 @@ import (
 )
 
 const testExactImage = Repository + "@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+
+type recordingRunner struct {
+	Commands []imagebuild.Command
+	Outputs  map[string]string
+	Err      error
+}
+
+func (r *recordingRunner) Run(_ context.Context, command imagebuild.Command) error {
+	r.Commands = append(r.Commands, command)
+	return r.Err
+}
+
+func (r *recordingRunner) Output(_ context.Context, command imagebuild.Command) (string, error) {
+	r.Commands = append(r.Commands, command)
+	return r.Outputs[command.String()], r.Err
+}
 
 func TestKickstartKeepsStockInteractiveFlowAndExactDigest(t *testing.T) {
 	contents := kickstart(testExactImage, "soda")
@@ -51,7 +66,21 @@ func TestInstallerStorageUsesOnePlainExt4Root(t *testing.T) {
 
 func TestStorageConfigRequiresExactPlainExt4RootOnlyContract(t *testing.T) {
 	expected := []byte("[Storage]\nfile_system_type = ext4\ndefault_scheme = PLAIN\ndefault_partitioning =\n    / (min 1 GiB)\n")
-	require.NoError(t, validateStorageConfig(expected, expected))
+	root := t.TempDir()
+	inspectDir := t.TempDir()
+	expectedDir := filepath.Join(root, "packaging", "installer")
+	extractedDir := filepath.Join(inspectDir, "root", "etc", "anaconda", "conf.d")
+	bootConfigDir := filepath.Join(inspectDir, "root", "usr", "lib", "image-builder", "bootc")
+	require.NoError(t, os.MkdirAll(expectedDir, 0o755))
+	require.NoError(t, os.MkdirAll(extractedDir, 0o755))
+	require.NoError(t, os.MkdirAll(bootConfigDir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(expectedDir, "soda-storage.conf"), expected, 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(expectedDir, "iso.yaml"), []byte("valid ISO config\n"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(bootConfigDir, "iso.yaml"), []byte("valid ISO config\n"), 0o644))
+	actualPath := filepath.Join(extractedDir, "90-soda-storage.conf")
+	require.NoError(t, os.WriteFile(actualPath, expected, 0o644))
+	builder := NewBuilder(root, config.DistroSpec{}, &recordingRunner{})
+	require.NoError(t, builder.validateExtractedConfiguration(inspectDir))
 
 	for name, malformed := range map[string]string{
 		"btrfs":         strings.ReplaceAll(string(expected), "ext4", "btrfs"),
@@ -59,7 +88,8 @@ func TestStorageConfigRequiresExactPlainExt4RootOnlyContract(t *testing.T) {
 		"separate home": string(expected) + "    /home (min 500 MiB)\n",
 	} {
 		t.Run(name, func(t *testing.T) {
-			require.EqualError(t, validateStorageConfig([]byte(malformed), expected), "ISO storage configuration differs from the Soda ext4 root-only contract")
+			require.NoError(t, os.WriteFile(actualPath, []byte(malformed), 0o644))
+			require.EqualError(t, builder.validateExtractedConfiguration(inspectDir), "ISO storage configuration differs from the Soda ext4 root-only contract")
 		})
 	}
 }
@@ -111,7 +141,21 @@ func TestValidateEmbeddedPayloadRequiresStagingTagAndOriginalManifestDigest(t *t
 
 func TestISOConfigRequiresExactStage2KernelAndInitrdContract(t *testing.T) {
 	expected := []byte("label: \"SodaOS-Installer\"\ngrub2:\n  default: 0\n  timeout: 10\n  entries:\n    - name: \"Install Soda OS\"\n      linux: \"/images/pxeboot/vmlinuz inst.stage2=hd:LABEL=SodaOS-Installer console=tty0 enforcing=0\"\n      initrd: \"/images/pxeboot/initrd.img\"\n")
-	require.NoError(t, validateISOConfig(expected, expected))
+	root := t.TempDir()
+	inspectDir := t.TempDir()
+	expectedDir := filepath.Join(root, "packaging", "installer")
+	extractedStorageDir := filepath.Join(inspectDir, "root", "etc", "anaconda", "conf.d")
+	extractedConfigDir := filepath.Join(inspectDir, "root", "usr", "lib", "image-builder", "bootc")
+	require.NoError(t, os.MkdirAll(expectedDir, 0o755))
+	require.NoError(t, os.MkdirAll(extractedStorageDir, 0o755))
+	require.NoError(t, os.MkdirAll(extractedConfigDir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(expectedDir, "iso.yaml"), expected, 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(expectedDir, "soda-storage.conf"), []byte("valid storage config\n"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(extractedStorageDir, "90-soda-storage.conf"), []byte("valid storage config\n"), 0o644))
+	actualPath := filepath.Join(extractedConfigDir, "iso.yaml")
+	require.NoError(t, os.WriteFile(actualPath, expected, 0o644))
+	builder := NewBuilder(root, config.DistroSpec{}, &recordingRunner{})
+	require.NoError(t, builder.validateExtractedConfiguration(inspectDir))
 
 	for name, malformed := range map[string]string{
 		"stage2 label": strings.ReplaceAll(string(expected), "hd:LABEL=SodaOS-Installer", "hd:LABEL=Wrong"),
@@ -119,7 +163,8 @@ func TestISOConfigRequiresExactStage2KernelAndInitrdContract(t *testing.T) {
 		"initrd path":  strings.ReplaceAll(string(expected), "/images/pxeboot/initrd.img", "/wrong/initrd.img"),
 	} {
 		t.Run(name, func(t *testing.T) {
-			require.EqualError(t, validateISOConfig([]byte(malformed), expected), "ISO boot configuration differs from the Soda installer contract")
+			require.NoError(t, os.WriteFile(actualPath, []byte(malformed), 0o644))
+			require.EqualError(t, builder.validateExtractedConfiguration(inspectDir), "ISO boot configuration differs from the Soda installer contract")
 		})
 	}
 }
@@ -140,7 +185,7 @@ platform = "linux/arm64"
 	builder := NewBuilder(root, config.DistroSpec{
 		Identity: config.IdentitySpec{Architecture: "aarch64", Hostname: "soda"},
 		Base:     config.BaseSpec{Platform: Platform},
-	}, &imagebuild.RecordingRunner{})
+	}, &recordingRunner{})
 	actual, err := builder.validate(options)
 	require.NoError(t, err)
 	require.Equal(t, "81.0.0", actual.Version)
@@ -151,7 +196,7 @@ platform = "linux/arm64"
 }
 
 func TestVerifySignedImageUsesPinnedKeyAndExactDigest(t *testing.T) {
-	runner := &imagebuild.RecordingRunner{Outputs: map[string]string{"cosign version": "GitVersion: v3.1.2\n"}}
+	runner := &recordingRunner{Outputs: map[string]string{"cosign version": "GitVersion: v3.1.2\n"}}
 	builder := NewBuilder("/workspace", config.DistroSpec{}, runner)
 	options := Options{ImageReference: testExactImage, RegistryCA: "/keys/ca.crt", PublicKey: "/keys/cosign.pub", CosignPath: "cosign"}
 	require.NoError(t, builder.verifySignedImage(context.Background(), options))
@@ -162,7 +207,7 @@ func TestVerifySignedImageUsesPinnedKeyAndExactDigest(t *testing.T) {
 }
 
 func TestVerifyArchiveDigestRequiresOneMatchingArm64Manifest(t *testing.T) {
-	archive, digest := writeTestOCIArchive(t)
+	archive, digest := writeTestOCIArchiveAt(t, filepath.Join(t.TempDir(), "runtime.oci.tar"))
 	exact := Repository + "@" + digest
 	require.NoError(t, verifyArchiveDigest(archive, exact))
 
@@ -185,7 +230,7 @@ platform = "linux/arm64"
 	for _, path := range []string{options.CosignPath, options.RegistryCA, options.PublicKey} {
 		require.NoError(t, os.WriteFile(path, []byte("input"), 0o644))
 	}
-	runner := &imagebuild.RecordingRunner{Outputs: map[string]string{options.CosignPath + " version": "GitVersion: v3.1.2\n"}}
+	runner := &recordingRunner{Outputs: map[string]string{options.CosignPath + " version": "GitVersion: v3.1.2\n"}}
 	builder := NewBuilder(root, config.DistroSpec{Identity: config.IdentitySpec{Architecture: "aarch64", Hostname: "soda", Version: "0.2.0"}, Base: config.BaseSpec{Reference: "quay.io/fedora/fedora-bootc@sha256:85677d47c03b2e1f8f9a3a19d838023ea154229817d579d4b4da5b87a21c9c1a", Platform: Platform}}, runner)
 	_, err := builder.Build(context.Background(), options)
 	require.ErrorContains(t, err, "image-builder did not create")
@@ -206,66 +251,17 @@ platform = "linux/arm64"
 	require.Contains(t, strings.Join(commands, "\n"), volumeName+":/var/lib/containers/storage")
 }
 
-func mustSHA256(t *testing.T, path string) string {
-	t.Helper()
-	digest, err := fileSHA256(path)
-	require.NoError(t, err)
-	return digest
-}
-
-func writeTestOCIArchive(t *testing.T) (string, string) {
-	t.Helper()
-	return writeTestOCIArchiveAt(t, filepath.Join(t.TempDir(), "runtime.oci.tar"))
-}
-
 func writeTestOCIArchiveAt(t *testing.T, archive string) (string, string) {
 	t.Helper()
-	img, err := mutate.ConfigFile(empty.Image, &v1.ConfigFile{Architecture: "arm64", OS: "linux"})
+	image, err := mutate.ConfigFile(empty.Image, &v1.ConfigFile{Architecture: "arm64", OS: "linux"})
 	require.NoError(t, err)
-	digest, err := img.Digest()
+	digest, err := image.Digest()
 	require.NoError(t, err)
 	directory := t.TempDir()
 	path, err := layout.Write(directory, empty.Index)
 	require.NoError(t, err)
-	require.NoError(t, path.AppendImage(img, layout.WithPlatform(v1.Platform{OS: "linux", Architecture: "arm64"})))
+	require.NoError(t, path.AppendImage(image, layout.WithPlatform(v1.Platform{OS: "linux", Architecture: "arm64"})))
 	require.NoError(t, os.MkdirAll(filepath.Dir(archive), 0o755))
-	output, err := os.Create(archive)
-	require.NoError(t, err)
-	writer := tar.NewWriter(output)
-	require.NoError(t, filepath.Walk(directory, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-		if path == directory {
-			return nil
-		}
-		relative, err := filepath.Rel(directory, path)
-		if err != nil {
-			return err
-		}
-		header, err := tar.FileInfoHeader(info, "")
-		if err != nil {
-			return err
-		}
-		header.Name = filepath.ToSlash(relative)
-		if err := writer.WriteHeader(header); err != nil {
-			return err
-		}
-		if info.Mode().IsRegular() {
-			input, err := os.Open(path)
-			if err != nil {
-				return err
-			}
-			_, copyErr := io.Copy(writer, input)
-			closeErr := input.Close()
-			if copyErr != nil {
-				return copyErr
-			}
-			return closeErr
-		}
-		return nil
-	}))
-	require.NoError(t, writer.Close())
-	require.NoError(t, output.Close())
+	require.NoError(t, exec.Command("tar", "-cf", archive, "-C", directory, ".").Run())
 	return archive, digest.String()
 }

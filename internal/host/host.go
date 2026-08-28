@@ -101,7 +101,7 @@ func (s *System) ImportPerson(ctx context.Context, person domain.Person) (Cleanu
 	if _, err := s.Runner.Run(ctx, "getent", []string{"passwd", person.Username}, nil, ""); err != nil {
 		return nil, fmt.Errorf("%w: Linux account %s", ErrNotFound, person.Username)
 	}
-	return noopCleanup, nil
+	return func(context.Context) error { return nil }, nil
 }
 
 func (s *System) CreateProject(ctx context.Context, project domain.Project) (Cleanup, error) {
@@ -109,7 +109,21 @@ func (s *System) CreateProject(ctx context.Context, project domain.Project) (Cle
 	if err := s.createProjectAccount(ctx, project, root); err != nil {
 		return nil, err
 	}
-	cleanup := func(ctx context.Context) error {
+	cleanup := s.projectCleanup(project, root)
+	if err := s.createProjectKeys(ctx, project, root); err != nil {
+		return nil, failWithCleanup(ctx, err, cleanup)
+	}
+	if err := s.initializeProjectRepository(ctx, project); err != nil {
+		return nil, failWithCleanup(ctx, err, cleanup)
+	}
+	if err := s.finalizeProjectResources(ctx, project, root); err != nil {
+		return nil, failWithCleanup(ctx, err, cleanup)
+	}
+	return cleanup, nil
+}
+
+func (s *System) projectCleanup(project domain.Project, root string) Cleanup {
+	return func(ctx context.Context) error {
 		var cleanupErrors []error
 		if _, err := s.Runner.Run(ctx, "userdel", []string{"--remove", project.UnixUser}, nil, ""); err != nil {
 			cleanupErrors = append(cleanupErrors, err)
@@ -122,16 +136,6 @@ func (s *System) CreateProject(ctx context.Context, project domain.Project) (Cle
 		}
 		return errors.Join(cleanupErrors...)
 	}
-	if err := s.createProjectKeys(ctx, project, root); err != nil {
-		return nil, failWithCleanup(ctx, err, cleanup)
-	}
-	if err := s.initializeProjectRepository(ctx, project); err != nil {
-		return nil, failWithCleanup(ctx, err, cleanup)
-	}
-	if err := s.finalizeProjectResources(ctx, project, root); err != nil {
-		return nil, failWithCleanup(ctx, err, cleanup)
-	}
-	return cleanup, nil
 }
 
 func (s *System) createProjectAccount(ctx context.Context, project domain.Project, root string) error {
@@ -226,105 +230,43 @@ func (s *System) DefaultBranch(ctx context.Context, project domain.Project) (str
 	return branch, nil
 }
 
-func (s *System) CreateWorktree(ctx context.Context, project domain.Project, person domain.Person, tree domain.Worktree, baseRef string) (Cleanup, error) {
-	repository := s.repository(project)
-	if err := os.MkdirAll(filepath.Dir(tree.Path), 0o755); err != nil {
-		return nil, err
-	}
-	if err := s.chown(ctx, project, filepath.Dir(tree.Path)); err != nil {
-		return nil, err
-	}
-	commands := [][]string{{"--git-dir", repository, "worktree", "add", "-b", tree.Branch, tree.Path, baseRef}, {"--git-dir", repository, "config", "extensions.worktreeConfig", "true"}, {"-C", tree.Path, "config", "--worktree", "core.bare", "false"}, {"-C", tree.Path, "config", "--worktree", "user.name", person.DisplayName}, {"-C", tree.Path, "config", "--worktree", "user.email", person.Email}}
-	var cleanupSteps []Cleanup
-	for index, args := range commands {
-		if _, err := s.Runner.Run(ctx, "git", args, nil, ""); err != nil {
-			return nil, failWithCleanups(ctx, err, cleanupSteps)
-		}
-		if index == 0 {
-			cleanupSteps = append(cleanupSteps, func(cleanupContext context.Context) error {
-				_, removeErr := s.Runner.Run(cleanupContext, "git", []string{"--git-dir", repository, "worktree", "remove", "--force", tree.Path}, nil, "")
-				_, branchErr := s.Runner.Run(cleanupContext, "git", []string{"--git-dir", repository, "branch", "-D", tree.Branch}, nil, "")
-				_ = os.Remove(tree.Path)
-				_ = os.Remove(filepath.Dir(tree.Path))
-				return errors.Join(removeErr, branchErr)
-			})
-		}
-	}
-	homeCleanup, err := s.createSessionHome(ctx, project, person, tree)
-	if err != nil {
-		return nil, failWithCleanups(ctx, err, cleanupSteps)
-	}
-	cleanupSteps = append(cleanupSteps, homeCleanup)
-	for _, path := range []string{repository, tree.Path} {
-		if err := s.chown(ctx, project, path); err != nil {
-			return nil, failWithCleanups(ctx, err, cleanupSteps)
-		}
-	}
-	return combineCleanups(cleanupSteps), nil
-}
-
 func (s *System) ReconcileAuthorizedKeys(ctx context.Context, project domain.Project, access []domain.ProjectAccess) error {
 	s.authorizedKeysMu.Lock()
 	defer s.authorizedKeysMu.Unlock()
+	return s.writeAuthorizedKeys(ctx, s.authorizedKeysPath(project), s.authorizedKeyContents(project, access))
+}
+
+func (s *System) authorizedKeyContents(project domain.Project, access []domain.ProjectAccess) string {
 	sort.Slice(access, func(i, j int) bool { return access[i].Person.Username < access[j].Person.Username })
 	lines := make([]string, 0)
 	for _, entry := range access {
-		keys := append([]domain.SSHDeviceKey(nil), entry.Keys...)
-		sort.Slice(keys, func(i, j int) bool {
-			if keys[i].Label == keys[j].Label {
-				return keys[i].Fingerprint < keys[j].Fingerprint
-			}
-			return keys[i].Label < keys[j].Label
-		})
-		for _, key := range keys {
-			if err := ValidatePublicKey(key.PublicKey, false); err != nil {
-				return fmt.Errorf("device key %s: %w", key.ID, err)
-			}
-			fields := strings.Fields(key.PublicKey)
-			home := s.sessionHome(project, entry.Person)
-			command := fmt.Sprintf("/usr/libexec/soda/soda-ssh --actor %s --project %s --worktree %s --home %s", entry.Person.Username, project.Slug, entry.Worktree.Path, home)
-			lines = append(lines, fmt.Sprintf("command=\"%s\" %s %s", command, fields[0], fields[1]))
-		}
+		lines = append(lines, s.authorizedKeyLines(project, entry)...)
 	}
-	contents := ""
 	if len(lines) != 0 {
-		contents = strings.Join(lines, "\n") + "\n"
+		return strings.Join(lines, "\n") + "\n"
 	}
-	return s.writeAuthorizedKeys(ctx, s.authorizedKeysPath(project), contents)
+	return ""
 }
 
-func (s *System) createSessionHome(ctx context.Context, project domain.Project, person domain.Person, tree domain.Worktree) (Cleanup, error) {
-	peopleRoot := filepath.Join(s.projectRoot(project), ".soda", "people")
-	personRoot := filepath.Join(peopleRoot, person.Username)
+func (s *System) authorizedKeyLines(project domain.Project, access domain.ProjectAccess) []string {
+	keys := append([]domain.SSHDeviceKey(nil), access.Keys...)
+	sort.Slice(keys, func(i, j int) bool {
+		if keys[i].Label == keys[j].Label {
+			return keys[i].Fingerprint < keys[j].Fingerprint
+		}
+		return keys[i].Label < keys[j].Label
+	})
+	lines := make([]string, 0, len(keys))
+	for _, key := range keys {
+		lines = append(lines, s.authorizedKeyLine(project, access.Person, access.Worktree, key))
+	}
+	return lines
+}
+
+func (s *System) authorizedKeyLine(project domain.Project, person domain.Person, tree domain.Worktree, key domain.SSHDeviceKey) string {
 	home := s.sessionHome(project, person)
-	for _, path := range []string{home, filepath.Join(home, ".config"), filepath.Join(home, ".cache"), filepath.Join(home, ".local", "share"), filepath.Join(home, ".local", "state")} {
-		if err := os.MkdirAll(path, 0o750); err != nil {
-			_ = os.RemoveAll(personRoot)
-			return nil, err
-		}
-	}
-	profile := "if [ -f \"$HOME/.bashrc\" ]; then . \"$HOME/.bashrc\"; fi\n"
-	rc := fmt.Sprintf("case $- in *i*) ;; *) return;; esac\nPS1='%s@%s workspace \\$ '\n", person.Username, project.Slug)
-	for path, contents := range map[string]string{filepath.Join(home, ".bash_profile"): profile, filepath.Join(home, ".bashrc"): rc} {
-		if err := os.WriteFile(path, []byte(contents), 0o640); err != nil {
-			_ = os.RemoveAll(personRoot)
-			return nil, err
-		}
-	}
-	workspace := filepath.Join(home, "workspace")
-	if err := os.Symlink(tree.Path, workspace); err != nil && !errors.Is(err, os.ErrExist) {
-		_ = os.RemoveAll(personRoot)
-		return nil, err
-	}
-	if err := s.chown(ctx, project, peopleRoot); err != nil {
-		_ = os.RemoveAll(personRoot)
-		return nil, err
-	}
-	return func(context.Context) error { return os.RemoveAll(personRoot) }, nil
-}
-
-func (s *System) sessionHome(project domain.Project, person domain.Person) string {
-	return filepath.Join(s.projectRoot(project), ".soda", "people", person.Username, "home")
+	command := fmt.Sprintf("/usr/libexec/soda/soda-ssh --actor %s --project %s --worktree %s --home %s", person.Username, project.Slug, tree.Path, home)
+	return fmt.Sprintf("command=\"%s\" %s", command, key.PublicKey)
 }
 
 func (s *System) WriteProjectEnvironment(ctx context.Context, project domain.Project, source string) error {
@@ -349,18 +291,6 @@ func (s *System) DeployPublicKey(_ context.Context, project domain.Project) (str
 	return strings.TrimSpace(string(contents)), nil
 }
 
-func ValidatePublicKey(key string, optional bool) error {
-	if optional && key == "" {
-		return nil
-	}
-	if strings.ContainsAny(key, "\r\n\x00") || !(strings.HasPrefix(key, "ssh-ed25519 ") || strings.HasPrefix(key, "ssh-rsa ")) {
-		return errors.New("SSH public key is not a supported single-line key")
-	}
-	if _, err := domain.SSHKeyFingerprint(key); err != nil {
-		return err
-	}
-	return nil
-}
 func (s *System) projectRoot(project domain.Project) string {
 	return filepath.Join(s.ProjectsRoot, project.Slug)
 }
@@ -418,8 +348,6 @@ func (s *System) writeAuthorizedKeys(ctx context.Context, path, contents string)
 	}
 	return err
 }
-
-func noopCleanup(context.Context) error { return nil }
 
 func combineCleanups(cleanups []Cleanup) Cleanup {
 	return func(ctx context.Context) error {

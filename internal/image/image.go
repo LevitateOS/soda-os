@@ -3,7 +3,6 @@ package image
 
 import (
 	"context"
-	"crypto/sha256"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -95,10 +94,6 @@ func (b *Builder) artifactPath(parts ...string) string {
 	return filepath.Join(append([]string{b.Root, ".artifacts"}, parts...)...)
 }
 
-func (b *Builder) imageName() string {
-	return b.Spec.Image.Registry + ":" + b.Spec.Identity.Version
-}
-
 // Check validates the pinned bootc runtime contract without accessing a
 // registry, starting a container, or creating an artifact.
 func (b *Builder) Check(_ context.Context) error {
@@ -184,83 +179,14 @@ func (b *Builder) validateBuildInputs() error {
 	return nil
 }
 
-// BuildRPMs builds exactly the three direct Soda RPM inputs and records their
-// names and SHA-256 values. Runtime dependencies resolve from the pinned base.
-func (b *Builder) BuildRPMs(ctx context.Context) error {
-	if err := b.Check(ctx); err != nil {
-		return err
-	}
-	revision, err := b.sourceRevision(ctx)
-	if err != nil {
-		return err
-	}
-	if err := b.verifyRuntimeCosign(); err != nil {
-		return err
-	}
-	if err := b.buildContainer(ctx); err != nil {
-		return err
-	}
-	workspace, err := b.prepareRPMWorkspace()
-	if err != nil {
-		return err
-	}
-	return b.buildLockedRPMs(ctx, workspace, revision)
-}
-
-type rpmWorkspace struct{ build, topdir, rpms string }
-
-func (b *Builder) prepareRPMWorkspace() (rpmWorkspace, error) {
-	workspace := rpmWorkspace{b.artifactPath("build"), b.artifactPath("rpmbuild"), b.artifactPath("rpms")}
-	for _, path := range []string{workspace.build, workspace.topdir, workspace.rpms} {
-		if err := recreate(path); err != nil {
-			return rpmWorkspace{}, err
-		}
-	}
-	for _, directory := range []string{"BUILD", "BUILDROOT", "RPMS", "SOURCES", "SPECS", "SRPMS"} {
-		if err := os.MkdirAll(filepath.Join(workspace.topdir, directory), 0o755); err != nil {
-			return rpmWorkspace{}, err
-		}
-	}
-	return workspace, nil
-}
-
-func (b *Builder) buildLockedRPMs(ctx context.Context, workspace rpmWorkspace, revision string) error {
-	if err := b.buildGoBinaries(ctx, revision); err != nil {
-		return err
-	}
-	if err := b.stageRPMSources(workspace.build, filepath.Join(workspace.topdir, "SOURCES")); err != nil {
-		return err
-	}
-	for _, name := range targetRPMs {
-		if err := b.rpmbuild(ctx, name); err != nil {
-			return err
-		}
-		rpm, err := findSingleRPM(filepath.Join(workspace.topdir, "RPMS"), name)
-		if err != nil {
-			return err
-		}
-		if err := copyFile(rpm, filepath.Join(workspace.rpms, filepath.Base(rpm))); err != nil {
-			return err
-		}
-	}
-	if err := b.writeLockedInstallInputs(workspace.rpms); err != nil {
-		return err
-	}
-	fmt.Printf("Built locked Soda RPM inputs at %s\n", workspace.rpms)
-	return nil
-}
-
 // BuildImage emits a local OCI archive. It deliberately omits --push and
 // --load: publication and local container storage are separate operations.
 func (b *Builder) BuildImage(ctx context.Context) error {
-	if _, err := b.sourceRevision(ctx); err != nil {
+	if err := b.BuildRPMs(ctx); err != nil {
 		return err
 	}
 	baseTag, err := PrepareLocalBootcBase(ctx, b.Root, b.runner, b.Spec.Base.Reference)
 	if err != nil {
-		return err
-	}
-	if err := b.BuildRPMs(ctx); err != nil {
 		return err
 	}
 	if err := b.stageReleaseTrust(); err != nil {
@@ -283,7 +209,7 @@ func (b *Builder) BuildImage(ctx context.Context) error {
 		"buildx", "build", "--platform", b.Spec.Base.Platform,
 		"--build-context", "fedora-base=docker-image://" + baseTag,
 		"--file", "packaging/bootc/Containerfile",
-		"--tag", b.imageName(),
+		"--tag", b.Spec.Image.Registry + ":" + b.Spec.Identity.Version,
 		"--build-arg", "SODA_VERSION=" + b.Spec.Identity.Version,
 		"--build-arg", "SODA_SOURCE_REVISION=" + revision,
 		"--build-arg", "SOURCE_DATE_EPOCH=" + fmt.Sprint(b.Spec.Build.SourceDateEpoch),
@@ -299,58 +225,23 @@ func (b *Builder) BuildImage(ctx context.Context) error {
 	return nil
 }
 
-// PrepareLocalBootcBase binds BuildKit's fedora-base context to the exact
-// pinned manifest retained in the repository reference-media area. Quay tags
-// and retention are not part of the reproducible Soda build contract.
-func PrepareLocalBootcBase(ctx context.Context, root string, runner Runner, reference string) (string, error) {
-	if reference != bootcBaseReference {
-		return "", errors.New("local Fedora bootc base differs from the approved digest")
-	}
-	digest := strings.TrimPrefix(reference, "quay.io/fedora/fedora-bootc@")
-	localTag := "soda-fedora-bootc:" + strings.ReplaceAll(digest, ":", "-")
-	tag := Command{Dir: root, Name: "docker", Args: []string{"image", "tag", digest, localTag}}
-	if err := runner.Run(ctx, tag); err == nil {
-		return localTag, nil
-	}
-	archive := filepath.Join(root, bootcBaseArchive)
-	info, err := os.Stat(archive)
-	if err != nil || !info.Mode().IsRegular() {
-		return "", fmt.Errorf("load pinned Fedora bootc base: %s is unavailable", archive)
-	}
-	if err := runner.Run(ctx, Command{Dir: root, Name: "docker", Args: []string{"load", "--input", archive}}); err != nil {
-		return "", fmt.Errorf("load pinned Fedora bootc base: %w", err)
-	}
-	if err := runner.Run(ctx, tag); err != nil {
-		return "", fmt.Errorf("bind pinned Fedora bootc base digest: %w", err)
-	}
-	return localTag, nil
-}
-
 func (b *Builder) stageReleaseTrust() error {
-	inputs := make([]struct {
-		contents []byte
-		name     string
-	}, 0, 2)
-	for _, input := range []struct{ source, name string }{{b.RegistryCA, "registry-ca.crt"}, {b.SigningPublicKey, "cosign.pub"}} {
-		contents, err := os.ReadFile(input.source)
-		if err != nil {
-			return fmt.Errorf("read release trust input %s: %w", input.name, err)
-		}
-		inputs = append(inputs, struct {
-			contents []byte
-			name     string
-		}{contents, input.name})
+	registryCA, err := os.ReadFile(b.RegistryCA)
+	if err != nil {
+		return fmt.Errorf("read registry-ca.crt: %w", err)
+	}
+	publicKey, err := os.ReadFile(b.SigningPublicKey)
+	if err != nil {
+		return fmt.Errorf("read cosign.pub: %w", err)
 	}
 	destination := b.artifactPath("bootc", "trust")
 	if err := recreate(destination); err != nil {
 		return err
 	}
-	for _, input := range inputs {
-		if err := os.WriteFile(filepath.Join(destination, input.name), input.contents, 0o644); err != nil {
-			return fmt.Errorf("stage release trust input %s: %w", input.name, err)
-		}
+	if err := os.WriteFile(filepath.Join(destination, "registry-ca.crt"), registryCA, 0o644); err != nil {
+		return fmt.Errorf("stage registry-ca.crt: %w", err)
 	}
-	return nil
+	return os.WriteFile(filepath.Join(destination, "cosign.pub"), publicKey, 0o644)
 }
 
 func (b *Builder) sourceRevision(ctx context.Context) (string, error) {
@@ -366,97 +257,13 @@ func (b *Builder) sourceRevision(ctx context.Context) (string, error) {
 		return "", fmt.Errorf("resolve source revision: %w", err)
 	}
 	revision = strings.TrimSpace(revision)
-	if len(revision) != 40 || !hexDigest(revision) {
+	if len(revision) != 40 {
+		return "", fmt.Errorf("source revision %q is not a full Git commit ID", revision)
+	}
+	if _, err := hex.DecodeString(revision); err != nil || revision != strings.ToLower(revision) {
 		return "", fmt.Errorf("source revision %q is not a full Git commit ID", revision)
 	}
 	return revision, nil
-}
-
-func (b *Builder) buildGoBinaries(ctx context.Context, revision string) error {
-	buildDate := time.Unix(b.Spec.Build.SourceDateEpoch, 0).UTC().Format(time.RFC3339)
-	linkerFlags := strings.Join([]string{
-		"-s", "-w", "-buildid=",
-		"-X github.com/LevitateOS/soda-os/internal/version.Version=" + b.Spec.Identity.Version,
-		"-X github.com/LevitateOS/soda-os/internal/version.Commit=" + revision,
-		"-X github.com/LevitateOS/soda-os/internal/version.BuildDate=" + buildDate,
-	}, " ")
-	for _, target := range []struct{ output, pkg string }{
-		{"sodad", "./cmd/sodad"},
-		{"sodactl", "./cmd/sodactl"},
-		{"soda-ssh", "./cmd/soda-ssh"},
-		{"soda-cockpit", "./cockpit/cmd/soda-cockpit"},
-		{"soda-authd", "./cockpit/cmd/soda-authd"},
-	} {
-		if err := b.docker(ctx, []string{"CGO_ENABLED=1", "SOURCE_DATE_EPOCH=" + fmt.Sprint(b.Spec.Build.SourceDateEpoch)}, "go", "build", "-buildvcs=false", "-trimpath", "-ldflags="+linkerFlags, "-o", "/src/.artifacts/build/"+target.output, target.pkg); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func (b *Builder) stageRPMSources(build, sources string) error {
-	files := [][2]string{
-		{filepath.Join(build, "sodad"), filepath.Join(sources, "sodad")},
-		{filepath.Join(build, "sodactl"), filepath.Join(sources, "sodactl")},
-		{b.artifactPath("tools", "cosign-linux-arm64"), filepath.Join(sources, "cosign")},
-		{filepath.Join(build, "soda-ssh"), filepath.Join(sources, "soda-ssh")},
-		{filepath.Join(build, "soda-cockpit"), filepath.Join(sources, "soda-cockpit")},
-		{filepath.Join(build, "soda-authd"), filepath.Join(sources, "soda-authd")},
-		{b.path("packaging/systemd/sodad.service"), filepath.Join(sources, "sodad.service")},
-		{b.path("packaging/systemd/soda-state-directories.service"), filepath.Join(sources, "soda-state-directories.service")},
-		{b.path("packaging/systemd/var-srv-soda-projects.mount"), filepath.Join(sources, "var-srv-soda-projects.mount")},
-		{b.path("packaging/systemd/opt-soda-toolchains.mount"), filepath.Join(sources, "opt-soda-toolchains.mount")},
-		{b.path("packaging/systemd/90-soda.preset"), filepath.Join(sources, "90-soda.preset")},
-		{b.path("packaging/tmpfiles.d/soda.conf"), filepath.Join(sources, "soda.conf")},
-		{b.path("packaging/sysusers.d/soda.conf"), filepath.Join(sources, "soda.sysusers")},
-		{b.path("packaging/sshd/41-soda-project-accounts.conf"), filepath.Join(sources, "41-soda-project-accounts.conf")},
-		{b.path("packaging/systemd/soda-cockpit.service"), filepath.Join(sources, "soda-cockpit.service")},
-		{b.path("packaging/systemd/soda-authd.service"), filepath.Join(sources, "soda-authd.service")},
-		{b.path("packaging/avahi/soda-cockpit.service"), filepath.Join(sources, "soda-cockpit.avahi.service")},
-		{b.path("packaging/pam/soda-cockpit"), filepath.Join(sources, "soda-cockpit.pam")},
-		{b.path("packaging/bootc/BASE_SYSTEM.md"), filepath.Join(sources, "BASE_SYSTEM.md")},
-		{b.path("assets/branding/source/soda-symbol.svg"), filepath.Join(sources, "soda-symbol.svg")},
-	}
-	for _, size := range []string{"16", "24", "32", "48", "64", "128", "256", "512"} {
-		files = append(files, [2]string{b.path("assets/branding/icons/hicolor/" + size + "x" + size + "/apps/soda-os.png"), filepath.Join(sources, "soda-os-"+size+".png")})
-	}
-	for _, pair := range files {
-		if err := copyFile(pair[0], pair[1]); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func (b *Builder) writeLockedInstallInputs(rpms string) error {
-	lock, err := b.packageLock()
-	if err != nil {
-		return err
-	}
-	directory := b.artifactPath("bootc")
-	if err := recreate(directory); err != nil {
-		return err
-	}
-	var fedora, installed []string
-	for _, item := range lock.Package {
-		installed = append(installed, item.NEVRA)
-		if item.Source == "fedora" {
-			fedora = append(fedora, item.NEVRA)
-			continue
-		}
-		if !isFile(filepath.Join(rpms, item.File)) {
-			return fmt.Errorf("locked local RPM %s is missing", item.File)
-		}
-	}
-	for path, lines := range map[string][]string{
-		"fedora-packages.txt":   fedora,
-		"expected-packages.txt": installed,
-	} {
-		if err := os.WriteFile(filepath.Join(directory, path), []byte(strings.Join(lines, "\n")+"\n"), 0o644); err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
 func (b *Builder) packageLock() (packageLock, error) {
@@ -484,49 +291,6 @@ func (l releaseToolLock) checksum(osName, architecture string) string {
 	return ""
 }
 
-func (b *Builder) verifyRuntimeCosign() error {
-	path := b.artifactPath("tools", "cosign-linux-arm64")
-	if !isFile(path) {
-		return errors.New("pinned Linux/AArch64 Cosign input is missing; run just release-tools")
-	}
-	digest, err := sha256File(path)
-	if err != nil {
-		return err
-	}
-	if digest != cosignArm64SHA256 {
-		return fmt.Errorf("Linux/AArch64 Cosign SHA-256 %s differs from pinned %s", digest, cosignArm64SHA256)
-	}
-	return nil
-}
-
-func (b *Builder) buildContainer(ctx context.Context) error {
-	return b.runner.Run(ctx, Command{Dir: b.Root, Name: "docker", Args: []string{"build", "--quiet", "--platform", b.Spec.Base.Platform, "--file", "packaging/builder/Containerfile", "--tag", "soda-os-rpm-builder:" + b.Spec.Identity.Version, "."}})
-}
-
-func (b *Builder) docker(ctx context.Context, environment []string, name string, args ...string) error {
-	return b.runner.Run(ctx, b.dockerCommand(environment, name, args...))
-}
-
-func (b *Builder) dockerCommand(environment []string, name string, args ...string) Command {
-	dockerArgs := []string{"run", "--rm", "--platform", b.Spec.Base.Platform, "--volume", b.Root + ":/src", "--workdir", "/src"}
-	for _, pair := range environment {
-		dockerArgs = append(dockerArgs, "--env", pair)
-	}
-	dockerArgs = append(dockerArgs, "soda-os-rpm-builder:"+b.Spec.Identity.Version, name)
-	dockerArgs = append(dockerArgs, args...)
-	return Command{Dir: b.Root, Name: "docker", Args: dockerArgs}
-}
-
-func (b *Builder) rpmbuild(ctx context.Context, name string) error {
-	epoch := fmt.Sprint(b.Spec.Build.SourceDateEpoch)
-	return b.docker(ctx, []string{"SOURCE_DATE_EPOCH=" + epoch}, "rpmbuild", "-bb",
-		"--define", "_topdir /src/.artifacts/rpmbuild",
-		"--define", "_source_date_epoch "+epoch,
-		"--define", "use_source_date_epoch_as_buildtime 1",
-		"--define", "_buildhost soda-builder",
-		"packaging/rpm/"+name+".spec")
-}
-
 func (b *Builder) path(path string) string {
 	if filepath.IsAbs(path) {
 		return path
@@ -537,15 +301,6 @@ func (b *Builder) path(path string) string {
 func isFile(path string) bool {
 	info, err := os.Stat(path)
 	return err == nil && info.Mode().IsRegular()
-}
-
-func hexDigest(value string) bool {
-	for _, character := range value {
-		if !((character >= '0' && character <= '9') || (character >= 'a' && character <= 'f')) {
-			return false
-		}
-	}
-	return true
 }
 
 func recreate(path string) error {
@@ -594,17 +349,4 @@ func findSingleRPM(root, name string) (string, error) {
 		return "", fmt.Errorf("expected one %s RPM, found %d", name, len(matches))
 	}
 	return matches[0], nil
-}
-
-func sha256File(path string) (string, error) {
-	file, err := os.Open(path)
-	if err != nil {
-		return "", err
-	}
-	defer file.Close()
-	hash := sha256.New()
-	if _, err := io.Copy(hash, file); err != nil {
-		return "", err
-	}
-	return hex.EncodeToString(hash.Sum(nil)), nil
 }

@@ -21,20 +21,20 @@ func (o *Observability) HostStatus(context.Context) (*sodav2.HostStatus, error) 
 }
 
 func hostStatusProto(value domain.HostStatus) *sodav2.HostStatus {
-	services := make([]*sodav2.ServiceStatus, 0, len(value.Services))
-	for _, item := range value.Services {
+	services := make([]*sodav2.ServiceStatus, 0, len(value.Health.Services))
+	for _, item := range value.Health.Services {
 		services = append(services, &sodav2.ServiceStatus{Name: item.Name, State: runtimeStateProto(item.State)})
 	}
-	interfaces := make([]*sodav2.NetworkInterface, 0, len(value.Interfaces))
-	for _, item := range value.Interfaces {
+	interfaces := make([]*sodav2.NetworkInterface, 0, len(value.Network.Interfaces))
+	for _, item := range value.Network.Interfaces {
 		interfaces = append(interfaces, &sodav2.NetworkInterface{Name: item.Name, Addresses: append([]string(nil), item.Addresses...)})
 	}
-	filesystems := make([]*sodav2.FilesystemStatus, 0, len(value.Filesystems))
-	for _, item := range value.Filesystems {
+	filesystems := make([]*sodav2.FilesystemStatus, 0, len(value.Resources.Filesystems))
+	for _, item := range value.Resources.Filesystems {
 		filesystems = append(filesystems, &sodav2.FilesystemStatus{Path: item.Path, TotalBytes: item.TotalBytes, AvailableBytes: item.AvailableBytes})
 	}
-	result := &sodav2.HostStatus{SampledAt: timestamppb.New(value.SampledAt), Overall: runtimeStateProto(value.Overall), Services: services, SshFirewallReady: value.SSHFirewallReady, CockpitFirewallReady: value.CockpitFirewallReady, Interfaces: interfaces, LoadAverage: &sodav2.LoadAverage{OneMinute: value.LoadAverage[0], FiveMinutes: value.LoadAverage[1], FifteenMinutes: value.LoadAverage[2]}, UptimeSeconds: value.UptimeSeconds, MemoryTotalBytes: value.MemoryTotalBytes, MemoryAvailableBytes: value.MemoryAvailableBytes, Filesystems: filesystems}
-	result.CpuPercent = value.CPUPercent
+	result := &sodav2.HostStatus{SampledAt: timestamppb.New(value.SampledAt), Overall: runtimeStateProto(value.Health.Overall), Services: services, SshFirewallReady: value.Firewall.SSHReady, CockpitFirewallReady: value.Firewall.CockpitReady, Interfaces: interfaces, LoadAverage: &sodav2.LoadAverage{OneMinute: value.Resources.LoadAverage[0], FiveMinutes: value.Resources.LoadAverage[1], FifteenMinutes: value.Resources.LoadAverage[2]}, UptimeSeconds: value.Resources.UptimeSeconds, MemoryTotalBytes: value.Resources.MemoryTotalBytes, MemoryAvailableBytes: value.Resources.MemoryAvailableBytes, Filesystems: filesystems}
+	result.CpuPercent = value.Resources.CPUPercent
 	return result
 }
 

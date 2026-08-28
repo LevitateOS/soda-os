@@ -1,0 +1,211 @@
+package image
+
+import (
+	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"errors"
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+	"time"
+)
+
+// BuildRPMs builds exactly the three direct Soda RPM inputs and records their
+// names and SHA-256 values. Runtime dependencies resolve from the pinned base.
+func (b *Builder) BuildRPMs(ctx context.Context) error {
+	if err := b.Check(ctx); err != nil {
+		return err
+	}
+	revision, err := b.sourceRevision(ctx)
+	if err != nil {
+		return err
+	}
+	if err := b.verifyRuntimeCosign(); err != nil {
+		return err
+	}
+	if err := b.buildContainer(ctx); err != nil {
+		return err
+	}
+	workspace, err := b.prepareRPMWorkspace()
+	if err != nil {
+		return err
+	}
+	return b.buildLockedRPMs(ctx, workspace, revision)
+}
+
+type rpmWorkspace struct{ build, topdir, rpms string }
+
+func (b *Builder) prepareRPMWorkspace() (rpmWorkspace, error) {
+	workspace := rpmWorkspace{b.artifactPath("build"), b.artifactPath("rpmbuild"), b.artifactPath("rpms")}
+	for _, path := range []string{workspace.build, workspace.topdir, workspace.rpms} {
+		if err := recreate(path); err != nil {
+			return rpmWorkspace{}, err
+		}
+	}
+	for _, directory := range []string{"BUILD", "BUILDROOT", "RPMS", "SOURCES", "SPECS", "SRPMS"} {
+		if err := os.MkdirAll(filepath.Join(workspace.topdir, directory), 0o755); err != nil {
+			return rpmWorkspace{}, err
+		}
+	}
+	return workspace, nil
+}
+
+func (b *Builder) buildLockedRPMs(ctx context.Context, workspace rpmWorkspace, revision string) error {
+	if err := b.buildGoBinaries(ctx, revision); err != nil {
+		return err
+	}
+	if err := b.stageRPMSources(workspace.build, filepath.Join(workspace.topdir, "SOURCES")); err != nil {
+		return err
+	}
+	for _, name := range targetRPMs {
+		if err := b.rpmbuild(ctx, name); err != nil {
+			return err
+		}
+		rpm, err := findSingleRPM(filepath.Join(workspace.topdir, "RPMS"), name)
+		if err != nil {
+			return err
+		}
+		if err := copyFile(rpm, filepath.Join(workspace.rpms, filepath.Base(rpm))); err != nil {
+			return err
+		}
+	}
+	if err := b.writeLockedInstallInputs(workspace.rpms); err != nil {
+		return err
+	}
+	fmt.Printf("Built locked Soda RPM inputs at %s\n", workspace.rpms)
+	return nil
+}
+
+func (b *Builder) buildGoBinaries(ctx context.Context, revision string) error {
+	buildDate := time.Unix(b.Spec.Build.SourceDateEpoch, 0).UTC().Format(time.RFC3339)
+	linkerFlags := strings.Join([]string{
+		"-s", "-w", "-buildid=",
+		"-X github.com/LevitateOS/soda-os/internal/version.Version=" + b.Spec.Identity.Version,
+		"-X github.com/LevitateOS/soda-os/internal/version.Commit=" + revision,
+		"-X github.com/LevitateOS/soda-os/internal/version.BuildDate=" + buildDate,
+	}, " ")
+	for _, target := range []struct{ output, pkg string }{
+		{"sodad", "./cmd/sodad"},
+		{"sodactl", "./cmd/sodactl"},
+		{"soda-ssh", "./cmd/soda-ssh"},
+		{"soda-cockpit", "./cockpit/cmd/soda-cockpit"},
+		{"soda-authd", "./cockpit/cmd/soda-authd"},
+	} {
+		if err := b.docker(ctx, []string{"CGO_ENABLED=1", "SOURCE_DATE_EPOCH=" + fmt.Sprint(b.Spec.Build.SourceDateEpoch)}, "go", "build", "-buildvcs=false", "-trimpath", "-ldflags="+linkerFlags, "-o", "/src/.artifacts/build/"+target.output, target.pkg); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (b *Builder) stageRPMSources(build, sources string) error {
+	files := [][2]string{
+		{filepath.Join(build, "sodad"), filepath.Join(sources, "sodad")},
+		{filepath.Join(build, "sodactl"), filepath.Join(sources, "sodactl")},
+		{b.artifactPath("tools", "cosign-linux-arm64"), filepath.Join(sources, "cosign")},
+		{filepath.Join(build, "soda-ssh"), filepath.Join(sources, "soda-ssh")},
+		{filepath.Join(build, "soda-cockpit"), filepath.Join(sources, "soda-cockpit")},
+		{filepath.Join(build, "soda-authd"), filepath.Join(sources, "soda-authd")},
+		{b.path("packaging/systemd/sodad.service"), filepath.Join(sources, "sodad.service")},
+		{b.path("packaging/systemd/soda-state-directories.service"), filepath.Join(sources, "soda-state-directories.service")},
+		{b.path("packaging/systemd/var-srv-soda-projects.mount"), filepath.Join(sources, "var-srv-soda-projects.mount")},
+		{b.path("packaging/systemd/opt-soda-toolchains.mount"), filepath.Join(sources, "opt-soda-toolchains.mount")},
+		{b.path("packaging/systemd/90-soda.preset"), filepath.Join(sources, "90-soda.preset")},
+		{b.path("packaging/tmpfiles.d/soda.conf"), filepath.Join(sources, "soda.conf")},
+		{b.path("packaging/sysusers.d/soda.conf"), filepath.Join(sources, "soda.sysusers")},
+		{b.path("packaging/sshd/41-soda-project-accounts.conf"), filepath.Join(sources, "41-soda-project-accounts.conf")},
+		{b.path("packaging/systemd/soda-cockpit.service"), filepath.Join(sources, "soda-cockpit.service")},
+		{b.path("packaging/systemd/soda-authd.service"), filepath.Join(sources, "soda-authd.service")},
+		{b.path("packaging/avahi/soda-cockpit.service"), filepath.Join(sources, "soda-cockpit.avahi.service")},
+		{b.path("packaging/pam/soda-cockpit"), filepath.Join(sources, "soda-cockpit.pam")},
+		{b.path("packaging/bootc/BASE_SYSTEM.md"), filepath.Join(sources, "BASE_SYSTEM.md")},
+		{b.path("assets/branding/source/soda-symbol.svg"), filepath.Join(sources, "soda-symbol.svg")},
+	}
+	for _, size := range []string{"16", "24", "32", "48", "64", "128", "256", "512"} {
+		files = append(files, [2]string{b.path("assets/branding/icons/hicolor/" + size + "x" + size + "/apps/soda-os.png"), filepath.Join(sources, "soda-os-"+size+".png")})
+	}
+	for _, pair := range files {
+		if err := copyFile(pair[0], pair[1]); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (b *Builder) writeLockedInstallInputs(rpms string) error {
+	lock, err := b.packageLock()
+	if err != nil {
+		return err
+	}
+	directory := b.artifactPath("bootc")
+	if err := recreate(directory); err != nil {
+		return err
+	}
+	var fedora, installed []string
+	for _, item := range lock.Package {
+		installed = append(installed, item.NEVRA)
+		if item.Source == "fedora" {
+			fedora = append(fedora, item.NEVRA)
+			continue
+		}
+		if !isFile(filepath.Join(rpms, item.File)) {
+			return fmt.Errorf("locked local RPM %s is missing", item.File)
+		}
+	}
+	for path, lines := range map[string][]string{
+		"fedora-packages.txt":   fedora,
+		"expected-packages.txt": installed,
+	} {
+		if err := os.WriteFile(filepath.Join(directory, path), []byte(strings.Join(lines, "\n")+"\n"), 0o644); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (b *Builder) verifyRuntimeCosign() error {
+	path := b.artifactPath("tools", "cosign-linux-arm64")
+	if !isFile(path) {
+		return errors.New("pinned Linux/AArch64 Cosign input is missing; run just release-tools")
+	}
+	contents, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+	hash := sha256.Sum256(contents)
+	digest := hex.EncodeToString(hash[:])
+	if digest != cosignArm64SHA256 {
+		return fmt.Errorf("Linux/AArch64 Cosign SHA-256 %s differs from pinned %s", digest, cosignArm64SHA256)
+	}
+	return nil
+}
+
+func (b *Builder) buildContainer(ctx context.Context) error {
+	return b.runner.Run(ctx, Command{Dir: b.Root, Name: "docker", Args: []string{"build", "--quiet", "--platform", b.Spec.Base.Platform, "--file", "packaging/builder/Containerfile", "--tag", "soda-os-rpm-builder:" + b.Spec.Identity.Version, "."}})
+}
+
+func (b *Builder) docker(ctx context.Context, environment []string, name string, args ...string) error {
+	return b.runner.Run(ctx, b.dockerCommand(environment, name, args...))
+}
+
+func (b *Builder) dockerCommand(environment []string, name string, args ...string) Command {
+	dockerArgs := []string{"run", "--rm", "--platform", b.Spec.Base.Platform, "--volume", b.Root + ":/src", "--workdir", "/src"}
+	for _, pair := range environment {
+		dockerArgs = append(dockerArgs, "--env", pair)
+	}
+	dockerArgs = append(dockerArgs, "soda-os-rpm-builder:"+b.Spec.Identity.Version, name)
+	dockerArgs = append(dockerArgs, args...)
+	return Command{Dir: b.Root, Name: "docker", Args: dockerArgs}
+}
+
+func (b *Builder) rpmbuild(ctx context.Context, name string) error {
+	epoch := fmt.Sprint(b.Spec.Build.SourceDateEpoch)
+	return b.docker(ctx, []string{"SOURCE_DATE_EPOCH=" + epoch}, "rpmbuild", "-bb",
+		"--define", "_topdir /src/.artifacts/rpmbuild",
+		"--define", "_source_date_epoch "+epoch,
+		"--define", "use_source_date_epoch_as_buildtime 1",
+		"--define", "_buildhost soda-builder",
+		"packaging/rpm/"+name+".spec")
+}

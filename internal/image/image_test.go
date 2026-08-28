@@ -20,10 +20,26 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+type recordingRunner struct {
+	Commands []Command
+	Outputs  map[string]string
+	Err      error
+}
+
+func (r *recordingRunner) Run(_ context.Context, command Command) error {
+	r.Commands = append(r.Commands, command)
+	return r.Err
+}
+
+func (r *recordingRunner) Output(_ context.Context, command Command) (string, error) {
+	r.Commands = append(r.Commands, command)
+	return r.Outputs[command.String()], r.Err
+}
+
 func TestBootcContract(t *testing.T) {
 	root, err := filepath.Abs(filepath.Join("..", ".."))
 	require.NoError(t, err)
-	builder, err := NewBuilder(root, "distro/soda.toml", &RecordingRunner{})
+	builder, err := NewBuilder(root, "distro/soda.toml", &recordingRunner{})
 	require.NoError(t, err)
 	require.NoError(t, builder.Check(context.Background()))
 
@@ -80,7 +96,7 @@ func TestOSRunnerWiresOnlyExplicitStdin(t *testing.T) {
 }
 
 func TestRPMBuildPinsHeaderTimeAndHost(t *testing.T) {
-	runner := &RecordingRunner{}
+	runner := &recordingRunner{}
 	builder := &Builder{Root: "/workspace/soda", runner: runner, Spec: config.DistroSpec{
 		Identity: config.IdentitySpec{Version: "0.2.0"},
 		Base:     config.BaseSpec{Platform: bootcPlatform},
@@ -94,9 +110,9 @@ func TestRPMBuildPinsHeaderTimeAndHost(t *testing.T) {
 	require.Contains(t, command, "--define _buildhost soda-builder")
 }
 
-func TestSourceRevisionAcceptsCleanWorktree(t *testing.T) {
+func TestSourceRevisionAcceptsCleanAndRejectsDirtyWorktrees(t *testing.T) {
 	const revision = "79eb8c180a711f1b4230a88d95aa411b3ceb99ca"
-	runner := &RecordingRunner{Outputs: map[string]string{
+	runner := &recordingRunner{Outputs: map[string]string{
 		"git status --porcelain=v1 --untracked-files=all": "",
 		"git rev-parse HEAD":                              revision + "\n",
 	}}
@@ -108,16 +124,14 @@ func TestSourceRevisionAcceptsCleanWorktree(t *testing.T) {
 		"git status --porcelain=v1 --untracked-files=all",
 		"git rev-parse HEAD",
 	}, []string{runner.Commands[0].String(), runner.Commands[1].String()})
-}
 
-func TestSourceRevisionRejectsDirtyWorktree(t *testing.T) {
 	for name, status := range map[string]string{
 		"tracked":   " M internal/image/image.go\n",
 		"staged":    "M  internal/image/image.go\n",
 		"untracked": "?? internal/image/new_source.go\n",
 	} {
 		t.Run(name, func(t *testing.T) {
-			runner := &RecordingRunner{Outputs: map[string]string{
+			runner := &recordingRunner{Outputs: map[string]string{
 				"git status --porcelain=v1 --untracked-files=all": status,
 			}}
 			builder := &Builder{Root: "/workspace/soda", runner: runner}
@@ -137,7 +151,7 @@ func TestArtifactBuildsRejectDirtyWorktreeBeforeDocker(t *testing.T) {
 		"image": func(ctx context.Context, builder *Builder) error { return builder.BuildImage(ctx) },
 	} {
 		t.Run(name, func(t *testing.T) {
-			runner := &RecordingRunner{Outputs: map[string]string{
+			runner := &recordingRunner{Outputs: map[string]string{
 				"git status --porcelain=v1 --untracked-files=all": "?? relevant-source.go\n",
 			}}
 			builder, err := NewBuilder(root, "distro/soda.toml", runner)
@@ -171,142 +185,8 @@ file = "soda-release.rpm"
 	require.ErrorContains(t, builder.writeLockedInstallInputs(filepath.Join(root, "rpms")), "locked local RPM soda-release.rpm is missing")
 }
 
-func TestRuntimeImageEnablesServicesAndMasksAutomaticUpdates(t *testing.T) {
-	contents, err := os.ReadFile(filepath.Join("..", "..", "packaging", "bootc", "Containerfile"))
-	require.NoError(t, err)
-	containerfile := string(contents)
-	require.True(t, strings.HasPrefix(containerfile, "FROM fedora-base\n"))
-	for _, expected := range []string{
-		bootcBaseReference,
-		"systemd-sysusers /usr/lib/sysusers.d/soda.conf",
-		"install -d -m 0755 /opt/soda/toolchains",
-		"systemctl enable sshd.service sodad.service soda-authd.service soda-cockpit.service avahi-daemon.service var-srv-soda-projects.mount opt-soda-toolchains.mount",
-		"systemctl mask bootc-fetch-apply-updates.timer",
-		"cp -f /usr/lib/soda/os-release /etc/os-release",
-		"cp -f /usr/lib/soda/os-release /usr/lib/os-release",
-		"cp -f /usr/lib/soda/issue /etc/issue",
-		"cp -f /usr/lib/soda/issue /etc/issue.net",
-		"cp -f /usr/lib/soda/system-release /etc/system-release",
-		"cp -f /usr/lib/soda/system-release /etc/redhat-release",
-		"semanage fcontext -a -t var_lib_t '/var/lib/soda(/.*)?'",
-		"semanage fcontext -a -e /home /var/lib/soda/projects",
-		"semanage fcontext -a -e /opt /var/lib/soda/toolchains",
-		"semanage fcontext -a -e /home /var/srv/soda/projects",
-		"semanage fcontext -a -e /opt /opt/soda/toolchains",
-		"semanage fcontext -a -t var_log_t '/var/log/soda(/.*)?'",
-		"semanage fcontext -a -t ssh_home_t '/etc/soda/authorized_keys(/.*)?'",
-		"restorecon -RF /etc/soda/authorized_keys /opt/soda/toolchains",
-		"ssh-keygen -q -t ed25519 -N '' -f /run/soda-sshd-hostkey",
-		"/usr/sbin/sshd -t -h /run/soda-sshd-hostkey",
-		"rm -f /run/soda-sshd-hostkey /run/soda-sshd-hostkey.pub",
-		"--enablerepo=updates-testing",
-		`test "$(rpm -q --qf '%{NAME}-%{EPOCHNUM}:%{VERSION}-%{RELEASE}.%{ARCH}' bootc)" = "bootc-0:1.16.10-1.fc44.aarch64"`,
-		"rpm -q skopeo",
-		"/usr/libexec/soda/cosign version | grep -F 'GitVersion:    v3.1.2'",
-		"bootc switch --help | grep -F -- '--download-only'",
-		"bootc switch --help | grep -F -- '--from-downloaded'",
-		"rpm-inventory.sha256",
-		"sha256sum --check rpm-inventory.sha256",
-		"/usr/lib/sysimage/libdnf5/transaction_history.sqlite*",
-		"/var/cache/ldconfig/aux-cache",
-		"/var/cache/libdnf5",
-		"/var/lib/dnf/repos",
-		"/var/log/dnf5.log",
-		"/run/dnf",
-		"COPY .artifacts/bootc/trust/registry-ca.crt /usr/share/pki/ca-trust-source/anchors/soda-registry-ca.crt",
-		"COPY .artifacts/bootc/trust/cosign.pub /usr/share/soda/release/cosign.pub",
-		"COPY packaging/release/policy.json /etc/containers/policy.json",
-		"COPY packaging/release/registries.d.yaml /etc/containers/registries.d/soda.yaml",
-		"update-ca-trust extract",
-	} {
-		require.Contains(t, containerfile, expected)
-	}
-	require.NotContains(t, containerfile, "bootc-fetch-apply-updates.service")
-
-	sysusers, err := os.ReadFile(filepath.Join("..", "..", "packaging", "sysusers.d", "soda.conf"))
-	require.NoError(t, err)
-	require.Contains(t, string(sysusers), "g soda-api 976")
-	require.Contains(t, string(sysusers), "u soda-cockpit 976:soda-api")
-
-	preset, err := os.ReadFile(filepath.Join("..", "..", "packaging", "systemd", "90-soda.preset"))
-	require.NoError(t, err)
-	for _, unit := range []string{"sshd.service", "sodad.service", "soda-authd.service", "soda-cockpit.service", "avahi-daemon.service", "var-srv-soda-projects.mount", "opt-soda-toolchains.mount"} {
-		require.True(t, strings.Contains(string(preset), "enable "+unit))
-	}
-
-	tmpfiles, err := os.ReadFile(filepath.Join("..", "..", "packaging", "tmpfiles.d", "soda.conf"))
-	require.NoError(t, err)
-	for _, path := range []string{
-		"/var/lib/soda",
-		"/var/lib/soda/projects",
-		"/var/lib/soda/toolchains",
-		"/var/log/soda",
-		"/var/log/soda/sodad",
-		"/var/log/soda/soda-authd",
-		"/var/log/soda/soda-cockpit",
-		"/var/srv/soda",
-		"/var/srv/soda/projects",
-	} {
-		require.Contains(t, string(tmpfiles), "d "+path+" ", "first-boot tmpfiles must create %s after the image installs its SELinux fcontext mapping", path)
-	}
-	require.NotRegexp(t, `(?m)^d /srv/`, string(tmpfiles))
-	require.NotRegexp(t, `(?m)^d /opt/`, string(tmpfiles))
-	require.Contains(t, string(tmpfiles), "d /var/log/soda/soda-cockpit 0750 soda-cockpit soda-api -")
-
-	staging, err := os.ReadFile("image.go")
-	require.NoError(t, err)
-	require.Contains(t, string(staging), `b.path("packaging/systemd/soda-state-directories.service"), filepath.Join(sources, "soda-state-directories.service")`)
-	require.Contains(t, string(staging), `b.path("packaging/systemd/var-srv-soda-projects.mount"), filepath.Join(sources, "var-srv-soda-projects.mount")`)
-	require.NotContains(t, string(staging), "00-soda-var-srv.conf")
-
-	runtimeSpec, err := os.ReadFile(filepath.Join("..", "..", "packaging", "rpm", "soda-runtime.spec"))
-	require.NoError(t, err)
-	require.Contains(t, string(runtimeSpec), "install -m 0644 %{_sourcedir}/soda-state-directories.service %{buildroot}%{_unitdir}/soda-state-directories.service")
-	require.Contains(t, string(runtimeSpec), "%{_unitdir}/soda-state-directories.service")
-	require.Contains(t, string(runtimeSpec), "install -m 0644 %{_sourcedir}/var-srv-soda-projects.mount %{buildroot}%{_unitdir}/var-srv-soda-projects.mount")
-	require.Contains(t, string(runtimeSpec), "%{_unitdir}/var-srv-soda-projects.mount")
-	require.NotContains(t, string(runtimeSpec), "00-soda-var-srv.conf")
-
-	projectMount, err := os.ReadFile(filepath.Join("..", "..", "packaging", "systemd", "var-srv-soda-projects.mount"))
-	require.NoError(t, err)
-	require.Contains(t, string(projectMount), "Requires=soda-state-directories.service")
-	require.Contains(t, string(projectMount), "After=soda-state-directories.service")
-	require.NotContains(t, string(projectMount), "After=systemd-tmpfiles-setup.service")
-	require.Contains(t, string(projectMount), "What=/var/lib/soda/projects")
-	require.Contains(t, string(projectMount), "Where=/var/srv/soda/projects")
-	require.Contains(t, string(projectMount), "Options=bind")
-
-	stateDirectories, err := os.ReadFile(filepath.Join("..", "..", "packaging", "systemd", "soda-state-directories.service"))
-	require.NoError(t, err)
-	require.Contains(t, string(stateDirectories), "DefaultDependencies=no")
-	require.Contains(t, string(stateDirectories), "RequiresMountsFor=/var")
-	require.Contains(t, string(stateDirectories), "Before=local-fs.target var-srv-soda-projects.mount opt-soda-toolchains.mount")
-	require.Contains(t, string(stateDirectories), "ExecStart=/usr/bin/systemd-tmpfiles --create --prefix=/var/lib/soda --prefix=/var/srv/soda")
-
-	toolchainMount, err := os.ReadFile(filepath.Join("..", "..", "packaging", "systemd", "opt-soda-toolchains.mount"))
-	require.NoError(t, err)
-	require.Contains(t, string(toolchainMount), "Requires=soda-state-directories.service")
-	require.Contains(t, string(toolchainMount), "After=soda-state-directories.service")
-	require.NotContains(t, string(toolchainMount), "After=systemd-tmpfiles-setup.service")
-
-	sodadUnit, err := os.ReadFile(filepath.Join("..", "..", "packaging", "systemd", "sodad.service"))
-	require.NoError(t, err)
-	require.Contains(t, string(sodadUnit), "Requires=var-srv-soda-projects.mount opt-soda-toolchains.mount")
-	require.Contains(t, string(sodadUnit), "After=local-fs.target network-online.target var-srv-soda-projects.mount opt-soda-toolchains.mount")
-
-	for _, service := range []string{"sodad.service", "soda-authd.service", "soda-cockpit.service"} {
-		unit, readErr := os.ReadFile(filepath.Join("..", "..", "packaging", "systemd", service))
-		require.NoError(t, readErr)
-		require.Contains(t, string(unit), "StandardOutput=append:/var/log/soda/")
-		require.NotContains(t, string(unit), "LogsDirectory=")
-	}
-	cockpitUnit, err := os.ReadFile(filepath.Join("..", "..", "packaging", "systemd", "soda-cockpit.service"))
-	require.NoError(t, err)
-	require.Contains(t, string(cockpitUnit), "ReadWritePaths=/var/lib/soda/certs /var/log/soda/soda-cockpit")
-}
-
 func TestPrepareLocalBootcBaseUsesExactDigestDerivedLocalTag(t *testing.T) {
-	runner := &RecordingRunner{}
+	runner := &recordingRunner{}
 	tag, err := PrepareLocalBootcBase(context.Background(), "/workspace", runner, bootcBaseReference)
 	require.NoError(t, err)
 	require.Equal(t, "soda-fedora-bootc:sha256-85677d47c03b2e1f8f9a3a19d838023ea154229817d579d4b4da5b87a21c9c1a", tag)

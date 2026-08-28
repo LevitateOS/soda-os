@@ -7,17 +7,20 @@ import (
 	"strings"
 )
 
-// SSHKeyFingerprint returns the OpenSSH SHA256 fingerprint for an authorized
-// key. Comments are deliberately excluded because they are not key identity.
-func SSHKeyFingerprint(key string) (string, error) {
+// ParseSSHKey normalizes an authorized key and calculates its OpenSSH SHA256
+// fingerprint. Comments are excluded because they are not key identity.
+func ParseSSHKey(key string) (string, string, error) {
+	if strings.ContainsAny(key, "\r\n\x00") {
+		return "", "", errors.New("SSH public key is not a supported single-line key")
+	}
 	fields := strings.Fields(key)
-	if len(fields) < 2 || (!strings.HasPrefix(fields[0], "ssh-") && !strings.HasPrefix(fields[0], "ecdsa-")) {
-		return "", errors.New("SSH public key is not a supported key")
+	if len(fields) < 2 || (fields[0] != "ssh-ed25519" && fields[0] != "ssh-rsa") {
+		return "", "", errors.New("SSH public key is not a supported key")
 	}
 	decoded, err := base64.StdEncoding.DecodeString(fields[1])
 	if err != nil {
-		return "", errors.New("SSH public key payload is invalid")
+		return "", "", errors.New("SSH public key payload is invalid")
 	}
 	digest := sha256.Sum256(decoded)
-	return "SHA256:" + base64.RawStdEncoding.EncodeToString(digest[:]), nil
+	return strings.Join(fields[:2], " "), "SHA256:" + base64.RawStdEncoding.EncodeToString(digest[:]), nil
 }

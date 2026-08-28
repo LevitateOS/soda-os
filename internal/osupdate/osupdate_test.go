@@ -3,6 +3,7 @@ package osupdate
 import (
 	"context"
 	"errors"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -14,6 +15,22 @@ const (
 	testBootedDigest = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 	testUpdateDigest = "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
 )
+
+type recordingRunner struct {
+	Commands []imagebuild.Command
+	Outputs  map[string]string
+	Err      error
+}
+
+func (r *recordingRunner) Run(_ context.Context, command imagebuild.Command) error {
+	r.Commands = append(r.Commands, command)
+	return r.Err
+}
+
+func (r *recordingRunner) Output(_ context.Context, command imagebuild.Command) (string, error) {
+	r.Commands = append(r.Commands, command)
+	return r.Outputs[command.String()], r.Err
+}
 
 type fakeDiscovery struct {
 	reference string
@@ -52,7 +69,7 @@ func (v fakeVerifier) Verify(_ context.Context, reference string) error {
 }
 
 func TestStatusComesOnlyFromBootcAndPreservesDownloadLock(t *testing.T) {
-	runner := &imagebuild.RecordingRunner{Outputs: map[string]string{
+	runner := &recordingRunner{Outputs: map[string]string{
 		"bootc status --format=json --format-version=1": bootcStatusJSON(testBootedDigest, testUpdateDigest, true),
 	}}
 	manager := &Manager{
@@ -74,7 +91,7 @@ func TestStatusComesOnlyFromBootcAndPreservesDownloadLock(t *testing.T) {
 func TestCheckResolvesOnceVerifiesExactDigestAndRejectsWrongMetadata(t *testing.T) {
 	exact := Repository + "@" + testUpdateDigest
 	seen := ""
-	runner := &imagebuild.RecordingRunner{Outputs: map[string]string{
+	runner := &recordingRunner{Outputs: map[string]string{
 		"bootc status --format=json --format-version=1": bootcStatusJSON(testBootedDigest, "", false),
 	}}
 	manager := &Manager{
@@ -105,7 +122,7 @@ func TestCheckResolvesOnceVerifiesExactDigestAndRejectsWrongMetadata(t *testing.
 
 func TestCosignVerifierUsesEmbeddedKeyAndCAForExactDigest(t *testing.T) {
 	exact := Repository + "@" + testUpdateDigest
-	runner := &imagebuild.RecordingRunner{}
+	runner := &recordingRunner{}
 	verifier := cosignVerifier{runner: runner, executable: "/usr/libexec/soda/cosign", ca: DefaultCA, publicKey: DefaultKey}
 	require.NoError(t, verifier.Verify(context.Background(), exact))
 	require.Equal(t, []string{
@@ -115,7 +132,7 @@ func TestCosignVerifierUsesEmbeddedKeyAndCAForExactDigest(t *testing.T) {
 
 func TestSkopeoInspectorReadsMetadataOnlyAfterVerification(t *testing.T) {
 	exact := Repository + "@" + testUpdateDigest
-	runner := &imagebuild.RecordingRunner{Outputs: map[string]string{
+	runner := &recordingRunner{Outputs: map[string]string{
 		"skopeo --override-os linux --override-arch arm64 inspect --no-creds --no-tags --tls-verify=true docker://" + exact: `{"Digest":"` + testUpdateDigest + `","Architecture":"arm64","Os":"linux","Labels":{}}`,
 	}}
 	inspector := skopeoInspector{runner: runner, executable: "skopeo"}
@@ -127,7 +144,7 @@ func TestSkopeoInspectorReadsMetadataOnlyAfterVerification(t *testing.T) {
 
 func TestStageUsesOnlyExactDigestAndRequiresLockedMatchingStatus(t *testing.T) {
 	exact := Repository + "@" + testUpdateDigest
-	runner := &imagebuild.RecordingRunner{Outputs: map[string]string{
+	runner := &recordingRunner{Outputs: map[string]string{
 		"bootc status --format=json --format-version=1": bootcStatusJSON(testBootedDigest, testUpdateDigest, true),
 	}}
 	manager := &Manager{
@@ -171,13 +188,11 @@ func TestStageUsesOnlyExactDigestAndRequiresLockedMatchingStatus(t *testing.T) {
 }
 
 func TestActivateRequiresConfirmationAndDownloadedDeployment(t *testing.T) {
-	runner := &imagebuild.RecordingRunner{Outputs: map[string]string{
+	runner := &recordingRunner{Outputs: map[string]string{
 		"bootc status --format=json --format-version=1": bootcStatusJSON(testBootedDigest, testUpdateDigest, true),
 	}}
 	manager := &Manager{runner: runner, bootc: "bootc"}
-	require.ErrorIs(t, manager.Activate(context.Background(), false), ErrInvalid)
-	require.Empty(t, runner.Commands)
-	require.NoError(t, manager.Activate(context.Background(), true))
+	require.NoError(t, manager.Activate(context.Background()))
 	require.Equal(t, []string{
 		"bootc status --format=json --format-version=1",
 		"bootc switch --from-downloaded --apply",
@@ -185,12 +200,12 @@ func TestActivateRequiresConfirmationAndDownloadedDeployment(t *testing.T) {
 
 	runner.Commands = nil
 	runner.Outputs["bootc status --format=json --format-version=1"] = bootcStatusJSON(testBootedDigest, "", false)
-	require.ErrorIs(t, manager.Activate(context.Background(), true), ErrPrecondition)
+	require.ErrorIs(t, manager.Activate(context.Background()), ErrPrecondition)
 	require.Equal(t, []string{"bootc status --format=json --format-version=1"}, commandStrings(runner.Commands))
 
 	runner.Commands = nil
 	runner.Outputs["bootc status --format=json --format-version=1"] = strings.Replace(bootcStatusJSON(testBootedDigest, testUpdateDigest, true), `"readOnly":false`, `"readOnly":true`, 1)
-	require.ErrorIs(t, manager.Activate(context.Background(), true), ErrPrecondition)
+	require.ErrorIs(t, manager.Activate(context.Background()), ErrPrecondition)
 	require.Equal(t, []string{"bootc status --format=json --format-version=1"}, commandStrings(runner.Commands))
 }
 
@@ -212,20 +227,13 @@ func bootcStatusJSON(bootedDigest, stagedDigest string, downloadOnly bool) strin
 		if signed {
 			signature = `,"signature":"containerPolicy"`
 		}
-		return `{"image":{"image":{"image":"` + Repository + `@` + digest + `","transport":"registry"` + signature + `},"version":"` + version + `","imageDigest":"` + digest + `","architecture":"arm64"},"incompatible":false,"downloadOnly":` + strconvBool(downloadOnly) + `}`
+		return `{"image":{"image":{"image":"` + Repository + `@` + digest + `","transport":"registry"` + signature + `},"version":"` + version + `","imageDigest":"` + digest + `","architecture":"arm64"},"incompatible":false,"downloadOnly":` + strconv.FormatBool(downloadOnly) + `}`
 	}
 	staged := "null"
 	if stagedDigest != "" {
 		staged = deployment(stagedDigest, "0.3.0", downloadOnly, true)
 	}
 	return `{"status":{"readOnly":false,"booted":` + deployment(bootedDigest, "0.2.0", false, false) + `,"staged":` + staged + `}}`
-}
-
-func strconvBool(value bool) string {
-	if value {
-		return "true"
-	}
-	return "false"
 }
 
 func commandStrings(commands []imagebuild.Command) []string {

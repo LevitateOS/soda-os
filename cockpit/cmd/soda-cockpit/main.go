@@ -25,7 +25,7 @@ func main() {
 		log.Fatal(err)
 	}
 	defer api.Close()
-	app, err := server.New(api, auth.NewClient(pamSocket))
+	app, err := server.New(api, api, api, api, auth.NewClient(pamSocket))
 	if err != nil {
 		log.Fatal(err)
 	}

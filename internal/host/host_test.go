@@ -14,12 +14,12 @@ import (
 )
 
 func TestCreatesEmptyProjectAndAttributedWorktree(t *testing.T) {
+	root := t.TempDir()
 	for _, binary := range []string{"git", "ssh-keygen"} {
 		if _, err := exec.LookPath(binary); err != nil {
 			t.Skipf("%s unavailable", binary)
 		}
 	}
-	root := t.TempDir()
 	system := New(root)
 	system.Runner = managedTestRunner{}
 	system.AuthorizedKeysRoot = filepath.Join(t.TempDir(), "authorized_keys")
@@ -36,6 +36,15 @@ func TestCreatesEmptyProjectAndAttributedWorktree(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = worktreeCleanup(context.Background()) })
+	assertWorktreeIdentity(t, tree, person)
+	workspace, err := os.Readlink(filepath.Join(root, "demo", ".soda", "people", "alice", "home", "workspace"))
+	if err != nil || workspace != tree.Path {
+		t.Fatalf("workspace link = %q, %v", workspace, err)
+	}
+}
+
+func assertWorktreeIdentity(t *testing.T, tree domain.Worktree, person domain.Person) {
+	t.Helper()
 	for key, want := range map[string]string{"user.name": person.DisplayName, "user.email": person.Email, "core.bare": "false"} {
 		output, err := exec.Command("git", "-C", tree.Path, "config", "--worktree", "--get", key).Output()
 		if err != nil {
@@ -44,11 +53,6 @@ func TestCreatesEmptyProjectAndAttributedWorktree(t *testing.T) {
 		if strings.TrimSpace(string(output)) != want {
 			t.Fatalf("%s = %q", key, output)
 		}
-	}
-	home := filepath.Join(root, "demo", ".soda", "people", "alice", "home")
-	workspace, err := os.Readlink(filepath.Join(home, "workspace"))
-	if err != nil || workspace != tree.Path {
-		t.Fatalf("workspace link = %q, %v", workspace, err)
 	}
 }
 
@@ -167,7 +171,7 @@ func TestCreatePersonUsesRelaxedSixCharacterPasswordPolicy(t *testing.T) {
 		}
 	}
 	calls := runner.calls[before:]
-	if hasCallNamed(calls, "useradd") || hasCallNamed(calls, "chpasswd") {
+	if hasCall(calls, "useradd") || hasCall(calls, "chpasswd") {
 		t.Fatalf("invalid password changed host state: %#v", calls)
 	}
 }
@@ -184,7 +188,7 @@ func TestPersonAccountsDoNotUseSodaRoleGroups(t *testing.T) {
 		t.Fatalf("person useradd call = %#v", runner.calls)
 	}
 	for _, name := range []string{"groupadd", "usermod", "gpasswd"} {
-		if hasCallNamed(runner.calls, name) {
+		if hasCall(runner.calls, name) {
 			t.Fatalf("unexpected role-group command %q: %#v", name, runner.calls)
 		}
 	}
@@ -237,22 +241,34 @@ func TestProjectAuthorizedKeysRemainRootOwnedOutsideProjectHome(t *testing.T) {
 	person := domain.Person{ID: uuid.NewString(), Username: "alice"}
 	tree := domain.Worktree{PersonID: person.ID, Path: "/srv/soda/projects/demo/worktrees/alice"}
 	keys := []domain.SSHDeviceKey{
-		{ID: uuid.NewString(), PersonID: person.ID, Label: "Workstation", PublicKey: "ssh-ed25519 AQ== workstation", Fingerprint: "SHA256:z"},
-		{ID: uuid.NewString(), PersonID: person.ID, Label: "Laptop", PublicKey: "ssh-ed25519 AAAA laptop", Fingerprint: "SHA256:a"},
+		{ID: uuid.NewString(), PersonID: person.ID, Label: "Workstation", PublicKey: "ssh-ed25519 AQ==", Fingerprint: "SHA256:z"},
+		{ID: uuid.NewString(), PersonID: person.ID, Label: "Laptop", PublicKey: "ssh-ed25519 AAAA", Fingerprint: "SHA256:a"},
 	}
-	assertReconciledAuthorizedKeysOwnership(t, root, system, runner, project, person, tree, keys, keyFile)
+	fixture := authorizedKeysFixture{root: root, system: system, runner: runner, project: project, person: person, tree: tree, keys: keys, keyFile: keyFile}
+	fixture.assertRootOwnedContents(t)
 }
 
-func assertReconciledAuthorizedKeysOwnership(t *testing.T, root string, system *System, runner *recordingRunner, project domain.Project, person domain.Person, tree domain.Worktree, keys []domain.SSHDeviceKey, keyFile string) {
+type authorizedKeysFixture struct {
+	root    string
+	system  *System
+	runner  *recordingRunner
+	project domain.Project
+	person  domain.Person
+	tree    domain.Worktree
+	keys    []domain.SSHDeviceKey
+	keyFile string
+}
+
+func (fixture authorizedKeysFixture) assertRootOwnedContents(t *testing.T) {
 	t.Helper()
-	if err := system.ReconcileAuthorizedKeys(context.Background(), project, []domain.ProjectAccess{{Person: person, Worktree: tree, Keys: keys}}); err != nil {
+	if err := fixture.system.ReconcileAuthorizedKeys(context.Background(), fixture.project, []domain.ProjectAccess{{Person: fixture.person, Worktree: fixture.tree, Keys: fixture.keys}}); err != nil {
 		t.Fatal(err)
 	}
-	if !hasCall(runner.calls, "chown", "root:root", keyFile) {
-		t.Fatalf("authorized key rewrite was not restored to root ownership: %#v", runner.calls)
+	if !hasCall(fixture.runner.calls, "chown", "root:root", fixture.keyFile) {
+		t.Fatalf("authorized key rewrite was not restored to root ownership: %#v", fixture.runner.calls)
 	}
-	contents, err := os.ReadFile(keyFile)
-	wantFirst := "command=\"/usr/libexec/soda/soda-ssh --actor alice --project demo --worktree /srv/soda/projects/demo/worktrees/alice --home " + filepath.Join(root, "demo", ".soda", "people", "alice", "home") + "\" ssh-ed25519 AAAA"
+	contents, err := os.ReadFile(fixture.keyFile)
+	wantFirst := "command=\"/usr/libexec/soda/soda-ssh --actor alice --project demo --worktree /srv/soda/projects/demo/worktrees/alice --home " + filepath.Join(fixture.root, "demo", ".soda", "people", "alice", "home") + "\" ssh-ed25519 AAAA"
 	if err != nil || !strings.HasPrefix(string(contents), wantFirst) || strings.Contains(string(contents), " laptop") {
 		t.Fatalf("authorized key contents = %q, %v", contents, err)
 	}
@@ -360,29 +376,9 @@ func TestCreateWorktreeCleansPartialGitWorktreeAndBranch(t *testing.T) {
 
 func hasCall(calls []recordedCall, name string, args ...string) bool {
 	for _, call := range calls {
-		if call.name == name && strings.Join(call.args, "\x00") == strings.Join(args, "\x00") {
+		if call.name == name && (len(args) == 0 || strings.Join(call.args, "\x00") == strings.Join(args, "\x00")) {
 			return true
 		}
 	}
 	return false
-}
-
-func hasCallNamed(calls []recordedCall, name string) bool {
-	for _, call := range calls {
-		if call.name == name {
-			return true
-		}
-	}
-	return false
-}
-
-func TestPublicKeyValidation(t *testing.T) {
-	if err := ValidatePublicKey("", true); err != nil {
-		t.Fatal(err)
-	}
-	for _, key := range []string{"", "ssh-ed25519 key\ncommand", "ecdsa-sha2-nistp256 key"} {
-		if err := ValidatePublicKey(key, false); err == nil {
-			t.Fatalf("accepted %q", key)
-		}
-	}
 }

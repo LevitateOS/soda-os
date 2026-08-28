@@ -22,7 +22,7 @@
   {{if .DeviceKeys}}
   <table><thead><tr><th>Device</th><th>Key type</th><th>Fingerprint</th><th>Identity file</th><th>Added</th><th></th></tr></thead><tbody>
     {{range .DeviceKeys}}<tr>
-      <td>{{.Label}}</td><td><code>{{.Type}}</code></td><td><code>{{.Fingerprint}}</code></td><td><code>{{.IdentityFileHint}}</code></td><td>{{time .CreatedAt}}</td>
+      <td>{{.Label}}</td><td><code>{{keyType .}}</code></td><td><code>{{.Fingerprint}}</code></td><td><code>{{.IdentityFileHint}}</code></td><td>{{time .CreatedAt}}</td>
       <td><form method="post" action="/account/ssh-keys/{{.ID}}/revoke" hx-post="/account/ssh-keys/{{.ID}}/revoke" hx-target="#ssh-keys" hx-swap="outerHTML" hx-disabled-elt="button"><button type="submit">Revoke</button></form></td>
     </tr>{{end}}
   </tbody></table>

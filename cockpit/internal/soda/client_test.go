@@ -21,6 +21,12 @@ import (
 type fakeSodaService struct {
 	sodav2.UnimplementedSodaServiceServer
 	projectRequest *sodav2.CreateProjectRequest
+	activation     *sodav2.ActivateOSUpdateRequest
+}
+
+func (s *fakeSodaService) ActivateOSUpdate(_ context.Context, request *sodav2.ActivateOSUpdateRequest) (*sodav2.ActivateOSUpdateResponse, error) {
+	s.activation = request
+	return &sodav2.ActivateOSUpdateResponse{}, nil
 }
 
 func (s *fakeSodaService) ListPeople(context.Context, *sodav2.ListPeopleRequest) (*sodav2.ListPeopleResponse, error) {
@@ -76,12 +82,12 @@ func TestClientMapsSSHDeviceKeys(t *testing.T) {
 	got := struct {
 		Label     string
 		Type      string
-		CreatedAt uint64
-	}{Label: keys[0].Label, Type: keys[0].Type, CreatedAt: keys[0].CreatedAt}
+		CreatedAt int64
+	}{Label: keys[0].Label, Type: strings.Fields(keys[0].PublicKey)[0], CreatedAt: keys[0].CreatedAt.Unix()}
 	want := struct {
 		Label     string
 		Type      string
-		CreatedAt uint64
+		CreatedAt int64
 	}{Label: "Laptop", Type: "ssh-ed25519", CreatedAt: 1_700_000_000}
 	if got != want {
 		t.Fatalf("SSHDeviceKeys() = %#v", keys)
@@ -90,11 +96,12 @@ func TestClientMapsSSHDeviceKeys(t *testing.T) {
 
 func TestClientMapsProjectRequestAndResponse(t *testing.T) {
 	client, service := bufconnClient(t)
-	project, err := client.CreateProject(context.Background(), CreateProjectRequest{Slug: "demo", Name: "Demo", Profile: "go", Source: ProjectSource{Kind: "git", RemoteURL: "ssh://git@example/demo.git"}, InitialPersonIDs: []string{"person-1"}})
+	project, err := client.CreateProject(context.Background(), CreateProjectRequest{Slug: "demo", Name: "Demo", Profile: "go", Source: GitProjectSource{RemoteURL: "ssh://git@example/demo.git"}, InitialPersonIDs: []string{"person-1"}})
 	if err != nil {
 		t.Fatalf("CreateProject() error = %v", err)
 	}
-	if service.projectRequest.GetSource().GetGit().GetRemoteUrl() != "ssh://git@example/demo.git" || len(service.projectRequest.GetInitialPersonIds()) != 1 || project.Profile != "go" || project.Source.Kind != "git" {
+	gitSource, gitProject := project.Source.(GitProjectSource)
+	if service.projectRequest.GetSource().GetGit().GetRemoteUrl() != "ssh://git@example/demo.git" || len(service.projectRequest.GetInitialPersonIds()) != 1 || project.Profile != "go" || !gitProject || gitSource.RemoteURL != "ssh://git@example/demo.git" {
 		t.Fatalf("project mapping failed: request=%#v result=%#v", service.projectRequest, project)
 	}
 }
@@ -102,14 +109,14 @@ func TestClientMapsProjectRequestAndResponse(t *testing.T) {
 func TestClientMapsOptionalHostValues(t *testing.T) {
 	client, _ := bufconnClient(t)
 	host, err := client.HostStatus(context.Background())
-	if err != nil || host.CPUPercent == nil {
+	if err != nil || host.Resources.CPUPercent == nil {
 		t.Fatalf("HostStatus() = %#v, %v", host, err)
 	}
 	got := struct {
 		Overall RuntimeState
 		CPU     float64
 		Load    [3]float64
-	}{Overall: host.Overall, CPU: *host.CPUPercent, Load: host.LoadAverage}
+	}{Overall: host.Health.Overall, CPU: *host.Resources.CPUPercent, Load: host.Resources.LoadAverage}
 	want := struct {
 		Overall RuntimeState
 		CPU     float64
@@ -117,6 +124,16 @@ func TestClientMapsOptionalHostValues(t *testing.T) {
 	}{Overall: "ready", CPU: 24.5, Load: [3]float64{1, 2, 3}}
 	if got != want {
 		t.Fatalf("HostStatus() = %#v", host)
+	}
+}
+
+func TestClientAlwaysConfirmsActivatedReboot(t *testing.T) {
+	client, service := bufconnClient(t)
+	if err := client.ActivateOSUpdate(context.Background()); err != nil {
+		t.Fatalf("ActivateOSUpdate() error = %v", err)
+	}
+	if service.activation == nil || !service.activation.GetConfirmReboot() {
+		t.Fatalf("ActivateOSUpdate() request = %#v", service.activation)
 	}
 }
 
@@ -145,9 +162,8 @@ func TestClientSanitizesGRPCErrors(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			client := newClient(failingService{err: status.Error(test.code, test.detail)}, nil)
 			_, err := client.People(context.Background())
-			rpc, ok := err.(RPCError)
-			if !ok || rpc.Code != test.code || err.Error() != test.message {
-				t.Fatalf("People() error = %#v, want code %s and %q", err, test.code, test.message)
+			if err == nil || err.Error() != test.message {
+				t.Fatalf("People() error = %#v, want %q", err, test.message)
 			}
 			if test.message != test.detail && strings.Contains(err.Error(), test.detail) {
 				t.Fatalf("People() exposed daemon detail %q", test.detail)

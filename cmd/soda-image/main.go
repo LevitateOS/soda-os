@@ -58,11 +58,11 @@ func installerCommand(builder func() (*image.Builder, error)) *cobra.Command {
 				return err
 			}
 			isoBuilder := installer.NewBuilder(imageBuilder.Root, imageBuilder.Spec, image.OSRunner{Stdout: os.Stdout, Stderr: os.Stderr})
-			result, err := isoBuilder.Build(command.Context(), options)
+			isoPath, err := isoBuilder.Build(command.Context(), options)
 			if err != nil {
 				return err
 			}
-			fmt.Printf("Built installer ISO: %s\nChecksum: %s.sha256\n", result.ISOPath, result.ISOPath)
+			fmt.Printf("Built installer ISO: %s\nChecksum: %s.sha256\n", isoPath, isoPath)
 			return nil
 		},
 	}
@@ -79,48 +79,60 @@ func installerCommand(builder func() (*image.Builder, error)) *cobra.Command {
 	return command
 }
 
+type releaseCommandState struct {
+	builder      func() (*image.Builder, error)
+	signing      release.SigningOptions
+	publication  release.PublicationOptions
+	deferCurrent bool
+}
+
 func releaseCommand(builder func() (*image.Builder, error)) *cobra.Command {
-	var options release.Options
+	state := &releaseCommandState{builder: builder}
 	command := &cobra.Command{
 		Use:   "publish",
 		Short: "publish and sign one exact Soda bootc release",
 		Args:  cobra.NoArgs,
-		RunE: func(command *cobra.Command, _ []string) error {
-			b, err := builder()
-			if err != nil {
-				return err
-			}
-			publisher, err := release.NewPublisher(b.Spec, options, image.OSRunner{Stdin: os.Stdin, Stdout: os.Stdout, Stderr: os.Stderr})
-			if err != nil {
-				return err
-			}
-			result, err := publisher.Publish(command.Context(), options)
-			if err != nil {
-				return err
-			}
-			if result.RecordPath == "" {
-				fmt.Printf("Prepared signed image %s; no release record or current tag was written\n", result.ImageReference)
-				return nil
-			}
-			fmt.Printf("Published %s\nRelease record: %s\nSignature bundle: %s\n", result.ImageReference, result.RecordPath, result.BundlePath)
-			return nil
-		},
+		RunE:  state.run,
 	}
-	command.Flags().StringVar(&options.ArchivePath, "archive", "", "path to the AArch64 Soda OCI archive")
-	command.Flags().StringVar(&options.RegistryCA, "registry-ca", "", "PEM CA certificate for registry.soda.local")
-	command.Flags().StringVar(&options.PublicKey, "public-key", "", "Soda Cosign public key")
-	command.Flags().StringVar(&options.PrivateKey, "signing-key", "", "passphrase-protected Soda Cosign private key")
-	command.Flags().StringVar(&options.ISOPath, "iso", "", "optional installer ISO to bind into the release record")
-	command.Flags().BoolVar(&options.DeferCurrent, "defer-current", false, "sign and verify the exact image for ISO construction without writing a record or current tag")
-	command.Flags().StringVar(&options.OutputDir, "output-dir", ".artifacts/releases", "signed release record directory")
-	command.Flags().StringVar(&options.CosignPath, "cosign", ".artifacts/tools/cosign", "pinned Cosign executable")
-	command.Flags().StringVar(&options.ToolLock, "tool-lock", "packaging/release/tools.lock", "pinned release tool checksums")
-	command.Flags().StringVar(&options.InstallerArchive, "installer-archive", ".artifacts/installer/soda-installer-environment.oci.tar", "build-only installer environment used to inspect --iso")
-	command.Flags().StringVar(&options.InstallerToolLock, "installer-tool-lock", "packaging/installer/image-builder.lock", "pinned Image Builder contract used to inspect --iso")
+	command.Flags().StringVar(&state.publication.ArchivePath, "archive", "", "path to the AArch64 Soda OCI archive")
+	command.Flags().StringVar(&state.signing.RegistryCA, "registry-ca", "", "PEM CA certificate for registry.soda.local")
+	command.Flags().StringVar(&state.signing.PublicKey, "public-key", "", "Soda Cosign public key")
+	command.Flags().StringVar(&state.signing.PrivateKey, "signing-key", "", "passphrase-protected Soda Cosign private key")
+	command.Flags().StringVar(&state.publication.ISOPath, "iso", "", "optional installer ISO to bind into the release record")
+	command.Flags().BoolVar(&state.deferCurrent, "defer-current", false, "sign and verify the exact image for ISO construction without writing a record or current tag")
+	command.Flags().StringVar(&state.publication.OutputDir, "output-dir", ".artifacts/releases", "signed release record directory")
+	command.Flags().StringVar(&state.signing.CosignPath, "cosign", ".artifacts/tools/cosign", "pinned Cosign executable")
+	command.Flags().StringVar(&state.signing.ToolLock, "tool-lock", "packaging/release/tools.lock", "pinned release tool checksums")
+	command.Flags().StringVar(&state.publication.InstallerArchive, "installer-archive", ".artifacts/installer/soda-installer-environment.oci.tar", "build-only installer environment used to inspect --iso")
+	command.Flags().StringVar(&state.publication.InstallerToolLock, "installer-tool-lock", "packaging/installer/image-builder.lock", "pinned Image Builder contract used to inspect --iso")
 	for _, name := range []string{"archive", "registry-ca", "public-key", "signing-key"} {
 		_ = command.MarkFlagRequired(name)
 	}
 	return command
+}
+
+func (state *releaseCommandState) run(command *cobra.Command, _ []string) error {
+	builder, err := state.builder()
+	if err != nil {
+		return err
+	}
+	publisher, err := release.NewPublisher(builder.Root, builder.Spec, state.signing, image.OSRunner{Stdin: os.Stdin, Stdout: os.Stdout, Stderr: os.Stderr})
+	if err != nil {
+		return err
+	}
+	if state.deferCurrent {
+		reference, prepareErr := publisher.Prepare(command.Context(), state.publication.ArchivePath)
+		if prepareErr == nil {
+			fmt.Printf("Prepared signed image %s; no release record or current tag was written\n", reference)
+		}
+		return prepareErr
+	}
+	result, err := publisher.Publish(command.Context(), state.publication)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("Published %s\nRelease record: %s\nSignature bundle: %s\n", result.ImageReference, result.RecordPath, result.BundlePath)
+	return nil
 }
 
 func command(name, short string, builder func() (*image.Builder, error), run func(context.Context, *image.Builder) error) *cobra.Command {

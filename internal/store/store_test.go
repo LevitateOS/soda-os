@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
-	"strings"
 	"sync"
 	"testing"
 
@@ -40,7 +39,7 @@ func TestOpenCreatesSchemaVersionTwoAndEnforcesConstraints(t *testing.T) {
 		t.Fatalf("duplicate error = %v", err)
 	}
 	project := domain.Project{ID: uuid.NewString(), Slug: "demo", Name: "Demo", UnixUser: "soda-p-demo", Profile: domain.ToolchainGo, Source: domain.EmptyProjectSource{}}
-	if err = repository.CreateProject(ctx, project); err != nil {
+	if err = repository.CreateProjectWithMemberships(ctx, project, nil); err != nil {
 		t.Fatal(err)
 	}
 	remote := "https://example.test/contradictory.git"
@@ -143,16 +142,18 @@ func TestSSHDeviceFingerprintConstraintIsConcurrent(t *testing.T) {
 		}
 	}
 	start := make(chan struct{})
-	errorsByAttempt := make(chan error, 2)
+	errorsByAttempt := make(chan error, len(people))
 	var ready sync.WaitGroup
-	ready.Add(2)
-	for i, person := range people {
-		go func(index int, person domain.Person) {
+	ready.Add(len(people))
+	attempt := func(index int, person domain.Person) {
+		go func() {
 			ready.Done()
 			<-start
 			errorsByAttempt <- repository.CreateSSHDeviceKey(ctx, domain.SSHDeviceKey{ID: uuid.NewString(), PersonID: person.ID, Label: fmt.Sprintf("device-%d", index), PublicKey: fmt.Sprintf("ssh-ed25519 AAAA comment-%d", index), Fingerprint: "SHA256:shared", IdentityFileHint: "~/.ssh/id_ed25519"})
-		}(i, person)
+		}()
 	}
+	attempt(0, people[0])
+	attempt(1, people[1])
 	ready.Wait()
 	close(start)
 	successes, duplicates := 0, 0
@@ -170,7 +171,6 @@ func TestSSHDeviceFingerprintConstraintIsConcurrent(t *testing.T) {
 		t.Fatalf("successes=%d duplicates=%d", successes, duplicates)
 	}
 }
-
 func TestMembershipWorktreeJobsAndToolchainResolution(t *testing.T) {
 	repository := testRepository(t)
 	ctx := context.Background()
@@ -179,7 +179,7 @@ func TestMembershipWorktreeJobsAndToolchainResolution(t *testing.T) {
 	if err := repository.CreatePerson(ctx, person); err != nil {
 		t.Fatal(err)
 	}
-	if err := repository.CreateProject(ctx, project); err != nil {
+	if err := repository.CreateProjectWithMemberships(ctx, project, nil); err != nil {
 		t.Fatal(err)
 	}
 	tree := domain.Worktree{ID: uuid.NewString(), ProjectID: project.ID, PersonID: person.ID, Name: "default", Branch: "people/alice", Path: "/projects/demo/alice"}
@@ -222,7 +222,7 @@ func testRepository(t *testing.T) *Store {
 func assertProvisioningJobHistory(t *testing.T, repository *Store, ctx context.Context, projectID string) {
 	t.Helper()
 	job := domain.ProvisioningJob{ID: uuid.NewString(), ProjectID: projectID, State: domain.JobInstalling}
-	if err := repository.CreateJob(ctx, job); err != nil {
+	if err := repository.DB().WithContext(ctx).Create(jobRow(job)).Error; err != nil {
 		t.Fatal(err)
 	}
 	message := "download failed"
@@ -246,7 +246,7 @@ func TestSaveInstallationReusesProfileVersionAcrossProjects(t *testing.T) {
 	firstProject := domain.Project{ID: uuid.NewString(), Slug: "first", Name: "First", UnixUser: "soda-p-first", Profile: domain.ToolchainGo, Source: domain.EmptyProjectSource{}}
 	secondProject := domain.Project{ID: uuid.NewString(), Slug: "second", Name: "Second", UnixUser: "soda-p-second", Profile: domain.ToolchainGo, Source: domain.EmptyProjectSource{}}
 	for _, project := range []domain.Project{firstProject, secondProject} {
-		if err = repository.CreateProject(ctx, project); err != nil {
+		if err = repository.CreateProjectWithMemberships(ctx, project, nil); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -283,7 +283,7 @@ func TestBeginProvisioningEnforcesLatestState(t *testing.T) {
 	}
 	ctx := context.Background()
 	project := domain.Project{ID: uuid.NewString(), Slug: "demo", Name: "Demo", UnixUser: "soda-p-demo", Profile: domain.ToolchainGo, Source: domain.EmptyProjectSource{}}
-	if err = repository.CreateProject(ctx, project); err != nil {
+	if err = repository.CreateProjectWithMemberships(ctx, project, nil); err != nil {
 		t.Fatal(err)
 	}
 	first := domain.ProvisioningJob{ID: uuid.NewString(), ProjectID: project.ID, State: domain.JobInstalling}
@@ -315,22 +315,13 @@ func TestFailInterruptedProvisioningAllowsRetryAfterRestart(t *testing.T) {
 	repository := testRepository(t)
 	ctx := context.Background()
 	project := domain.Project{ID: uuid.NewString(), Slug: "demo", Name: "Demo", UnixUser: "soda-p-demo", Profile: domain.ToolchainGo, Source: domain.EmptyProjectSource{}}
-	if err := repository.CreateProject(ctx, project); err != nil {
+	if err := repository.CreateProjectWithMemberships(ctx, project, nil); err != nil {
 		t.Fatal(err)
 	}
 	abandoned := domain.ProvisioningJob{ID: uuid.NewString(), ProjectID: project.ID, State: domain.JobInstalling}
 	if err := repository.BeginProvisioning(ctx, abandoned); err != nil {
 		t.Fatal(err)
 	}
-	assertRestartMarksProvisioningFailed(t, repository, ctx, project.ID)
-	retry := domain.ProvisioningJob{ID: uuid.NewString(), ProjectID: project.ID, State: domain.JobInstalling}
-	if err := repository.BeginProvisioning(ctx, retry); err != nil {
-		t.Fatalf("manual retry after restart reconciliation: %v", err)
-	}
-}
-
-func assertRestartMarksProvisioningFailed(t *testing.T, repository *Store, ctx context.Context, projectID string) {
-	t.Helper()
 	count, err := repository.FailInterruptedProvisioning(ctx)
 	if err != nil {
 		t.Fatal(err)
@@ -338,11 +329,29 @@ func assertRestartMarksProvisioningFailed(t *testing.T, repository *Store, ctx c
 	if count != 1 {
 		t.Fatalf("reconciled jobs = %d, want 1", count)
 	}
-	jobs, err := repository.Jobs(ctx, projectID)
+	jobs, err := repository.Jobs(ctx, project.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(jobs) != 1 || jobs[0].State != domain.JobFailed || jobs[0].Error == nil || !strings.Contains(*jobs[0].Error, "daemon restart") {
-		t.Fatalf("reconciled job = %#v", jobs)
+	if len(jobs) != 1 {
+		t.Fatalf("reconciled jobs = %#v", jobs)
+	}
+	if jobs[0].Error == nil {
+		t.Fatalf("reconciled job has no failure message: %#v", jobs[0])
+	}
+	got := struct {
+		state   domain.JobState
+		message string
+	}{state: jobs[0].State, message: *jobs[0].Error}
+	want := struct {
+		state   domain.JobState
+		message string
+	}{state: domain.JobFailed, message: "provisioning interrupted by daemon restart; retry provisioning manually"}
+	if got != want {
+		t.Fatalf("reconciled job = %#v", jobs[0])
+	}
+	retry := domain.ProvisioningJob{ID: uuid.NewString(), ProjectID: project.ID, State: domain.JobInstalling}
+	if err := repository.BeginProvisioning(ctx, retry); err != nil {
+		t.Fatalf("manual retry after restart reconciliation: %v", err)
 	}
 }

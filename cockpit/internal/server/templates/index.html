@@ -14,21 +14,21 @@
   <h2>Development host</h2>
   {{if .HostError}}<p class="error" role="alert">{{.HostError}}</p>{{else if .Host}}
   <dl class="summary">
-    <div><dt>Status</dt><dd><span class="state state-{{.Host.Overall}}">{{.Host.Overall}}</span></dd></div>
+    <div><dt>Status</dt><dd><span class="state state-{{.Host.Health.Overall}}">{{.Host.Health.Overall}}</span></dd></div>
     <div><dt>Address</dt><dd><code>https://soda.local:9090</code></dd></div>
     <div><dt>Signed in</dt><dd>{{.User.DisplayName}} · {{.User.Role}}</dd></div>
-    <div><dt>CPU</dt><dd>{{if .Host.CPUPercent}}{{printf "%.1f%%" .Host.CPUPercent}}{{else}}sampling…{{end}}</dd></div>
-    <div><dt>Load</dt><dd>{{printf "%.2f · %.2f · %.2f" (index .Host.LoadAverage 0) (index .Host.LoadAverage 1) (index .Host.LoadAverage 2)}}</dd></div>
-    <div><dt>Memory available</dt><dd>{{bytes .Host.MemoryAvailableBytes}} / {{bytes .Host.MemoryTotalBytes}}</dd></div>
-    <div><dt>Uptime</dt><dd>{{duration .Host.UptimeSeconds}}</dd></div>
+    <div><dt>CPU</dt><dd>{{if .Host.Resources.CPUPercent}}{{printf "%.1f%%" .Host.Resources.CPUPercent}}{{else}}sampling…{{end}}</dd></div>
+    <div><dt>Load</dt><dd>{{printf "%.2f · %.2f · %.2f" (index .Host.Resources.LoadAverage 0) (index .Host.Resources.LoadAverage 1) (index .Host.Resources.LoadAverage 2)}}</dd></div>
+    <div><dt>Memory available</dt><dd>{{bytes .Host.Resources.MemoryAvailableBytes}} / {{bytes .Host.Resources.MemoryTotalBytes}}</dd></div>
+    <div><dt>Uptime</dt><dd>{{duration .Host.Resources.UptimeSeconds}}</dd></div>
   </dl>
   <h3>Services</h3>
-  <ul class="status-grid">{{range .Host.Services}}<li><span>{{.Name}}</span><strong class="state state-{{.State}}">{{.State}}</strong></li>{{end}}</ul>
+  <ul class="status-grid">{{range .Host.Health.Services}}<li><span>{{.Name}}</span><strong class="state state-{{.State}}">{{.State}}</strong></li>{{end}}</ul>
   <h3>Network</h3>
-  {{if .Host.Interfaces}}<ul class="items">{{range .Host.Interfaces}}<li><strong>{{.Name}}</strong><span>{{range $index, $address := .Addresses}}{{if $index}} · {{end}}<code>{{$address}}</code>{{end}}</span></li>{{end}}</ul>{{else}}<p>No global network address detected.</p>{{end}}
-  <p>Firewall: SSH {{if .Host.SSHFirewallReady}}ready{{else}}unavailable{{end}} · Cockpit {{if .Host.CockpitFirewallReady}}ready{{else}}unavailable{{end}}</p>
+  {{if .Host.Network.Interfaces}}<ul class="items">{{range .Host.Network.Interfaces}}<li><strong>{{.Name}}</strong><span>{{range $index, $address := .Addresses}}{{if $index}} · {{end}}<code>{{$address}}</code>{{end}}</span></li>{{end}}</ul>{{else}}<p>No global network address detected.</p>{{end}}
+  <p>Firewall: SSH {{if .Host.Firewall.SSHReady}}ready{{else}}unavailable{{end}} · Cockpit {{if .Host.Firewall.CockpitReady}}ready{{else}}unavailable{{end}}</p>
   <h3>Storage</h3>
-  <ul class="items">{{range .Host.Filesystems}}<li><code>{{.Path}}</code><span>{{bytes .AvailableBytes}} available / {{bytes .TotalBytes}}</span></li>{{end}}</ul>
+  <ul class="items">{{range .Host.Resources.Filesystems}}<li><code>{{.Path}}</code><span>{{bytes .AvailableBytes}} available / {{bytes .TotalBytes}}</span></li>{{end}}</ul>
   <p class="muted">Sampled {{time .Host.SampledAt}}</p>
   {{end}}
 </section>

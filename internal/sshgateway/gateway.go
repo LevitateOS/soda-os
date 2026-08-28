@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/LevitateOS/soda-os/internal/domain"
@@ -244,11 +245,7 @@ func projectEnvironment(projectRoot string) (map[string]string, error) {
 	if err := json.Unmarshal(contents, &value); err != nil {
 		return nil, fmt.Errorf("parse project environment: %w", err)
 	}
-	return sessionEnvironment(value)
-}
-
-func sessionEnvironment(value domain.ProjectEnvironment) (map[string]string, error) {
-	path, err := environmentPath(value.Path)
+	pathValue, err := environmentPath(value.Path)
 	if err != nil {
 		return nil, err
 	}
@@ -260,7 +257,7 @@ func sessionEnvironment(value domain.ProjectEnvironment) (map[string]string, err
 		return nil, err
 	}
 	variables["SODA_PROFILE"] = value.Profile
-	variables["PATH"] = path
+	variables["PATH"] = pathValue
 	return variables, nil
 }
 
@@ -294,26 +291,23 @@ func environmentVariables(variables map[string]string) (map[string]string, error
 }
 
 func mergeEnvironment(base []string, replacements map[string]string) []string {
-	result := make([]string, 0, len(base)+len(replacements))
-	seen := make(map[string]bool, len(replacements))
+	values := make(map[string]string, len(base)+len(replacements))
 	for _, entry := range base {
-		name, _, found := strings.Cut(entry, "=")
-		if !found {
-			continue
+		if name, value, found := strings.Cut(entry, "="); found {
+			values[name] = value
 		}
-		if value, replace := replacements[name]; replace {
-			if !seen[name] {
-				result = append(result, name+"="+value)
-				seen[name] = true
-			}
-			continue
-		}
-		result = append(result, entry)
 	}
 	for name, value := range replacements {
-		if !seen[name] {
-			result = append(result, name+"="+value)
-		}
+		values[name] = value
+	}
+	names := make([]string, 0, len(values))
+	for name := range values {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	result := make([]string, 0, len(names))
+	for _, name := range names {
+		result = append(result, name+"="+values[name])
 	}
 	return result
 }

@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -195,10 +196,6 @@ func (m *Manager) Stage(ctx context.Context, exactReference string) (Status, err
 	if !isSodaDigestReference(exactReference) {
 		return Status{}, fmt.Errorf("%w: an exact %s digest reference is required", ErrInvalid, Repository)
 	}
-	return m.stageVerified(ctx, exactReference)
-}
-
-func (m *Manager) stageVerified(ctx context.Context, exactReference string) (Status, error) {
 	current, err := m.Status(ctx)
 	if err != nil {
 		return Status{}, err
@@ -229,10 +226,7 @@ func matchesDownloadedDeployment(deployment *Deployment, exactReference string) 
 	return deployment.ImageReference == exactReference && deployment.DownloadOnly && deployment.Signature == "containerPolicy" && deployment.Architecture == "arm64" && !deployment.Incompatible
 }
 
-func (m *Manager) Activate(ctx context.Context, confirmed bool) error {
-	if !confirmed {
-		return fmt.Errorf("%w: explicit maintenance reboot confirmation is required", ErrInvalid)
-	}
+func (m *Manager) Activate(ctx context.Context) error {
 	status, err := m.Status(ctx)
 	if err != nil {
 		return err
@@ -336,13 +330,13 @@ func parseBootcStatus(contents []byte) (Status, error) {
 	if document.Status.Booted == nil {
 		return Status{}, errors.New("host has no booted bootc deployment")
 	}
-	booted, err := deployment(document.Status.Booted, false)
+	booted, err := deployment(document.Status.Booted)
 	if err != nil {
 		return Status{}, fmt.Errorf("decode booted deployment: %w", err)
 	}
 	result := Status{Booted: &booted, ReadOnly: document.Status.ReadOnly}
 	if document.Status.Staged != nil {
-		staged, err := deployment(document.Status.Staged, true)
+		staged, err := stagedDeployment(document.Status.Staged)
 		if err != nil {
 			return Status{}, fmt.Errorf("decode staged deployment: %w", err)
 		}
@@ -351,7 +345,18 @@ func parseBootcStatus(contents []byte) (Status, error) {
 	return result, nil
 }
 
-func deployment(value *bootcDeployment, requireSignature bool) (Deployment, error) {
+func stagedDeployment(value *bootcDeployment) (Deployment, error) {
+	result, err := deployment(value)
+	if err != nil {
+		return Deployment{}, err
+	}
+	if value.Image.Image.Signature != "containerPolicy" {
+		return Deployment{}, errors.New("staged deployment does not enforce the Soda container signature policy")
+	}
+	return result, nil
+}
+
+func deployment(value *bootcDeployment) (Deployment, error) {
 	digest := strings.TrimSpace(value.Image.ImageDigest)
 	if !validSHA256(digest) {
 		return Deployment{}, errors.New("deployment has no valid image digest")
@@ -362,9 +367,6 @@ func deployment(value *bootcDeployment, requireSignature bool) (Deployment, erro
 	}
 	if value.Image.Image.Transport != "registry" {
 		return Deployment{}, errors.New("deployment is not registry-backed")
-	}
-	if requireSignature && value.Image.Image.Signature != "containerPolicy" {
-		return Deployment{}, errors.New("staged deployment does not enforce the Soda container signature policy")
 	}
 	if value.Image.Architecture != "arm64" {
 		return Deployment{}, errors.New("deployment is not AArch64")
@@ -407,14 +409,13 @@ func isDigestReference(value string) bool {
 }
 
 func validSHA256(value string) bool {
-	return strings.HasPrefix(value, "sha256:") && len(value) == len("sha256:")+64 && hexadecimal(strings.TrimPrefix(value, "sha256:"))
+	if !strings.HasPrefix(value, "sha256:") || len(value) != len("sha256:")+64 {
+		return false
+	}
+	return hexadecimal(strings.TrimPrefix(value, "sha256:"))
 }
 
 func hexadecimal(value string) bool {
-	for _, character := range value {
-		if !((character >= '0' && character <= '9') || (character >= 'a' && character <= 'f')) {
-			return false
-		}
-	}
-	return value != ""
+	_, err := hex.DecodeString(value)
+	return err == nil && value != "" && value == strings.ToLower(value)
 }

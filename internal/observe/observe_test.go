@@ -27,8 +27,10 @@ func (f *fakeHost) SampleHost(context.Context) (domain.HostStatus, error) {
 func TestManagerStoresIndependentHostSnapshot(t *testing.T) {
 	host := &fakeHost{status: domain.HostStatus{
 		SampledAt: time.Now(),
-		Overall:   domain.RuntimeReady,
-		Services:  []domain.ServiceStatus{{Name: "sshd", State: domain.RuntimeReady}},
+		Health: domain.HostHealth{
+			Overall:  domain.RuntimeReady,
+			Services: []domain.ServiceStatus{{Name: "sshd", State: domain.RuntimeReady}},
+		},
 	}}
 	manager, err := NewManager(host)
 	if err != nil {
@@ -37,8 +39,8 @@ func TestManagerStoresIndependentHostSnapshot(t *testing.T) {
 	manager.RefreshHost(context.Background())
 
 	first := manager.HostStatus()
-	first.Services[0].State = domain.RuntimeUnavailable
-	if got := manager.HostStatus().Services[0].State; got != domain.RuntimeReady {
+	first.Health.Services[0].State = domain.RuntimeUnavailable
+	if got := manager.HostStatus().Health.Services[0].State; got != domain.RuntimeReady {
 		t.Fatalf("stored host snapshot was mutated through a caller: %q", got)
 	}
 }
@@ -50,13 +52,13 @@ func TestManagerMarksSamplingFailureUnavailable(t *testing.T) {
 	}
 	manager.RefreshHost(context.Background())
 	status := manager.HostStatus()
-	if status.Overall != domain.RuntimeUnavailable || status.SampledAt.IsZero() {
+	if status.Health.Overall != domain.RuntimeUnavailable || status.SampledAt.IsZero() {
 		t.Fatalf("failed host sample = %#v", status)
 	}
 }
 
 func TestManagerRunSamplesImmediately(t *testing.T) {
-	host := &fakeHost{status: domain.HostStatus{Overall: domain.RuntimeReady}}
+	host := &fakeHost{status: domain.HostStatus{Health: domain.HostHealth{Overall: domain.RuntimeReady}}}
 	manager, err := NewManager(host)
 	if err != nil {
 		t.Fatal(err)

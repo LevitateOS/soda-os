@@ -31,22 +31,21 @@ func validateGitURL(parsed *url.URL) error {
 	if parsed.Host == "" {
 		return fmt.Errorf("Git remote URL must include a host")
 	}
-	switch strings.ToLower(parsed.Scheme) {
-	case "http", "https":
-		if parsed.User != nil {
-			return fmt.Errorf("HTTP Git remote URL must not contain user information")
-		}
-	case "ssh":
-		if parsed.User != nil {
-			if parsed.User.Username() == "" {
-				return fmt.Errorf("SSH Git remote URL contains empty user information")
-			}
-			if _, hasPassword := parsed.User.Password(); hasPassword {
-				return fmt.Errorf("SSH Git remote URL must not contain a password")
-			}
-		}
-	default:
+	scheme := strings.ToLower(parsed.Scheme)
+	if scheme != "http" && scheme != "https" && scheme != "ssh" {
 		return fmt.Errorf("unsupported Git remote URL scheme %q", parsed.Scheme)
+	}
+	if parsed.User == nil {
+		return nil
+	}
+	if scheme == "http" || scheme == "https" {
+		return fmt.Errorf("HTTP Git remote URL must not contain user information")
+	}
+	if parsed.User.Username() == "" {
+		return fmt.Errorf("SSH Git remote URL contains empty user information")
+	}
+	if _, hasPassword := parsed.User.Password(); hasPassword {
+		return fmt.Errorf("SSH Git remote URL must not contain a password")
 	}
 	return nil
 }

@@ -7,7 +7,7 @@ fmt:
     gofmt -w $(find . -name '*.go' -not -path './.artifacts/*')
 
 complexity:
-    ./scripts/check-cyclomatic-complexity.sh
+    ./scripts/check-complexity.sh
 
 hooks-install:
     git config --local core.hooksPath .githooks
@@ -17,7 +17,7 @@ check:
     sh -n scripts/bootc-acceptance.sh
     scripts/bootc-acceptance.sh --help >/dev/null
     ./scripts/protobuf-verify.sh
-    ./scripts/check-cyclomatic-complexity.sh
+    ./scripts/check-complexity.sh
     go vet ./...
     go test ./...
     go run ./cmd/soda-image check

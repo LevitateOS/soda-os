@@ -18,10 +18,3 @@ func TestLoadDistroRejectsUnknownSchema(t *testing.T) {
 	_, err := LoadDistro(filepath.Join("testdata", "unsupported-soda.toml"))
 	require.EqualError(t, err, "unsupported distro schema version 3; expected 2")
 }
-
-func TestLoadProfile(t *testing.T) {
-	spec, err := LoadProfile(filepath.Join("testdata", "profile.toml"))
-	require.NoError(t, err)
-	require.Equal(t, "go", spec.Profile.ID)
-	require.Len(t, spec.Tools, 1)
-}

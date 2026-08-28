@@ -48,7 +48,7 @@ func TestResolvesAllPublisherVerifiedProfiles(t *testing.T) {
 		"https://static.rust-lang.org/rustup/dist/aarch64-unknown-linux-gnu/rustup-init.sha256": []byte(rustSum + "  rustup-init\n"),
 		"https://go.dev/dl/?mode=json":                                                          []byte(`[{"version":"go1.25.1","stable":true,"files":[{"filename":"go1.25.1.linux-arm64.tar.gz","os":"linux","arch":"arm64","sha256":"` + strings.Repeat("e", 64) + `","kind":"archive"}]}]`),
 	}}
-	manager := &Manager{Root: t.TempDir(), Client: client}
+	manager := &Manager{root: t.TempDir(), client: client}
 	for _, profile := range []domain.ToolchainProfile{domain.ToolchainWeb, domain.ToolchainPython, domain.ToolchainRust, domain.ToolchainGo} {
 		items, err := manager.resolve(context.Background(), profile)
 		if err != nil {
@@ -69,7 +69,7 @@ func TestArtifactCacheAndChecksumVerification(t *testing.T) {
 	payload := tarPayload(t, "tool/bin/tool", []byte("binary"))
 	sum := sha256.Sum256(payload)
 	client := &fixtureClient{calls: map[string]int{}, responses: map[string][]byte{"https://example/tool": payload}}
-	manager := &Manager{Root: t.TempDir(), Client: client}
+	manager := &Manager{root: t.TempDir(), client: client}
 	item := artifact{tool: "tool", version: "v1", url: "https://example/tool", checksum: hex.EncodeToString(sum[:]), kind: tarGz}
 	first, err := manager.installArtifact(context.Background(), item)
 	if err != nil {
@@ -82,7 +82,10 @@ func TestArtifactCacheAndChecksumVerification(t *testing.T) {
 	if first != second || client.calls[item.url] != 1 {
 		t.Fatalf("paths %q %q, calls %d", first, second, client.calls[item.url])
 	}
-	if err = VerifyChecksum(payload, "wrong"); err == nil {
+	bad := item
+	bad.version = "v2"
+	bad.checksum = "wrong"
+	if _, err = manager.installArtifact(context.Background(), bad); err == nil {
 		t.Fatal("checksum mismatch accepted")
 	}
 }
@@ -134,9 +137,9 @@ func TestWriteInstallationEmitsStructuredRustEnvironment(t *testing.T) {
 
 func TestDefaultHTTPClientHasRequestTimeout(t *testing.T) {
 	manager := New(t.TempDir())
-	client, ok := manager.Client.(*http.Client)
+	client, ok := manager.client.(*http.Client)
 	if !ok {
-		t.Fatalf("default client = %T", manager.Client)
+		t.Fatalf("default client = %T", manager.client)
 	}
 	if client.Timeout != defaultHTTPRequestTimeout || client.Timeout <= 0 {
 		t.Fatalf("HTTP timeout = %s", client.Timeout)

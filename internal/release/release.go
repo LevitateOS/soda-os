@@ -2,23 +2,16 @@
 package release
 
 import (
-	"archive/tar"
-	"bytes"
 	"context"
-	"crypto/sha256"
 	"crypto/tls"
 	"crypto/x509"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"os"
 	"path/filepath"
 	"runtime"
-	"strconv"
-	"strings"
 
 	"github.com/BurntSushi/toml"
 	"github.com/LevitateOS/soda-os/internal/config"
@@ -27,7 +20,6 @@ import (
 	"github.com/google/go-containerregistry/pkg/authn"
 	"github.com/google/go-containerregistry/pkg/name"
 	v1 "github.com/google/go-containerregistry/pkg/v1"
-	"github.com/google/go-containerregistry/pkg/v1/layout"
 	"github.com/google/go-containerregistry/pkg/v1/remote"
 )
 
@@ -37,21 +29,21 @@ const (
 	CosignVersion = "v3.1.2"
 )
 
-// Options are explicit operator inputs. The private key and passphrase are
-// never copied into output; cosign reads the passphrase interactively.
-type Options struct {
-	ArchivePath string
-	RegistryCA  string
-	PublicKey   string
-	PrivateKey  string
-	ISOPath     string
-	// DeferCurrent publishes and signs the exact image so it can be embedded in
-	// an installer ISO. It intentionally writes neither a release record nor
-	// the mutable current discovery tag.
-	DeferCurrent      bool
+// SigningOptions are constructor-time inputs. The private key is never copied
+// into output; cosign reads its passphrase interactively.
+type SigningOptions struct {
+	RegistryCA string
+	PublicKey  string
+	PrivateKey string
+	CosignPath string
+	ToolLock   string
+}
+
+// PublicationOptions are inputs for the final ISO-bound release publication.
+type PublicationOptions struct {
+	ArchivePath       string
+	ISOPath           string
 	OutputDir         string
-	CosignPath        string
-	ToolLock          string
 	InstallerArchive  string
 	InstallerToolLock string
 }
@@ -81,7 +73,6 @@ type registryClient interface {
 }
 
 type signer interface {
-	CheckVersion(context.Context) error
 	SignImage(context.Context, string) error
 	VerifyImage(context.Context, string) error
 	SignBlob(context.Context, string, string) error
@@ -89,19 +80,21 @@ type signer interface {
 }
 
 type isoValidator interface {
-	ValidateISO(context.Context, string, string, string, string) (installer.Provenance, error)
+	ValidateISO(context.Context, string, string, string, string) (string, error)
 }
 
 // Publisher is injectable so ordering and exact-digest behavior can be tested
 // without contacting the production registry or using a production key.
 type Publisher struct {
-	Spec         config.DistroSpec
-	Registry     registryClient
-	Signer       signer
-	ISOValidator isoValidator
+	spec         config.DistroSpec
+	registry     registryClient
+	signer       signer
+	isoValidator isoValidator
+	registryCA   string
+	publicKey    string
 }
 
-func NewPublisher(spec config.DistroSpec, options Options, runner imagebuild.Runner) (*Publisher, error) {
+func NewPublisher(root string, spec config.DistroSpec, options SigningOptions, runner imagebuild.Runner) (*Publisher, error) {
 	if spec.Image.Registry != Repository {
 		return nil, fmt.Errorf("release repository must be %s", Repository)
 	}
@@ -125,28 +118,38 @@ func NewPublisher(spec config.DistroSpec, options Options, runner imagebuild.Run
 	if runner == nil {
 		runner = imagebuild.OSRunner{Stdout: os.Stdout, Stderr: os.Stderr}
 	}
-	root, err := os.Getwd()
-	if err != nil {
-		return nil, fmt.Errorf("resolve workspace for ISO validation: %w", err)
-	}
 	return &Publisher{
-		Spec: spec,
-		Registry: &remoteRegistry{options: []remote.Option{
+		spec: spec,
+		registry: &remoteRegistry{options: []remote.Option{
 			remote.WithAuthFromKeychain(authn.DefaultKeychain),
 			remote.WithTransport(transport),
 		}},
-		Signer:       &cosignSigner{runner: runner, executable: options.CosignPath, ca: options.RegistryCA, publicKey: options.PublicKey, privateKey: options.PrivateKey},
-		ISOValidator: installer.NewBuilder(root, spec, runner),
+		signer:       &cosignSigner{runner: runner, executable: options.CosignPath, ca: options.RegistryCA, publicKey: options.PublicKey, privateKey: options.PrivateKey},
+		isoValidator: installer.NewBuilder(root, spec, runner),
+		registryCA:   options.RegistryCA,
+		publicKey:    options.PublicKey,
 	}, nil
 }
 
-// Publish follows the trusted-LAN release happy path. A deferred publication
-// first makes a signed exact image available for ISO construction. The final
-// ISO-bound publication writes the release record and current tag last.
-func (p *Publisher) Publish(ctx context.Context, options Options) (Result, error) {
-	if p.Registry == nil || p.Signer == nil {
-		return Result{}, errors.New("release publisher requires a registry and signer")
+// Prepare publishes, resolves, signs, and verifies one exact image for ISO
+// construction. It intentionally writes neither a release record nor current.
+func (p *Publisher) Prepare(ctx context.Context, archive string) (string, error) {
+	prepared, err := p.prepareExactImage(ctx, archive)
+	if err != nil {
+		return "", err
 	}
+	defer prepared.cleanup()
+	if _, err := p.inspect(prepared.image, prepared.reference); err != nil {
+		return "", err
+	}
+	if err := p.signExactImage(ctx, prepared.reference); err != nil {
+		return "", err
+	}
+	return prepared.reference, nil
+}
+
+// Publish follows the final ISO-bound release path and updates current last.
+func (p *Publisher) Publish(ctx context.Context, options PublicationOptions) (Result, error) {
 	prepared, err := p.prepareExactImage(ctx, options.ArchivePath)
 	if err != nil {
 		return Result{}, err
@@ -155,81 +158,69 @@ func (p *Publisher) Publish(ctx context.Context, options Options) (Result, error
 	return p.finalizePublication(ctx, prepared, options)
 }
 
-type preparedImage struct {
+type preparedRelease struct {
 	image     v1.Image
 	reference string
 	cleanup   func()
 }
 
-func (p *Publisher) prepareExactImage(ctx context.Context, archive string) (preparedImage, error) {
-	if err := p.Signer.CheckVersion(ctx); err != nil {
-		return preparedImage{}, err
-	}
+func (p *Publisher) prepareExactImage(ctx context.Context, archive string) (preparedRelease, error) {
 	img, cleanup, err := imageFromOCIArchive(archive)
 	if err != nil {
-		return preparedImage{}, err
+		return preparedRelease{}, err
 	}
-	versionTag := Repository + ":" + p.Spec.Identity.Version
-	if err := p.Registry.Push(ctx, versionTag, img); err != nil {
+	versionTag := Repository + ":" + p.spec.Identity.Version
+	if err := p.registry.Push(ctx, versionTag, img); err != nil {
 		cleanup()
-		return preparedImage{}, fmt.Errorf("push versioned image: %w", err)
+		return preparedRelease{}, fmt.Errorf("push versioned image: %w", err)
 	}
-	digest, err := p.Registry.Resolve(ctx, versionTag)
+	digest, err := p.registry.Resolve(ctx, versionTag)
 	if err != nil {
 		cleanup()
-		return preparedImage{}, fmt.Errorf("resolve canonical registry digest: %w", err)
+		return preparedRelease{}, fmt.Errorf("resolve canonical registry digest: %w", err)
 	}
 	localDigest, err := img.Digest()
 	if err != nil {
 		cleanup()
-		return preparedImage{}, fmt.Errorf("compute local image digest: %w", err)
+		return preparedRelease{}, fmt.Errorf("compute local image digest: %w", err)
 	}
 	if digest != localDigest {
 		cleanup()
-		return preparedImage{}, fmt.Errorf("canonical registry digest %s differs from pushed image digest %s", digest, localDigest)
+		return preparedRelease{}, fmt.Errorf("canonical registry digest %s differs from pushed image digest %s", digest, localDigest)
 	}
-	return preparedImage{img, Repository + "@" + digest.String(), cleanup}, nil
+	return preparedRelease{img, Repository + "@" + digest.String(), cleanup}, nil
 }
 
-func (p *Publisher) finalizePublication(ctx context.Context, prepared preparedImage, options Options) (Result, error) {
-	exactReference := prepared.reference
-	isoChecksum := ""
-	if options.ISOPath != "" {
-		if p.ISOValidator == nil {
-			return Result{}, errors.New("release publisher requires independent ISO inspection")
-		}
-		evidence, err := p.ISOValidator.ValidateISO(ctx, options.ISOPath, exactReference, options.InstallerArchive, options.InstallerToolLock)
-		if err != nil {
-			return Result{}, fmt.Errorf("independently inspect installer ISO: %w", err)
-		}
-		isoChecksum = evidence.ISOSHA256
-	}
-	record, err := p.inspect(prepared.image, exactReference, options.RegistryCA, options.PublicKey)
+func (p *Publisher) finalizePublication(ctx context.Context, prepared preparedRelease, options PublicationOptions) (Result, error) {
+	record, err := p.inspect(prepared.image, prepared.reference)
 	if err != nil {
 		return Result{}, err
 	}
-	record.ISOChecksum = isoChecksum
-	if err := p.signExactImage(ctx, exactReference); err != nil {
-		return Result{}, err
+	if options.ISOPath != "" {
+		checksum, err := p.isoValidator.ValidateISO(ctx, options.ISOPath, prepared.reference, options.InstallerArchive, options.InstallerToolLock)
+		if err != nil {
+			return Result{}, fmt.Errorf("independently inspect installer ISO: %w", err)
+		}
+		record.ISOChecksum = checksum
 	}
-	if options.DeferCurrent {
-		return Result{ImageReference: exactReference}, nil
+	if err := p.signExactImage(ctx, prepared.reference); err != nil {
+		return Result{}, err
 	}
 	recordPath, bundlePath, err := p.writeSignedRecord(ctx, record, options.OutputDir)
 	if err != nil {
 		return Result{}, err
 	}
-	if err := p.Registry.Push(ctx, Repository+":current", prepared.image); err != nil {
+	if err := p.registry.Push(ctx, Repository+":current", prepared.image); err != nil {
 		return Result{}, fmt.Errorf("update current discovery tag: %w", err)
 	}
-	return Result{ImageReference: exactReference, RecordPath: recordPath, BundlePath: bundlePath}, nil
+	return Result{ImageReference: prepared.reference, RecordPath: recordPath, BundlePath: bundlePath}, nil
 }
 
 func (p *Publisher) signExactImage(ctx context.Context, reference string) error {
-	if err := p.Signer.SignImage(ctx, reference); err != nil {
+	if err := p.signer.SignImage(ctx, reference); err != nil {
 		return fmt.Errorf("sign exact image digest: %w", err)
 	}
-	if err := p.Signer.VerifyImage(ctx, reference); err != nil {
+	if err := p.signer.VerifyImage(ctx, reference); err != nil {
 		return fmt.Errorf("verify exact image signature: %w", err)
 	}
 	return nil
@@ -242,7 +233,7 @@ func (p *Publisher) writeSignedRecord(ctx context.Context, record Record, output
 	if err := os.MkdirAll(outputDir, 0o755); err != nil {
 		return "", "", fmt.Errorf("create release output: %w", err)
 	}
-	recordPath := filepath.Join(outputDir, "soda-os-"+p.Spec.Identity.Version+".release.json")
+	recordPath := filepath.Join(outputDir, "soda-os-"+p.spec.Identity.Version+".release.json")
 	bundlePath := recordPath + ".sigstore.json"
 	encoded, err := json.Marshal(record)
 	if err != nil {
@@ -252,94 +243,13 @@ func (p *Publisher) writeSignedRecord(ctx context.Context, record Record, output
 	if err := os.WriteFile(recordPath, encoded, 0o644); err != nil {
 		return "", "", fmt.Errorf("write canonical release record: %w", err)
 	}
-	if err := p.Signer.SignBlob(ctx, recordPath, bundlePath); err != nil {
+	if err := p.signer.SignBlob(ctx, recordPath, bundlePath); err != nil {
 		return "", "", fmt.Errorf("sign release record: %w", err)
 	}
-	if err := p.Signer.VerifyBlob(ctx, recordPath, bundlePath); err != nil {
+	if err := p.signer.VerifyBlob(ctx, recordPath, bundlePath); err != nil {
 		return "", "", fmt.Errorf("verify release record: %w", err)
 	}
 	return recordPath, bundlePath, nil
-}
-
-func (p *Publisher) inspect(img v1.Image, exactReference, registryCAPath, publicKeyPath string) (Record, error) {
-	configFile, err := img.ConfigFile()
-	if err != nil {
-		return Record{}, fmt.Errorf("inspect image configuration: %w", err)
-	}
-	revision, err := p.inspectImageIdentity(configFile)
-	if err != nil {
-		return Record{}, err
-	}
-	if err := inspectEmbeddedTrust(img, registryCAPath, publicKeyPath); err != nil {
-		return Record{}, err
-	}
-	inventoryDigest, err := inspectRPMInventory(img)
-	if err != nil {
-		return Record{}, err
-	}
-	return Record{SchemaVersion: 1, SodaVersion: p.Spec.Identity.Version, SourceRevision: revision,
-		Platform: Platform, FedoraBaseReference: p.Spec.Base.Reference,
-		SodaImageReference: exactReference, StateSchema: p.Spec.Image.StateSchema,
-		RPMInventorySHA256: inventoryDigest}, nil
-}
-
-func (p *Publisher) inspectImageIdentity(configFile *v1.ConfigFile) (string, error) {
-	if configFile.OS != "linux" || configFile.Architecture != "arm64" {
-		return "", fmt.Errorf("release image platform is %s/%s, expected %s", configFile.OS, configFile.Architecture, Platform)
-	}
-	labels := configFile.Config.Labels
-	revision := labels["org.opencontainers.image.revision"]
-	if len(revision) != 40 || !hexadecimal(revision) {
-		return "", errors.New("release image has no full source revision label")
-	}
-	stateSchema, err := strconv.ParseUint(labels["org.sodaos.state-schema"], 10, 32)
-	if err != nil || uint32(stateSchema) != p.Spec.Image.StateSchema {
-		return "", errors.New("release image state schema label differs from the Soda specification")
-	}
-	if labels["org.opencontainers.image.version"] != p.Spec.Identity.Version {
-		return "", errors.New("release image version label differs from the Soda specification")
-	}
-	if labels["org.opencontainers.image.base.name"] != p.Spec.Base.Reference {
-		return "", errors.New("release image Fedora base label differs from the Soda specification")
-	}
-	return revision, nil
-}
-
-func inspectEmbeddedTrust(img v1.Image, registryCAPath, publicKeyPath string) error {
-	for _, trust := range []struct{ label, imagePath, suppliedPath string }{
-		{"registry CA", "usr/share/pki/ca-trust-source/anchors/soda-registry-ca.crt", registryCAPath},
-		{"signing public key", "usr/share/soda/release/cosign.pub", publicKeyPath},
-	} {
-		embedded, err := imageFile(img, trust.imagePath)
-		if err != nil {
-			return fmt.Errorf("read embedded %s: %w", trust.label, err)
-		}
-		supplied, err := os.ReadFile(trust.suppliedPath)
-		if err != nil {
-			return fmt.Errorf("read supplied %s: %w", trust.label, err)
-		}
-		if !bytes.Equal(embedded, supplied) {
-			return fmt.Errorf("supplied %s differs from the file embedded in the release image", trust.label)
-		}
-	}
-	return nil
-}
-
-func inspectRPMInventory(img v1.Image) (string, error) {
-	inventory, err := imageFile(img, "usr/share/soda/rpm-inventory.txt")
-	if err != nil {
-		return "", fmt.Errorf("read installed RPM inventory: %w", err)
-	}
-	sidecar, err := imageFile(img, "usr/share/soda/rpm-inventory.sha256")
-	if err != nil {
-		return "", fmt.Errorf("read installed RPM inventory sidecar: %w", err)
-	}
-	inventoryDigest := sha256Hex(inventory)
-	fields := strings.Fields(string(sidecar))
-	if len(fields) != 2 || fields[0] != inventoryDigest || fields[1] != "rpm-inventory.txt" {
-		return "", errors.New("installed RPM inventory does not match its image sidecar")
-	}
-	return inventoryDigest, nil
 }
 
 type remoteRegistry struct{ options []remote.Option }
@@ -368,17 +278,6 @@ type cosignSigner struct {
 	runner                    imagebuild.Runner
 	executable                string
 	ca, publicKey, privateKey string
-}
-
-func (s *cosignSigner) CheckVersion(ctx context.Context) error {
-	output, err := s.runner.Output(ctx, imagebuild.Command{Name: s.executable, Args: []string{"version"}})
-	if err != nil {
-		return fmt.Errorf("inspect cosign version: %w", err)
-	}
-	if !strings.Contains(output, CosignVersion) {
-		return fmt.Errorf("cosign must be %s", CosignVersion)
-	}
-	return nil
 }
 
 func (s *cosignSigner) SignImage(ctx context.Context, reference string) error {
@@ -427,159 +326,6 @@ func registryTransport(caPath string) (*http.Transport, error) {
 	return transport, nil
 }
 
-func imageFromOCIArchive(path string) (v1.Image, func(), error) {
-	if !regularFile(path) {
-		return nil, func() {}, fmt.Errorf("OCI archive %q is not a regular file", path)
-	}
-	directory, err := os.MkdirTemp("", "soda-oci-layout-")
-	if err != nil {
-		return nil, func() {}, err
-	}
-	cleanup := func() { _ = os.RemoveAll(directory) }
-	if err := extractOCIArchive(path, directory); err != nil {
-		cleanup()
-		return nil, func() {}, err
-	}
-	index, err := layout.ImageIndexFromPath(directory)
-	if err != nil {
-		cleanup()
-		return nil, func() {}, fmt.Errorf("read OCI archive: %w", err)
-	}
-	image, err := arm64Image(index)
-	if err != nil {
-		cleanup()
-		return nil, func() {}, err
-	}
-	return image, cleanup, nil
-}
-
-func arm64Image(index v1.ImageIndex) (v1.Image, error) {
-	manifest, err := index.IndexManifest()
-	if err != nil {
-		return nil, err
-	}
-	if len(manifest.Manifests) != 1 {
-		return nil, errors.New("OCI archive must contain exactly one manifest")
-	}
-	selected := &manifest.Manifests[0]
-	if selected.Platform == nil || selected.Platform.OS != "linux" || selected.Platform.Architecture != "arm64" {
-		return nil, errors.New("OCI archive manifest must be linux/arm64")
-	}
-	img, err := index.Image(selected.Digest)
-	if err != nil {
-		return nil, fmt.Errorf("read AArch64 image: %w", err)
-	}
-	return img, nil
-}
-
-func extractOCIArchive(path, directory string) error {
-	file, err := os.Open(path)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-	reader := tar.NewReader(file)
-	for {
-		header, err := reader.Next()
-		if errors.Is(err, io.EOF) {
-			return nil
-		}
-		if err != nil {
-			return fmt.Errorf("read OCI archive: %w", err)
-		}
-		if err := writeOCIArchiveEntry(reader, header, directory); err != nil {
-			return err
-		}
-	}
-}
-
-func writeOCIArchiveEntry(reader *tar.Reader, header *tar.Header, directory string) error {
-	clean := filepath.Clean(header.Name)
-	if clean == "." || filepath.IsAbs(clean) || clean == ".." || strings.HasPrefix(clean, ".."+string(filepath.Separator)) {
-		return fmt.Errorf("OCI archive contains unsafe path %q", header.Name)
-	}
-	target := filepath.Join(directory, clean)
-	switch header.Typeflag {
-	case tar.TypeDir:
-		return os.MkdirAll(target, 0o755)
-	case tar.TypeReg, tar.TypeRegA:
-		if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
-			return err
-		}
-		output, err := os.OpenFile(target, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o644)
-		if err != nil {
-			return err
-		}
-		_, copyErr := io.Copy(output, reader)
-		closeErr := output.Close()
-		if copyErr != nil {
-			return copyErr
-		}
-		return closeErr
-	default:
-		return fmt.Errorf("OCI archive contains unsupported entry %q", header.Name)
-	}
-}
-
-func imageFile(img v1.Image, target string) ([]byte, error) {
-	layers, err := img.Layers()
-	if err != nil {
-		return nil, err
-	}
-	for i := len(layers) - 1; i >= 0; i-- {
-		stream, err := layers[i].Uncompressed()
-		if err != nil {
-			return nil, err
-		}
-		reader := tar.NewReader(stream)
-		for {
-			header, nextErr := reader.Next()
-			if errors.Is(nextErr, io.EOF) {
-				break
-			}
-			if nextErr != nil {
-				stream.Close()
-				return nil, nextErr
-			}
-			if strings.TrimPrefix(filepath.Clean(header.Name), "/") == target {
-				contents, readErr := io.ReadAll(reader)
-				stream.Close()
-				return contents, readErr
-			}
-		}
-		stream.Close()
-	}
-	return nil, fmt.Errorf("image file /%s is missing", target)
-}
-
-func regularFileSHA256(path string) (string, error) {
-	file, err := os.Open(path)
-	if err != nil {
-		return "", err
-	}
-	defer file.Close()
-	hash := sha256.New()
-	if _, err := io.Copy(hash, file); err != nil {
-		return "", err
-	}
-	return hex.EncodeToString(hash.Sum(nil)), nil
-}
-
-func sha256Hex(value []byte) string {
-	digest := sha256.Sum256(value)
-	return hex.EncodeToString(digest[:])
-}
-
-func regularFile(path string) bool {
-	info, err := os.Stat(path)
-	return err == nil && info.Mode().IsRegular()
-}
-
-func hexadecimal(value string) bool {
-	_, err := hex.DecodeString(value)
-	return err == nil
-}
-
 type toolLock struct {
 	Version string         `toml:"version"`
 	Binary  []lockedBinary `toml:"binary"`
@@ -612,10 +358,11 @@ func verifyCosignBinary(path, lockPath string) error {
 	if want == "" {
 		return fmt.Errorf("release tool lock has no cosign binary for %s/%s", runtime.GOOS, runtime.GOARCH)
 	}
-	got, err := regularFileSHA256(path)
+	contents, err := os.ReadFile(path)
 	if err != nil {
-		return fmt.Errorf("checksum cosign binary: %w", err)
+		return fmt.Errorf("read cosign binary: %w", err)
 	}
+	got := sha256Hex(contents)
 	if got != want {
 		return fmt.Errorf("cosign binary SHA-256 %s differs from pinned %s", got, want)
 	}

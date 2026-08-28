@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"regexp"
 	"time"
-
-	"github.com/google/uuid"
 )
 
 var unixIdentifier = regexp.MustCompile(`^[a-z][a-z0-9-]{0,23}$`)
@@ -160,13 +158,21 @@ type FilesystemStatus struct {
 	AvailableBytes uint64
 }
 
-type HostStatus struct {
-	SampledAt            time.Time
-	Overall              RuntimeState
-	Services             []ServiceStatus
-	SSHFirewallReady     bool
-	CockpitFirewallReady bool
-	Interfaces           []NetworkInterface
+type HostHealth struct {
+	Overall  RuntimeState
+	Services []ServiceStatus
+}
+
+type HostNetwork struct {
+	Interfaces []NetworkInterface
+}
+
+type FirewallStatus struct {
+	SSHReady     bool
+	CockpitReady bool
+}
+
+type HostResources struct {
 	CPUPercent           *float64
 	LoadAverage          [3]float64
 	UptimeSeconds        uint64
@@ -175,10 +181,10 @@ type HostStatus struct {
 	Filesystems          []FilesystemStatus
 }
 
-func ParseID(value string) (uuid.UUID, error) {
-	id, err := uuid.Parse(value)
-	if err != nil {
-		return uuid.Nil, fmt.Errorf("invalid UUID %q: %w", value, err)
-	}
-	return id, nil
+type HostStatus struct {
+	SampledAt time.Time
+	Health    HostHealth
+	Network   HostNetwork
+	Firewall  FirewallStatus
+	Resources HostResources
 }
