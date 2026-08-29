@@ -13,6 +13,17 @@ func (s *Store) CreatePerson(ctx context.Context, value domain.Person) error {
 	return classify(s.db.WithContext(ctx).Create(&Person{ID: value.ID, Username: value.Username, DisplayName: value.DisplayName, Email: value.Email, Role: string(value.Role)}).Error)
 }
 
+func (s *Store) DeleteFreshPerson(ctx context.Context, id string) error {
+	result := s.db.WithContext(ctx).Where("id = ?", id).Delete(&Person{})
+	if result.Error != nil {
+		return classify(result.Error)
+	}
+	if result.RowsAffected != 1 {
+		return ErrNotFound
+	}
+	return nil
+}
+
 func (s *Store) People(ctx context.Context) ([]domain.Person, error) {
 	var rows []Person
 	if err := s.db.WithContext(ctx).Order("username").Find(&rows).Error; err != nil {
@@ -65,6 +76,9 @@ func (s *Store) DeleteSSHDeviceKey(ctx context.Context, personID, keyID string) 
 	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var row SSHDeviceKey
 		if err := tx.First(&row, "id = ? AND person_id = ?", keyID, personID).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("ssh_device_key_id = ?", row.ID).Delete(&BuiltInGitKey{}).Error; err != nil {
 			return err
 		}
 		if err := tx.Delete(&row).Error; err != nil {

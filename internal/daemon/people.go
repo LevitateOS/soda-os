@@ -7,8 +7,11 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/LevitateOS/soda-os/internal/builtingit"
 	"github.com/LevitateOS/soda-os/internal/domain"
 	sodav2 "github.com/LevitateOS/soda-os/internal/gen/soda/v2"
+	"github.com/LevitateOS/soda-os/internal/host"
+	"github.com/LevitateOS/soda-os/internal/store"
 	"github.com/google/uuid"
 )
 
@@ -37,8 +40,8 @@ func (s *Service) CreatePerson(ctx context.Context, request *sodav2.CreatePerson
 	if err != nil {
 		return nil, rpcError(err)
 	}
-	if err = s.store.CreatePerson(ctx, person); err != nil {
-		return nil, rpcError(s.compensate(ctx, err, cleanup, "person", person.Username))
+	if err = s.persistPerson(ctx, person, cleanup); err != nil {
+		return nil, rpcError(err)
 	}
 	return &sodav2.CreatePersonResponse{Person: personProto(person)}, nil
 }
@@ -58,10 +61,31 @@ func (s *Service) ImportPerson(ctx context.Context, request *sodav2.ImportPerson
 	if err != nil {
 		return nil, rpcError(err)
 	}
-	if err = s.store.CreatePerson(ctx, person); err != nil {
-		return nil, rpcError(s.compensate(ctx, err, cleanup, "imported person", person.Username))
+	if err = s.persistPerson(ctx, person, cleanup); err != nil {
+		return nil, rpcError(err)
 	}
 	return &sodav2.ImportPersonResponse{Person: personProto(person)}, nil
+}
+
+func builtInGitPersonKind(person domain.Person) builtingit.PersonKind {
+	if person.Role == domain.RoleAdmin {
+		return builtingit.PersonAdministrator
+	}
+	return builtingit.PersonMember
+}
+
+func (s *Service) persistPerson(ctx context.Context, person domain.Person, cleanup host.Cleanup) error {
+	if err := s.store.CreatePerson(ctx, person); err != nil {
+		return s.compensate(ctx, err, cleanup, "person", person.Username)
+	}
+	if err := s.ensureBuiltInGitPerson(ctx, person, builtInGitPersonKind(person)); err != nil {
+		deleteErr := s.store.DeleteFreshPerson(context.WithoutCancel(ctx), person.ID)
+		if deleteErr == nil {
+			deleteErr = s.runCleanup(ctx, cleanup)
+		}
+		return errors.Join(err, deleteErr)
+	}
+	return nil
 }
 func (s *Service) ListPeople(ctx context.Context, _ *sodav2.ListPeopleRequest) (*sodav2.ListPeopleResponse, error) {
 	values, err := s.store.People(ctx)
@@ -89,6 +113,14 @@ func (s *Service) CreateSshDeviceKey(ctx context.Context, request *sodav2.Create
 	}
 	if err = s.store.CreateSSHDeviceKey(ctx, key); err != nil {
 		return nil, rpcError(err)
+	}
+	person, err := s.store.Person(ctx, personID)
+	if err == nil {
+		err = s.ensureBuiltInGitKey(ctx, person, key)
+	}
+	if err != nil {
+		_, rollbackErr := s.store.DeleteSSHDeviceKey(context.WithoutCancel(ctx), personID, key.ID)
+		return nil, rpcError(errors.Join(err, rollbackErr))
 	}
 	if err = s.reconcilePersonAccess(ctx, personID); err != nil {
 		_, rollbackErr := s.store.DeleteSSHDeviceKey(context.WithoutCancel(ctx), personID, key.ID)
@@ -145,6 +177,14 @@ func (s *Service) RevokeSshDeviceKey(ctx context.Context, request *sodav2.Revoke
 	if err != nil {
 		return nil, rpcError(err)
 	}
+	person, err := s.store.Person(ctx, personID)
+	if err != nil {
+		return nil, rpcError(err)
+	}
+	mapping, mappingErr := s.store.BuiltInGitKey(ctx, keyID)
+	if mappingErr != nil && !errors.Is(mappingErr, store.ErrNotFound) {
+		return nil, rpcError(mappingErr)
+	}
 	key, err := s.store.DeleteSSHDeviceKey(ctx, personID, keyID)
 	if err != nil {
 		return nil, rpcError(err)
@@ -156,5 +196,28 @@ func (s *Service) RevokeSshDeviceKey(ctx context.Context, request *sodav2.Revoke
 		}
 		return nil, rpcError(errors.Join(err, rollbackErr))
 	}
+	if err = s.revokeBuiltInGitKey(ctx, person, key, mapping, mappingErr); err != nil {
+		return nil, rpcError(err)
+	}
 	return &sodav2.RevokeSshDeviceKeyResponse{Key: sshDeviceKeyProto(key)}, nil
+}
+
+func (s *Service) revokeBuiltInGitKey(ctx context.Context, person domain.Person, key domain.SSHDeviceKey, mapping domain.BuiltInGitKey, mappingErr error) error {
+	if errors.Is(mappingErr, store.ErrNotFound) {
+		return nil
+	}
+	if mappingErr != nil {
+		return mappingErr
+	}
+	if err := s.builtInGit.DeleteKey(ctx, person.Username, mapping.KeyID); err != nil {
+		rollbackErr := s.store.CreateSSHDeviceKey(context.WithoutCancel(ctx), key)
+		if rollbackErr == nil {
+			rollbackErr = s.store.SaveBuiltInGitKey(context.WithoutCancel(ctx), mapping)
+		}
+		if rollbackErr == nil {
+			rollbackErr = s.reconcilePersonAccess(context.WithoutCancel(ctx), person.ID)
+		}
+		return errors.Join(err, rollbackErr)
+	}
+	return nil
 }

@@ -190,14 +190,14 @@ func TestOSUpdateRPCsPreserveExactIdentityAndRebootConfirmation(t *testing.T) {
 	exact := osupdate.Repository + "@" + digest
 	updates := &fakeOSUpdater{
 		status:    osupdate.Status{Booted: &osupdate.Deployment{ImageReference: osupdate.Repository + "@sha256:" + strings.Repeat("a", 64), Architecture: "arm64", Signature: "containerPolicy"}},
-		candidate: osupdate.Candidate{ImageReference: exact, Digest: digest, Version: "0.3.0", StateSchema: 2, Available: true},
+		candidate: osupdate.Candidate{ImageReference: exact, Digest: digest, Version: "0.3.0", StateSchema: 3, Available: true},
 	}
 	service := New(Options{OSUpdates: updates})
 	defer service.Close()
 	ctx := context.Background()
 
 	checked, err := service.CheckOSUpdate(ctx, &sodav2.CheckOSUpdateRequest{})
-	if err != nil || checked.GetRelease().GetImageReference() != exact || checked.GetRelease().GetStateSchema() != 2 {
+	if err != nil || checked.GetRelease().GetImageReference() != exact || checked.GetRelease().GetStateSchema() != 3 {
 		t.Fatalf("checked release = %#v, %v", checked, err)
 	}
 	if _, err = service.StageOSUpdate(ctx, &sodav2.StageOSUpdateRequest{ImageReference: exact}); err != nil || updates.stagedReference != exact {

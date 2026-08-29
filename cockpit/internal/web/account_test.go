@@ -52,7 +52,7 @@ func TestOSUpdateControlsAreAdministratorOnlyAndUseVerifiedExactRelease(t *testi
 	digest := "sha256:" + strings.Repeat("b", 64)
 	exact := "registry.soda.local/soda/os@" + digest
 	status := daemonclient.OSUpdateStatus{Booted: &daemonclient.OSDeployment{Version: "0.2.0", Digest: "sha256:" + strings.Repeat("a", 64), Architecture: "arm64", Signature: "containerPolicy"}}
-	release := daemonclient.OSRelease{ImageReference: exact, Version: "0.3.0", Digest: digest, StateSchema: 2, Available: true}
+	release := daemonclient.OSRelease{ImageReference: exact, Version: "0.3.0", Digest: digest, StateSchema: 3, Available: true}
 
 	developer := daemonclient.Person{ID: "dev-1", Username: "dev", DisplayName: "Developer", Role: daemonclient.RoleDeveloper}
 	developerServer := testServer(t, &fakePorts{accounts: fakeAccounts{people: []daemonclient.Person{developer}}}, &changingAuth{})

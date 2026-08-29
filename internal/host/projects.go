@@ -128,6 +128,21 @@ func (s *System) DeployPublicKey(_ context.Context, project domain.Project) (str
 	return strings.TrimSpace(string(contents)), nil
 }
 
+func (s *System) ConnectBuiltInRepository(ctx context.Context, project domain.Project, remote string) error {
+	repository := s.repository(project)
+	if _, err := s.Runner.Run(ctx, "git", []string{"--git-dir", repository, "remote", "get-url", "origin"}, nil, ""); err != nil {
+		if _, err = s.Runner.Run(ctx, "git", []string{"--git-dir", repository, "remote", "add", "origin", remote}, nil, ""); err != nil {
+			return err
+		}
+	}
+	key := filepath.Join(s.projectRoot(project), ".ssh", "deploy_key")
+	environment := map[string]string{"GIT_SSH_COMMAND": fmt.Sprintf("ssh -i %s -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new", key)}
+	if _, err := s.Runner.Run(ctx, "git", []string{"--git-dir", repository, "push", "--set-upstream", "origin", "main"}, environment, ""); err != nil {
+		return fmt.Errorf("publish Built-in Git repository: %w", err)
+	}
+	return nil
+}
+
 func (s *System) initializeEmptyRepository(ctx context.Context, repository string) error {
 	if _, err := s.Runner.Run(ctx, "git", []string{"init", "--bare", "--initial-branch=main", repository}, nil, ""); err != nil {
 		return err

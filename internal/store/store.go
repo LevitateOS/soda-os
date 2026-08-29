@@ -8,7 +8,7 @@ import (
 	"gorm.io/gorm"
 )
 
-const SchemaVersion = 2
+const SchemaVersion = 3
 
 var (
 	ErrNotFound           = errors.New("resource not found")

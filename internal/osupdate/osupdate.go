@@ -22,7 +22,7 @@ import (
 
 const (
 	Repository    = "registry.soda.local/soda/os"
-	StateSchema   = uint32(2)
+	StateSchema   = uint32(3)
 	DefaultBootc  = "/usr/bin/bootc"
 	DefaultSkopeo = "/usr/bin/skopeo"
 	DefaultCosign = "/usr/libexec/soda/cosign"

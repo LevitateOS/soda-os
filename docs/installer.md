@@ -87,7 +87,7 @@ signature policy.
 ## Persistent host state
 
 Bootc owns the image base. Soda keeps mutable state under `/var/lib/soda` so it
-survives replacement of the image: SQLite schema 2 state, Cockpit certificates,
+survives replacement of the image: SQLite schema 3 state, Cockpit certificates,
 projects, and toolchains. Image-owned mount units retain the existing visible
 paths `/srv/soda/projects` and `/opt/soda/toolchains`; direct SSH workspaces and
 the forced-command gateway therefore keep their established paths. `tmpfiles.d`
@@ -101,7 +101,7 @@ The runtime masks Fedora's automatic bootc update timer. An administrator uses
 `activate --confirm-reboot`. Checking resolves the installed sibling's
 architecture-specific `current` tag once and verifies the Cosign signature
 before inspecting immutable release metadata. It accepts only the Soda
-repository, the installed platform, and state schema 2. Staging calls bootc with
+repository, the installed platform, and state schema 3. Staging calls bootc with
 the exact `@sha256:` reference and download-only signature enforcement, so it
 does not restart Soda services or change the running deployment. Activation
 uses the already-downloaded deployment and requires the explicit reboot

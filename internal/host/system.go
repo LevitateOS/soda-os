@@ -31,6 +31,7 @@ type Operations interface {
 	ReconcileAuthorizedKeys(context.Context, domain.Project, []domain.ProjectAccess) error
 	WriteProjectEnvironment(context.Context, domain.Project, string) error
 	DeployPublicKey(context.Context, domain.Project) (string, error)
+	ConnectBuiltInRepository(context.Context, domain.Project, string) error
 }
 
 type Runner interface {

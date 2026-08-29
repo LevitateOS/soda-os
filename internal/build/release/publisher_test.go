@@ -62,7 +62,7 @@ func TestPublishUsesExactDigestAndUpdatesCurrentLast(t *testing.T) {
 	require.NoError(t, json.Unmarshal(contents, &record))
 	require.Equal(t, exact, record.SodaImageReference)
 	require.Equal(t, testRevision, record.SourceRevision)
-	require.Equal(t, uint32(2), record.StateSchema)
+	require.Equal(t, uint32(3), record.StateSchema)
 	require.Equal(t, sha256Hex([]byte("rpm inventory\n")), record.RPMInventorySHA256)
 	require.Empty(t, record.ISOChecksum)
 }

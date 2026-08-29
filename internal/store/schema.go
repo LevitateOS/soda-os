@@ -27,13 +27,13 @@ func Open(path string) (*Store, error) {
 	if err = db.Exec("PRAGMA foreign_keys = ON").Error; err != nil {
 		return nil, fmt.Errorf("enable SQLite foreign keys: %w", err)
 	}
-	if err := ensureSchemaV2(db); err != nil {
+	if err := ensureSchema(db); err != nil {
 		return nil, err
 	}
 	return &Store{db: db}, nil
 }
 
-func ensureSchemaV2(db *gorm.DB) error {
+func ensureSchema(db *gorm.DB) error {
 	var version int
 	if err := db.Raw("PRAGMA user_version").Scan(&version).Error; err != nil {
 		return fmt.Errorf("read Soda schema version: %w", err)
@@ -51,7 +51,7 @@ func ensureSchemaV2(db *gorm.DB) error {
 
 func initializeSchema(db *gorm.DB, beforeVersion func(*gorm.DB) error) error {
 	err := db.Transaction(func(tx *gorm.DB) error {
-		if err := tx.AutoMigrate(&Person{}, &SSHDeviceKey{}, &Project{}, &Membership{}, &Worktree{}, &ToolchainInstallation{}, &ProjectToolchainResolution{}, &ProvisioningJob{}); err != nil {
+		if err := tx.AutoMigrate(&Person{}, &SSHDeviceKey{}, &Project{}, &Membership{}, &Worktree{}, &ToolchainInstallation{}, &ProjectToolchainResolution{}, &ProvisioningJob{}, &BuiltInGitUser{}, &BuiltInGitKey{}, &BuiltInGitRepository{}); err != nil {
 			return fmt.Errorf("create Soda schema: %w", err)
 		}
 		if beforeVersion != nil {

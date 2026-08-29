@@ -73,7 +73,7 @@ sudo sodactl os update stage
 `current-x86_64` tag once, uses the registry CA to authenticate HTTPS transport,
 and uses Soda's embedded Cosign public key to verify the exact image signature.
 It accepts only a signed exact digest matching the installed platform with
-state schema 2. `stage` downloads that digest using bootc's container signature
+state schema 3. `stage` downloads that digest using bootc's container signature
 policy but leaves the booted deployment and running Soda services untouched.
 
 During a planned maintenance window, activate the already staged deployment:

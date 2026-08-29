@@ -99,7 +99,7 @@ func testSpec() config.DistroSpec {
 	return config.DistroSpec{
 		Identity: config.IdentitySpec{Version: "0.2.0"},
 		Base:     config.BaseSpec{Reference: "quay.io/fedora/fedora-bootc@sha256:" + strings.Repeat("b", 64), Platform: "linux/arm64"},
-		Image:    config.ImageSpec{Registry: Repository, StateSchema: 2},
+		Image:    config.ImageSpec{Registry: Repository, StateSchema: 3},
 		Platform: config.PlatformSpec{
 			Architecture: config.PlatformArchitecture{Name: "aarch64", OCI: "arm64", Platform: "linux/arm64", Artifact: "aarch64"},
 			Release:      config.PlatformRelease{Channel: "aarch64"},
@@ -137,7 +137,7 @@ func testImageWithSidecar(t *testing.T, sidecarDigest string) v1.Image {
 		"org.opencontainers.image.version":   "0.2.0",
 		"org.opencontainers.image.revision":  testRevision,
 		"org.opencontainers.image.base.name": testSpec().Base.Reference,
-		"org.sodaos.state-schema":            "2",
+		"org.sodaos.state-schema":            "3",
 	}
 	image, err = mutate.ConfigFile(image, configFile)
 	require.NoError(t, err)

@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/LevitateOS/soda-os/internal/builtingit"
 	"github.com/LevitateOS/soda-os/internal/domain"
 	sodav2 "github.com/LevitateOS/soda-os/internal/gen/soda/v2"
 	"github.com/LevitateOS/soda-os/internal/host"
@@ -31,6 +32,13 @@ type OSUpdater interface {
 	Activate(context.Context) error
 }
 
+type BuiltInGit interface {
+	EnsurePerson(context.Context, domain.Person, builtingit.PersonKind) (builtingit.User, error)
+	EnsureKey(context.Context, domain.Person, domain.SSHDeviceKey) (builtingit.Key, error)
+	DeleteKey(context.Context, string, int64) error
+	EnsureRepository(context.Context, domain.Project, []domain.Person, string) (builtingit.Repository, error)
+}
+
 type Service struct {
 	sodav2.UnimplementedSodaServiceServer
 	store        *store.Store
@@ -38,6 +46,7 @@ type Service struct {
 	toolchains   toolchain.Installer
 	telemetry    Telemetry
 	osUpdates    OSUpdater
+	builtInGit   BuiltInGit
 	projectsRoot string
 	logger       *slog.Logger
 	provisioning provisioningRuntime
@@ -56,6 +65,7 @@ type Options struct {
 	Toolchains          toolchain.Installer
 	Telemetry           Telemetry
 	OSUpdates           OSUpdater
+	BuiltInGit          BuiltInGit
 	ProjectsRoot        string
 	Logger              *slog.Logger
 	ProvisioningTimeout time.Duration
@@ -73,7 +83,7 @@ func New(options Options) *Service {
 	if provisioningTimeout <= 0 {
 		provisioningTimeout = defaultProvisioningTimeout
 	}
-	return &Service{store: options.Store, host: options.Host, toolchains: options.Toolchains, telemetry: options.Telemetry, osUpdates: options.OSUpdates, projectsRoot: options.ProjectsRoot, logger: logger, provisioning: provisioningRuntime{background: background, cancel: cancel, timeout: provisioningTimeout}}
+	return &Service{store: options.Store, host: options.Host, toolchains: options.Toolchains, telemetry: options.Telemetry, osUpdates: options.OSUpdates, builtInGit: options.BuiltInGit, projectsRoot: options.ProjectsRoot, logger: logger, provisioning: provisioningRuntime{background: background, cancel: cancel, timeout: provisioningTimeout}}
 }
 func (s *Service) Close() { s.provisioning.cancel(); s.provisioning.wg.Wait() }
 

@@ -117,7 +117,7 @@ func (s *Service) installProject(ctx context.Context, projectID string) error {
 }
 
 func (s *Service) ensureProjectPrerequisites(ctx context.Context, project domain.Project) (string, error) {
-	if err := s.host.EnsureRepository(ctx, project); err != nil {
+	if err := s.ensureProjectRepository(ctx, project); err != nil {
 		return "", err
 	}
 	baseRef, err := s.host.DefaultBranch(ctx, project)
@@ -142,6 +142,13 @@ func (s *Service) ensureProjectPrerequisites(ctx context.Context, project domain
 		return "", err
 	}
 	return baseRef, nil
+}
+
+func (s *Service) ensureProjectRepository(ctx context.Context, project domain.Project) error {
+	if err := s.host.EnsureRepository(ctx, project); err != nil {
+		return err
+	}
+	return s.ensureBuiltInGitProject(ctx, project)
 }
 
 func (s *Service) provisionProjectWorkspaces(ctx context.Context, project domain.Project, baseRef string) error {

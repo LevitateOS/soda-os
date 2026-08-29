@@ -15,7 +15,7 @@ import (
 	"gorm.io/gorm/logger"
 )
 
-func TestOpenCreatesSchemaVersionTwoAndEnforcesConstraints(t *testing.T) {
+func TestOpenCreatesSchemaVersionThreeAndEnforcesConstraints(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "soda.db")
 	repository, err := Open(path)
 	if err != nil {
@@ -123,6 +123,33 @@ func TestSSHDeviceKeyUniquenessAllowsKeylessPeople(t *testing.T) {
 	duplicateLabel.Fingerprint = "SHA256:other"
 	if err = repository.CreateSSHDeviceKey(ctx, duplicateLabel); !errors.Is(err, ErrAlreadyExists) {
 		t.Fatalf("per-person label constraint = %v", err)
+	}
+}
+
+func TestBuiltInGitMappingsBelongToSodaSourcesOfTruth(t *testing.T) {
+	repository := testRepository(t)
+	ctx := context.Background()
+	person := domain.Person{ID: uuid.NewString(), Username: "alice", DisplayName: "Alice", Email: "alice@example.test", Role: domain.RoleAdmin}
+	if err := repository.CreatePerson(ctx, person); err != nil {
+		t.Fatal(err)
+	}
+	user := domain.BuiltInGitUser{PersonID: person.ID, UserID: 10}
+	if err := repository.SaveBuiltInGitUser(ctx, user); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := repository.BuiltInGitUser(ctx, person.ID); err != nil || got != user {
+		t.Fatalf("user mapping = %#v, %v", got, err)
+	}
+	project := domain.Project{ID: uuid.NewString(), Slug: "demo", Name: "Demo", UnixUser: "soda-p-demo", Profile: domain.ToolchainGo, Source: domain.EmptyProjectSource{}}
+	if err := repository.CreateProjectWithMemberships(ctx, project, []string{person.ID}); err != nil {
+		t.Fatal(err)
+	}
+	mapping := domain.BuiltInGitRepository{ProjectID: project.ID, RepositoryID: 20, DeployKeyID: 30, WebURL: "http://127.0.0.1:3000/soda/demo", SSHURL: "git@localhost:soda/demo.git"}
+	if err := repository.SaveBuiltInGitRepository(ctx, mapping); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := repository.BuiltInGitRepository(ctx, project.ID); err != nil || got != mapping {
+		t.Fatalf("repository mapping = %#v, %v", got, err)
 	}
 }
 

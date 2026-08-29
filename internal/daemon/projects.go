@@ -108,6 +108,13 @@ func (s *Service) AddCollaborator(ctx context.Context, request *sodav2.AddCollab
 	if err != nil {
 		return nil, rpcError(err)
 	}
+	if err = s.ensureBuiltInGitProject(ctx, project); err != nil {
+		rollbackErr := s.store.DeleteMembershipAndWorktree(context.WithoutCancel(ctx), workspace.membership.ProjectID, workspace.membership.PersonID)
+		if cleanupErr := s.runCleanup(ctx, workspace.cleanup); cleanupErr != nil {
+			rollbackErr = errors.Join(rollbackErr, cleanupErr)
+		}
+		return nil, rpcError(errors.Join(err, rollbackErr))
+	}
 	if err = s.reconcileProjectAccess(ctx, workspace.membership.ProjectID); err != nil {
 		rollbackErr := s.store.DeleteMembershipAndWorktree(context.WithoutCancel(ctx), workspace.membership.ProjectID, workspace.membership.PersonID)
 		if cleanupErr := s.runCleanup(ctx, workspace.cleanup); cleanupErr != nil {

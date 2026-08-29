@@ -14,11 +14,12 @@ import (
 )
 
 type fakeHost struct {
-	mu          sync.Mutex
-	people      personEvents
-	workspaces  workspaceEvents
-	access      accessEvents
-	environment int
+	mu             sync.Mutex
+	people         personEvents
+	workspaces     workspaceEvents
+	access         accessEvents
+	environment    int
+	builtInRemotes []string
 }
 
 type personEvents struct {
@@ -109,6 +110,12 @@ func (h *fakeHost) WriteProjectEnvironment(context.Context, domain.Project, stri
 }
 func (*fakeHost) DeployPublicKey(context.Context, domain.Project) (string, error) {
 	return "ssh-ed25519 AAAA project", nil
+}
+func (h *fakeHost) ConnectBuiltInRepository(_ context.Context, _ domain.Project, remote string) error {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.builtInRemotes = append(h.builtInRemotes, remote)
+	return nil
 }
 
 type fakeInstaller struct{}

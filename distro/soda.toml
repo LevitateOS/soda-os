@@ -8,7 +8,7 @@ hostname = "soda"
 
 [image]
 registry = "registry.soda.local/soda/os"
-state_schema = 2
+state_schema = 3
 
 [build]
 source_date_epoch = 1787825905

@@ -91,7 +91,7 @@ func (s *recordingServer) GetOSUpdateStatus(_ context.Context, request *sodav2.G
 }
 
 func (s *recordingServer) CheckOSUpdate(_ context.Context, request *sodav2.CheckOSUpdateRequest) (*sodav2.CheckOSUpdateResponse, error) {
-	return &sodav2.CheckOSUpdateResponse{Release: &sodav2.OSRelease{ImageReference: "registry.soda.local/soda/os@sha256:" + strings.Repeat("b", 64), Version: "0.3.0", Digest: "sha256:" + strings.Repeat("b", 64), StateSchema: 2, Available: true}}, s.record(request)
+	return &sodav2.CheckOSUpdateResponse{Release: &sodav2.OSRelease{ImageReference: "registry.soda.local/soda/os@sha256:" + strings.Repeat("b", 64), Version: "0.3.0", Digest: "sha256:" + strings.Repeat("b", 64), StateSchema: 3, Available: true}}, s.record(request)
 }
 
 func (s *recordingServer) StageOSUpdate(_ context.Context, request *sodav2.StageOSUpdateRequest) (*sodav2.StageOSUpdateResponse, error) {

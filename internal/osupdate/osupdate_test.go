@@ -230,7 +230,7 @@ func validMetadata(digest string) imageMetadata {
 	return imageMetadata{
 		Digest: digest, Architecture: "arm64", OS: "linux",
 		Labels: map[string]string{
-			"org.sodaos.state-schema":            "2",
+			"org.sodaos.state-schema":            "3",
 			"org.opencontainers.image.version":   "0.3.0",
 			"org.opencontainers.image.revision":  strings.Repeat("c", 40),
 			"org.opencontainers.image.base.name": "quay.io/fedora/fedora-bootc@sha256:" + strings.Repeat("d", 64),

@@ -71,3 +71,26 @@ type ProvisioningJob struct {
 	CreatedAt int64   `gorm:"autoCreateTime:nano;index"`
 	Project   Project `gorm:"constraint:OnDelete:RESTRICT;foreignKey:ProjectID"`
 }
+
+type BuiltInGitUser struct {
+	PersonID string `gorm:"primaryKey;size:36"`
+	UserID   int64  `gorm:"not null;uniqueIndex"`
+	Person   Person `gorm:"constraint:OnDelete:RESTRICT;foreignKey:PersonID"`
+}
+
+type BuiltInGitKey struct {
+	SSHDeviceKeyID string       `gorm:"primaryKey;size:36"`
+	PersonID       string       `gorm:"not null;index;size:36"`
+	KeyID          int64        `gorm:"not null;uniqueIndex"`
+	SSHDeviceKey   SSHDeviceKey `gorm:"constraint:OnDelete:RESTRICT;foreignKey:SSHDeviceKeyID"`
+	Person         Person       `gorm:"constraint:OnDelete:RESTRICT;foreignKey:PersonID"`
+}
+
+type BuiltInGitRepository struct {
+	ProjectID    string  `gorm:"primaryKey;size:36"`
+	RepositoryID int64   `gorm:"not null;uniqueIndex"`
+	DeployKeyID  int64   `gorm:"not null;uniqueIndex"`
+	WebURL       string  `gorm:"not null"`
+	SSHURL       string  `gorm:"not null"`
+	Project      Project `gorm:"constraint:OnDelete:RESTRICT;foreignKey:ProjectID"`
+}

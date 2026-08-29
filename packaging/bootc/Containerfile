@@ -14,7 +14,7 @@ LABEL org.opencontainers.image.title="Soda OS" \
       org.opencontainers.image.revision="${SODA_SOURCE_REVISION}" \
       org.opencontainers.image.created="${SODA_CREATED}" \
       org.opencontainers.image.base.name="${FEDORA_BASE_REFERENCE}" \
-      org.sodaos.state-schema="2" \
+      org.sodaos.state-schema="3" \
       org.sodaos.source-date-epoch="${SOURCE_DATE_EPOCH}"
 
 COPY .artifacts/rpms/soda-release-*.rpm /var/tmp/soda-rpms/

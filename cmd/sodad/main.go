@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"syscall"
 
+	"github.com/LevitateOS/soda-os/internal/builtingit"
 	"github.com/LevitateOS/soda-os/internal/config"
 	"github.com/LevitateOS/soda-os/internal/daemon"
 	"github.com/LevitateOS/soda-os/internal/host"
@@ -52,9 +53,9 @@ func run(logger *slog.Logger) error {
 	if err != nil {
 		return err
 	}
-	service := daemon.New(daemon.Options{Store: persistence, Host: system, Toolchains: toolchain.New(toolchains), Telemetry: telemetryAdapter, OSUpdates: updates, ProjectsRoot: projects, Logger: logger})
+	service := daemon.New(daemon.Options{Store: persistence, Host: system, Toolchains: toolchain.New(toolchains), Telemetry: telemetryAdapter, OSUpdates: updates, BuiltInGit: builtingit.New(), ProjectsRoot: projects, Logger: logger})
 	defer service.Close()
-	if err = service.ReconcileAllAuthorizedKeys(runContext); err != nil {
+	if err = service.ReconcileAllAccess(runContext); err != nil {
 		return err
 	}
 	server, err := daemon.ListenUnix(socket, service, logger)
