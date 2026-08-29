@@ -1,0 +1,100 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="0 0 1600 900"
+  preserveAspectRatio="xMidYMid meet"
+>
+  <rect width="1600" height="900" fill="#111a2b" />
+
+  <defs>
+    <path
+      id="mint-wave"
+      d="M0 520C180 520 260 430 520 405C780 380 840 610 1110 625C1380 640 1510 470 1720 485C1880 498 1940 520 2000 520V900H0Z"
+    >
+      <animate
+        attributeName="d"
+        dur="17s"
+        begin="-5s"
+        repeatCount="indefinite"
+        calcMode="spline"
+        keyTimes="0;0.33;0.66;1"
+        keySplines="0.42 0 0.58 1;0.42 0 0.58 1;0.42 0 0.58 1"
+        values="M0 520C180 520 260 430 520 405C780 380 840 610 1110 625C1380 640 1510 470 1720 485C1880 498 1940 520 2000 520V900H0Z;M0 520C210 520 350 365 610 395C870 425 920 680 1210 620C1500 560 1590 430 1790 475C1910 502 1960 520 2000 520V900H0Z;M0 520C160 520 240 470 480 430C720 390 940 540 1170 650C1400 760 1560 520 1760 490C1900 470 1950 520 2000 520V900H0Z;M0 520C180 520 260 430 520 405C780 380 840 610 1110 625C1380 640 1510 470 1720 485C1880 498 1940 520 2000 520V900H0Z"
+      />
+    </path>
+
+    <path
+      id="coral-wave"
+      d="M0 650C110 650 190 755 360 742C530 729 590 535 760 540C930 545 990 700 1120 680C1250 660 1320 650 1408 650V900H0Z"
+    >
+      <animate
+        attributeName="d"
+        dur="23s"
+        begin="-11s"
+        repeatCount="indefinite"
+        calcMode="spline"
+        keyTimes="0;0.33;0.66;1"
+        keySplines="0.42 0 0.58 1;0.42 0 0.58 1;0.42 0 0.58 1"
+        values="M0 650C110 650 190 755 360 742C530 729 590 535 760 540C930 545 990 700 1120 680C1250 660 1320 650 1408 650V900H0Z;M0 650C150 650 235 690 405 685C575 680 640 475 825 520C1010 565 1055 760 1190 710C1300 670 1350 650 1408 650V900H0Z;M0 650C90 650 155 810 330 770C505 730 610 585 790 575C970 565 1020 625 1160 645C1280 662 1345 650 1408 650V900H0Z;M0 650C110 650 190 755 360 742C530 729 590 535 760 540C930 545 990 700 1120 680C1250 660 1320 650 1408 650V900H0Z"
+      />
+    </path>
+
+    <path
+      id="dark-wave"
+      d="M0 760C250 760 390 690 640 705C890 720 1050 825 1300 815C1550 805 1660 730 1900 735C2140 740 2320 760 2560 760V900H0Z"
+    >
+      <animate
+        attributeName="d"
+        dur="31s"
+        begin="-19s"
+        repeatCount="indefinite"
+        calcMode="spline"
+        keyTimes="0;0.33;0.66;1"
+        keySplines="0.42 0 0.58 1;0.42 0 0.58 1;0.42 0 0.58 1"
+        values="M0 760C250 760 390 690 640 705C890 720 1050 825 1300 815C1550 805 1660 730 1900 735C2140 740 2320 760 2560 760V900H0Z;M0 760C220 760 430 625 690 675C950 725 1080 865 1360 800C1640 735 1740 690 1980 725C2220 760 2380 760 2560 760V900H0Z;M0 760C290 760 370 735 620 680C870 625 1110 760 1340 845C1570 880 1720 780 1940 750C2160 720 2350 760 2560 760V900H0Z;M0 760C250 760 390 690 640 705C890 720 1050 825 1300 815C1550 805 1660 730 1900 735C2140 740 2320 760 2560 760V900H0Z"
+      />
+    </path>
+  </defs>
+
+  <g fill="#78e2bf">
+    <use href="#mint-wave" />
+    <use href="#mint-wave" transform="translate(-2000 0)" />
+    <animateTransform
+      attributeName="transform"
+      type="translate"
+      from="0 0"
+      to="2000 0"
+      dur="48s"
+      begin="-13s"
+      repeatCount="indefinite"
+    />
+  </g>
+
+  <g fill="#f06457">
+    <use href="#coral-wave" />
+    <use href="#coral-wave" transform="translate(-1408 0)" />
+    <use href="#coral-wave" transform="translate(1408 0)" />
+    <animateTransform
+      attributeName="transform"
+      type="translate"
+      from="0 0"
+      to="1408 0"
+      dur="61s"
+      begin="-29s"
+      repeatCount="indefinite"
+    />
+  </g>
+
+  <g fill="#172235">
+    <use href="#dark-wave" />
+    <use href="#dark-wave" transform="translate(-2560 0)" />
+    <animateTransform
+      attributeName="transform"
+      type="translate"
+      from="0 0"
+      to="2560 0"
+      dur="89s"
+      begin="-47s"
+      repeatCount="indefinite"
+    />
+  </g>
+</svg>
