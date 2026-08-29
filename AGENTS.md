@@ -190,6 +190,14 @@ user behavior. Report only the level of evidence actually exercised.
 
 ## Architecture and platform changes
 
+Development actively uses both x86-64 and AArch64 computers. Perform and
+validate x86-specific work on x86-64 and AArch64-specific work on AArch64.
+Whenever a change, dependency, artifact, test procedure, limitation, or
+follow-up is architecture-specific, record the affected architecture, what was
+done, what the sibling architecture must reproduce or verify, and any known
+prerequisites or blockers. Keep temporary machine details as handoff context;
+do not turn them into product requirements.
+
 When adding x86-64 or another supported platform:
 
 - start from the product aspiration, not from duplicated AArch64 conditionals;
