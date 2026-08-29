@@ -29,6 +29,7 @@ RUN mkdir -p /boot/efi /usr/lib/image-builder/bootc /usr/lib/systemd/logind.conf
 
 COPY --chmod=0644 .artifacts/installer/context/interactive-defaults.ks /usr/share/anaconda/interactive-defaults.ks
 COPY --chmod=0644 packaging/installer/soda-storage.conf /etc/anaconda/conf.d/90-soda-storage.conf
+COPY --chmod=0644 packaging/installer/anaconda-boot-iso.conf /etc/anaconda/conf.d/80-soda-boot-iso.conf
 COPY --chmod=0644 .artifacts/installer/context/iso.yaml /usr/lib/image-builder/bootc/iso.yaml
 COPY --chmod=0644 packaging/installer/anaconda-shell.conf /usr/lib/systemd/logind.conf.d/anaconda-shell.conf
 COPY --chmod=0644 packaging/installer/pipewire-allow-root.conf /etc/systemd/user/pipewire.service.d/allowroot.conf
