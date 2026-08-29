@@ -264,9 +264,16 @@ capture() {
 		echo "[boot-id]"; cat /proc/sys/kernel/random/boot_id
 		echo "[kernel]"; uname -a
 		echo "[services]"
-		for unit in sodad sshd soda-cockpit soda-authd avahi-daemon soda-state-directories.service var-srv-soda-projects.mount opt-soda-toolchains.mount; do
+		for unit in sodad sshd soda-cockpit soda-authd forgejo avahi-daemon soda-state-directories.service var-srv-soda-projects.mount opt-soda-toolchains.mount; do
 			printf "%s=" "$unit"; systemctl is-active "$unit" 2>/dev/null || true
 		done
+		echo "[built-in-git]"
+		rpm -q soda-forgejo
+		forgejo --version
+		getent passwd git
+		test -s /etc/forgejo/app.ini && echo configuration=present
+		test -s /var/lib/soda/built-in-git-token && echo automation-token=present
+		test -d /var/lib/forgejo/data/repositories/soda && echo repositories=present
 		echo "[bootc-status]"; bootc status --format=json
 		echo "[boot-entries]"; efibootmgr -v 2>/dev/null || true
 		echo "[automatic-update]"
