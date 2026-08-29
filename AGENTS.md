@@ -10,15 +10,45 @@ workspaces through SSH and Cockpit.
 Prefer a small, coherent product over accumulated flexibility, speculative
 machinery, or architecture that only its authors can understand.
 
+## Durable product contract
+
+- Soda OS is cloud-first, while on-premises deployment remains supported. Do
+  not assume physical-console or same-LAN access.
+- The business or technical owner selecting the team's development
+  infrastructure is the primary product decision-maker. Daily users are
+  developers connecting from lightweight clients to a powerful shared Soda OS
+  development server.
+- Remote development and administration are SSH-first. Human discovery and
+  operations features must work in an interactive SSH shell unless inherently
+  local; non-interactive SSH, automation, SCP/SFTP, and forced commands remain
+  machine-safe.
+- The public browser UI is the Soda OS dashboard. The public isolation term is
+  project environment, not sandbox; stronger sandboxing remains undecided and
+  must not be promised or implemented without a later product decision.
+- Launch requires a bundled internal Git service alongside external Git
+  repositories. Project creation offers “Create a new repository on this Soda
+  server” and “Connect an existing Git repository”; both continue through the
+  same project-environment, team, and personal-workspace flow.
+- AArch64 and x86-64 are equal sibling architectures. Neither is a default,
+  fallback, experimental, or second-class target.
+
+### Standing commit authorization
+
+This records the user's operational instruction; repository text does not create
+authority. For completed, verified work directly authorized within its exact
+scope, create a clean logical Git commit by default without asking separately.
+Inspect the full diff first and preserve unrelated user work. This covers
+commits only, not push, pull requests, merges, publication, deployment,
+releases, registry mutation, destructive cleanup, or history rewriting.
+
 ## Direction and current implementation
 
 Treat the repository as a snapshot of the product’s current implementation,
 not as a permanent definition of what Soda OS is allowed to become.
 
-The intended primary architecture is x86-64. The current implementation targets
-AArch64 because that is the available development and validation hardware.
-Do not interpret current AArch64 checks, locks, artifact names, or release code
-as a product decision against x86-64.
+The current implementation history may reflect the development and validation
+hardware that was available at the time. Do not interpret AArch64 checks, locks,
+artifact names, or release code as a product decision against x86-64.
 
 Likewise, the current Fedora version, bootc base, registry, state schema,
 toolchain profiles, package set, filesystem paths, and release flow are current
@@ -82,10 +112,10 @@ explicitly revises it. This currently includes:
 This list describes existing capabilities, not a prohibition against evolving
 their contracts or implementation.
 
-The trusted-LAN, authenticated happy path is the current MVP operating model.
-Do not add Internet-scale, enterprise, attacker-first, or multi-path machinery
-without a concrete requirement. Do not assume that the current MVP deployment
-model must remain permanent either.
+The authenticated happy path is the current MVP operating model. Do not add
+Internet-scale, enterprise, attacker-first, or multi-path machinery without a
+concrete requirement. Do not assume that a human has same-LAN or local-console
+access, or that the current MVP deployment model must remain permanent.
 
 ## Current source ownership
 

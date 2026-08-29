@@ -116,6 +116,8 @@ func (b *Builder) stageRPMSources(build, sources string) error {
 		{b.path("packaging/rpm/runtime/sources/tmpfiles/soda.conf"), filepath.Join(sources, "soda.conf")},
 		{b.path("packaging/rpm/runtime/sources/sysusers/soda.conf"), filepath.Join(sources, "soda.sysusers")},
 		{b.path("packaging/rpm/runtime/sources/sshd/41-soda-project-accounts.conf"), filepath.Join(sources, "41-soda-project-accounts.conf")},
+		{b.path("packaging/rpm/runtime/sources/console/soda-console-welcome"), filepath.Join(sources, "soda-console-welcome")},
+		{b.path("packaging/rpm/runtime/sources/profile.d/soda-console-welcome.sh"), filepath.Join(sources, "soda-console-welcome.sh")},
 		{b.path("packaging/rpm/cockpit/sources/systemd/soda-cockpit.service"), filepath.Join(sources, "soda-cockpit.service")},
 		{b.path("packaging/rpm/cockpit/sources/systemd/soda-authd.service"), filepath.Join(sources, "soda-authd.service")},
 		{b.path("packaging/rpm/cockpit/sources/avahi/soda-cockpit.service"), filepath.Join(sources, "soda-cockpit.avahi.service")},
