@@ -103,6 +103,10 @@ func TestForgejoPackagingContract(t *testing.T) {
 	require.Contains(t, string(configuration), "SSH_USER = git")
 	require.Contains(t, string(configuration), "SSH_CREATE_AUTHORIZED_KEYS_FILE = true")
 
+	sysusers, err := os.ReadFile(filepath.Join(forgejoRoot, "sources", "sysusers", "forgejo.conf"))
+	require.NoError(t, err)
+	require.Contains(t, string(sysusers), "u git 975")
+
 	initialization, err := os.ReadFile(filepath.Join(forgejoRoot, "sources", "forgejo-init"))
 	require.NoError(t, err)
 	require.Contains(t, string(initialization), "forgejo admin auth add-pam")
