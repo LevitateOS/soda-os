@@ -23,8 +23,7 @@ func PrepareLocalBootcBase(ctx context.Context, root string, runner process.Runn
 	if err != nil {
 		return "", err
 	}
-	tag := process.Command{Dir: root, Name: "docker", Args: []string{"image", "tag", platform.Base.Reference, localTag}}
-	if err := runner.Run(ctx, tag); err == nil {
+	if err := bindLocalBootcBase(ctx, root, runner, platform.Base.Reference, localTag); err == nil {
 		return localTag, nil
 	}
 	archive := filepath.Join(root, platform.Base.Archive)
@@ -34,10 +33,26 @@ func PrepareLocalBootcBase(ctx context.Context, root string, runner process.Runn
 	if err := runner.Run(ctx, process.Command{Dir: root, Name: "docker", Args: []string{"load", "--input", archive}}); err != nil {
 		return "", fmt.Errorf("load pinned Fedora bootc base: %w", err)
 	}
-	if err := runner.Run(ctx, tag); err != nil {
+	if err := bindLocalBootcBase(ctx, root, runner, platform.Base.Reference, localTag); err != nil {
 		return "", fmt.Errorf("bind pinned Fedora bootc base digest: %w", err)
 	}
 	return localTag, nil
+}
+
+func bindLocalBootcBase(ctx context.Context, root string, runner process.Runner, reference, localTag string) error {
+	list := process.Command{Dir: root, Name: "docker", Args: []string{"image", "ls", "--no-trunc", "--quiet", "--filter", "reference=" + reference}}
+	output, err := runner.Output(ctx, list)
+	if err != nil {
+		return err
+	}
+	ids := strings.Fields(output)
+	if len(ids) != 1 || !strings.HasPrefix(ids[0], "sha256:") {
+		return errors.New("Docker did not resolve the pinned Fedora bootc reference to one local image")
+	}
+	if decoded, err := hex.DecodeString(strings.TrimPrefix(ids[0], "sha256:")); err != nil || len(decoded) != sha256.Size {
+		return errors.New("Docker resolved the pinned Fedora bootc reference to an invalid image ID")
+	}
+	return runner.Run(ctx, process.Command{Dir: root, Name: "docker", Args: []string{"image", "tag", ids[0], localTag}})
 }
 
 func localBootcBaseTag(platform config.PlatformSpec) (string, error) {
