@@ -155,7 +155,7 @@ type preparedRelease struct {
 }
 
 func (p *Publisher) prepareExactImage(ctx context.Context, archive string) (preparedRelease, error) {
-	img, cleanup, err := imageFromOCIArchive(archive, p.spec.Platform.OCIArchitecture)
+	img, cleanup, err := imageFromOCIArchive(archive, p.spec.Platform.Architecture.OCI)
 	if err != nil {
 		return preparedRelease{}, err
 	}
@@ -223,7 +223,7 @@ func (p *Publisher) writeSignedRecord(ctx context.Context, record Record, output
 	if err := os.MkdirAll(outputDir, 0o755); err != nil {
 		return "", "", fmt.Errorf("create release output: %w", err)
 	}
-	recordPath := filepath.Join(outputDir, "soda-os-"+p.spec.Identity.Version+"-"+p.spec.Platform.ArtifactArchitecture+".release.json")
+	recordPath := filepath.Join(outputDir, "soda-os-"+p.spec.Identity.Version+"-"+p.spec.Platform.Architecture.Artifact+".release.json")
 	bundlePath := recordPath + ".sigstore.json"
 	encoded, err := json.Marshal(record)
 	if err != nil {
@@ -243,11 +243,11 @@ func (p *Publisher) writeSignedRecord(ctx context.Context, record Record, output
 }
 
 func (p *Publisher) versionTag() string {
-	return Repository + ":" + p.spec.Identity.Version + "-" + p.spec.Platform.ReleaseChannel
+	return Repository + ":" + p.spec.Identity.Version + "-" + p.spec.Platform.Release.Channel
 }
 
 func (p *Publisher) discoveryTag() string {
-	return Repository + ":current-" + p.spec.Platform.ReleaseChannel
+	return Repository + ":current-" + p.spec.Platform.Release.Channel
 }
 
 type remoteRegistry struct{ options []remote.Option }

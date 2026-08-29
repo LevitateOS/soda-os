@@ -62,7 +62,7 @@ func installerCommand(builder func() (*image.Builder, error)) *cobra.Command {
 				return err
 			}
 			if options.ToolLock == "" {
-				options.ToolLock = imageBuilder.Spec.Platform.InstallerToolLock
+				options.ToolLock = imageBuilder.Spec.Platform.Installer.ToolLock
 			}
 			isoBuilder := installer.NewBuilder(imageBuilder.Root, imageBuilder.Spec, process.OSRunner{Stdout: os.Stdout, Stderr: os.Stderr})
 			isoPath, err := isoBuilder.Build(command.Context(), options)
@@ -124,10 +124,10 @@ func (state *releaseCommandState) run(command *cobra.Command, _ []string) error 
 		return err
 	}
 	if state.publication.InstallerArchive == "" {
-		state.publication.InstallerArchive = filepath.Join(".artifacts", "installer", "soda-installer-environment-"+builder.Spec.Platform.ArtifactArchitecture+".oci.tar")
+		state.publication.InstallerArchive = filepath.Join(".artifacts", "installer", "soda-installer-environment-"+builder.Spec.Platform.Architecture.Artifact+".oci.tar")
 	}
 	if state.publication.InstallerToolLock == "" {
-		state.publication.InstallerToolLock = builder.Spec.Platform.InstallerToolLock
+		state.publication.InstallerToolLock = builder.Spec.Platform.Installer.ToolLock
 	}
 	publisher, err := release.NewPublisher(builder.Root, builder.Spec, state.signing, process.OSRunner{Stdin: os.Stdin, Stdout: os.Stdout, Stderr: os.Stderr})
 	if err != nil {

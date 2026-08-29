@@ -105,7 +105,7 @@ func (b *Builder) Check(_ context.Context) error {
 }
 
 func validateImageSpec(spec config.DistroSpec) error {
-	if spec.Identity.Architecture != spec.Platform.Architecture || spec.Base.Reference != spec.Platform.BaseReference || spec.Base.Platform != spec.Platform.OCIPlatform || spec.Image.Registry != sodaRegistry || spec.Image.StateSchema != 2 || spec.Build.SourceDateEpoch < 0 {
+	if spec.Identity.Architecture != spec.Platform.Architecture.Name || spec.Base.Reference != spec.Platform.Base.Reference || spec.Base.Platform != spec.Platform.Architecture.Platform || spec.Image.Registry != sodaRegistry || spec.Image.StateSchema != 2 || spec.Build.SourceDateEpoch < 0 {
 		return errors.New("Soda image specification differs from the selected architecture contract")
 	}
 	return nil
@@ -115,7 +115,7 @@ func validateRuntimePackageLock(lock packageLock, spec config.DistroSpec) error 
 	if lock.SchemaVersion != 1 || lock.BaseReference != spec.Base.Reference || len(lock.Package) <= len(targetRPMs) {
 		return errors.New("package lock does not bind the configured Fedora bootc base")
 	}
-	local, bootcLocked, err := classifyRuntimePackages(lock.Package, spec.Platform.BootcNEVRA)
+	local, bootcLocked, err := classifyRuntimePackages(lock.Package, spec.Platform.Base.BootcNEVRA)
 	if err != nil {
 		return err
 	}
@@ -154,14 +154,14 @@ func validateLockedPackage(item lockedPackage, seen map[string]bool) error {
 }
 
 func validateReleaseToolLock(lock releaseToolLock, platform config.PlatformSpec) error {
-	if lock.Version != cosignVersion || lock.checksum("linux", platform.TargetCosignArchitecture) != platform.TargetCosignSHA256 {
-		return fmt.Errorf("release tool lock must pin the approved Cosign %s Linux/%s binary", cosignVersion, platform.TargetCosignArchitecture)
+	if lock.Version != cosignVersion || lock.checksum("linux", platform.Cosign.Architecture) != platform.Cosign.SHA256 {
+		return fmt.Errorf("release tool lock must pin the approved Cosign %s Linux/%s binary", cosignVersion, platform.Cosign.Architecture)
 	}
 	return nil
 }
 
 func (b *Builder) validateBuildInputs() error {
-	for _, path := range []string{"packaging/bootc/Containerfile", "packaging/builder/Containerfile", b.Spec.Platform.BuilderPackageLock, b.Spec.Platform.InstallerPackageLock, b.Spec.Platform.InstallerToolLock, b.Spec.Platform.InstallerISOConfig, "packaging/rpm/release/soda-release.spec", "packaging/rpm/runtime/soda-runtime.spec", "packaging/rpm/cockpit/soda-cockpit.spec", "packaging/rpm/runtime/sources/sysusers/soda.conf", "packaging/bootc/trust/policy.json", "packaging/bootc/trust/registries.d.yaml", "distro/locks/release-tools.toml"} {
+	for _, path := range []string{"packaging/bootc/Containerfile", "packaging/builder/Containerfile", b.Spec.Platform.Builder.PackageLock, b.Spec.Platform.Installer.PackageLock, b.Spec.Platform.Installer.ToolLock, b.Spec.Platform.Installer.ISOConfig, "packaging/rpm/release/soda-release.spec", "packaging/rpm/runtime/soda-runtime.spec", "packaging/rpm/cockpit/soda-cockpit.spec", "packaging/rpm/runtime/sources/sysusers/soda.conf", "packaging/bootc/trust/policy.json", "packaging/bootc/trust/registries.d.yaml", "distro/locks/release-tools.toml"} {
 		if !isFile(b.path(path)) {
 			return fmt.Errorf("required bootc build input %s is missing", path)
 		}
@@ -188,7 +188,7 @@ func (b *Builder) BuildImage(ctx context.Context) error {
 	if err := os.MkdirAll(images, 0o755); err != nil {
 		return err
 	}
-	output := filepath.Join(images, "soda-os-"+b.Spec.Identity.Version+"-"+b.Spec.Platform.ArtifactArchitecture+".oci.tar")
+	output := filepath.Join(images, "soda-os-"+b.Spec.Identity.Version+"-"+b.Spec.Platform.Architecture.Artifact+".oci.tar")
 	if err := os.Remove(output); err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return err
 	}
@@ -203,7 +203,7 @@ func (b *Builder) BuildImage(ctx context.Context) error {
 		"--build-arg", "SOURCE_DATE_EPOCH=" + fmt.Sprint(b.Spec.Build.SourceDateEpoch),
 		"--build-arg", "SODA_CREATED=" + created,
 		"--build-arg", "FEDORA_BASE_REFERENCE=" + b.Spec.Base.Reference,
-		"--build-arg", "BOOTC_NEVRA=" + b.Spec.Platform.BootcNEVRA,
+		"--build-arg", "BOOTC_NEVRA=" + b.Spec.Platform.Base.BootcNEVRA,
 		"--provenance=false",
 		"--output", "type=oci,dest=" + output + ",oci-mediatypes=true,rewrite-timestamp=true",
 		".",

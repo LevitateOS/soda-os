@@ -33,11 +33,11 @@ func (p *Publisher) inspect(img v1.Image, exactReference string) (Record, error)
 	if err != nil {
 		return Record{}, err
 	}
-	return Record{SchemaVersion: 2, SodaVersion: p.spec.Identity.Version, SourceRevision: revision, Platform: p.spec.Base.Platform, Channel: p.spec.Platform.ReleaseChannel, FedoraBaseReference: p.spec.Base.Reference, SodaImageReference: exactReference, StateSchema: p.spec.Image.StateSchema, RPMInventorySHA256: inventoryDigest}, nil
+	return Record{SchemaVersion: 2, SodaVersion: p.spec.Identity.Version, SourceRevision: revision, Platform: p.spec.Base.Platform, Channel: p.spec.Platform.Release.Channel, FedoraBaseReference: p.spec.Base.Reference, SodaImageReference: exactReference, StateSchema: p.spec.Image.StateSchema, RPMInventorySHA256: inventoryDigest}, nil
 }
 
 func (p *Publisher) inspectImageIdentity(configFile *v1.ConfigFile) (string, error) {
-	if configFile.OS != "linux" || configFile.Architecture != p.spec.Platform.OCIArchitecture {
+	if configFile.OS != "linux" || configFile.Architecture != p.spec.Platform.Architecture.OCI {
 		return "", fmt.Errorf("release image platform is %s/%s, expected %s", configFile.OS, configFile.Architecture, p.spec.Base.Platform)
 	}
 	labels := configFile.Config.Labels

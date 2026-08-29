@@ -23,7 +23,7 @@ func TestLoadDistroSelectsEqualSiblingPlatforms(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, architecture, spec.Identity.Architecture)
 			require.Equal(t, "linux/"+oci, spec.Base.Platform)
-			require.Equal(t, architecture, spec.Platform.ReleaseChannel)
+			require.Equal(t, architecture, spec.Platform.Release.Channel)
 		})
 	}
 }

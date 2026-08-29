@@ -1,19 +1,31 @@
 schema_version = 1
-architecture = "x86_64"
-oci_architecture = "amd64"
-oci_platform = "linux/amd64"
-artifact_architecture = "x86_64"
-installer_architecture = "x86_64"
-base_reference = "quay.io/fedora/fedora-bootc@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
-base_archive = "distro/base/x86_64.oci.tar"
-base_archive_sha256 = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+
+[architecture]
+name = "x86_64"
+oci = "amd64"
+platform = "linux/amd64"
+artifact = "x86_64"
+installer = "x86_64"
+
+[base]
+reference = "quay.io/fedora/fedora-bootc@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+archive = "distro/base/x86_64.oci.tar"
+archive_sha256 = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
 bootc_nevra = "bootc-0:1-1.fc44.x86_64"
 runtime_package_lock = "distro/locks/runtime-x86_64.toml"
-builder_base_reference = "registry.fedoraproject.org/fedora@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
-builder_package_lock = "distro/locks/builder-x86_64.toml"
-target_cosign_architecture = "amd64"
-target_cosign_sha256 = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
-installer_package_lock = "distro/locks/installer-x86_64.toml"
-installer_tool_lock = "distro/locks/image-builder-x86_64.toml"
-installer_iso_config = "packaging/installer/iso-x86_64.yaml"
-release_channel = "x86_64"
+
+[builder]
+base_reference = "registry.fedoraproject.org/fedora@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+package_lock = "distro/locks/builder-x86_64.toml"
+
+[cosign]
+architecture = "amd64"
+sha256 = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+
+[installer]
+package_lock = "distro/locks/installer-x86_64.toml"
+tool_lock = "distro/locks/image-builder-x86_64.toml"
+iso_config = "packaging/installer/iso-x86_64.yaml"
+
+[release]
+channel = "x86_64"

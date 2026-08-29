@@ -85,7 +85,7 @@ func (b *Builder) inspectPublishedISO(ctx context.Context, isoPath, reference, i
 	defer func() {
 		_ = b.runner.Run(context.Background(), process.Command{Dir: b.Root, Name: "docker", Args: []string{"volume", "rm", "--force", volumeName}})
 	}()
-	installerTag := "localhost/soda-installer-inspect:" + b.Spec.Identity.Version + "-" + b.Spec.Platform.ArtifactArchitecture
+	installerTag := "localhost/soda-installer-inspect:" + b.Spec.Identity.Version + "-" + b.Spec.Platform.Architecture.Artifact
 	if err := b.copyToStorage(ctx, lock, volumeName, installerArchive, installerTag); err != nil {
 		return "", err
 	}
@@ -121,7 +121,7 @@ func (b *Builder) Build(ctx context.Context, options Options) (string, error) {
 	if err := b.verifySignedImage(ctx, options); err != nil {
 		return "", err
 	}
-	if err := verifyArchiveDigest(options.ArchivePath, options.ImageReference, b.Spec.Platform.OCIArchitecture); err != nil {
+	if err := verifyArchiveDigest(options.ArchivePath, options.ImageReference, b.Spec.Platform.Architecture.OCI); err != nil {
 		return "", err
 	}
 	baseTag, err := imagebuild.PrepareLocalBootcBase(ctx, b.Root, b.runner, b.Spec.Platform)
@@ -173,31 +173,42 @@ func (b *Builder) prepareInstallerWorkspace(options Options) (installerWorkspace
 		output = filepath.Join(b.Root, ".artifacts", "images")
 	}
 	workspace := installerWorkspace{work, filepath.Join(work, "context"), filepath.Join(work, "inspect"), output}
+	if err := resetInstallerWorkspace(workspace); err != nil {
+		return installerWorkspace{}, err
+	}
+	if err := b.stageInstallerConfiguration(workspace.context, options); err != nil {
+		return installerWorkspace{}, err
+	}
+	return workspace, nil
+}
+
+func resetInstallerWorkspace(workspace installerWorkspace) error {
 	for _, path := range []string{workspace.context, workspace.inspect} {
 		if err := os.RemoveAll(path); err != nil {
-			return installerWorkspace{}, err
+			return err
 		}
 		if err := os.MkdirAll(path, 0o755); err != nil {
-			return installerWorkspace{}, err
+			return err
 		}
 	}
-	if err := os.MkdirAll(workspace.output, 0o755); err != nil {
-		return installerWorkspace{}, err
+	return os.MkdirAll(workspace.output, 0o755)
+}
+
+func (b *Builder) stageInstallerConfiguration(destination string, options Options) error {
+	if err := os.WriteFile(filepath.Join(destination, "interactive-defaults.ks"), []byte(kickstart(options.ImageReference, b.Spec.Identity.Hostname)), 0o644); err != nil {
+		return err
 	}
-	if err := os.WriteFile(filepath.Join(workspace.context, "interactive-defaults.ks"), []byte(kickstart(options.ImageReference, b.Spec.Identity.Hostname)), 0o644); err != nil {
-		return installerWorkspace{}, err
+	if err := b.stageInstallerPackageLock(destination); err != nil {
+		return err
 	}
-	if err := b.stageInstallerPackageLock(workspace.context); err != nil {
-		return installerWorkspace{}, err
-	}
-	isoConfig := b.Spec.Platform.InstallerISOConfig
+	isoConfig := b.Spec.Platform.Installer.ISOConfig
 	if !filepath.IsAbs(isoConfig) {
 		isoConfig = filepath.Join(b.Root, isoConfig)
 	}
-	if err := copyFile(isoConfig, filepath.Join(workspace.context, "iso.yaml")); err != nil {
-		return installerWorkspace{}, fmt.Errorf("stage installer ISO configuration: %w", err)
+	if err := copyFile(isoConfig, filepath.Join(destination, "iso.yaml")); err != nil {
+		return fmt.Errorf("stage installer ISO configuration: %w", err)
 	}
-	return workspace, nil
+	return nil
 }
 
 func copyFile(source, destination string) error {
@@ -210,7 +221,7 @@ func copyFile(source, destination string) error {
 
 func (b *Builder) stageInstallerPackageLock(destination string) error {
 	var lock packageLock
-	lockPath := b.Spec.Platform.InstallerPackageLock
+	lockPath := b.Spec.Platform.Installer.PackageLock
 	if !filepath.IsAbs(lockPath) {
 		lockPath = filepath.Join(b.Root, lockPath)
 	}
@@ -229,11 +240,11 @@ func (b *Builder) stageInstallerPackageLock(destination string) error {
 }
 
 func (b *Builder) buildInstallerEnvironment(ctx context.Context, baseTag, work string) (string, string, error) {
-	archive := filepath.Join(work, "soda-installer-environment-"+b.Spec.Platform.ArtifactArchitecture+".oci.tar")
+	archive := filepath.Join(work, "soda-installer-environment-"+b.Spec.Platform.Architecture.Artifact+".oci.tar")
 	if err := os.Remove(archive); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return "", "", err
 	}
-	tag := "localhost/soda-installer:" + b.Spec.Identity.Version + "-" + b.Spec.Platform.ArtifactArchitecture
+	tag := "localhost/soda-installer:" + b.Spec.Identity.Version + "-" + b.Spec.Platform.Architecture.Artifact
 	args := []string{"buildx", "build", "--platform", b.Spec.Base.Platform, "--build-context", "fedora-base=docker-image://" + baseTag, "--file", "packaging/installer/Containerfile", "--tag", tag, "--provenance=false", "--output", "type=oci,dest=" + archive + ",oci-mediatypes=true", "."}
 	if err := b.runner.Run(ctx, process.Command{Dir: b.Root, Name: "docker", Args: args}); err != nil {
 		return "", "", fmt.Errorf("build installer environment: %w", err)
@@ -242,7 +253,7 @@ func (b *Builder) buildInstallerEnvironment(ctx context.Context, baseTag, work s
 }
 
 func (b *Builder) buildInstallerISO(ctx context.Context, input isoBuildInput) (string, error) {
-	outputName := "SodaOS-" + b.Spec.Identity.Version + "-" + b.Spec.Platform.ArtifactArchitecture
+	outputName := "SodaOS-" + b.Spec.Identity.Version + "-" + b.Spec.Platform.Architecture.Artifact
 	for _, suffix := range []string{".iso", ".iso.sha256"} {
 		if err := os.Remove(filepath.Join(input.workspace.output, outputName+suffix)); err != nil && !errors.Is(err, os.ErrNotExist) {
 			return "", err
@@ -251,7 +262,7 @@ func (b *Builder) buildInstallerISO(ctx context.Context, input isoBuildInput) (s
 	args := []string{"run", "--rm", "--platform", b.Spec.Base.Platform, "--privileged",
 		"--volume", input.volumeName + ":/var/lib/containers/storage",
 		"--volume", input.workspace.output + ":/output", input.lock.Reference,
-		"build", "--arch", b.Spec.Platform.InstallerArchitecture, "--bootc-ref", input.installerTag,
+		"build", "--arch", b.Spec.Platform.Architecture.Installer, "--bootc-ref", input.installerTag,
 		"--bootc-installer-payload-ref", input.payloadTag,
 		"--bootc-default-fs", "ext4", "--output-dir", "/output",
 		"--output-name", outputName, "bootc-generic-iso",
@@ -289,7 +300,7 @@ func (b *Builder) validate(options Options) (toolLock, error) {
 			return toolLock{}, fmt.Errorf("%s %q is not a regular file", label, path)
 		}
 	}
-	if b.Spec.Identity.Architecture != b.Spec.Platform.Architecture || b.Spec.Base.Platform != b.Spec.Platform.OCIPlatform {
+	if b.Spec.Identity.Architecture != b.Spec.Platform.Architecture.Name || b.Spec.Base.Platform != b.Spec.Platform.Architecture.Platform {
 		return toolLock{}, errors.New("installer architecture differs from the selected Soda platform")
 	}
 	if b.Spec.Identity.Hostname != "soda" {
@@ -307,13 +318,13 @@ func (b *Builder) validate(options Options) (toolLock, error) {
 
 func validateToolLock(lock toolLock, platform config.PlatformSpec) error {
 	if lock.Version != "81.0.0" || lock.Commit != "3130fb87ee1f684b6e9d1909f354861c43d7a092" ||
-		lock.Platform != platform.OCIPlatform {
+		lock.Platform != platform.Architecture.Platform {
 		return errors.New("image-builder lock differs from the selected platform tool")
 	}
 	wantReference := map[string]string{
 		"aarch64": "ghcr.io/osbuild/image-builder@sha256:704dc05d6033799248a33c415f7f7253ec20b40f0b2bff03b06d8687179e058a",
 		"x86_64":  "ghcr.io/osbuild/image-builder@sha256:9ce9e1452483e3642f0e6d67ce522f71d1f1c6a45280dd09a16b90d63dfea9b7",
-	}[platform.Architecture]
+	}[platform.Architecture.Name]
 	if lock.Reference != wantReference {
 		return errors.New("image-builder digest differs from the reviewed platform tool")
 	}

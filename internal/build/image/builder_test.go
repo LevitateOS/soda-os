@@ -75,7 +75,7 @@ func TestDockerCommandUsesPinnedArm64Builder(t *testing.T) {
 	builder := &Builder{Root: "/workspace/soda", Spec: config.DistroSpec{
 		Identity: config.IdentitySpec{Version: "0.2.0"},
 		Base:     config.BaseSpec{Platform: testArmPlatform},
-		Platform: config.PlatformSpec{ArtifactArchitecture: "aarch64"},
+		Platform: config.PlatformSpec{Architecture: config.PlatformArchitecture{Artifact: "aarch64"}},
 	}}
 	command := builder.dockerCommand([]string{"SOURCE_DATE_EPOCH=1787825905"}, "rpm", "--version")
 	require.Equal(t, "docker", command.Name)
@@ -105,7 +105,7 @@ func TestRPMBuildPinsHeaderTimeAndHost(t *testing.T) {
 	builder := &Builder{Root: "/workspace/soda", runner: runner, Spec: config.DistroSpec{
 		Identity: config.IdentitySpec{Version: "0.2.0"},
 		Base:     config.BaseSpec{Platform: testArmPlatform},
-		Platform: config.PlatformSpec{ArtifactArchitecture: "aarch64"},
+		Platform: config.PlatformSpec{Architecture: config.PlatformArchitecture{Artifact: "aarch64"}},
 		Build:    config.BuildSpec{SourceDateEpoch: 1787825905},
 	}}
 	require.NoError(t, builder.rpmbuild(context.Background(), "soda-runtime"))
@@ -193,13 +193,13 @@ file = "soda-release.rpm"
 
 func TestPrepareLocalBootcBaseUsesExactDigestDerivedLocalTag(t *testing.T) {
 	runner := &recordingRunner{}
-	platform := config.PlatformSpec{BaseReference: testArmBaseReference, BaseArchive: "unused.oci.tar", BaseArchiveSHA256: strings.Repeat("a", 64)}
+	platform := config.PlatformSpec{Base: config.PlatformBase{Reference: testArmBaseReference, Archive: "unused.oci.tar", ArchiveSHA256: strings.Repeat("a", 64)}}
 	tag, err := PrepareLocalBootcBase(context.Background(), "/workspace", runner, platform)
 	require.NoError(t, err)
 	require.Equal(t, "soda-fedora-bootc:sha256-85677d47c03b2e1f8f9a3a19d838023ea154229817d579d4b4da5b87a21c9c1a", tag)
 	require.Equal(t, "docker image tag sha256:85677d47c03b2e1f8f9a3a19d838023ea154229817d579d4b4da5b87a21c9c1a "+tag, runner.Commands[0].String())
 
-	platform.BaseReference = "quay.io/fedora/fedora-bootc:44"
+	platform.Base.Reference = "quay.io/fedora/fedora-bootc:44"
 	_, err = PrepareLocalBootcBase(context.Background(), "/workspace", runner, platform)
 	require.EqualError(t, err, "local Fedora bootc base differs from the approved digest contract")
 }
@@ -233,7 +233,7 @@ func TestRuntimeCosignInputIsPinnedForLinuxAArch64(t *testing.T) {
 	tool := filepath.Join(root, ".artifacts", "tools", "cosign-linux-arm64")
 	require.NoError(t, os.MkdirAll(filepath.Dir(tool), 0o755))
 	require.NoError(t, os.WriteFile(tool, []byte("not the pinned binary"), 0o755))
-	err = (&Builder{Root: root, Spec: config.DistroSpec{Platform: config.PlatformSpec{TargetCosignArchitecture: "arm64", TargetCosignSHA256: testArmCosignSHA}}}).verifyRuntimeCosign()
+	err = (&Builder{Root: root, Spec: config.DistroSpec{Platform: config.PlatformSpec{Cosign: config.PlatformCosign{Architecture: "arm64", SHA256: testArmCosignSHA}}}}).verifyRuntimeCosign()
 	require.ErrorContains(t, err, "differs from pinned")
 }
 

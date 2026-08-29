@@ -94,25 +94,6 @@ type Options struct {
 	Architecture string
 }
 
-type platformContract struct {
-	goArchitecture, ociArchitecture, artifactArchitecture, ociPlatform string
-}
-
-func platformFor(architecture string) (platformContract, error) {
-	switch architecture {
-	case "arm64":
-		return platformContract{"arm64", "arm64", "aarch64", "linux/arm64"}, nil
-	case "amd64":
-		return platformContract{"amd64", "amd64", "x86_64", "linux/amd64"}, nil
-	default:
-		return platformContract{}, fmt.Errorf("unsupported Soda runtime architecture %q", architecture)
-	}
-}
-
-func (p platformContract) discoveryTag() string {
-	return Repository + ":current-" + p.artifactArchitecture
-}
-
 func New(options Options) (*Manager, error) {
 	if options.Runner == nil {
 		options.Runner = process.OSRunner{Stdout: os.Stdout, Stderr: os.Stderr}

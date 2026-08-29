@@ -1,19 +1,31 @@
 schema_version = 1
-architecture = "aarch64"
-oci_architecture = "arm64"
-oci_platform = "linux/arm64"
-artifact_architecture = "aarch64"
-installer_architecture = "aarch64"
-base_reference = "quay.io/fedora/fedora-bootc@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-base_archive = "distro/base/aarch64.oci.tar"
-base_archive_sha256 = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+
+[architecture]
+name = "aarch64"
+oci = "arm64"
+platform = "linux/arm64"
+artifact = "aarch64"
+installer = "aarch64"
+
+[base]
+reference = "quay.io/fedora/fedora-bootc@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+archive = "distro/base/aarch64.oci.tar"
+archive_sha256 = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 bootc_nevra = "bootc-0:1-1.fc44.aarch64"
 runtime_package_lock = "distro/locks/runtime-aarch64.toml"
-builder_base_reference = "registry.fedoraproject.org/fedora@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-builder_package_lock = "distro/locks/builder-aarch64.toml"
-target_cosign_architecture = "arm64"
-target_cosign_sha256 = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-installer_package_lock = "distro/locks/installer-aarch64.toml"
-installer_tool_lock = "distro/locks/image-builder-aarch64.toml"
-installer_iso_config = "packaging/installer/iso.yaml"
-release_channel = "aarch64"
+
+[builder]
+base_reference = "registry.fedoraproject.org/fedora@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+package_lock = "distro/locks/builder-aarch64.toml"
+
+[cosign]
+architecture = "arm64"
+sha256 = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+
+[installer]
+package_lock = "distro/locks/installer-aarch64.toml"
+tool_lock = "distro/locks/image-builder-aarch64.toml"
+iso_config = "packaging/installer/iso.yaml"
+
+[release]
+channel = "aarch64"

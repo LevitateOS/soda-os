@@ -71,9 +71,9 @@ func TestArchitectureSpecificReleaseChannelsNeverCollide(t *testing.T) {
 	for architecture, channel := range map[string]string{"aarch64": "aarch64", "x86_64": "x86_64"} {
 		t.Run(architecture, func(t *testing.T) {
 			spec := testSpec()
-			spec.Platform.Architecture = architecture
-			spec.Platform.ArtifactArchitecture = channel
-			spec.Platform.ReleaseChannel = channel
+			spec.Platform.Architecture.Name = architecture
+			spec.Platform.Architecture.Artifact = channel
+			spec.Platform.Release.Channel = channel
 			publisher := &Publisher{spec: spec}
 			require.Equal(t, Repository+":0.2.0-"+channel, publisher.versionTag())
 			require.Equal(t, Repository+":current-"+channel, publisher.discoveryTag())

@@ -45,25 +45,49 @@ type ImageSpec struct {
 }
 
 type PlatformSpec struct {
-	SchemaVersion            uint32 `toml:"schema_version"`
-	Architecture             string `toml:"architecture"`
-	OCIArchitecture          string `toml:"oci_architecture"`
-	OCIPlatform              string `toml:"oci_platform"`
-	ArtifactArchitecture     string `toml:"artifact_architecture"`
-	InstallerArchitecture    string `toml:"installer_architecture"`
-	BaseReference            string `toml:"base_reference"`
-	BaseArchive              string `toml:"base_archive"`
-	BaseArchiveSHA256        string `toml:"base_archive_sha256"`
-	BootcNEVRA               string `toml:"bootc_nevra"`
-	RuntimePackageLock       string `toml:"runtime_package_lock"`
-	BuilderBaseReference     string `toml:"builder_base_reference"`
-	BuilderPackageLock       string `toml:"builder_package_lock"`
-	TargetCosignArchitecture string `toml:"target_cosign_architecture"`
-	TargetCosignSHA256       string `toml:"target_cosign_sha256"`
-	InstallerPackageLock     string `toml:"installer_package_lock"`
-	InstallerToolLock        string `toml:"installer_tool_lock"`
-	InstallerISOConfig       string `toml:"installer_iso_config"`
-	ReleaseChannel           string `toml:"release_channel"`
+	SchemaVersion uint32               `toml:"schema_version"`
+	Architecture  PlatformArchitecture `toml:"architecture"`
+	Base          PlatformBase         `toml:"base"`
+	Builder       PlatformBuilder      `toml:"builder"`
+	Cosign        PlatformCosign       `toml:"cosign"`
+	Installer     PlatformInstaller    `toml:"installer"`
+	Release       PlatformRelease      `toml:"release"`
+}
+
+type PlatformArchitecture struct {
+	Name      string `toml:"name"`
+	OCI       string `toml:"oci"`
+	Platform  string `toml:"platform"`
+	Artifact  string `toml:"artifact"`
+	Installer string `toml:"installer"`
+}
+
+type PlatformBase struct {
+	Reference          string `toml:"reference"`
+	Archive            string `toml:"archive"`
+	ArchiveSHA256      string `toml:"archive_sha256"`
+	BootcNEVRA         string `toml:"bootc_nevra"`
+	RuntimePackageLock string `toml:"runtime_package_lock"`
+}
+
+type PlatformBuilder struct {
+	BaseReference string `toml:"base_reference"`
+	PackageLock   string `toml:"package_lock"`
+}
+
+type PlatformCosign struct {
+	Architecture string `toml:"architecture"`
+	SHA256       string `toml:"sha256"`
+}
+
+type PlatformInstaller struct {
+	PackageLock string `toml:"package_lock"`
+	ToolLock    string `toml:"tool_lock"`
+	ISOConfig   string `toml:"iso_config"`
+}
+
+type PlatformRelease struct {
+	Channel string `toml:"channel"`
 }
 
 type BuildSpec struct {
@@ -100,9 +124,9 @@ func LoadDistro(path, architecture string) (DistroSpec, error) {
 	if err := validatePlatformSpec(spec.Platform, architecture); err != nil {
 		return DistroSpec{}, err
 	}
-	spec.Identity.Architecture = spec.Platform.Architecture
-	spec.Base = BaseSpec{Reference: spec.Platform.BaseReference, Platform: spec.Platform.OCIPlatform}
-	spec.Image.PackageLock = spec.Platform.RuntimePackageLock
+	spec.Identity.Architecture = spec.Platform.Architecture.Name
+	spec.Base = BaseSpec{Reference: spec.Platform.Base.Reference, Platform: spec.Platform.Architecture.Platform}
+	spec.Image.PackageLock = spec.Platform.Base.RuntimePackageLock
 	return spec, nil
 }
 
@@ -113,13 +137,30 @@ var architectureContract = map[string]struct{ oci, artifact, installer string }{
 
 func validatePlatformSpec(spec PlatformSpec, requested string) error {
 	expected := architectureContract[requested]
-	if spec.SchemaVersion != 1 || spec.Architecture != requested || spec.OCIArchitecture != expected.oci ||
-		spec.OCIPlatform != "linux/"+expected.oci || spec.ArtifactArchitecture != expected.artifact ||
-		spec.InstallerArchitecture != expected.installer || spec.BaseReference == "" || spec.BaseArchive == "" ||
-		len(spec.BaseArchiveSHA256) != 64 || spec.BootcNEVRA == "" || spec.RuntimePackageLock == "" ||
-		spec.BuilderBaseReference == "" || spec.BuilderPackageLock == "" || spec.TargetCosignArchitecture != expected.oci || len(spec.TargetCosignSHA256) != 64 ||
-		spec.InstallerPackageLock == "" || spec.InstallerToolLock == "" || spec.InstallerISOConfig == "" || spec.ReleaseChannel != expected.artifact {
+	if spec.SchemaVersion != 1 || !validPlatformArchitecture(spec.Architecture, requested, expected) ||
+		!validPlatformBase(spec.Base) || !validPlatformBuild(spec.Builder, spec.Cosign, expected.oci) ||
+		!validPlatformInstaller(spec.Installer, spec.Release, expected.artifact) {
 		return fmt.Errorf("platform specification for %s differs from the Soda architecture contract", requested)
 	}
 	return nil
+}
+
+func validPlatformArchitecture(spec PlatformArchitecture, requested string, expected struct{ oci, artifact, installer string }) bool {
+	return spec.Name == requested && spec.OCI == expected.oci && spec.Platform == "linux/"+expected.oci &&
+		spec.Artifact == expected.artifact && spec.Installer == expected.installer
+}
+
+func validPlatformBase(spec PlatformBase) bool {
+	return spec.Reference != "" && spec.Archive != "" && len(spec.ArchiveSHA256) == 64 &&
+		spec.BootcNEVRA != "" && spec.RuntimePackageLock != ""
+}
+
+func validPlatformBuild(builder PlatformBuilder, cosign PlatformCosign, ociArchitecture string) bool {
+	return builder.BaseReference != "" && builder.PackageLock != "" &&
+		cosign.Architecture == ociArchitecture && len(cosign.SHA256) == 64
+}
+
+func validPlatformInstaller(installer PlatformInstaller, release PlatformRelease, artifactArchitecture string) bool {
+	return installer.PackageLock != "" && installer.ToolLock != "" && installer.ISOConfig != "" &&
+		release.Channel == artifactArchitecture
 }
