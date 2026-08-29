@@ -45,10 +45,10 @@ The OS update RPCs are administrative operations exposed only through the
 privileged local daemon socket. Cockpit must additionally require a Soda
 administrator session before calling them.
 
-`CheckOSUpdate` resolves the signed paired release index once and returns an
-exact `ghcr.io/levitateos/soda-os@sha256:...` identity only after signature,
-`linux/arm64`, and state-schema-3 verification. `StageOSUpdate` accepts only an
-exact Soda repository digest and independently repeats those checks before a
+`CheckOSUpdate` resolves the paired release index once and returns an exact
+`ghcr.io/levitateos/soda-os@sha256:...` identity only after platform, image
+metadata, and state-schema-3 validation. `StageOSUpdate` accepts only an exact
+Soda repository digest and independently repeats those checks before a
 download-only bootc switch. `GetOSUpdateStatus` projects the booted and staged
 deployments directly from `bootc status`; Soda does not persist a second
 deployment record. `ActivateOSUpdate` requires `confirm_reboot = true` and is

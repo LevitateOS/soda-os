@@ -14,7 +14,7 @@ Fedora RPM added to its pinned base and for the three locally built Soda RPM
 inputs. The Soda RPMs are build inputs only; no mutable Soda RPM repository is
 created or embedded. Weak dependencies are disabled.
 
-During `just oci ARCH ...`, the Go builder:
+During `just oci ARCH`, the Go builder:
 
 1. validates the immutable base, platform, registry, state schema, and package
    lock;
@@ -32,32 +32,15 @@ OCI labels record the Soda version, Git revision, creation time, pinned base,
 and runtime state schema. BuildKit rewrites image timestamps to the configured
 source-date epoch and omits provenance attestations from this local artifact.
 
-## Release identity and installer media
+## Local installer media
 
-Soda has one public release repository:
-`ghcr.io/levitateos/soda-os`. It carries equal AArch64 (`linux/arm64`) and
-x86-64 (`linux/amd64`) images as separate single-platform releases. Installation
-and update use an exact digest, never a mutable tag. Discovery comes from one
-signed paired release index containing `aarch64` and `x86_64`. Release records
-and artifacts likewise include `aarch64` or `x86_64` in their names so sibling
-releases cannot overwrite one another. The Soda Cosign public key and GitHub
-index locations are explicit build inputs embedded in both runtime images. The
-release administrator holds
-the sole passphrase-protected Cosign private key outside the repository and
-images.
-
-The initial-install happy path is deliberately two-step:
-
-1. `soda-image publish --prepare-only` pushes the versioned runtime image,
-   resolves its canonical registry digest, signs and verifies that exact digest,
-   and prints the reference for the installer. It writes no release record.
-2. `soda-image --architecture ARCH iso --image
-   ghcr.io/levitateos/soda-os@sha256:...` verifies the signed payload and
-   platform match, embeds that exact digest in the matching
-   `bootc-generic-iso`, uses ext4, and writes the ISO checksum. A final
-   architecture-selected `soda-image publish --iso ...` independently checks
-   the ISO and signs the architecture-named release record. `soda-release`
-   then publishes both signed sibling artifacts in one GitHub Release.
+Each architecture produces a separate single-platform OCI archive. Run
+`just iso ARCH ARCHIVE` to validate that archive contains exactly one matching
+`linux/arm64` or `linux/amd64` manifest, derive its exact manifest digest, and
+embed it in the matching `bootc-generic-iso`. This path is entirely local: it
+does not push to GHCR, access GHCR, use Cosign, require signing credentials, or
+verify a signature. The ISO and checksum are architecture-named so sibling
+artifacts cannot overwrite one another.
 
 The installer is for fresh installation only. It uses stock interactive
 Anaconda text mode with DHCP, a default hostname of `soda`, and the normal
@@ -76,12 +59,10 @@ creates that parent only through `tmpfiles.d` on first boot, which is too late
 for Anaconda to create `/home/<administrator>` through the image-owned
 `/home -> var/home` compatibility symlink.
 
-The ISO embeds the exact signed image digest in local container storage. Fedora
-44's `bootc` Kickstart command accepts exact source and target image references
-but does not expose bootc's runtime signature-policy flag, so installer trust is
-established before installation by the signed ISO-bound release record and ISO
-checksum. Installed-system updates independently enforce the embedded public-key
-signature policy.
+The ISO embeds the local OCI payload under its exact digest in container
+storage. Fedora 44's `bootc` Kickstart command installs from that ISO-local
+`containers-storage:` reference, so installation does not require registry
+access.
 
 ## Persistent host state
 
@@ -98,15 +79,14 @@ keys, `/etc/soda/authorized_keys`, and `/var/log/soda` are likewise host state.
 The runtime masks Fedora's automatic bootc update timer. An administrator uses
 `sodactl os update status`, `check`, `stage`, and
 `activate --confirm-reboot`. Checking resolves the installed sibling's
-architecture-specific `current` tag once and verifies the Cosign signature
-before inspecting immutable release metadata. It accepts only the Soda
-repository, the installed platform, and state schema 3. Staging calls bootc with
-the exact `@sha256:` reference and download-only signature enforcement, so it
+release-index entry once and inspects the immutable image metadata. It accepts
+only an exact Soda repository digest, the installed platform, and state schema
+3. Staging calls bootc with the exact `@sha256:` reference and download-only, so it
 does not restart Soda services or change the running deployment. Activation
 uses the already-downloaded deployment and requires the explicit reboot
 confirmation. There is no background polling, download, activation, or reboot.
 
-The signed release record binds Soda version and source revision, the Fedora
+The optional local release record binds Soda version and source revision, the Fedora
 base reference, exact Soda image reference, platform, state schema, RPM
 inventory checksum, and the installer ISO checksum when an ISO is produced.
 The state schema remains 2 for this MVP; cross-schema state rollback is not

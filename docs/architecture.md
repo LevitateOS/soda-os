@@ -68,12 +68,11 @@ base, OCI identity, package and tool locks, installer/UEFI inputs, artifact
 names, and test harness that genuinely differ. Neither
 platform is a default, compatibility path, or experimental target.
 
-Each sibling publishes a single-platform exact-digest release. One signed
-paired release index names both sibling images and their architecture-specific
-ISO and record assets, so publication cannot advance one architecture alone.
-Both use the same Cosign trust contract, non-disruptive staging, explicit
-reboot activation, rollback visibility, persistent-state policy, and equivalent
-acceptance gates.
+Each sibling produces a single-platform exact-digest artifact. One paired
+release index names both sibling images and their architecture-specific ISO and
+record assets, so publication cannot advance one architecture alone. Both use
+the same non-disruptive staging, explicit reboot activation, rollback
+visibility, persistent-state policy, and equivalent acceptance gates.
 
 Soda-created Linux users and their PAM passwords remain system account state;
 SSH host keys remain under `/etc/ssh`; and per-project forced-command key files

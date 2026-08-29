@@ -18,7 +18,7 @@ base, kernel, userspace, RPM/DNF, systemd, SELinux, and SSH.
 - `cockpit`: Cockpit and PAM executables, daemon client, and HTTP presentation
 - `internal`: runtime control plus the artifact pipeline under `internal/build`
 - `distro`: Soda identity, profiles, distribution locks, and Fedora base metadata
-- `packaging`: bootc trust and RPM inputs grouped by shipped package
+- `packaging`: bootc and RPM inputs grouped by shipped package
 - `assets`: canonical Soda branding sources and rendered assets
 - `docs`: architecture, artifact, branding, and release operations
 - `tests/acceptance`: blank-disk bootc acceptance scenario and runner
@@ -30,27 +30,26 @@ base, kernel, userspace, RPM/DNF, systemd, SELinux, and SSH.
 just check
 ARCH=x86_64 # or aarch64
 just rpm "$ARCH"
-just oci "$ARCH" /path/to/cosign.pub
+just oci "$ARCH"
+just iso "$ARCH" ".artifacts/images/soda-os-0.3.1-${ARCH}.oci.tar"
 ```
 
 Build artifacts are written under `.artifacts/` and are never committed.
 `just rpm` builds exactly the three locked local Soda RPM inputs. `just oci`
 builds those RPMs and emits
 `.artifacts/images/soda-os-0.3.1-${ARCH}.oci.tar` without loading or publishing
-the image. Architecture selection is always explicit; neither sibling is a
-default or fallback. The build requires the public half of Soda's Cosign key,
-which becomes an image input; a private key is never an image input.
+the image. `just iso` derives the exact image digest from that local archive and
+embeds it in a platform-matched installer without a registry, signing key, or
+network publication step. Architecture selection is always explicit; neither
+sibling is a default or fallback.
 The package lock pins every Fedora package added to the immutable base, and the
 finished image contains a complete RPM inventory plus its verified SHA-256
 checksum.
 
-Soda publishes signed versioned images to `ghcr.io/levitateos/soda-os`. Each
-architecture first pushes, resolves, signs, and verifies its exact `@sha256:`
-reference, then builds and independently validates its matching ISO. A
-designated release owner supplies both signed architecture records and ISOs to
-`soda-release`, which creates one paired GitHub Release only after all assets
-have been uploaded and byte-verified. The signed release index is the sole
-update-discovery contract; there are no mutable registry discovery tags. See the
+Local development does not publish or sign images. Optional release metadata
+records preserve the exact local archive digest, image labels, RPM inventory,
+and ISO checksum. The paired GitHub publisher can distribute completed sibling
+artifacts, but it does not participate in local OCI or ISO construction. See the
 [release and operator runbook](docs/release-operations.md) for the exact
 commands and [runtime image and installer contract](docs/installer.md) for the
 artifact boundary.
@@ -75,9 +74,9 @@ sudo sodactl os update stage
 sudo sodactl os update activate --confirm-reboot
 ```
 
-Checking resolves the installed sibling's architecture-specific discovery tag
-once, verifies its signature and platform, and records only the exact digest.
-Staging downloads that exact signed digest without changing the running
+Checking resolves the installed sibling's release-index entry once, validates
+its exact digest, platform, and image metadata, and records only that digest.
+Staging downloads that exact digest without changing the running
 deployment. Activation is the separate, explicit maintenance-reboot action.
 Soda neither polls, downloads, activates, nor reboots automatically.
 

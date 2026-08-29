@@ -3,7 +3,7 @@
 This scenario covers Soda OS 0.3.1 on Fedora 44 bootc for the equal AArch64 and
 x86-64 sibling architectures. Run it independently for each architecture;
 evidence from one does not satisfy the other's gate. Generated images, package
-inventories, RPMs, keys, credentials, logs, databases, and ephemeral registry
+inventories, RPMs, credentials, logs, databases, and ephemeral registry
 state stay under ignored artifact paths.
 
 1. Run `just check`; require each selected sibling's exact Fedora bootc digest,
@@ -12,23 +12,21 @@ state stay under ignored artifact paths.
 2. Run `just rpm ARCH`; require exactly the selected platform's locked
    `soda-release`, `soda-runtime`, `soda-cockpit`, and `soda-forgejo` RPM inputs plus their
    recorded hashes.
-3. Run `just oci ARCH COSIGN_PUBLIC_KEY`; require an OCI archive at
+3. Run `just oci ARCH`; require an OCI archive at
    `.artifacts/images/soda-os-0.3.1-ARCH.oci.tar` and no registry push.
 4. Require the build to verify all locked Fedora and Soda NEVRAs, fixed UID/GID
    976, enabled SSH/Soda/Avahi services, enabled persistent-state mounts, the
    masked `bootc-fetch-apply-updates.timer`, the embedded GitHub release index
-   location and Cosign public key, and the installed RPM inventory checksum.
-5. Publish each OCI archive to GHCR with `soda-image publish --prepare-only`.
-   Require a signed, verified exact `ghcr.io/levitateos/soda-os@sha256:...`
-   payload and no release record.
-6. Build the architecture-selected `soda-image iso` from that exact signed
-   digest. Require a platform-matched `bootc-generic-iso`, ext4, ISO SHA-256
-   sidecar, and an embedded payload matching the exact digest.
-7. Run the final `soda-image publish --iso ISO_PATH ...`. Require its signed
-   architecture-named release record to agree with the OCI labels and ISO
-   checksum. Require `soda-release` to publish both verified sibling artifacts
-   and one signed release index in a single GitHub Release.
-8. On the selected platform's UEFI, complete the stock interactive Anaconda
+   location, and the installed RPM inventory checksum.
+5. Build the architecture-selected `soda-image iso` directly from the local
+   OCI archive. Require a platform-matched `bootc-generic-iso`, ext4, an ISO
+   SHA-256 sidecar, and an embedded payload matching the archive's exact digest.
+   This step must not require a registry, network access, or signing credentials.
+6. Optionally run `soda-image record --archive ... --iso ...`. Require its
+   architecture-named local record to agree with the OCI labels and ISO
+   checksum. If distributing a paired build, require `soda-release` to publish
+   both sibling artifacts and one release index in a single GitHub Release.
+7. On the selected platform's UEFI, complete the stock interactive Anaconda
    fresh-install flow.
    Require `bootc status` to report the ISO's exact digest, persistent schema-3
    Soda state, PAM users, Cockpit certificates, SSH host/device keys, direct
@@ -38,13 +36,13 @@ state stay under ignored artifact paths.
    key and the Soda members' registered SSH keys. Create a second project through
    “Connect an existing Git repository” and prove the original external-remote
    behavior remains intact.
-9. Publish a distinct signed runtime digest. While a direct SSH workload stays
+8. Publish a distinct runtime digest. While a direct SSH workload stays
    active, require `sodactl os update check` and `stage` to leave the running
    deployment and services unchanged. Require an ordinary reboot before
    activation to retain the booted digest; require
    `sodactl os update activate --confirm-reboot` to boot the staged digest and
    preserve all host state.
-10. Run `go test ./...` and `go vet ./...` with a writable Go build cache.
+9. Run `go test ./...` and `go vet ./...` with a writable Go build cache.
 
 The gate excludes Rocky conversion, automatic updates or reboot, alternate
 registries or channels, and database schema changes.
