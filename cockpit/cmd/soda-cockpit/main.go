@@ -4,6 +4,7 @@ import (
 	"log"
 	"os"
 
+	"github.com/LevitateOS/soda-os/cockpit/internal/appliance"
 	"github.com/LevitateOS/soda-os/cockpit/internal/auth"
 	"github.com/LevitateOS/soda-os/cockpit/internal/cert"
 	"github.com/LevitateOS/soda-os/cockpit/internal/daemonclient"
@@ -17,7 +18,15 @@ func main() {
 	socket := envOr("SODA_SOCKET", "/run/soda/sodad.sock")
 	pamSocket := envOr("SODA_PAM_SOCKET", "/run/soda/pam.sock")
 
-	if err := cert.Ensure(certFile, keyFile); err != nil {
+	hostname, err := os.Hostname()
+	if err != nil {
+		log.Fatalf("read installed hostname: %v", err)
+	}
+	identity, err := appliance.FromHostname(hostname)
+	if err != nil {
+		log.Fatalf("resolve appliance address: %v", err)
+	}
+	if err := cert.Ensure(certFile, keyFile, identity); err != nil {
 		log.Fatal(err)
 	}
 	api, err := daemonclient.NewClient(socket)
@@ -25,7 +34,7 @@ func main() {
 		log.Fatal(err)
 	}
 	defer api.Close()
-	app, err := web.New(api, api, api, api, auth.NewClient(pamSocket))
+	app, err := web.New(web.Ports{Accounts: api, Projects: api, Host: api, Updates: api}, auth.NewClient(pamSocket), identity.Address)
 	if err != nil {
 		log.Fatal(err)
 	}

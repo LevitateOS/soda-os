@@ -13,9 +13,11 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+
+	"github.com/LevitateOS/soda-os/cockpit/internal/appliance"
 )
 
-func Ensure(certPath, keyPath string) error {
+func Ensure(certPath, keyPath string, identity appliance.Identity) error {
 	if fileExists(certPath) && fileExists(keyPath) {
 		return nil
 	}
@@ -33,12 +35,12 @@ func Ensure(certPath, keyPath string) error {
 	now := time.Now()
 	template := &x509.Certificate{
 		SerialNumber: serial,
-		Subject:      pkix.Name{CommonName: "soda.local", Organization: []string{"Soda OS"}},
+		Subject:      pkix.Name{CommonName: identity.Address, Organization: []string{"Soda OS"}},
 		NotBefore:    now.Add(-time.Hour),
 		NotAfter:     now.AddDate(2, 0, 0),
 		KeyUsage:     x509.KeyUsageDigitalSignature,
 		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
-		DNSNames:     []string{"soda.local", "soda"},
+		DNSNames:     []string{identity.Address, identity.Label},
 		IPAddresses:  []net.IP{net.ParseIP("127.0.0.1"), net.ParseIP("::1")},
 	}
 	der, err := x509.CreateCertificate(rand.Reader, template, template, &key.PublicKey, key)

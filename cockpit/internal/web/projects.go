@@ -181,7 +181,7 @@ func (s *Server) addConnectionKeys(ctx context.Context, data *connectView, workt
 		data.Error = "Connection details are temporarily unavailable."
 		return
 	}
-	if err := populateConnectData(data, worktrees, keys, ""); err != nil {
+	if err := populateConnectData(data, worktrees, keys, "", s.address); err != nil {
 		data.Error = "Connection details are temporarily unavailable."
 	}
 }
@@ -201,10 +201,10 @@ func (s *Server) loadConnectData(ctx context.Context, data *connectView, selecte
 	}
 	state, class := projectState(jobs)
 	data.State = projectStateView{Label: state, Class: class, Ready: class == "ready"}
-	return populateConnectData(data, worktrees, keys, selectedKeyID)
+	return populateConnectData(data, worktrees, keys, selectedKeyID, s.address)
 }
 
-func populateConnectData(data *connectView, worktrees []daemonclient.Worktree, keys []daemonclient.SSHDeviceKey, selectedKeyID string) error {
+func populateConnectData(data *connectView, worktrees []daemonclient.Worktree, keys []daemonclient.SSHDeviceKey, selectedKeyID, address string) error {
 	data.DeviceKeys = keys
 	data.Workspace = nil
 	for i := range worktrees {
@@ -220,8 +220,8 @@ func populateConnectData(data *connectView, worktrees []daemonclient.Worktree, k
 	}
 	data.SelectedKey = key
 	if data.State.Ready && data.Workspace != nil && data.SelectedKey != nil {
-		data.SSHConfig = personalizedSSHConfig(data.Project, *data.SelectedKey)
-		data.SSHCommand = personalizedSSHCommand(data.Project, *data.SelectedKey)
+		data.SSHConfig = personalizedSSHConfig(data.Project, *data.SelectedKey, address)
+		data.SSHCommand = personalizedSSHCommand(data.Project, *data.SelectedKey, address)
 	}
 	return nil
 }

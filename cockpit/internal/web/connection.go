@@ -7,12 +7,12 @@ import (
 	"github.com/LevitateOS/soda-os/cockpit/internal/daemonclient"
 )
 
-func personalizedSSHConfig(project daemonclient.Project, key daemonclient.SSHDeviceKey) string {
-	return fmt.Sprintf("Host soda-%s\n    HostName soda.local\n    User %s\n    IdentityFile %s\n    IdentitiesOnly yes\n", project.Slug, project.UnixUser, sshConfigValue(key.IdentityFileHint))
+func personalizedSSHConfig(project daemonclient.Project, key daemonclient.SSHDeviceKey, address string) string {
+	return fmt.Sprintf("Host soda-%s\n    HostName %s\n    User %s\n    IdentityFile %s\n    IdentitiesOnly yes\n", project.Slug, address, project.UnixUser, sshConfigValue(key.IdentityFileHint))
 }
 
-func personalizedSSHCommand(project daemonclient.Project, key daemonclient.SSHDeviceKey) string {
-	return fmt.Sprintf("ssh -i %s %s@soda.local", shellPath(key.IdentityFileHint), project.UnixUser)
+func personalizedSSHCommand(project daemonclient.Project, key daemonclient.SSHDeviceKey, address string) string {
+	return fmt.Sprintf("ssh -i %s %s@%s", shellPath(key.IdentityFileHint), project.UnixUser, address)
 }
 
 func sshConfigValue(value string) string {

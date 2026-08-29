@@ -15,7 +15,7 @@
   {{if .HostError}}<p class="error" role="alert">{{.HostError}}</p>{{else if .Host}}
   <dl class="summary">
     <div><dt>Status</dt><dd><span class="state state-{{.Host.Health.Overall}}">{{.Host.Health.Overall}}</span></dd></div>
-    <div><dt>Address</dt><dd><code>https://soda.local:9090</code></dd></div>
+    <div><dt>Address</dt><dd><code>https://{{.Address}}:9090</code></dd></div>
     <div><dt>Signed in</dt><dd>{{.User.DisplayName}} · {{.User.Role}}</dd></div>
     <div><dt>CPU</dt><dd>{{if .Host.Resources.CPUPercent}}{{printf "%.1f%%" .Host.Resources.CPUPercent}}{{else}}sampling…{{end}}</dd></div>
     <div><dt>Load</dt><dd>{{printf "%.2f · %.2f · %.2f" (index .Host.Resources.LoadAverage 0) (index .Host.Resources.LoadAverage 1) (index .Host.Resources.LoadAverage 2)}}</dd></div>

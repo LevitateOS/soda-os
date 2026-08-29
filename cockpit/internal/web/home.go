@@ -11,6 +11,7 @@ type homeView struct {
 	projectListView
 	Host      *daemonclient.HostStatus
 	HostError string
+	Address   string
 }
 
 func (s *Server) home(w http.ResponseWriter, r *http.Request) {
@@ -20,7 +21,7 @@ func (s *Server) home(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "load projects", http.StatusBadGateway)
 		return
 	}
-	data := homeView{pageIdentity: pageIdentity{Title: "Soda OS", User: user}}
+	data := homeView{pageIdentity: pageIdentity{Title: "Soda OS", User: user}, Address: s.address}
 	data.ProjectCards, err = s.projectCards(r.Context(), projects)
 	if err != nil {
 		data.ProjectsError = "Projects are temporarily unavailable."

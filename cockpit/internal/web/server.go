@@ -26,6 +26,14 @@ type Server struct {
 	updates    updatePort
 	auth       auth.Authenticator
 	sessions   *sessionStore
+	address    string
+}
+
+type Ports struct {
+	Accounts accountPort
+	Projects projectPort
+	Host     hostPort
+	Updates  updatePort
 }
 
 type accountPort interface {
@@ -67,7 +75,7 @@ type pageIdentity struct {
 
 func (view pageIdentity) Admin() bool { return view.User.Role == daemonclient.RoleAdmin }
 
-func New(accounts accountPort, projects projectPort, host hostPort, updates updatePort, authenticator auth.Authenticator) (*Server, error) {
+func New(ports Ports, authenticator auth.Authenticator, address string) (*Server, error) {
 	templates, err := template.New("root").Funcs(template.FuncMap{
 		"bytes":    humanBytes,
 		"duration": humanDuration,
@@ -86,12 +94,13 @@ func New(accounts accountPort, projects projectPort, host hostPort, updates upda
 	return &Server{
 		templates:  templates,
 		assets:     http.FileServer(http.FS(assetsFS)),
-		accounts:   accounts,
-		projectAPI: projects,
-		host:       host,
-		updates:    updates,
+		accounts:   ports.Accounts,
+		projectAPI: ports.Projects,
+		host:       ports.Host,
+		updates:    ports.Updates,
 		auth:       authenticator,
 		sessions:   &sessionStore{byToken: make(map[string]daemonclient.Person)},
+		address:    address,
 	}, nil
 }
 
