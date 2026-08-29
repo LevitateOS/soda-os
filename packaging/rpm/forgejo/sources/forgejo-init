@@ -4,22 +4,26 @@ set -eu
 template=/usr/share/soda/forgejo/app.ini.tmpl
 target=/etc/forgejo/app.ini
 
-if [ -e "$target" ]; then
-  exit 0
+install -d -m 0750 -o root -g git /etc/forgejo
+if [ ! -e "$target" ]; then
+  umask 077
+  internal_token=$(forgejo generate secret INTERNAL_TOKEN)
+  jwt_secret=$(forgejo generate secret JWT_SECRET)
+  lfs_jwt_secret=$(forgejo generate secret LFS_JWT_SECRET)
+  secret_key=$(forgejo generate secret SECRET_KEY)
+  sed \
+    -e "s/@INTERNAL_TOKEN@/${internal_token}/g" \
+    -e "s/@JWT_SECRET@/${jwt_secret}/g" \
+    -e "s/@LFS_JWT_SECRET@/${lfs_jwt_secret}/g" \
+    -e "s/@SECRET_KEY@/${secret_key}/g" \
+    "$template" > "$target.tmp"
+  chown root:git "$target.tmp"
+  chmod 0640 "$target.tmp"
+  mv "$target.tmp" "$target"
 fi
 
-install -d -m 0750 -o root -g forgejo /etc/forgejo
-umask 077
-internal_token=$(forgejo generate secret INTERNAL_TOKEN)
-jwt_secret=$(forgejo generate secret JWT_SECRET)
-lfs_jwt_secret=$(forgejo generate secret LFS_JWT_SECRET)
-secret_key=$(forgejo generate secret SECRET_KEY)
-sed \
-  -e "s/@INTERNAL_TOKEN@/${internal_token}/g" \
-  -e "s/@JWT_SECRET@/${jwt_secret}/g" \
-  -e "s/@LFS_JWT_SECRET@/${lfs_jwt_secret}/g" \
-  -e "s/@SECRET_KEY@/${secret_key}/g" \
-  "$template" > "$target.tmp"
-chown root:forgejo "$target.tmp"
-chmod 0640 "$target.tmp"
-mv "$target.tmp" "$target"
+runuser --user git -- forgejo migrate --config "$target"
+if ! runuser --user git -- forgejo admin auth list --config "$target" | grep -F 'Soda OS' >/dev/null; then
+  runuser --user git -- forgejo admin auth add-pam --config "$target" \
+    --name 'Soda OS' --service-name soda-forgejo --active
+fi

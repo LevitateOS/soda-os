@@ -1,6 +1,6 @@
 APP_NAME = Built-in Git
 RUN_MODE = prod
-RUN_USER = forgejo
+RUN_USER = git
 WORK_PATH = /var/lib/forgejo
 
 [database]
@@ -17,6 +17,11 @@ HTTP_ADDR = 127.0.0.1
 HTTP_PORT = 3000
 ROOT_URL = http://127.0.0.1:3000/
 START_SSH_SERVER = false
+SSH_USER = git
+SSH_DOMAIN = localhost
+SSH_PORT = 22
+SSH_ROOT_PATH = /var/lib/forgejo/.ssh
+SSH_CREATE_AUTHORIZED_KEYS_FILE = true
 LFS_START_SERVER = false
 
 [service]

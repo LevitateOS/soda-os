@@ -5,10 +5,10 @@ After=forgejo-init.service network.target
 
 [Service]
 Type=notify
-User=forgejo
-Group=forgejo
+User=git
+Group=git
 WorkingDirectory=/var/lib/forgejo
-Environment=HOME=/var/lib/forgejo USER=forgejo FORGEJO_WORK_DIR=/var/lib/forgejo
+Environment=HOME=/var/lib/forgejo USER=git FORGEJO_WORK_DIR=/var/lib/forgejo
 ExecStart=/usr/bin/forgejo web --config /etc/forgejo/app.ini
 Restart=on-failure
 RestartSec=2s

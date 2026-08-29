@@ -1,6 +1,6 @@
 [Unit]
 Description=Initialize Soda OS built-in Git service
-ConditionPathExists=!/etc/forgejo/app.ini
+After=systemd-sysusers.service systemd-tmpfiles-setup.service
 
 [Service]
 Type=oneshot

@@ -164,6 +164,7 @@ func (b *Builder) stageRPMSources(build, sources string) error {
 		{b.path("packaging/rpm/forgejo/sources/app.ini.tmpl"), filepath.Join(sources, "forgejo-app.ini.tmpl")},
 		{b.path("packaging/rpm/forgejo/sources/sysusers/forgejo.conf"), filepath.Join(sources, "forgejo.sysusers")},
 		{b.path("packaging/rpm/forgejo/sources/tmpfiles/forgejo.conf"), filepath.Join(sources, "forgejo.tmpfiles")},
+		{b.path("packaging/rpm/forgejo/sources/pam/soda-forgejo"), filepath.Join(sources, "soda-forgejo.pam")},
 		{b.path("packaging/rpm/release/sources/BASE_SYSTEM.md"), filepath.Join(sources, "BASE_SYSTEM.md")},
 		{b.path("assets/branding/source/soda-symbol.svg"), filepath.Join(sources, "soda-symbol.svg")},
 	}

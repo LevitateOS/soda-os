@@ -101,7 +101,7 @@ func (s *SystemHostSampler) SampleHost(ctx context.Context) (domain.HostStatus, 
 
 func (s *SystemHostSampler) sampleServices(ctx context.Context) []domain.ServiceStatus {
 	services := []domain.ServiceStatus{{Name: "sodad", State: domain.RuntimeReady}}
-	for _, name := range []string{"soda-authd", "soda-cockpit", "sshd", "avahi-daemon", "NetworkManager", "firewalld"} {
+	for _, name := range []string{"soda-authd", "soda-cockpit", "forgejo", "sshd", "avahi-daemon", "NetworkManager", "firewalld"} {
 		services = append(services, domain.ServiceStatus{Name: name, State: serviceState(ctx, s.Commands, name)})
 	}
 	return services

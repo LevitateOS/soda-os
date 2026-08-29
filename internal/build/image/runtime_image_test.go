@@ -16,9 +16,9 @@ func TestRuntimeImageBootcContainerContract(t *testing.T) {
 	require.True(t, strings.HasPrefix(containerfile, "FROM fedora-base\n"))
 	for _, expected := range []string{
 		"ARG FEDORA_BASE_REFERENCE", "org.opencontainers.image.base.name=\"${FEDORA_BASE_REFERENCE}\"", "systemd-sysusers /usr/lib/sysusers.d/soda.conf", "install -d -m 0755 /opt/soda/toolchains",
-		"systemctl enable sshd.service sodad.service soda-authd.service soda-cockpit.service avahi-daemon.service var-srv-soda-projects.mount opt-soda-toolchains.mount",
+		"systemctl enable sshd.service sodad.service soda-authd.service soda-cockpit.service forgejo.service avahi-daemon.service var-srv-soda-projects.mount opt-soda-toolchains.mount",
 		"COPY .artifacts/rpms/soda-forgejo-*.rpm /var/tmp/soda-rpms/",
-		"getent passwd forgejo",
+		"getent passwd git",
 		"systemctl mask bootc-fetch-apply-updates.timer", "cp -f /usr/lib/soda/os-release /etc/os-release",
 		"cp -f /usr/lib/soda/os-release /usr/lib/os-release", "cp -f /usr/lib/soda/issue /etc/issue",
 		"cp -f /usr/lib/soda/issue /etc/issue.net", "cp -f /usr/lib/soda/system-release /etc/system-release",
@@ -26,7 +26,7 @@ func TestRuntimeImageBootcContainerContract(t *testing.T) {
 		"semanage fcontext -a -e /home /var/lib/soda/projects", "semanage fcontext -a -e /opt /var/lib/soda/toolchains",
 		"semanage fcontext -a -e /home /var/srv/soda/projects", "semanage fcontext -a -e /opt /opt/soda/toolchains",
 		"semanage fcontext -a -t var_log_t '/var/log/soda(/.*)?'", "semanage fcontext -a -t ssh_home_t '/etc/soda/authorized_keys(/.*)?'",
-		"restorecon -RF /etc/soda/authorized_keys /opt/soda/toolchains", "ssh-keygen -q -t ed25519 -N '' -f /run/soda-sshd-hostkey",
+		"semanage fcontext -a -t ssh_home_t '/var/lib/forgejo/.ssh(/.*)?'", "restorecon -RF /etc/soda/authorized_keys /var/lib/forgejo/.ssh /opt/soda/toolchains", "ssh-keygen -q -t ed25519 -N '' -f /run/soda-sshd-hostkey",
 		"/usr/sbin/sshd -t -h /run/soda-sshd-hostkey", "rm -f /run/soda-sshd-hostkey /run/soda-sshd-hostkey.pub",
 		"--enablerepo=updates-testing", `test "$(rpm -q --qf '%{NAME}-%{EPOCHNUM}:%{VERSION}-%{RELEASE}.%{ARCH}' bootc)" = "${BOOTC_NEVRA}"`,
 		"rpm -q skopeo", "/usr/libexec/soda/cosign version | grep -F 'GitVersion:    v3.1.2'",
@@ -65,6 +65,7 @@ func TestRuntimeImageRPMStagingAndPackageContract(t *testing.T) {
 	require.Contains(t, string(staging), `b.path("packaging/rpm/runtime/sources/systemd/soda-state-directories.service"), filepath.Join(sources, "soda-state-directories.service")`)
 	require.Contains(t, string(staging), `b.path("packaging/rpm/runtime/sources/systemd/var-srv-soda-projects.mount"), filepath.Join(sources, "var-srv-soda-projects.mount")`)
 	require.Contains(t, string(staging), `b.path("packaging/rpm/forgejo/sources/systemd/forgejo.service"), filepath.Join(sources, "forgejo.service")`)
+	require.Contains(t, string(staging), `b.path("packaging/rpm/forgejo/sources/pam/soda-forgejo"), filepath.Join(sources, "soda-forgejo.pam")`)
 	require.NotContains(t, string(staging), "00-soda-var-srv.conf")
 
 	runtimeSpec, err := os.ReadFile(filepath.Join("..", "..", "..", "packaging", "rpm", "runtime", "soda-runtime.spec"))
@@ -85,10 +86,11 @@ func TestForgejoPackagingContract(t *testing.T) {
 	require.Contains(t, string(spec), "Version:        15.0.7")
 	require.Contains(t, string(spec), "Pinned PAM-enabled Forgejo runtime")
 	require.Contains(t, string(spec), "%{_unitdir}/forgejo.service")
+	require.Contains(t, string(spec), "%{_sysconfdir}/pam.d/soda-forgejo")
 
 	unit, err := os.ReadFile(filepath.Join(forgejoRoot, "sources", "systemd", "forgejo.service"))
 	require.NoError(t, err)
-	require.Contains(t, string(unit), "User=forgejo")
+	require.Contains(t, string(unit), "User=git")
 	require.Contains(t, string(unit), "ExecStart=/usr/bin/forgejo web --config /etc/forgejo/app.ini")
 	require.Contains(t, string(unit), "ReadWritePaths=/var/lib/forgejo")
 
@@ -98,6 +100,13 @@ func TestForgejoPackagingContract(t *testing.T) {
 	require.Contains(t, string(configuration), "START_SSH_SERVER = false")
 	require.Contains(t, string(configuration), "DISABLE_REGISTRATION = true")
 	require.Contains(t, string(configuration), "ENABLED = false")
+	require.Contains(t, string(configuration), "SSH_USER = git")
+	require.Contains(t, string(configuration), "SSH_CREATE_AUTHORIZED_KEYS_FILE = true")
+
+	initialization, err := os.ReadFile(filepath.Join(forgejoRoot, "sources", "forgejo-init"))
+	require.NoError(t, err)
+	require.Contains(t, string(initialization), "forgejo admin auth add-pam")
+	require.Contains(t, string(initialization), "--service-name soda-forgejo")
 
 	sourceLock, err := os.ReadFile(filepath.Join(root, "distro", "locks", "forgejo-source.toml"))
 	require.NoError(t, err)
@@ -118,7 +127,7 @@ func TestRuntimeImageSystemdMountAndLoggingContract(t *testing.T) {
 	for _, unit := range []string{"sshd.service", "sodad.service", "soda-authd.service", "soda-cockpit.service", "avahi-daemon.service", "var-srv-soda-projects.mount", "opt-soda-toolchains.mount"} {
 		require.True(t, strings.Contains(string(preset), "enable "+unit))
 	}
-	require.NotContains(t, string(preset), "forgejo.service")
+	require.Contains(t, string(preset), "enable forgejo.service")
 
 	projectMount, err := os.ReadFile(filepath.Join(runtimeSources, "systemd", "var-srv-soda-projects.mount"))
 	require.NoError(t, err)
