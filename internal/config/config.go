@@ -15,14 +15,21 @@ const (
 )
 
 type DistroSpec struct {
-	SchemaVersion uint32       `toml:"schema_version"`
-	Identity      IdentitySpec `toml:"identity"`
-	Base          BaseSpec     `toml:"base"`
-	Image         ImageSpec    `toml:"image"`
-	Build         BuildSpec    `toml:"build"`
-	Network       NetworkSpec  `toml:"network"`
-	Paths         PathSpec     `toml:"paths"`
-	Platform      PlatformSpec `toml:"-"`
+	SchemaVersion uint32           `toml:"schema_version"`
+	Identity      IdentitySpec     `toml:"identity"`
+	Base          BaseSpec         `toml:"base"`
+	Image         ImageSpec        `toml:"image"`
+	Distribution  DistributionSpec `toml:"distribution"`
+	Build         BuildSpec        `toml:"build"`
+	Network       NetworkSpec      `toml:"network"`
+	Paths         PathSpec         `toml:"paths"`
+	Platform      PlatformSpec     `toml:"-"`
+}
+
+type DistributionSpec struct {
+	GitHubRepository string `toml:"github_repository" json:"github_repository"`
+	IndexURL         string `toml:"index_url" json:"index_url"`
+	IndexBundleURL   string `toml:"index_bundle_url" json:"index_bundle_url"`
 }
 
 type IdentitySpec struct {

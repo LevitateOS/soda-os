@@ -1,13 +1,12 @@
 # Soda OS release and operator runbook
 
-This is the trusted-LAN MVP release path for Fedora 44 bootc on the equal
-AArch64 and x86-64 sibling architectures. It uses one HTTPS repository,
-`registry.soda.local/soda/os`, with anonymous pulls and publisher-only pushes,
-but keeps separate `current-aarch64` and `current-x86_64` discovery tags and
-architecture-named release records. It does not publish a multi-platform index.
-The administrator supplies the registry CA, the Soda Cosign public key, and a
-passphrase-protected private key; only the CA and public key are copied into
-the images.
+This is the public-release path for Fedora 44 bootc on the equal AArch64 and
+x86-64 sibling architectures. It uses `ghcr.io/levitateos/soda-os` for signed
+immutable image digests and one paired GitHub Release in `LevitateOS/soda-os`
+for both installer ISOs, signed records, and the signed release index. The
+designated human release owner supplies the Soda Cosign public key, a
+passphrase-protected private key, and `SODA_GITHUB_TOKEN`; only the public key
+and GitHub discovery locations are copied into runtime images.
 
 ## Build and initial install release
 
@@ -17,15 +16,14 @@ The paths below are operator inputs, not repository files.
 ```sh
 just check
 just release-tools
-ARCH=x86_64 # or aarch64
-just oci "$ARCH" /path/to/registry-ca.crt /path/to/cosign.pub
+ARCH=x86_64 # repeat all steps for aarch64
+just oci "$ARCH" /path/to/cosign.pub
 
 go run ./cmd/soda-image --architecture "$ARCH" publish \
   --archive ".artifacts/images/soda-os-0.3.1-${ARCH}.oci.tar" \
-  --registry-ca /path/to/registry-ca.crt \
   --public-key /path/to/cosign.pub \
   --signing-key /path/to/cosign.key \
-  --defer-current
+  --prepare-only
 ```
 
 Cosign prompts for the private-key passphrase during publication. Save the
@@ -33,25 +31,38 @@ printed exact image reference, then build the ISO from it:
 
 ```sh
 go run ./cmd/soda-image --architecture "$ARCH" iso \
-  --image registry.soda.local/soda/os@sha256:EXACT_DIGEST \
+  --image ghcr.io/levitateos/soda-os@sha256:EXACT_DIGEST \
   --archive ".artifacts/images/soda-os-0.3.1-${ARCH}.oci.tar" \
-  --registry-ca /path/to/registry-ca.crt \
   --public-key /path/to/cosign.pub
 
 go run ./cmd/soda-image --architecture "$ARCH" publish \
   --archive ".artifacts/images/soda-os-0.3.1-${ARCH}.oci.tar" \
-  --registry-ca /path/to/registry-ca.crt \
   --public-key /path/to/cosign.pub \
   --signing-key /path/to/cosign.key \
   --iso ".artifacts/images/SodaOS-0.3.1-${ARCH}.iso"
 ```
 
-The final command re-checks the exact ISO payload, writes an
-architecture-named signed release record under `.artifacts/releases/`, and
-updates only `:current-$ARCH` last. Treat that architecture-specific tag solely
-as discovery: installations and updates use the resolved, signed exact digest.
+The final command re-checks the exact ISO payload and writes an
+architecture-named signed release record under `.artifacts/releases/`. After
+both AArch64 and x86-64 artifacts exist, the designated release owner creates
+the paired public release:
+
+```sh
+export SODA_GITHUB_TOKEN=... # release-owner token; do not pass it on the command line
+go run ./cmd/soda-release \
+  --public-key /path/to/cosign.pub --signing-key /path/to/cosign.key \
+  --aarch64-iso .artifacts/images/SodaOS-0.3.1-aarch64.iso \
+  --aarch64-record .artifacts/releases/soda-os-0.3.1-aarch64.release.json \
+  --aarch64-bundle .artifacts/releases/soda-os-0.3.1-aarch64.release.json.sigstore.json \
+  --x86_64-iso .artifacts/images/SodaOS-0.3.1-x86_64.iso \
+  --x86_64-record .artifacts/releases/soda-os-0.3.1-x86_64.release.json \
+  --x86_64-bundle .artifacts/releases/soda-os-0.3.1-x86_64.release.json.sigstore.json
+```
+
+`soda-release` creates a draft, uploads the two ISOs, two records, two record
+bundles, and signed index, verifies the downloaded bytes, then publishes it.
 The ISO has a matching `.sha256` file, and the publisher independently
-re-inspects its embedded exact payload before releasing it.
+re-inspects its embedded exact payload before creating the signed record.
 
 Boot the matching ISO on AArch64 or x86-64 UEFI and complete stock interactive
 Anaconda. Use the installer for a new Soda host only; there is no Rocky in-place
@@ -69,12 +80,12 @@ sudo sodactl os update check
 sudo sodactl os update stage
 ```
 
-`check` resolves the installed architecture's `current-aarch64` or
-`current-x86_64` tag once, uses the registry CA to authenticate HTTPS transport,
-and uses Soda's embedded Cosign public key to verify the exact image signature.
-It accepts only a signed exact digest matching the installed platform with
-state schema 3. `stage` downloads that digest using bootc's container signature
-policy but leaves the booted deployment and running Soda services untouched.
+`check` downloads the public signed release index once, verifies it with Soda's
+embedded Cosign public key, and selects the installed architecture's exact
+digest. It accepts only a paired index containing both sibling architectures,
+with signed exact image references matching state schema 3. `stage` downloads
+that digest using bootc's container signature policy but leaves the booted
+deployment and running Soda services untouched.
 
 During a planned maintenance window, activate the already staged deployment:
 

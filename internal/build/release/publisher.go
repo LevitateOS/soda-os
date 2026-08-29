@@ -2,12 +2,8 @@ package release
 
 import (
 	"context"
-	"crypto/tls"
-	"crypto/x509"
 	"encoding/json"
-	"errors"
 	"fmt"
-	"net/http"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -23,12 +19,11 @@ import (
 )
 
 const (
-	Repository    = "registry.soda.local/soda/os"
+	Repository    = "ghcr.io/levitateos/soda-os"
 	CosignVersion = "v3.1.2"
 )
 
 type SigningOptions struct {
-	RegistryCA string
 	PublicKey  string
 	PrivateKey string
 	CosignPath string
@@ -83,7 +78,6 @@ type Publisher struct {
 	registry     registryClient
 	signer       signer
 	isoValidator isoValidator
-	registryCA   string
 	publicKey    string
 }
 
@@ -92,7 +86,6 @@ func NewPublisher(root string, spec config.DistroSpec, options SigningOptions, r
 		return nil, fmt.Errorf("release repository must be %s", Repository)
 	}
 	for label, path := range map[string]string{
-		"registry CA":         options.RegistryCA,
 		"public signing key":  options.PublicKey,
 		"private signing key": options.PrivateKey,
 		"cosign executable":   options.CosignPath,
@@ -104,10 +97,6 @@ func NewPublisher(root string, spec config.DistroSpec, options SigningOptions, r
 	if err := verifyCosignBinary(options.CosignPath, options.ToolLock); err != nil {
 		return nil, err
 	}
-	transport, err := registryTransport(options.RegistryCA)
-	if err != nil {
-		return nil, err
-	}
 	if runner == nil {
 		runner = process.OSRunner{Stdout: os.Stdout, Stderr: os.Stderr}
 	}
@@ -115,11 +104,9 @@ func NewPublisher(root string, spec config.DistroSpec, options SigningOptions, r
 		spec: spec,
 		registry: &remoteRegistry{options: []remote.Option{
 			remote.WithAuthFromKeychain(authn.DefaultKeychain),
-			remote.WithTransport(transport),
 		}},
-		signer:       &cosignSigner{runner: runner, executable: options.CosignPath, ca: options.RegistryCA, publicKey: options.PublicKey, privateKey: options.PrivateKey},
+		signer:       &cosignSigner{runner: runner, executable: options.CosignPath, publicKey: options.PublicKey, privateKey: options.PrivateKey},
 		isoValidator: installer.NewBuilder(root, spec, runner),
-		registryCA:   options.RegistryCA,
 		publicKey:    options.PublicKey,
 	}, nil
 }
@@ -200,9 +187,6 @@ func (p *Publisher) finalizePublication(ctx context.Context, prepared preparedRe
 	if err != nil {
 		return Result{}, err
 	}
-	if err := p.registry.Push(ctx, p.discoveryTag(), prepared.image); err != nil {
-		return Result{}, fmt.Errorf("update current discovery tag: %w", err)
-	}
 	return Result{ImageReference: prepared.reference, RecordPath: recordPath, BundlePath: bundlePath}, nil
 }
 
@@ -246,10 +230,6 @@ func (p *Publisher) versionTag() string {
 	return Repository + ":" + p.spec.Identity.Version + "-" + p.spec.Platform.Release.Channel
 }
 
-func (p *Publisher) discoveryTag() string {
-	return Repository + ":current-" + p.spec.Platform.Release.Channel
-}
-
 type remoteRegistry struct{ options []remote.Option }
 
 func (r *remoteRegistry) Push(ctx context.Context, reference string, img v1.Image) error {
@@ -273,21 +253,21 @@ func (r *remoteRegistry) Resolve(ctx context.Context, reference string) (v1.Hash
 }
 
 type cosignSigner struct {
-	runner                    process.Runner
-	executable                string
-	ca, publicKey, privateKey string
+	runner                process.Runner
+	executable            string
+	publicKey, privateKey string
 }
 
 func (s *cosignSigner) SignImage(ctx context.Context, reference string) error {
 	return s.runner.Run(ctx, process.Command{Name: s.executable, Args: []string{
 		"sign", "--yes", "--use-signing-config=false", "--tlog-upload=false", "--registry-referrers-mode=legacy", "--new-bundle-format=false",
-		"--key", s.privateKey, "--registry-cacert", s.ca, reference,
+		"--key", s.privateKey, reference,
 	}})
 }
 
 func (s *cosignSigner) VerifyImage(ctx context.Context, reference string) error {
 	return s.runner.Run(ctx, process.Command{Name: s.executable, Args: []string{
-		"verify", "--key", s.publicKey, "--registry-cacert", s.ca,
+		"verify", "--key", s.publicKey,
 		"--insecure-ignore-tlog=true", reference,
 	}})
 }
@@ -304,24 +284,6 @@ func (s *cosignSigner) VerifyBlob(ctx context.Context, blob, bundle string) erro
 		"verify-blob", "--key", s.publicKey, "--bundle", bundle,
 		"--insecure-ignore-tlog=true", blob,
 	}})
-}
-
-func registryTransport(caPath string) (*http.Transport, error) {
-	ca, err := os.ReadFile(caPath)
-	if err != nil {
-		return nil, fmt.Errorf("read registry CA: %w", err)
-	}
-	roots, err := x509.SystemCertPool()
-	if err != nil {
-		return nil, fmt.Errorf("load system certificate pool: %w", err)
-	}
-	if !roots.AppendCertsFromPEM(ca) {
-		return nil, errors.New("registry CA does not contain a PEM certificate")
-	}
-	transport := http.DefaultTransport.(*http.Transport).Clone()
-	transport.TLSClientConfig = (&tls.Config{}).Clone()
-	transport.TLSClientConfig.RootCAs = roots
-	return transport, nil
 }
 
 type toolLock struct {

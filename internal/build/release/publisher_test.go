@@ -4,9 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"encoding/pem"
 	"fmt"
-	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -14,22 +12,17 @@ import (
 	"testing"
 
 	"github.com/LevitateOS/soda-os/internal/process"
-	"github.com/google/go-containerregistry/pkg/registry"
 	"github.com/google/go-containerregistry/pkg/v1"
 	"github.com/google/go-containerregistry/pkg/v1/empty"
 	"github.com/google/go-containerregistry/pkg/v1/mutate"
-	"github.com/google/go-containerregistry/pkg/v1/remote"
 	"github.com/stretchr/testify/require"
 )
 
 const testRevision = "2b6b23e356ded84d4ef7fee52b242ae4855793ca"
 
-var (
-	testRegistryCA = []byte("test registry CA\n")
-	testPublicKey  = []byte("test public key\n")
-)
+var testPublicKey = []byte("test public key\n")
 
-func TestPublishUsesExactDigestAndUpdatesCurrentLast(t *testing.T) {
+func TestPublishUsesExactDigestAndWritesSignedRecord(t *testing.T) {
 	img := matchingTestImage(t)
 	archive := writeOCIArchive(t, img)
 	events := []string{}
@@ -51,7 +44,6 @@ func TestPublishUsesExactDigestAndUpdatesCurrentLast(t *testing.T) {
 		"verify-image:" + exact,
 		"sign-blob",
 		"verify-blob",
-		"push:" + Repository + ":current-aarch64",
 	}, events)
 
 	contents, err := os.ReadFile(result.RecordPath)
@@ -67,7 +59,7 @@ func TestPublishUsesExactDigestAndUpdatesCurrentLast(t *testing.T) {
 	require.Empty(t, record.ISOChecksum)
 }
 
-func TestArchitectureSpecificReleaseChannelsNeverCollide(t *testing.T) {
+func TestVersionTagsRemainArchitectureSpecific(t *testing.T) {
 	for architecture, channel := range map[string]string{"aarch64": "aarch64", "x86_64": "x86_64"} {
 		t.Run(architecture, func(t *testing.T) {
 			spec := testSpec()
@@ -76,7 +68,6 @@ func TestArchitectureSpecificReleaseChannelsNeverCollide(t *testing.T) {
 			spec.Platform.Release.Channel = channel
 			publisher := &Publisher{spec: spec}
 			require.Equal(t, Repository+":0.2.0-"+channel, publisher.versionTag())
-			require.Equal(t, Repository+":current-"+channel, publisher.discoveryTag())
 		})
 	}
 }
@@ -103,7 +94,7 @@ func TestPublishDeferredSignsExactImageWithoutRecordOrCurrent(t *testing.T) {
 	}, events)
 }
 
-func TestPublishWithISOBindsExactDigestAndUpdatesCurrentLast(t *testing.T) {
+func TestPublishWithISOBindsExactDigest(t *testing.T) {
 	img := matchingTestImage(t)
 	archive := writeOCIArchive(t, img)
 	digest, err := img.Digest()
@@ -128,7 +119,6 @@ func TestPublishWithISOBindsExactDigestAndUpdatesCurrentLast(t *testing.T) {
 		"verify-image:" + exact,
 		"sign-blob",
 		"verify-blob",
-		"push:" + Repository + ":current-aarch64",
 	}, events)
 
 	contents, err := os.ReadFile(result.RecordPath)
@@ -170,8 +160,8 @@ func TestPublishRejectsISOWithoutIndependentInspection(t *testing.T) {
 }
 
 func TestInspectRejectsRPMInventorySidecarMismatch(t *testing.T) {
-	registryCA, publicKey := testTrust(t)
-	publisher := &Publisher{spec: testSpec(), registryCA: registryCA, publicKey: publicKey}
+	publicKey := testTrust(t)
+	publisher := &Publisher{spec: testSpec(), publicKey: publicKey}
 	_, err := publisher.inspect(testImageWithSidecar(t, strings.Repeat("0", 64)), Repository+"@sha256:"+strings.Repeat("a", 64))
 	require.EqualError(t, err, "installed RPM inventory does not match its image sidecar")
 }
@@ -181,13 +171,12 @@ func TestInspectRejectsTrustInputMismatch(t *testing.T) {
 		path     func(SigningOptions) string
 		expected string
 	}{
-		"registry CA": {func(options SigningOptions) string { return options.RegistryCA }, "supplied registry CA differs from the file embedded in the release image"},
-		"public key":  {func(options SigningOptions) string { return options.PublicKey }, "supplied signing public key differs from the file embedded in the release image"},
+		"public key": {func(options SigningOptions) string { return options.PublicKey }, "supplied signing public key differs from the file embedded in the release image"},
 	} {
 		t.Run(name, func(t *testing.T) {
-			registryCA, publicKey := testTrust(t)
-			publisher := &Publisher{spec: testSpec(), registryCA: registryCA, publicKey: publicKey}
-			options := SigningOptions{RegistryCA: registryCA, PublicKey: publicKey}
+			publicKey := testTrust(t)
+			publisher := &Publisher{spec: testSpec(), publicKey: publicKey}
+			options := SigningOptions{PublicKey: publicKey}
 			require.NoError(t, os.WriteFile(change.path(options), []byte("different trust input\n"), 0o644))
 			_, err := publisher.inspect(matchingTestImage(t), Repository+"@sha256:"+strings.Repeat("a", 64))
 			require.EqualError(t, err, change.expected)
@@ -198,7 +187,7 @@ func TestInspectRejectsTrustInputMismatch(t *testing.T) {
 func TestCosignCommandsUseExactDigest(t *testing.T) {
 	exact := Repository + "@sha256:" + strings.Repeat("a", 64)
 	runner := &recordingRunner{}
-	signer := &cosignSigner{runner: runner, executable: "cosign", ca: "/keys/registry-ca.crt", publicKey: "/keys/cosign.pub", privateKey: "/keys/cosign.key"}
+	signer := &cosignSigner{runner: runner, executable: "cosign", publicKey: "/keys/cosign.pub", privateKey: "/keys/cosign.key"}
 	require.NoError(t, signer.SignImage(context.Background(), exact))
 	require.NoError(t, signer.VerifyImage(context.Background(), exact))
 	require.NoError(t, signer.SignBlob(context.Background(), "release.json", "release.sigstore.json"))
@@ -209,11 +198,76 @@ func TestCosignCommandsUseExactDigest(t *testing.T) {
 		commands = append(commands, command.String())
 	}
 	require.Equal(t, []string{
-		"cosign sign --yes --use-signing-config=false --tlog-upload=false --registry-referrers-mode=legacy --new-bundle-format=false --key /keys/cosign.key --registry-cacert /keys/registry-ca.crt " + exact,
-		"cosign verify --key /keys/cosign.pub --registry-cacert /keys/registry-ca.crt --insecure-ignore-tlog=true " + exact,
+		"cosign sign --yes --use-signing-config=false --tlog-upload=false --registry-referrers-mode=legacy --new-bundle-format=false --key /keys/cosign.key " + exact,
+		"cosign verify --key /keys/cosign.pub --insecure-ignore-tlog=true " + exact,
 		"cosign sign-blob --yes --use-signing-config=false --tlog-upload=false --key /keys/cosign.key --bundle release.sigstore.json release.json",
 		"cosign verify-blob --key /keys/cosign.pub --bundle release.sigstore.json --insecure-ignore-tlog=true release.json",
 	}, commands)
+}
+
+func TestReleaseIndexRequiresTwoMatchingSignedSiblingArtifacts(t *testing.T) {
+	root := t.TempDir()
+	events := []string{}
+	publisher := &Publisher{spec: testSpec(), signer: &fakeSigner{events: &events}}
+	artifacts := map[string]ReleaseArtifact{}
+	for architecture, digest := range map[string]string{"aarch64": strings.Repeat("a", 64), "x86_64": strings.Repeat("b", 64)} {
+		isoPath := filepath.Join(root, architecture+".iso")
+		require.NoError(t, os.WriteFile(isoPath, []byte(architecture+" installer"), 0o644))
+		checksum, err := fileSHA256(isoPath)
+		require.NoError(t, err)
+		record := Record{SodaVersion: "0.2.0", SourceRevision: testRevision, SodaImageReference: Repository + "@sha256:" + digest, ISOChecksum: checksum}
+		recordPath := filepath.Join(root, architecture+".release.json")
+		encoded, err := json.Marshal(record)
+		require.NoError(t, err)
+		require.NoError(t, os.WriteFile(recordPath, encoded, 0o644))
+		bundlePath := recordPath + ".sigstore.json"
+		require.NoError(t, os.WriteFile(bundlePath, []byte("bundle"), 0o644))
+		artifacts[architecture] = ReleaseArtifact{ISOPath: isoPath, RecordPath: recordPath, BundlePath: bundlePath}
+	}
+	index, paths, err := publisher.releaseIndex(context.Background(), artifacts)
+	require.NoError(t, err)
+	require.Equal(t, uint32(1), index.SchemaVersion)
+	require.Equal(t, []string{"aarch64", "x86_64"}, []string{index.Releases[0].Architecture, index.Releases[1].Architecture})
+	require.Len(t, paths, 6)
+
+	contents, err := os.ReadFile(artifacts["x86_64"].RecordPath)
+	require.NoError(t, err)
+	var mismatched Record
+	require.NoError(t, json.Unmarshal(contents, &mismatched))
+	mismatched.SourceRevision = strings.Repeat("c", 40)
+	encoded, err := json.Marshal(mismatched)
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(artifacts["x86_64"].RecordPath, encoded, 0o644))
+	_, _, err = publisher.releaseIndex(context.Background(), artifacts)
+	require.EqualError(t, err, "paired release records have different source revisions")
+}
+
+type fakeGitHubReleaseClient struct{ events []string }
+
+func (f *fakeGitHubReleaseClient) CreateDraft(_ context.Context, repository, tag, title string) (githubDraft, error) {
+	f.events = append(f.events, "draft:"+repository+":"+tag+":"+title)
+	return githubDraft{ID: 7}, nil
+}
+func (f *fakeGitHubReleaseClient) Upload(_ context.Context, _ githubDraft, path string) error {
+	f.events = append(f.events, "upload:"+filepath.Base(path))
+	return nil
+}
+func (f *fakeGitHubReleaseClient) VerifyAssets(_ context.Context, _ githubDraft, paths []string) error {
+	f.events = append(f.events, fmt.Sprintf("verify:%d", len(paths)))
+	return nil
+}
+func (f *fakeGitHubReleaseClient) Publish(_ context.Context, _ githubDraft) error {
+	f.events = append(f.events, "publish")
+	return nil
+}
+
+func TestPairedGitHubReleasePublishesOnlyAfterUploadVerification(t *testing.T) {
+	client := &fakeGitHubReleaseClient{}
+	_, err := publishPaired(context.Background(), client, pairedUpload{repository: "LevitateOS/soda-os", tag: "v0.2.0", indexPath: "/tmp/index.json", bundlePath: "/tmp/index.sigstore.json", paths: []string{"/tmp/a.iso", "/tmp/x.iso"}})
+	require.NoError(t, err)
+	require.Equal(t, []string{
+		"draft:LevitateOS/soda-os:v0.2.0:Soda OS 0.2.0", "upload:a.iso", "upload:x.iso", "verify:2", "publish",
+	}, client.events)
 }
 
 func TestOCIArchiveRequiresExactlyOneArm64Manifest(t *testing.T) {
@@ -237,73 +291,6 @@ func TestCosignBinaryMustMatchAcquisitionLock(t *testing.T) {
 	require.NoError(t, verifyCosignBinary(binary, lock))
 	require.NoError(t, os.WriteFile(binary, []byte("different"), 0o755))
 	require.ErrorContains(t, verifyCosignBinary(binary, lock), "differs from pinned")
-}
-
-func TestRemoteRegistryPushAndCanonicalResolveOverTLS(t *testing.T) {
-	server := httptest.NewTLSServer(registry.New())
-	defer server.Close()
-	certificate := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: server.Certificate().Raw})
-	caPath := filepath.Join(t.TempDir(), "registry-ca.crt")
-	require.NoError(t, os.WriteFile(caPath, certificate, 0o644))
-	transport, err := registryTransport(caPath)
-	require.NoError(t, err)
-	client := &remoteRegistry{options: []remote.Option{remote.WithTransport(transport)}}
-	reference := strings.TrimPrefix(server.URL, "https://") + "/soda/os:0.2.0"
-	img := matchingTestImage(t)
-	require.NoError(t, client.Push(context.Background(), reference, img))
-	got, err := client.Resolve(context.Background(), reference)
-	require.NoError(t, err)
-	want, err := img.Digest()
-	require.NoError(t, err)
-	require.Equal(t, want, got)
-}
-
-func TestCosignExactImageDigestIntegration(t *testing.T) {
-	cosign := os.Getenv("SODA_COSIGN_INTEGRATION")
-	if cosign == "" {
-		t.Skip("set SODA_COSIGN_INTEGRATION to the pinned Cosign binary")
-	}
-	server := httptest.NewTLSServer(registry.New())
-	defer server.Close()
-	caPath := filepath.Join(t.TempDir(), "registry-ca.crt")
-	require.NoError(t, os.WriteFile(caPath, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: server.Certificate().Raw}), 0o644))
-	transport, err := registryTransport(caPath)
-	require.NoError(t, err)
-	client := &remoteRegistry{options: []remote.Option{remote.WithTransport(transport)}}
-	versionTag := strings.TrimPrefix(server.URL, "https://") + "/soda/os:0.2.0"
-	img := matchingTestImage(t)
-	require.NoError(t, client.Push(context.Background(), versionTag, img))
-	digest, err := client.Resolve(context.Background(), versionTag)
-	require.NoError(t, err)
-	exact := strings.TrimSuffix(versionTag, ":0.2.0") + "@" + digest.String()
-
-	keyDir := t.TempDir()
-	const testPassphrase = "ephemeral-integration-passphrase"
-	t.Setenv("COSIGN_PASSWORD", testPassphrase)
-	var processOutput bytes.Buffer
-	runner := process.OSRunner{Stdout: &processOutput, Stderr: &processOutput}
-	require.NoError(t, runner.Run(context.Background(), process.Command{Name: cosign, Args: []string{"generate-key-pair", "--output-key-prefix", filepath.Join(keyDir, "release")}}))
-	signer := &cosignSigner{runner: runner, executable: cosign, ca: caPath, publicKey: filepath.Join(keyDir, "release.pub"), privateKey: filepath.Join(keyDir, "release.key")}
-	unsignedImage := matchingTestImage(t)
-	unsignedConfig, err := unsignedImage.ConfigFile()
-	require.NoError(t, err)
-	unsignedConfig.Config.Labels["org.sodaos.integration-unsigned"] = "true"
-	unsignedImage, err = mutate.ConfigFile(unsignedImage, unsignedConfig)
-	require.NoError(t, err)
-	unsignedTag := strings.TrimSuffix(versionTag, ":0.2.0") + ":unsigned"
-	require.NoError(t, client.Push(context.Background(), unsignedTag, unsignedImage))
-	unsignedDigest, err := client.Resolve(context.Background(), unsignedTag)
-	require.NoError(t, err)
-	unsignedExact := strings.TrimSuffix(versionTag, ":0.2.0") + "@" + unsignedDigest.String()
-	require.Error(t, signer.VerifyImage(context.Background(), unsignedExact))
-	require.NoError(t, signer.SignImage(context.Background(), exact))
-	require.NoError(t, signer.VerifyImage(context.Background(), exact), processOutput.String())
-
-	require.NoError(t, runner.Run(context.Background(), process.Command{Name: cosign, Args: []string{"generate-key-pair", "--output-key-prefix", filepath.Join(keyDir, "wrong")}}))
-	wrongVerifier := &cosignSigner{runner: runner, executable: cosign, ca: caPath, publicKey: filepath.Join(keyDir, "wrong.pub")}
-	require.Error(t, wrongVerifier.VerifyImage(context.Background(), exact))
-
-	require.NotContains(t, processOutput.String(), testPassphrase)
 }
 
 func TestCosignInteractivePassphraseIntegration(t *testing.T) {

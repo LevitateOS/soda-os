@@ -3,6 +3,7 @@ package image
 import (
 	"context"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -18,7 +19,7 @@ import (
 )
 
 const (
-	sodaRegistry  = "registry.soda.local/soda/os"
+	sodaRegistry  = "ghcr.io/levitateos/soda-os"
 	cosignVersion = "v3.1.2"
 )
 
@@ -51,7 +52,6 @@ type releaseToolBinary struct {
 type Builder struct {
 	Root             string
 	Spec             config.DistroSpec
-	RegistryCA       string
 	SigningPublicKey string
 	runner           process.Runner
 }
@@ -230,10 +230,6 @@ func (b *Builder) lintImage(ctx context.Context, archive string) error {
 }
 
 func (b *Builder) stageReleaseTrust() error {
-	registryCA, err := os.ReadFile(b.RegistryCA)
-	if err != nil {
-		return fmt.Errorf("read registry-ca.crt: %w", err)
-	}
 	publicKey, err := os.ReadFile(b.SigningPublicKey)
 	if err != nil {
 		return fmt.Errorf("read cosign.pub: %w", err)
@@ -242,10 +238,14 @@ func (b *Builder) stageReleaseTrust() error {
 	if err := recreate(destination); err != nil {
 		return err
 	}
-	if err := os.WriteFile(filepath.Join(destination, "registry-ca.crt"), registryCA, 0o644); err != nil {
-		return fmt.Errorf("stage registry-ca.crt: %w", err)
+	if err := os.WriteFile(filepath.Join(destination, "cosign.pub"), publicKey, 0o644); err != nil {
+		return err
 	}
-	return os.WriteFile(filepath.Join(destination, "cosign.pub"), publicKey, 0o644)
+	distribution, err := json.Marshal(b.Spec.Distribution)
+	if err != nil {
+		return fmt.Errorf("encode release distribution: %w", err)
+	}
+	return os.WriteFile(filepath.Join(destination, "distribution.json"), append(distribution, '\n'), 0o644)
 }
 
 func (b *Builder) sourceRevision(ctx context.Context) (string, error) {

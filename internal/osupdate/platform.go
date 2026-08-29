@@ -16,7 +16,3 @@ func platformFor(architecture string) (platformContract, error) {
 		return platformContract{}, fmt.Errorf("unsupported Soda runtime architecture %q", architecture)
 	}
 }
-
-func (p platformContract) discoveryTag() string {
-	return Repository + ":current-" + p.artifactArchitecture
-}

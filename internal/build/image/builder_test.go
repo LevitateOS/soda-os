@@ -2,18 +2,12 @@ package image
 
 import (
 	"context"
-	"crypto/ed25519"
-	"crypto/rand"
-	"crypto/x509"
-	"crypto/x509/pkix"
 	"encoding/pem"
-	"math/big"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/LevitateOS/soda-os/internal/config"
 	"github.com/LevitateOS/soda-os/internal/process"
@@ -239,17 +233,12 @@ func TestRuntimeCosignInputIsPinnedForLinuxAArch64(t *testing.T) {
 	require.ErrorContains(t, err, "differs from pinned")
 }
 
-func TestStageReleaseTrustAcceptsExplicitCAAndPublicKey(t *testing.T) {
+func TestStageReleaseTrustStagesPublicKeyAndDistribution(t *testing.T) {
 	root := t.TempDir()
-	caPath, publicKeyPath := writeTestReleaseTrust(t, root)
-	builder := &Builder{Root: root, RegistryCA: caPath, SigningPublicKey: publicKeyPath}
+	publicKeyPath := writeTestReleaseTrust(t, root)
+	builder := &Builder{Root: root, SigningPublicKey: publicKeyPath, Spec: testDistributionSpec()}
 	require.NoError(t, builder.stageReleaseTrust())
 
-	stagedCA, err := os.ReadFile(filepath.Join(root, ".artifacts", "bootc", "trust", "registry-ca.crt"))
-	require.NoError(t, err)
-	wantCA, err := os.ReadFile(caPath)
-	require.NoError(t, err)
-	require.Equal(t, wantCA, stagedCA)
 	stagedKey, err := os.ReadFile(filepath.Join(root, ".artifacts", "bootc", "trust", "cosign.pub"))
 	require.NoError(t, err)
 	wantKey, err := os.ReadFile(publicKeyPath)
@@ -258,30 +247,28 @@ func TestStageReleaseTrustAcceptsExplicitCAAndPublicKey(t *testing.T) {
 
 	policy, err := os.ReadFile(filepath.Join("..", "..", "..", "packaging", "bootc", "trust", "policy.json"))
 	require.NoError(t, err)
-	require.Contains(t, string(policy), `"registry.soda.local/soda/os"`)
+	require.Contains(t, string(policy), `"ghcr.io/levitateos/soda-os"`)
 	require.Contains(t, string(policy), `"type": "sigstoreSigned"`)
 	require.Contains(t, string(policy), `"keyPath": "/usr/share/soda/release/cosign.pub"`)
 	registries, err := os.ReadFile(filepath.Join("..", "..", "..", "packaging", "bootc", "trust", "registries.d.yaml"))
 	require.NoError(t, err)
 	require.Contains(t, string(registries), "use-sigstore-attachments: true")
+	distribution, err := os.ReadFile(filepath.Join(root, ".artifacts", "bootc", "trust", "distribution.json"))
+	require.NoError(t, err)
+	require.JSONEq(t, `{"github_repository":"LevitateOS/soda-os","index_url":"https://github.com/LevitateOS/soda-os/releases/latest/download/soda-os-release-index.json","index_bundle_url":"https://github.com/LevitateOS/soda-os/releases/latest/download/soda-os-release-index.json.sigstore.json"}`, string(distribution))
 }
 
 func TestStageReleaseTrustPreservesInputsAlreadyAtDestination(t *testing.T) {
 	root := t.TempDir()
 	trustDir := filepath.Join(root, ".artifacts", "bootc", "trust")
 	require.NoError(t, os.MkdirAll(trustDir, 0o755))
-	caPath, publicKeyPath := writeTestReleaseTrust(t, trustDir)
-	wantCA, err := os.ReadFile(caPath)
-	require.NoError(t, err)
+	publicKeyPath := writeTestReleaseTrust(t, trustDir)
 	wantKey, err := os.ReadFile(publicKeyPath)
 	require.NoError(t, err)
 
-	builder := &Builder{Root: root, RegistryCA: caPath, SigningPublicKey: publicKeyPath}
+	builder := &Builder{Root: root, SigningPublicKey: publicKeyPath, Spec: testDistributionSpec()}
 	require.NoError(t, builder.stageReleaseTrust())
 
-	stagedCA, err := os.ReadFile(caPath)
-	require.NoError(t, err)
-	require.Equal(t, wantCA, stagedCA)
 	stagedKey, err := os.ReadFile(publicKeyPath)
 	require.NoError(t, err)
 	require.Equal(t, wantKey, stagedKey)
@@ -296,32 +283,28 @@ func TestBuildImageStagesTrustAfterLockedBootcInputs(t *testing.T) {
 	require.Greater(t, stageTrust, buildRPMs)
 
 	root := t.TempDir()
-	caPath, publicKeyPath := writeTestReleaseTrust(t, root)
+	publicKeyPath := writeTestReleaseTrust(t, root)
 	bootcInputs := filepath.Join(root, ".artifacts", "bootc")
 	require.NoError(t, recreate(bootcInputs))
 	require.NoError(t, os.WriteFile(filepath.Join(bootcInputs, "expected-packages.txt"), []byte("locked inputs\n"), 0o644))
-	builder := &Builder{Root: root, RegistryCA: caPath, SigningPublicKey: publicKeyPath}
+	builder := &Builder{Root: root, SigningPublicKey: publicKeyPath, Spec: testDistributionSpec()}
 	require.NoError(t, builder.stageReleaseTrust())
 	require.FileExists(t, filepath.Join(bootcInputs, "expected-packages.txt"))
-	require.FileExists(t, filepath.Join(bootcInputs, "trust", "registry-ca.crt"))
 	require.FileExists(t, filepath.Join(bootcInputs, "trust", "cosign.pub"))
+	require.FileExists(t, filepath.Join(bootcInputs, "trust", "distribution.json"))
 }
 
-func writeTestReleaseTrust(t *testing.T, root string) (string, string) {
+func testDistributionSpec() config.DistroSpec {
+	return config.DistroSpec{Distribution: config.DistributionSpec{
+		GitHubRepository: "LevitateOS/soda-os",
+		IndexURL:         "https://github.com/LevitateOS/soda-os/releases/latest/download/soda-os-release-index.json",
+		IndexBundleURL:   "https://github.com/LevitateOS/soda-os/releases/latest/download/soda-os-release-index.json.sigstore.json",
+	}}
+}
+
+func writeTestReleaseTrust(t *testing.T, root string) string {
 	t.Helper()
-	publicKey, privateKey, err := ed25519.GenerateKey(rand.Reader)
-	require.NoError(t, err)
-	certificate, err := x509.CreateCertificate(rand.Reader, &x509.Certificate{
-		SerialNumber: big.NewInt(1), Subject: pkix.Name{CommonName: "Soda test registry CA"},
-		NotBefore: time.Unix(1, 0), NotAfter: time.Unix(2, 0), IsCA: true,
-		BasicConstraintsValid: true, KeyUsage: x509.KeyUsageCertSign,
-	}, &x509.Certificate{SerialNumber: big.NewInt(1), Subject: pkix.Name{CommonName: "Soda test registry CA"}, IsCA: true, BasicConstraintsValid: true, KeyUsage: x509.KeyUsageCertSign}, publicKey, privateKey)
-	require.NoError(t, err)
-	caPath := filepath.Join(root, "registry-ca.crt")
-	require.NoError(t, os.WriteFile(caPath, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certificate}), 0o644))
-	encodedPublicKey, err := x509.MarshalPKIXPublicKey(publicKey)
-	require.NoError(t, err)
 	publicKeyPath := filepath.Join(root, "cosign.pub")
-	require.NoError(t, os.WriteFile(publicKeyPath, pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: encodedPublicKey}), 0o644))
-	return caPath, publicKeyPath
+	require.NoError(t, os.WriteFile(publicKeyPath, pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: []byte("test key")}), 0o644))
+	return publicKeyPath
 }

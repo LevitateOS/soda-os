@@ -31,15 +31,12 @@ func main() {
 		command("check", "validate the pinned Fedora bootc image contract", builder, func(ctx context.Context, b *image.Builder) error { return b.Check(ctx) }),
 		command("rpm", "build the four locked Soda RPM inputs", builder, func(ctx context.Context, b *image.Builder) error { return b.BuildRPMs(ctx) }),
 	)
-	var registryCA, publicKey string
+	var publicKey string
 	oci := command("oci", "build the Soda bootc OCI archive without loading or publishing it", builder, func(ctx context.Context, b *image.Builder) error {
-		b.RegistryCA = registryCA
 		b.SigningPublicKey = publicKey
 		return b.BuildImage(ctx)
 	})
-	oci.Flags().StringVar(&registryCA, "registry-ca", "", "PEM CA certificate embedded for registry.soda.local")
 	oci.Flags().StringVar(&publicKey, "public-key", "", "Soda Cosign public key embedded for update verification")
-	_ = oci.MarkFlagRequired("registry-ca")
 	_ = oci.MarkFlagRequired("public-key")
 	root.AddCommand(oci)
 	root.AddCommand(releaseCommand(builder))
@@ -73,14 +70,13 @@ func installerCommand(builder func() (*image.Builder, error)) *cobra.Command {
 			return nil
 		},
 	}
-	command.Flags().StringVar(&options.ImageReference, "image", "", "signed exact registry.soda.local/soda/os@sha256 payload")
+	command.Flags().StringVar(&options.ImageReference, "image", "", "signed exact ghcr.io/levitateos/soda-os@sha256 payload")
 	command.Flags().StringVar(&options.ArchivePath, "archive", "", "local OCI archive matching the exact payload")
-	command.Flags().StringVar(&options.RegistryCA, "registry-ca", "", "PEM CA certificate for registry.soda.local")
 	command.Flags().StringVar(&options.PublicKey, "public-key", "", "Soda Cosign public key")
 	command.Flags().StringVar(&options.CosignPath, "cosign", ".artifacts/tools/cosign", "pinned Cosign executable")
 	command.Flags().StringVar(&options.ToolLock, "tool-lock", "", "pinned Image Builder tool contract (defaults to the selected platform lock)")
 	command.Flags().StringVar(&options.OutputDir, "output-dir", ".artifacts/images", "installer artifact directory")
-	for _, name := range []string{"image", "archive", "registry-ca", "public-key"} {
+	for _, name := range []string{"image", "archive", "public-key"} {
 		_ = command.MarkFlagRequired(name)
 	}
 	return command
@@ -102,17 +98,16 @@ func releaseCommand(builder func() (*image.Builder, error)) *cobra.Command {
 		RunE:  state.run,
 	}
 	command.Flags().StringVar(&state.publication.ArchivePath, "archive", "", "path to the selected-architecture Soda OCI archive")
-	command.Flags().StringVar(&state.signing.RegistryCA, "registry-ca", "", "PEM CA certificate for registry.soda.local")
 	command.Flags().StringVar(&state.signing.PublicKey, "public-key", "", "Soda Cosign public key")
 	command.Flags().StringVar(&state.signing.PrivateKey, "signing-key", "", "passphrase-protected Soda Cosign private key")
 	command.Flags().StringVar(&state.publication.ISOPath, "iso", "", "optional installer ISO to bind into the release record")
-	command.Flags().BoolVar(&state.deferCurrent, "defer-current", false, "sign and verify the exact image for ISO construction without writing a record or current tag")
+	command.Flags().BoolVar(&state.deferCurrent, "prepare-only", false, "sign and verify the exact image for ISO construction without writing a release record")
 	command.Flags().StringVar(&state.publication.OutputDir, "output-dir", ".artifacts/releases", "signed release record directory")
 	command.Flags().StringVar(&state.signing.CosignPath, "cosign", ".artifacts/tools/cosign", "pinned Cosign executable")
 	command.Flags().StringVar(&state.signing.ToolLock, "tool-lock", "distro/locks/release-tools.toml", "pinned release tool checksums")
 	command.Flags().StringVar(&state.publication.InstallerArchive, "installer-archive", "", "build-only installer environment used to inspect --iso (defaults to the selected architecture artifact)")
 	command.Flags().StringVar(&state.publication.InstallerToolLock, "installer-tool-lock", "", "pinned Image Builder contract used to inspect --iso (defaults to the selected platform lock)")
-	for _, name := range []string{"archive", "registry-ca", "public-key", "signing-key"} {
+	for _, name := range []string{"archive", "public-key", "signing-key"} {
 		_ = command.MarkFlagRequired(name)
 	}
 	return command
@@ -136,7 +131,7 @@ func (state *releaseCommandState) run(command *cobra.Command, _ []string) error 
 	if state.deferCurrent {
 		reference, prepareErr := publisher.Prepare(command.Context(), state.publication.ArchivePath)
 		if prepareErr == nil {
-			fmt.Printf("Prepared signed image %s; no release record or current tag was written\n", reference)
+			fmt.Printf("Prepared signed image %s; no release record was written\n", reference)
 		}
 		return prepareErr
 	}

@@ -91,7 +91,7 @@ func (s *recordingServer) GetOSUpdateStatus(_ context.Context, request *sodav2.G
 }
 
 func (s *recordingServer) CheckOSUpdate(_ context.Context, request *sodav2.CheckOSUpdateRequest) (*sodav2.CheckOSUpdateResponse, error) {
-	return &sodav2.CheckOSUpdateResponse{Release: &sodav2.OSRelease{ImageReference: "registry.soda.local/soda/os@sha256:" + strings.Repeat("b", 64), Version: "0.3.0", Digest: "sha256:" + strings.Repeat("b", 64), StateSchema: 3, Available: true}}, s.record(request)
+	return &sodav2.CheckOSUpdateResponse{Release: &sodav2.OSRelease{ImageReference: "ghcr.io/levitateos/soda-os@sha256:" + strings.Repeat("b", 64), Version: "0.3.0", Digest: "sha256:" + strings.Repeat("b", 64), StateSchema: 3, Available: true}}, s.record(request)
 }
 
 func (s *recordingServer) StageOSUpdate(_ context.Context, request *sodav2.StageOSUpdateRequest) (*sodav2.StageOSUpdateResponse, error) {
@@ -116,7 +116,7 @@ func testJob() *sodav2.ProvisioningJob {
 
 func testOSUpdateStatus() *sodav2.OSUpdateStatus {
 	digest := "sha256:" + strings.Repeat("a", 64)
-	return &sodav2.OSUpdateStatus{ReadOnly: true, Booted: &sodav2.OSDeployment{ImageReference: "registry.soda.local/soda/os@" + digest, Version: "0.2.0", Digest: digest, Architecture: "arm64", Signature: "containerPolicy"}}
+	return &sodav2.OSUpdateStatus{ReadOnly: true, Booted: &sodav2.OSDeployment{ImageReference: "ghcr.io/levitateos/soda-os@" + digest, Version: "0.2.0", Digest: digest, Architecture: "arm64", Signature: "containerPolicy"}}
 }
 
 func testApp(t *testing.T, server *recordingServer) (*app, *string) {
@@ -193,7 +193,7 @@ func TestCommandsUseGRPCAndWriteSnakeCaseJSON(t *testing.T) {
 		{"os update check", []string{"os", "update", "check"}, func(t *testing.T, got any) { require.IsType(t, &sodav2.CheckOSUpdateRequest{}, got) }},
 		{"os update stage", []string{"os", "update", "stage"}, func(t *testing.T, got any) {
 			request := got.(*sodav2.StageOSUpdateRequest)
-			require.Equal(t, "registry.soda.local/soda/os@sha256:"+strings.Repeat("b", 64), request.GetImageReference())
+			require.Equal(t, "ghcr.io/levitateos/soda-os@sha256:"+strings.Repeat("b", 64), request.GetImageReference())
 		}},
 		{"os update activate", []string{"os", "update", "activate", "--confirm-reboot"}, func(t *testing.T, got any) {
 			require.True(t, got.(*sodav2.ActivateOSUpdateRequest).GetConfirmReboot())

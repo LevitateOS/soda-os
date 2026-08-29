@@ -21,10 +21,10 @@ import (
 )
 
 const (
-	Repository = "registry.soda.local/soda/os"
+	Repository = "ghcr.io/levitateos/soda-os"
 )
 
-var exactImagePattern = regexp.MustCompile(`^registry\.soda\.local/soda/os@sha256:[0-9a-f]{64}$`)
+var exactImagePattern = regexp.MustCompile(`^ghcr\.io/levitateos/soda-os@sha256:[0-9a-f]{64}$`)
 
 type toolLock struct {
 	Version   string `toml:"version"`
@@ -44,7 +44,6 @@ type packageLock struct {
 type Options struct {
 	ImageReference string
 	ArchivePath    string
-	RegistryCA     string
 	PublicKey      string
 	CosignPath     string
 	ToolLock       string
@@ -53,7 +52,7 @@ type Options struct {
 
 func (b *Builder) ValidateISO(ctx context.Context, isoPath, reference, installerArchive, toolLockPath string) (string, error) {
 	if !exactImagePattern.MatchString(reference) {
-		return "", errors.New("installer payload must be an exact registry.soda.local/soda/os@sha256 reference")
+		return "", errors.New("installer payload must be an exact ghcr.io/levitateos/soda-os@sha256 reference")
 	}
 	if !regularFile(isoPath) || !regularFile(installerArchive) || !regularFile(toolLockPath) {
 		return "", errors.New("ISO validation requires the ISO, installer environment archive, and image-builder lock")
@@ -289,11 +288,11 @@ func (b *Builder) buildInstallerISO(ctx context.Context, input isoBuildInput) (s
 
 func (b *Builder) validate(options Options) (toolLock, error) {
 	if !exactImagePattern.MatchString(options.ImageReference) {
-		return toolLock{}, errors.New("installer payload must be an exact registry.soda.local/soda/os@sha256 reference")
+		return toolLock{}, errors.New("installer payload must be an exact ghcr.io/levitateos/soda-os@sha256 reference")
 	}
 	for label, path := range map[string]string{
-		"runtime OCI archive": options.ArchivePath, "registry CA": options.RegistryCA,
-		"public signing key": options.PublicKey, "Cosign executable": options.CosignPath,
+		"runtime OCI archive": options.ArchivePath,
+		"public signing key":  options.PublicKey, "Cosign executable": options.CosignPath,
 		"image-builder lock": options.ToolLock,
 	} {
 		if !regularFile(path) {
@@ -337,7 +336,7 @@ func (b *Builder) verifySignedImage(ctx context.Context, options Options) error 
 		return errors.New("installer requires the pinned Cosign v3.1.2 tool")
 	}
 	if err := b.runner.Run(ctx, process.Command{Name: options.CosignPath, Args: []string{
-		"verify", "--key", options.PublicKey, "--registry-cacert", options.RegistryCA,
+		"verify", "--key", options.PublicKey,
 		"--insecure-ignore-tlog=true", options.ImageReference,
 	}}); err != nil {
 		return fmt.Errorf("verify signed installer payload: %w", err)

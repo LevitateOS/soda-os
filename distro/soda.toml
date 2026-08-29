@@ -7,8 +7,13 @@ version = "0.3.1"
 hostname = "soda"
 
 [image]
-registry = "registry.soda.local/soda/os"
+registry = "ghcr.io/levitateos/soda-os"
 state_schema = 3
+
+[distribution]
+github_repository = "LevitateOS/soda-os"
+index_url = "https://github.com/LevitateOS/soda-os/releases/latest/download/soda-os-release-index.json"
+index_bundle_url = "https://github.com/LevitateOS/soda-os/releases/latest/download/soda-os-release-index.json.sigstore.json"
 
 [build]
 source_date_epoch = 1787825905

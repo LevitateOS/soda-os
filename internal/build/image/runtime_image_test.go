@@ -33,10 +33,10 @@ func TestRuntimeImageBootcContainerContract(t *testing.T) {
 		"bootc switch --help | grep -F -- '--download-only'", "bootc switch --help | grep -F -- '--from-downloaded'",
 		"rpm-inventory.sha256", "sha256sum --check rpm-inventory.sha256", "/usr/lib/sysimage/libdnf5/transaction_history.sqlite*",
 		"/var/cache/ldconfig/aux-cache", "/var/cache/libdnf5", "/var/lib/dnf/repos", "/var/log/dnf5.log", "/run/dnf",
-		"COPY .artifacts/bootc/trust/registry-ca.crt /usr/share/pki/ca-trust-source/anchors/soda-registry-ca.crt",
 		"COPY .artifacts/bootc/trust/cosign.pub /usr/share/soda/release/cosign.pub",
+		"COPY .artifacts/bootc/trust/distribution.json /usr/share/soda/release/distribution.json",
 		"COPY packaging/bootc/trust/policy.json /etc/containers/policy.json",
-		"COPY packaging/bootc/trust/registries.d.yaml /etc/containers/registries.d/soda.yaml", "update-ca-trust extract",
+		"COPY packaging/bootc/trust/registries.d.yaml /etc/containers/registries.d/soda.yaml",
 	} {
 		require.Contains(t, containerfile, expected)
 	}

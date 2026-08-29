@@ -34,31 +34,30 @@ source-date epoch and omits provenance attestations from this local artifact.
 
 ## Release identity and installer media
 
-Soda has one trusted-LAN release repository:
-`registry.soda.local/soda/os`. It carries equal AArch64 (`linux/arm64`) and
+Soda has one public release repository:
+`ghcr.io/levitateos/soda-os`. It carries equal AArch64 (`linux/arm64`) and
 x86-64 (`linux/amd64`) images as separate single-platform releases. Installation
-and update use an exact digest, never a mutable tag. Discovery is deliberately
-architecture-specific through `current-aarch64` and `current-x86_64`; no
-multi-platform index is used. Release records and artifacts likewise include
-`aarch64` or `x86_64` in their names so sibling releases cannot overwrite one
-another. The registry CA certificate and Soda Cosign public key are explicit
-build inputs embedded in both runtime images. The release administrator holds
+and update use an exact digest, never a mutable tag. Discovery comes from one
+signed paired release index containing `aarch64` and `x86_64`. Release records
+and artifacts likewise include `aarch64` or `x86_64` in their names so sibling
+releases cannot overwrite one another. The Soda Cosign public key and GitHub
+index locations are explicit build inputs embedded in both runtime images. The
+release administrator holds
 the sole passphrase-protected Cosign private key outside the repository and
 images.
 
 The initial-install happy path is deliberately two-step:
 
-1. `soda-image publish --defer-current` pushes the versioned runtime image,
+1. `soda-image publish --prepare-only` pushes the versioned runtime image,
    resolves its canonical registry digest, signs and verifies that exact digest,
-   and prints the reference for the installer. It writes no release record and
-   leaves the selected architecture's discovery tag unchanged.
+   and prints the reference for the installer. It writes no release record.
 2. `soda-image --architecture ARCH iso --image
-   registry.soda.local/soda/os@sha256:...` verifies the signed payload and
+   ghcr.io/levitateos/soda-os@sha256:...` verifies the signed payload and
    platform match, embeds that exact digest in the matching
    `bootc-generic-iso`, uses ext4, and writes the ISO checksum. A final
    architecture-selected `soda-image publish --iso ...` independently checks
-   the ISO, signs the architecture-named release record, and updates only the
-   matching `current-ARCH` discovery tag last.
+   the ISO and signs the architecture-named release record. `soda-release`
+   then publishes both signed sibling artifacts in one GitHub Release.
 
 The installer is for fresh installation only. It uses stock interactive
 Anaconda text mode with DHCP, a default hostname of `soda`, and the normal

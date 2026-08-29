@@ -201,7 +201,7 @@ reference = "ghcr.io/osbuild/image-builder@sha256:704dc05d6033799248a33c415f7f72
 platform = "linux/arm64"
 `), 0o644))
 	options := Options{ImageReference: testExactImage, ToolLock: lock}
-	for _, target := range []*string{&options.ArchivePath, &options.RegistryCA, &options.PublicKey, &options.CosignPath} {
+	for _, target := range []*string{&options.ArchivePath, &options.PublicKey, &options.CosignPath} {
 		*target = filepath.Join(root, strings.ReplaceAll(strings.TrimPrefix(*target, root), "/", "")+"input")
 		require.NoError(t, os.WriteFile(*target, []byte("input"), 0o644))
 	}
@@ -216,17 +216,17 @@ platform = "linux/arm64"
 
 	options.ImageReference = Repository + ":current"
 	_, err = builder.validate(options)
-	require.EqualError(t, err, "installer payload must be an exact registry.soda.local/soda/os@sha256 reference")
+	require.EqualError(t, err, "installer payload must be an exact ghcr.io/levitateos/soda-os@sha256 reference")
 }
 
 func TestVerifySignedImageUsesPinnedKeyAndExactDigest(t *testing.T) {
 	runner := &recordingRunner{Outputs: map[string]string{"cosign version": "GitVersion: v3.1.2\n"}}
 	builder := NewBuilder("/workspace", config.DistroSpec{}, runner)
-	options := Options{ImageReference: testExactImage, RegistryCA: "/keys/ca.crt", PublicKey: "/keys/cosign.pub", CosignPath: "cosign"}
+	options := Options{ImageReference: testExactImage, PublicKey: "/keys/cosign.pub", CosignPath: "cosign"}
 	require.NoError(t, builder.verifySignedImage(context.Background(), options))
 	require.Equal(t, []string{
 		"cosign version",
-		"cosign verify --key /keys/cosign.pub --registry-cacert /keys/ca.crt --insecure-ignore-tlog=true " + testExactImage,
+		"cosign verify --key /keys/cosign.pub --insecure-ignore-tlog=true " + testExactImage,
 	}, []string{runner.Commands[0].String(), runner.Commands[1].String()})
 }
 
@@ -250,8 +250,8 @@ commit = "3130fb87ee1f684b6e9d1909f354861c43d7a092"
 reference = "ghcr.io/osbuild/image-builder@sha256:704dc05d6033799248a33c415f7f7253ec20b40f0b2bff03b06d8687179e058a"
 platform = "linux/arm64"
 `), 0o644))
-	options := Options{ImageReference: Repository + "@" + digest, ArchivePath: archive, ToolLock: lock, OutputDir: output, CosignPath: filepath.Join(root, "cosign"), RegistryCA: filepath.Join(root, "ca"), PublicKey: filepath.Join(root, "pub")}
-	for _, path := range []string{options.CosignPath, options.RegistryCA, options.PublicKey} {
+	options := Options{ImageReference: Repository + "@" + digest, ArchivePath: archive, ToolLock: lock, OutputDir: output, CosignPath: filepath.Join(root, "cosign"), PublicKey: filepath.Join(root, "pub")}
+	for _, path := range []string{options.CosignPath, options.PublicKey} {
 		require.NoError(t, os.WriteFile(path, []byte("input"), 0o644))
 	}
 	runner := &recordingRunner{Outputs: map[string]string{options.CosignPath + " version": "GitVersion: v3.1.2\n"}}

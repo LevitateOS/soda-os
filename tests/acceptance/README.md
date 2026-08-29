@@ -12,23 +12,22 @@ state stay under ignored artifact paths.
 2. Run `just rpm ARCH`; require exactly the selected platform's locked
    `soda-release`, `soda-runtime`, `soda-cockpit`, and `soda-forgejo` RPM inputs plus their
    recorded hashes.
-3. Run `just oci ARCH REGISTRY_CA COSIGN_PUBLIC_KEY`; require an OCI archive at
+3. Run `just oci ARCH COSIGN_PUBLIC_KEY`; require an OCI archive at
    `.artifacts/images/soda-os-0.3.1-ARCH.oci.tar` and no registry push.
 4. Require the build to verify all locked Fedora and Soda NEVRAs, fixed UID/GID
    976, enabled SSH/Soda/Avahi services, enabled persistent-state mounts, the
-   masked `bootc-fetch-apply-updates.timer`, the embedded registry CA and Cosign
-   public key, and the installed RPM inventory checksum.
-5. In a disposable local HTTPS registry with an ephemeral passphrase-protected
-   Cosign key, publish the OCI archive with `soda-image publish --defer-current`.
-   Require a signed, verified exact `registry.soda.local/soda/os@sha256:...`
-   payload and no release record or architecture-specific discovery tag.
+   masked `bootc-fetch-apply-updates.timer`, the embedded GitHub release index
+   location and Cosign public key, and the installed RPM inventory checksum.
+5. Publish each OCI archive to GHCR with `soda-image publish --prepare-only`.
+   Require a signed, verified exact `ghcr.io/levitateos/soda-os@sha256:...`
+   payload and no release record.
 6. Build the architecture-selected `soda-image iso` from that exact signed
    digest. Require a platform-matched `bootc-generic-iso`, ext4, ISO SHA-256
    sidecar, and an embedded payload matching the exact digest.
 7. Run the final `soda-image publish --iso ISO_PATH ...`. Require its signed
    architecture-named release record to agree with the OCI labels and ISO
-   checksum, and require only `current-aarch64` or `current-x86_64` to be
-   updated after that record verifies.
+   checksum. Require `soda-release` to publish both verified sibling artifacts
+   and one signed release index in a single GitHub Release.
 8. On the selected platform's UEFI, complete the stock interactive Anaconda
    fresh-install flow.
    Require `bootc status` to report the ISO's exact digest, persistent schema-3

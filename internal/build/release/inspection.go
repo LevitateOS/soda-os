@@ -26,7 +26,7 @@ func (p *Publisher) inspect(img v1.Image, exactReference string) (Record, error)
 	if err != nil {
 		return Record{}, err
 	}
-	if err := inspectEmbeddedTrust(img, p.registryCA, p.publicKey); err != nil {
+	if err := inspectEmbeddedTrust(img, p.publicKey); err != nil {
 		return Record{}, err
 	}
 	inventoryDigest, err := inspectRPMInventory(img)
@@ -58,8 +58,8 @@ func (p *Publisher) inspectImageIdentity(configFile *v1.ConfigFile) (string, err
 	return revision, nil
 }
 
-func inspectEmbeddedTrust(img v1.Image, registryCAPath, publicKeyPath string) error {
-	for _, trust := range []struct{ label, imagePath, suppliedPath string }{{"registry CA", "usr/share/pki/ca-trust-source/anchors/soda-registry-ca.crt", registryCAPath}, {"signing public key", "usr/share/soda/release/cosign.pub", publicKeyPath}} {
+func inspectEmbeddedTrust(img v1.Image, publicKeyPath string) error {
+	for _, trust := range []struct{ label, imagePath, suppliedPath string }{{"signing public key", "usr/share/soda/release/cosign.pub", publicKeyPath}} {
 		embedded, err := imageFile(img, trust.imagePath)
 		if err != nil {
 			return fmt.Errorf("read embedded %s: %w", trust.label, err)

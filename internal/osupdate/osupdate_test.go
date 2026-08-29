@@ -2,6 +2,7 @@ package osupdate
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"strconv"
 	"strings"
@@ -18,16 +19,23 @@ const (
 
 var testARM64Platform = platformContract{"arm64", "arm64", "aarch64", "linux/arm64"}
 
-func TestSiblingPlatformsHaveSeparateDiscoveryChannels(t *testing.T) {
+func TestSignedReleaseIndexSelectsExactlyOneSiblingPlatform(t *testing.T) {
 	arm, err := platformFor("arm64")
 	require.NoError(t, err)
 	x86, err := platformFor("amd64")
 	require.NoError(t, err)
-	require.Equal(t, Repository+":current-aarch64", arm.discoveryTag())
-	require.Equal(t, Repository+":current-x86_64", x86.discoveryTag())
-	require.NotEqual(t, arm.discoveryTag(), x86.discoveryTag())
-	_, err = candidateFromMetadata(Repository+"@"+testUpdateDigest, validMetadata(testUpdateDigest), x86)
-	require.ErrorIs(t, err, ErrRejected)
+	index := releaseIndex{SchemaVersion: 1, SodaVersion: "0.3.2", SourceRevision: strings.Repeat("a", 40), Releases: []indexRelease{
+		{Architecture: arm.artifactArchitecture, ImageReference: Repository + "@" + testUpdateDigest, ISOAsset: "soda-os-0.3.2-aarch64.iso", ISOChecksum: strings.Repeat("b", 64), RecordAsset: "soda-os-0.3.2-aarch64.json", RecordChecksum: strings.Repeat("c", 64)},
+		{Architecture: x86.artifactArchitecture, ImageReference: Repository + "@" + testBootedDigest, ISOAsset: "soda-os-0.3.2-x86_64.iso", ISOChecksum: strings.Repeat("d", 64), RecordAsset: "soda-os-0.3.2-x86_64.json", RecordChecksum: strings.Repeat("e", 64)},
+	}}
+	contents, err := json.Marshal(index)
+	require.NoError(t, err)
+	armReference, err := releaseForPlatform(contents, arm)
+	require.NoError(t, err)
+	require.Equal(t, Repository+"@"+testUpdateDigest, armReference)
+	x86Reference, err := releaseForPlatform(contents, x86)
+	require.NoError(t, err)
+	require.Equal(t, Repository+"@"+testBootedDigest, x86Reference)
 }
 
 type recordingRunner struct {
@@ -136,13 +144,13 @@ func TestCheckResolvesOnceVerifiesExactDigestAndRejectsWrongMetadata(t *testing.
 	require.Zero(t, inspectorCalls)
 }
 
-func TestCosignVerifierUsesEmbeddedKeyAndCAForExactDigest(t *testing.T) {
+func TestCosignVerifierUsesEmbeddedKeyForExactDigest(t *testing.T) {
 	exact := Repository + "@" + testUpdateDigest
 	runner := &recordingRunner{}
-	verifier := cosignVerifier{runner: runner, executable: "/usr/libexec/soda/cosign", ca: DefaultCA, publicKey: DefaultKey}
+	verifier := cosignVerifier{runner: runner, executable: "/usr/libexec/soda/cosign", publicKey: DefaultKey}
 	require.NoError(t, verifier.Verify(context.Background(), exact))
 	require.Equal(t, []string{
-		"/usr/libexec/soda/cosign verify --key " + DefaultKey + " --registry-cacert " + DefaultCA + " --insecure-ignore-tlog=true " + exact,
+		"/usr/libexec/soda/cosign verify --key " + DefaultKey + " --insecure-ignore-tlog=true " + exact,
 	}, commandStrings(runner.Commands))
 }
 
@@ -177,7 +185,7 @@ func TestStageUsesOnlyExactDigestAndRequiresLockedMatchingStatus(t *testing.T) {
 		"bootc status --format=json --format-version=1",
 	}, commandStrings(runner.Commands))
 
-	for _, invalid := range []string{testARM64Platform.discoveryTag(), "quay.io/example/os@" + testUpdateDigest, Repository + "@sha256:short"} {
+	for _, invalid := range []string{Repository + ":current-aarch64", "quay.io/example/os@" + testUpdateDigest, Repository + "@sha256:short"} {
 		runner.Commands = nil
 		_, err = manager.Stage(context.Background(), invalid)
 		require.ErrorIs(t, err, ErrInvalid)

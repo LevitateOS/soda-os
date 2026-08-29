@@ -6,7 +6,7 @@
   ],
   "transports": {
     "docker": {
-      "registry.soda.local/soda/os": [
+      "ghcr.io/levitateos/soda-os": [
         {
           "type": "sigstoreSigned",
           "keyPath": "/usr/share/soda/release/cosign.pub",

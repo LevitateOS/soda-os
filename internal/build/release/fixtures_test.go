@@ -117,10 +117,9 @@ func testImageWithSidecar(t *testing.T, sidecarDigest string) v1.Image {
 	var layer bytes.Buffer
 	writer := tar.NewWriter(&layer)
 	for name, contents := range map[string][]byte{
-		"usr/share/soda/rpm-inventory.txt":                           inventory,
-		"usr/share/soda/rpm-inventory.sha256":                        []byte(sidecarDigest + "  rpm-inventory.txt\n"),
-		"usr/share/pki/ca-trust-source/anchors/soda-registry-ca.crt": testRegistryCA,
-		"usr/share/soda/release/cosign.pub":                          testPublicKey,
+		"usr/share/soda/rpm-inventory.txt":    inventory,
+		"usr/share/soda/rpm-inventory.sha256": []byte(sidecarDigest + "  rpm-inventory.txt\n"),
+		"usr/share/soda/release/cosign.pub":   testPublicKey,
 	} {
 		require.NoError(t, writer.WriteHeader(&tar.Header{Name: name, Mode: 0o644, Size: int64(len(contents))}))
 		_, err := writer.Write(contents)
@@ -144,20 +143,16 @@ func testImageWithSidecar(t *testing.T, sidecarDigest string) v1.Image {
 	return image
 }
 
-func testTrust(t *testing.T) (string, string) {
+func testTrust(t *testing.T) string {
 	t.Helper()
 	directory := t.TempDir()
-	ca := filepath.Join(directory, "registry-ca.crt")
 	publicKey := filepath.Join(directory, "cosign.pub")
-	require.NoError(t, os.WriteFile(ca, testRegistryCA, 0o644))
 	require.NoError(t, os.WriteFile(publicKey, testPublicKey, 0o644))
-	return ca, publicKey
+	return publicKey
 }
 
 func testPublisher(t *testing.T, publisher *Publisher) *Publisher {
-	registryCA, publicKey := testTrust(t)
-	publisher.registryCA = registryCA
-	publisher.publicKey = publicKey
+	publisher.publicKey = testTrust(t)
 	return publisher
 }
 

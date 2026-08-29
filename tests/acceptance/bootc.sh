@@ -34,7 +34,7 @@ Optional environment:
   SODA_ACCEPTANCE_COCKPIT_PORT=9090
   SODA_ACCEPTANCE_DISK=$SODA_ACCEPTANCE_DIR/soda-system.qcow2
   SODA_ACCEPTANCE_DISK_SIZE=40G
-  SODA_ACCEPTANCE_REGISTRY_CA=/tmp/soda-acceptance.PSb4PZ/ca.crt
+  SODA_ACCEPTANCE_RELEASE_INDEX_URL=<signed GitHub release index URL>
   SODA_ACCEPTANCE_RELEASE_RECORD=<release record to hash during capture>
   SODA_ACCEPTANCE_ISO=<installer ISO to hash during capture>
   SODA_QEMU=<platform QEMU executable>
@@ -231,22 +231,13 @@ valid_name() {
 	esac
 }
 
-capture_registry() {
-	digest=${SODA_ACCEPTANCE_IMAGE_DIGEST:-}
-	ca=${SODA_ACCEPTANCE_REGISTRY_CA:-/tmp/soda-acceptance.PSb4PZ/ca.crt}
-	case "$digest" in sha256:????????????????????????????????????????????????????????????????) ;; *) die "SODA_ACCEPTANCE_IMAGE_DIGEST must be an exact sha256 digest" ;; esac
-	need_file "$ca"
-	registry_dir=$1/registry
-	mkdir -p "$registry_dir"
-	accept='application/vnd.oci.image.manifest.v1+json, application/vnd.oci.image.index.v1+json, application/vnd.docker.distribution.manifest.v2+json'
-	curl --fail --silent --show-error --cacert "$ca" -H "Accept: $accept" \
-		-D "$registry_dir/current.headers" -o "$registry_dir/current.manifest.json" \
-		"https://registry.soda.local/v2/soda/os/manifests/current-$architecture"
-	signature_tag="sha256-${digest#sha256:}.sig"
-	curl --fail --silent --show-error --cacert "$ca" -H "Accept: $accept" \
-		-D "$registry_dir/signature.headers" -o "$registry_dir/signature.manifest.json" \
-		"https://registry.soda.local/v2/soda/os/manifests/$signature_tag"
-	sha256sum "$registry_dir"/* >"$registry_dir/sha256sums.txt"
+capture_release_index() {
+	index_url=${SODA_ACCEPTANCE_RELEASE_INDEX_URL:-https://github.com/LevitateOS/soda-os/releases/latest/download/soda-os-release-index.json}
+	release_dir=$1/release
+	mkdir -p "$release_dir"
+	curl --fail --silent --show-error -D "$release_dir/index.headers" -o "$release_dir/index.json" "$index_url"
+	curl --fail --silent --show-error -D "$release_dir/index-bundle.headers" -o "$release_dir/index.sigstore.json" "$index_url.sigstore.json"
+	sha256sum "$release_dir"/* >"$release_dir/sha256sums.txt"
 }
 
 capture() {
@@ -286,7 +277,7 @@ capture() {
 		sha256sum /etc/ssh/ssh_host_*_key.pub 2>/dev/null || true
 	' >"$checkpoint/guest.txt" 2>"$checkpoint/guest.stderr"
 	curl --fail --silent --show-error --insecure "https://$host:$cockpit_port/healthz" >"$checkpoint/cockpit-health.txt"
-	capture_registry "$checkpoint"
+	capture_release_index "$checkpoint"
 
 	privileged=".local/state/soda-acceptance/$name-privileged.json"
 	if admin_ssh "test -r \"\$HOME/$privileged\""; then

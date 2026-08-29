@@ -65,15 +65,15 @@ Soda service logs are written below `/var/log/soda`.
 AArch64 and x86-64 are equal Soda OS sibling architectures. Shared Go code owns
 the product and runtime behavior; platform TOML files select only the upstream
 base, OCI identity, package and tool locks, installer/UEFI inputs, artifact
-names, discovery channel, and test harness that genuinely differ. Neither
+names, and test harness that genuinely differ. Neither
 platform is a default, compatibility path, or experimental target.
 
-Each sibling publishes a single-platform exact-digest release. Discovery tags
-(`current-aarch64` and `current-x86_64`) and release-record filenames remain
-separate so publication order cannot replace the other architecture. Both use
-the same Cosign trust contract, non-disruptive staging, explicit reboot
-activation, rollback visibility, persistent-state policy, and equivalent
-acceptance gates. Soda does not use a multi-platform discovery index.
+Each sibling publishes a single-platform exact-digest release. One signed
+paired release index names both sibling images and their architecture-specific
+ISO and record assets, so publication cannot advance one architecture alone.
+Both use the same Cosign trust contract, non-disruptive staging, explicit
+reboot activation, rollback visibility, persistent-state policy, and equivalent
+acceptance gates.
 
 Soda-created Linux users and their PAM passwords remain system account state;
 SSH host keys remain under `/etc/ssh`; and per-project forced-command key files

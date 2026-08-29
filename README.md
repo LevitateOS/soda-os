@@ -30,7 +30,7 @@ base, kernel, userspace, RPM/DNF, systemd, SELinux, and SSH.
 just check
 ARCH=x86_64 # or aarch64
 just rpm "$ARCH"
-just oci "$ARCH" /path/to/registry-ca.crt /path/to/cosign.pub
+just oci "$ARCH" /path/to/cosign.pub
 ```
 
 Build artifacts are written under `.artifacts/` and are never committed.
@@ -38,23 +38,19 @@ Build artifacts are written under `.artifacts/` and are never committed.
 builds those RPMs and emits
 `.artifacts/images/soda-os-0.3.1-${ARCH}.oci.tar` without loading or publishing
 the image. Architecture selection is always explicit; neither sibling is a
-default or fallback. The build requires the trusted registry CA and the public
-half of Soda's Cosign key so both become image inputs; a private key is never
-an image input.
+default or fallback. The build requires the public half of Soda's Cosign key,
+which becomes an image input; a private key is never an image input.
 The package lock pins every Fedora package added to the immutable base, and the
 finished image contains a complete RPM inventory plus its verified SHA-256
 checksum.
 
-Soda publishes only to `registry.soda.local/soda/os`. A release first pushes,
-resolves, signs, and verifies its versioned image to an exact `@sha256:`
-reference. Use the architecture-selected `soda-image publish --defer-current`
-for that pre-ISO step; it intentionally writes neither a release record nor an
-architecture-specific discovery tag. Build the installer from that signed
-exact reference, then run the final `soda-image publish --iso ...` publication.
-The final publication validates the ISO, writes and signs the
-architecture-named release record, and updates only
-`current-aarch64` or `current-x86_64` last. The two channels remain separate;
-Soda does not publish a multi-platform index. See the
+Soda publishes signed versioned images to `ghcr.io/levitateos/soda-os`. Each
+architecture first pushes, resolves, signs, and verifies its exact `@sha256:`
+reference, then builds and independently validates its matching ISO. A
+designated release owner supplies both signed architecture records and ISOs to
+`soda-release`, which creates one paired GitHub Release only after all assets
+have been uploaded and byte-verified. The signed release index is the sole
+update-discovery contract; there are no mutable registry discovery tags. See the
 [release and operator runbook](docs/release-operations.md) for the exact
 commands and [runtime image and installer contract](docs/installer.md) for the
 artifact boundary.
