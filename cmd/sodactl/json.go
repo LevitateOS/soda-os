@@ -92,7 +92,7 @@ func osDeploymentJSON(deployment *sodav2.OSDeployment) any {
 	if deployment == nil {
 		return nil
 	}
-	return map[string]any{"image_reference": deployment.ImageReference, "version": deployment.Version, "digest": deployment.Digest, "architecture": deployment.Architecture, "signature": deployment.Signature, "incompatible": deployment.Incompatible, "download_only": deployment.DownloadOnly}
+	return map[string]any{"image_reference": deployment.ImageReference, "version": deployment.Version, "digest": deployment.Digest, "architecture": deployment.Architecture, "incompatible": deployment.Incompatible, "download_only": deployment.DownloadOnly}
 }
 func osUpdateStatusJSON(value *sodav2.OSUpdateStatus) any {
 	if value == nil {

@@ -359,11 +359,12 @@ message GetHostStatusResponse {
 }
 
 message OSDeployment {
+	reserved 5;
+	reserved "signature";
   string image_reference = 1;
   string version = 2;
   string digest = 3;
   string architecture = 4;
-  string signature = 5;
   bool incompatible = 6;
   bool download_only = 7;
 }

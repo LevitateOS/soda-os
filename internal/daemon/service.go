@@ -149,7 +149,7 @@ func osUpdateStatusProto(value osupdate.Status) *sodav2.OSUpdateStatus {
 }
 
 func osDeploymentProto(value *osupdate.Deployment) *sodav2.OSDeployment {
-	return &sodav2.OSDeployment{ImageReference: value.ImageReference, Version: value.Version, Digest: value.Digest, Architecture: value.Architecture, Signature: value.Signature, Incompatible: value.Incompatible, DownloadOnly: value.DownloadOnly}
+	return &sodav2.OSDeployment{ImageReference: value.ImageReference, Version: value.Version, Digest: value.Digest, Architecture: value.Architecture, Incompatible: value.Incompatible, DownloadOnly: value.DownloadOnly}
 }
 
 func osUpdateRPCError(err error) error {

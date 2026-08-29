@@ -189,7 +189,7 @@ func TestOSUpdateRPCsPreserveExactIdentityAndRebootConfirmation(t *testing.T) {
 	digest := "sha256:" + strings.Repeat("b", 64)
 	exact := osupdate.Repository + "@" + digest
 	updates := &fakeOSUpdater{
-		status:    osupdate.Status{Booted: &osupdate.Deployment{ImageReference: osupdate.Repository + "@sha256:" + strings.Repeat("a", 64), Architecture: "arm64", Signature: "containerPolicy"}},
+		status:    osupdate.Status{Booted: &osupdate.Deployment{ImageReference: osupdate.Repository + "@sha256:" + strings.Repeat("a", 64), Architecture: "arm64"}},
 		candidate: osupdate.Candidate{ImageReference: exact, Digest: digest, Version: "0.3.0", StateSchema: 3, Available: true},
 	}
 	service := New(Options{OSUpdates: updates})

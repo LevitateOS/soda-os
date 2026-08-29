@@ -9,7 +9,6 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"path/filepath"
 	"runtime"
 	"strconv"
 	"strings"
@@ -22,8 +21,6 @@ const (
 	StateSchema   = uint32(3)
 	DefaultBootc  = "/usr/bin/bootc"
 	DefaultSkopeo = "/usr/bin/skopeo"
-	DefaultCosign = "/usr/libexec/soda/cosign"
-	DefaultKey    = "/usr/share/soda/release/cosign.pub"
 	DefaultIndex  = "/usr/share/soda/release/distribution.json"
 )
 
@@ -39,7 +36,6 @@ type Deployment struct {
 	Version        string
 	Digest         string
 	Architecture   string
-	Signature      string
 	Incompatible   bool
 	DownloadOnly   bool
 }
@@ -68,15 +64,10 @@ type inspector interface {
 	Inspect(context.Context, string) (imageMetadata, error)
 }
 
-type verifier interface {
-	Verify(context.Context, string) error
-}
-
 type Manager struct {
 	runner    process.Runner
 	bootc     string
 	discovery discovery
-	verifier  verifier
 	inspector inspector
 	platform  platformContract
 }
@@ -85,8 +76,6 @@ type Options struct {
 	Runner       process.Runner
 	BootcPath    string
 	SkopeoPath   string
-	CosignPath   string
-	PublicKey    string
 	Architecture string
 	Distribution string
 	HTTPClient   *http.Client
@@ -112,8 +101,7 @@ func New(options Options) (*Manager, error) {
 	return &Manager{
 		runner:    options.Runner,
 		bootc:     options.BootcPath,
-		discovery: githubDiscovery{client: options.HTTPClient, runner: options.Runner, executable: options.CosignPath, publicKey: options.PublicKey, distribution: distribution, platform: platform},
-		verifier:  cosignVerifier{runner: options.Runner, executable: options.CosignPath, publicKey: options.PublicKey},
+		discovery: githubDiscovery{client: options.HTTPClient, distribution: distribution, platform: platform},
 		inspector: skopeoInspector{runner: options.Runner, executable: options.SkopeoPath, architecture: platform.ociArchitecture},
 		platform:  platform,
 	}, nil
@@ -128,12 +116,6 @@ func applyDefaults(options *Options) {
 	}
 	if options.SkopeoPath == "" {
 		options.SkopeoPath = DefaultSkopeo
-	}
-	if options.CosignPath == "" {
-		options.CosignPath = DefaultCosign
-	}
-	if options.PublicKey == "" {
-		options.PublicKey = DefaultKey
 	}
 	if options.Distribution == "" {
 		options.Distribution = DefaultIndex
@@ -156,7 +138,7 @@ func (m *Manager) Check(ctx context.Context) (Candidate, error) {
 	exactReference, err := m.discovery.ResolveCurrent(ctx)
 	if err != nil {
 		if errors.Is(err, errInvalidIndex) {
-			return Candidate{}, fmt.Errorf("%w: signed release index", ErrRejected)
+			return Candidate{}, fmt.Errorf("%w: release index", ErrRejected)
 		}
 		return Candidate{}, fmt.Errorf("%w: resolve current release", ErrUnavailable)
 	}
@@ -176,12 +158,9 @@ func (m *Manager) inspectRelease(ctx context.Context, exactReference string) (Ca
 	if !isSodaDigestReference(exactReference) {
 		return Candidate{}, fmt.Errorf("%w: release discovery did not resolve an exact Soda digest", ErrRejected)
 	}
-	if err := m.verifier.Verify(ctx, exactReference); err != nil {
-		return Candidate{}, fmt.Errorf("%w: exact image signature verification failed", ErrRejected)
-	}
 	metadata, err := m.inspector.Inspect(ctx, exactReference)
 	if err != nil {
-		return Candidate{}, fmt.Errorf("%w: signed image verification failed", ErrRejected)
+		return Candidate{}, fmt.Errorf("%w: image inspection failed", ErrRejected)
 	}
 	return candidateFromMetadata(exactReference, metadata, m.platform)
 }
@@ -222,15 +201,15 @@ func (m *Manager) Stage(ctx context.Context, exactReference string) (Status, err
 	if _, err := m.inspectRelease(ctx, exactReference); err != nil {
 		return Status{}, err
 	}
-	if err := m.runner.Run(ctx, process.Command{Name: m.bootc, Args: []string{"switch", "--download-only", "--enforce-container-sigpolicy", exactReference}}); err != nil {
-		return Status{}, fmt.Errorf("%w: bootc could not stage the signed release", ErrUnavailable)
+	if err := m.runner.Run(ctx, process.Command{Name: m.bootc, Args: []string{"switch", "--download-only", exactReference}}); err != nil {
+		return Status{}, fmt.Errorf("%w: bootc could not stage the release", ErrUnavailable)
 	}
 	status, err := m.Status(ctx)
 	if err != nil {
 		return Status{}, err
 	}
 	if !matchesDownloadedDeployment(status.Staged, exactReference, m.platform.ociArchitecture) {
-		return Status{}, fmt.Errorf("%w: bootc did not lock the exact signed %s deployment", ErrPrecondition, m.platform.artifactArchitecture)
+		return Status{}, fmt.Errorf("%w: bootc did not lock the exact %s deployment", ErrPrecondition, m.platform.artifactArchitecture)
 	}
 	return status, nil
 }
@@ -257,7 +236,6 @@ var errInvalidIndex = errors.New("invalid release index")
 type distribution struct {
 	GitHubRepository string `json:"github_repository"`
 	IndexURL         string `json:"index_url"`
-	IndexBundleURL   string `json:"index_bundle_url"`
 }
 
 type releaseIndex struct {
@@ -278,46 +256,16 @@ type indexRelease struct {
 
 type githubDiscovery struct {
 	client       *http.Client
-	runner       process.Runner
-	executable   string
-	publicKey    string
 	distribution distribution
 	platform     platformContract
 }
 
 func (d githubDiscovery) ResolveCurrent(ctx context.Context) (string, error) {
-	index, bundle, err := d.download(ctx)
-	if err != nil {
-		return "", err
-	}
-	directory, err := os.MkdirTemp("", "soda-release-index-")
-	if err != nil {
-		return "", err
-	}
-	defer os.RemoveAll(directory)
-	indexPath, bundlePath := filepath.Join(directory, "index.json"), filepath.Join(directory, "index.sigstore.json")
-	if err = os.WriteFile(indexPath, index, 0o600); err != nil {
-		return "", err
-	}
-	if err = os.WriteFile(bundlePath, bundle, 0o600); err != nil {
-		return "", err
-	}
-	if err = d.runner.Run(ctx, process.Command{Name: d.executable, Args: []string{"verify-blob", "--key", d.publicKey, "--bundle", bundlePath, "--insecure-ignore-tlog=true", indexPath}}); err != nil {
-		return "", fmt.Errorf("%w: signature verification failed", errInvalidIndex)
-	}
-	return releaseForPlatform(index, d.platform)
-}
-
-func (d githubDiscovery) download(ctx context.Context) ([]byte, []byte, error) {
 	index, err := get(ctx, d.client, d.distribution.IndexURL)
 	if err != nil {
-		return nil, nil, err
+		return "", err
 	}
-	bundle, err := get(ctx, d.client, d.distribution.IndexBundleURL)
-	if err != nil {
-		return nil, nil, err
-	}
-	return index, bundle, nil
+	return releaseForPlatform(index, d.platform)
 }
 
 func get(ctx context.Context, client *http.Client, url string) ([]byte, error) {
@@ -386,7 +334,7 @@ func readDistribution(path string) (distribution, error) {
 		return distribution{}, fmt.Errorf("read release distribution: %w", err)
 	}
 	var value distribution
-	if err := json.Unmarshal(contents, &value); err != nil || value.GitHubRepository != "LevitateOS/soda-os" || value.IndexURL == "" || value.IndexBundleURL == "" {
+	if err := json.Unmarshal(contents, &value); err != nil || value.GitHubRepository != "LevitateOS/soda-os" || value.IndexURL == "" {
 		return distribution{}, errors.New("invalid release distribution")
 	}
 	return value, nil
@@ -418,18 +366,6 @@ func (i skopeoInspector) Inspect(ctx context.Context, reference string) (imageMe
 		return imageMetadata{}, err
 	}
 	return metadata, nil
-}
-
-type cosignVerifier struct {
-	runner                process.Runner
-	executable, publicKey string
-}
-
-func (v cosignVerifier) Verify(ctx context.Context, reference string) error {
-	return v.runner.Run(ctx, process.Command{Name: v.executable, Args: []string{
-		"verify", "--key", v.publicKey,
-		"--insecure-ignore-tlog=true", reference,
-	}})
 }
 
 func hexadecimal(value string) bool {

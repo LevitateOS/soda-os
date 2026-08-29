@@ -23,10 +23,7 @@ COPY .artifacts/rpms/soda-cockpit-*.rpm /var/tmp/soda-rpms/
 COPY .artifacts/rpms/soda-forgejo-*.rpm /var/tmp/soda-rpms/
 COPY .artifacts/bootc/fedora-packages.txt /var/tmp/soda-lock/fedora-packages.txt
 COPY .artifacts/bootc/expected-packages.txt /var/tmp/soda-lock/expected-packages.txt
-COPY .artifacts/bootc/trust/cosign.pub /usr/share/soda/release/cosign.pub
-COPY .artifacts/bootc/trust/distribution.json /usr/share/soda/release/distribution.json
-COPY packaging/bootc/trust/policy.json /etc/containers/policy.json
-COPY packaging/bootc/trust/registries.d.yaml /etc/containers/registries.d/soda.yaml
+COPY .artifacts/bootc/distribution/distribution.json /usr/share/soda/release/distribution.json
 
 RUN dnf -y --setopt=install_weak_deps=False --enablerepo=updates-testing install \
       $(cat /var/tmp/soda-lock/fedora-packages.txt) \
@@ -69,7 +66,6 @@ RUN dnf -y --setopt=install_weak_deps=False --enablerepo=updates-testing install
     && rm -f /run/soda-sshd-hostkey /run/soda-sshd-hostkey.pub \
     && test "$(rpm -q --qf '%{NAME}-%{EPOCHNUM}:%{VERSION}-%{RELEASE}.%{ARCH}' bootc)" = "${BOOTC_NEVRA}" \
     && rpm -q skopeo \
-    && /usr/libexec/soda/cosign version | grep -F 'GitVersion:    v3.1.2' \
     && bootc switch --help | grep -F -- '--download-only' \
     && bootc switch --help | grep -F -- '--from-downloaded' \
     && install -d -m 0755 /usr/share/soda \

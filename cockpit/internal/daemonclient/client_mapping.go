@@ -58,7 +58,7 @@ func osUpdateStatus(value *sodav2.OSUpdateStatus) OSUpdateStatus {
 func osDeployment(value *sodav2.OSDeployment) *OSDeployment {
 	return &OSDeployment{
 		ImageReference: value.GetImageReference(), Version: value.GetVersion(), Digest: value.GetDigest(),
-		Architecture: value.GetArchitecture(), Signature: value.GetSignature(),
+		Architecture: value.GetArchitecture(),
 		Incompatible: value.GetIncompatible(), DownloadOnly: value.GetDownloadOnly(),
 	}
 }

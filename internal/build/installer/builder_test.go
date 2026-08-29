@@ -200,11 +200,8 @@ commit = "3130fb87ee1f684b6e9d1909f354861c43d7a092"
 reference = "ghcr.io/osbuild/image-builder@sha256:704dc05d6033799248a33c415f7f7253ec20b40f0b2bff03b06d8687179e058a"
 platform = "linux/arm64"
 `), 0o644))
-	options := Options{ImageReference: testExactImage, ToolLock: lock}
-	for _, target := range []*string{&options.ArchivePath, &options.PublicKey, &options.CosignPath} {
-		*target = filepath.Join(root, strings.ReplaceAll(strings.TrimPrefix(*target, root), "/", "")+"input")
-		require.NoError(t, os.WriteFile(*target, []byte("input"), 0o644))
-	}
+	options := Options{ArchivePath: filepath.Join(root, "runtime.oci.tar"), ToolLock: lock}
+	require.NoError(t, os.WriteFile(options.ArchivePath, []byte("input"), 0o644))
 	builder := NewBuilder(root, config.DistroSpec{
 		Identity: config.IdentitySpec{Architecture: "aarch64", Hostname: "soda"},
 		Base:     config.BaseSpec{Platform: "linux/arm64"},
@@ -213,30 +210,15 @@ platform = "linux/arm64"
 	actual, err := builder.validate(options)
 	require.NoError(t, err)
 	require.Equal(t, "81.0.0", actual.Version)
-
-	options.ImageReference = Repository + ":current"
-	_, err = builder.validate(options)
-	require.EqualError(t, err, "installer payload must be an exact ghcr.io/levitateos/soda-os@sha256 reference")
 }
 
-func TestVerifySignedImageUsesPinnedKeyAndExactDigest(t *testing.T) {
-	runner := &recordingRunner{Outputs: map[string]string{"cosign version": "GitVersion: v3.1.2\n"}}
-	builder := NewBuilder("/workspace", config.DistroSpec{}, runner)
-	options := Options{ImageReference: testExactImage, PublicKey: "/keys/cosign.pub", CosignPath: "cosign"}
-	require.NoError(t, builder.verifySignedImage(context.Background(), options))
-	require.Equal(t, []string{
-		"cosign version",
-		"cosign verify --key /keys/cosign.pub --insecure-ignore-tlog=true " + testExactImage,
-	}, []string{runner.Commands[0].String(), runner.Commands[1].String()})
-}
-
-func TestVerifyArchiveDigestRequiresOneMatchingArm64Manifest(t *testing.T) {
+func TestArchiveReferenceDerivesExactDigestFromOneMatchingArm64Manifest(t *testing.T) {
 	archive, digest := writeTestOCIArchiveAt(t, filepath.Join(t.TempDir(), "runtime.oci.tar"))
-	exact := Repository + "@" + digest
-	require.NoError(t, verifyArchiveDigest(archive, exact, "arm64"))
-
-	err := verifyArchiveDigest(archive, Repository+"@sha256:"+strings.Repeat("f", 64), "arm64")
-	require.ErrorContains(t, err, "differs from exact payload")
+	reference, err := archiveReference(archive, "arm64")
+	require.NoError(t, err)
+	require.Equal(t, Repository+"@"+digest, reference)
+	_, err = archiveReference(archive, "amd64")
+	require.ErrorContains(t, err, "must be linux/amd64")
 }
 
 func TestBuildDoesNotDeleteRuntimeArchiveFromOutputDirectory(t *testing.T) {
@@ -250,11 +232,9 @@ commit = "3130fb87ee1f684b6e9d1909f354861c43d7a092"
 reference = "ghcr.io/osbuild/image-builder@sha256:704dc05d6033799248a33c415f7f7253ec20b40f0b2bff03b06d8687179e058a"
 platform = "linux/arm64"
 `), 0o644))
-	options := Options{ImageReference: Repository + "@" + digest, ArchivePath: archive, ToolLock: lock, OutputDir: output, CosignPath: filepath.Join(root, "cosign"), PublicKey: filepath.Join(root, "pub")}
-	for _, path := range []string{options.CosignPath, options.PublicKey} {
-		require.NoError(t, os.WriteFile(path, []byte("input"), 0o644))
-	}
-	runner := &recordingRunner{Outputs: map[string]string{options.CosignPath + " version": "GitVersion: v3.1.2\n"}}
+	exactReference := Repository + "@" + digest
+	options := Options{ArchivePath: archive, ToolLock: lock, OutputDir: output}
+	runner := &recordingRunner{}
 	packageLock := filepath.Join(root, "installer-packages.toml")
 	require.NoError(t, os.WriteFile(packageLock, []byte("schema_version = 1\nplatform = \"linux/arm64\"\npackages = [\"anaconda\"]\nboot_packages = [\"shim-aa64\"]\nefi_vendor = \"fedora\"\n"), 0o644))
 	isoConfig := filepath.Join(root, "iso.yaml")
@@ -268,18 +248,18 @@ platform = "linux/arm64"
 	_, err := builder.Build(context.Background(), options)
 	require.ErrorContains(t, err, "image-builder did not create")
 	require.FileExists(t, archive)
-	volumeName := fmt.Sprintf("soda-installer-%s-%d", strings.TrimPrefix(options.ImageReference, Repository+"@sha256:")[:12], os.Getpid())
+	volumeName := fmt.Sprintf("soda-installer-%s-%d", strings.TrimPrefix(exactReference, Repository+"@sha256:")[:12], os.Getpid())
 	commands := make([]string, 0, len(runner.Commands))
 	for _, command := range runner.Commands {
 		commands = append(commands, command.String())
 	}
 	require.Contains(t, commands, "docker volume create "+volumeName)
 	require.Contains(t, commands, "docker volume rm --force "+volumeName)
-	payloadTag := payloadStagingReference(options.ImageReference)
+	payloadTag := payloadStagingReference(exactReference)
 	require.Contains(t, strings.Join(commands, "\n"), "containers-storage:"+payloadTag)
 	require.Contains(t, strings.Join(commands, "\n"), "--build-context fedora-base=docker-image://soda-fedora-bootc:sha256-950a52fa1244db4d7fe2673af57fd6784a605a83bec3cd2d716ed8c00ebd366d")
 	require.Contains(t, strings.Join(commands, "\n"), "--bootc-installer-payload-ref "+payloadTag)
-	require.NotContains(t, strings.Join(commands, "\n"), "--bootc-installer-payload-ref "+options.ImageReference)
+	require.NotContains(t, strings.Join(commands, "\n"), "--bootc-installer-payload-ref "+exactReference)
 	require.NotContains(t, strings.Join(commands, "\n"), root+"/.artifacts/installer/containers-storage:/var/lib/containers/storage")
 	require.Contains(t, strings.Join(commands, "\n"), volumeName+":/var/lib/containers/storage")
 }

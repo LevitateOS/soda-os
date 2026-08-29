@@ -18,10 +18,7 @@ import (
 	"github.com/LevitateOS/soda-os/internal/process"
 )
 
-const (
-	sodaRegistry  = "ghcr.io/levitateos/soda-os"
-	cosignVersion = "v3.1.2"
-)
+const sodaRegistry = "ghcr.io/levitateos/soda-os"
 
 var targetRPMs = []string{"soda-release", "soda-runtime", "soda-cockpit", "soda-forgejo"}
 
@@ -38,22 +35,10 @@ type lockedPackage struct {
 	File   string `toml:"file"`
 }
 
-type releaseToolLock struct {
-	Version string              `toml:"version"`
-	Binary  []releaseToolBinary `toml:"binary"`
-}
-
-type releaseToolBinary struct {
-	OS     string `toml:"os"`
-	Arch   string `toml:"arch"`
-	SHA256 string `toml:"sha256"`
-}
-
 type Builder struct {
-	Root             string
-	Spec             config.DistroSpec
-	SigningPublicKey string
-	runner           process.Runner
+	Root   string
+	Spec   config.DistroSpec
+	runner process.Runner
 }
 
 func NewBuilderFromWorkingDirectory(specPath, architecture string, runner process.Runner) (*Builder, error) {
@@ -92,14 +77,9 @@ func (b *Builder) Check(_ context.Context) error {
 	if err != nil {
 		return err
 	}
-	toolLock, err := b.releaseToolLock()
-	if err != nil {
-		return err
-	}
 	return errors.Join(
 		validateImageSpec(spec),
 		validateRuntimePackageLock(lock, spec),
-		validateReleaseToolLock(toolLock, spec.Platform),
 		b.validateBuildInputs(),
 	)
 }
@@ -153,15 +133,8 @@ func validateLockedPackage(item lockedPackage, seen map[string]bool) error {
 	return fmt.Errorf("package lock entry %s has an unsupported source or file", item.Name)
 }
 
-func validateReleaseToolLock(lock releaseToolLock, platform config.PlatformSpec) error {
-	if lock.Version != cosignVersion || lock.checksum("linux", platform.Cosign.Architecture) != platform.Cosign.SHA256 {
-		return fmt.Errorf("release tool lock must pin the approved Cosign %s Linux/%s binary", cosignVersion, platform.Cosign.Architecture)
-	}
-	return nil
-}
-
 func (b *Builder) validateBuildInputs() error {
-	for _, path := range []string{"packaging/bootc/Containerfile", "packaging/builder/Containerfile", b.Spec.Platform.Builder.PackageLock, b.Spec.Platform.Installer.PackageLock, b.Spec.Platform.Installer.ToolLock, b.Spec.Platform.Installer.ISOConfig, "packaging/rpm/release/soda-release.spec", "packaging/rpm/runtime/soda-runtime.spec", "packaging/rpm/cockpit/soda-cockpit.spec", "packaging/rpm/forgejo/soda-forgejo.spec", "packaging/rpm/runtime/sources/sysusers/soda.conf", "packaging/bootc/trust/policy.json", "packaging/bootc/trust/registries.d.yaml", "distro/locks/release-tools.toml", "distro/locks/forgejo-source.toml"} {
+	for _, path := range []string{"packaging/bootc/Containerfile", "packaging/builder/Containerfile", b.Spec.Platform.Builder.PackageLock, b.Spec.Platform.Installer.PackageLock, b.Spec.Platform.Installer.ToolLock, b.Spec.Platform.Installer.ISOConfig, "packaging/rpm/release/soda-release.spec", "packaging/rpm/runtime/soda-runtime.spec", "packaging/rpm/cockpit/soda-cockpit.spec", "packaging/rpm/forgejo/soda-forgejo.spec", "packaging/rpm/runtime/sources/sysusers/soda.conf", "distro/locks/forgejo-source.toml"} {
 		if !isFile(b.path(path)) {
 			return fmt.Errorf("required bootc build input %s is missing", path)
 		}
@@ -177,7 +150,7 @@ func (b *Builder) BuildImage(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	if err := b.stageReleaseTrust(); err != nil {
+	if err := b.stageDistribution(); err != nil {
 		return err
 	}
 	revision, err := b.sourceRevision(ctx)
@@ -229,16 +202,9 @@ func (b *Builder) lintImage(ctx context.Context, archive string) error {
 	return nil
 }
 
-func (b *Builder) stageReleaseTrust() error {
-	publicKey, err := os.ReadFile(b.SigningPublicKey)
-	if err != nil {
-		return fmt.Errorf("read cosign.pub: %w", err)
-	}
-	destination := b.artifactPath("bootc", "trust")
+func (b *Builder) stageDistribution() error {
+	destination := b.artifactPath("bootc", "distribution")
 	if err := recreate(destination); err != nil {
-		return err
-	}
-	if err := os.WriteFile(filepath.Join(destination, "cosign.pub"), publicKey, 0o644); err != nil {
 		return err
 	}
 	distribution, err := json.Marshal(b.Spec.Distribution)
@@ -276,23 +242,6 @@ func (b *Builder) packageLock() (packageLock, error) {
 		return packageLock{}, fmt.Errorf("parse package lock: %w", err)
 	}
 	return lock, nil
-}
-
-func (b *Builder) releaseToolLock() (releaseToolLock, error) {
-	var lock releaseToolLock
-	if _, err := toml.DecodeFile(b.path("distro/locks/release-tools.toml"), &lock); err != nil {
-		return releaseToolLock{}, fmt.Errorf("parse release tool lock: %w", err)
-	}
-	return lock, nil
-}
-
-func (l releaseToolLock) checksum(osName, architecture string) string {
-	for _, binary := range l.Binary {
-		if binary.OS == osName && binary.Arch == architecture {
-			return binary.SHA256
-		}
-	}
-	return ""
 }
 
 func (b *Builder) path(path string) string {

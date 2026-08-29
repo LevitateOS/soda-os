@@ -28,13 +28,11 @@ type PairedPublicationOptions struct {
 type ReleaseArtifact struct {
 	ISOPath    string
 	RecordPath string
-	BundlePath string
 }
 
 type PairedResult struct {
-	Tag        string
-	IndexPath  string
-	BundlePath string
+	Tag       string
+	IndexPath string
 }
 
 type releaseIndex struct {
@@ -89,24 +87,17 @@ func (p *Publisher) PublishPaired(ctx context.Context, options PairedPublication
 		return PairedResult{}, err
 	}
 	if err := os.WriteFile(indexPath, append(encoded, '\n'), 0o644); err != nil {
-		return PairedResult{}, fmt.Errorf("write signed release index: %w", err)
+		return PairedResult{}, fmt.Errorf("write release index: %w", err)
 	}
-	bundlePath := indexPath + ".sigstore.json"
-	if err := p.signer.SignBlob(ctx, indexPath, bundlePath); err != nil {
-		return PairedResult{}, fmt.Errorf("sign paired release index: %w", err)
-	}
-	if err := p.signer.VerifyBlob(ctx, indexPath, bundlePath); err != nil {
-		return PairedResult{}, fmt.Errorf("verify paired release index: %w", err)
-	}
-	paths = append(paths, indexPath, bundlePath)
+	paths = append(paths, indexPath)
 	tag := "v" + index.SodaVersion
 	client := githubAPI{token: options.GitHubToken, client: http.DefaultClient}
-	return publishPaired(ctx, client, pairedUpload{repository: p.spec.Distribution.GitHubRepository, tag: tag, indexPath: indexPath, bundlePath: bundlePath, paths: paths})
+	return publishPaired(ctx, client, pairedUpload{repository: p.spec.Distribution.GitHubRepository, tag: tag, indexPath: indexPath, paths: paths})
 }
 
 func (p *Publisher) releaseIndex(ctx context.Context, artifacts map[string]ReleaseArtifact) (releaseIndex, []string, error) {
 	index := releaseIndex{SchemaVersion: 1, Releases: make([]indexRelease, 0, 2)}
-	paths := make([]string, 0, 6)
+	paths := make([]string, 0, 4)
 	for _, architecture := range []string{"aarch64", "x86_64"} {
 		indexed, err := p.releaseIndexEntry(ctx, architecture, artifacts[architecture])
 		if err != nil {
@@ -130,7 +121,7 @@ type indexedArtifact struct {
 }
 
 func (p *Publisher) releaseIndexEntry(ctx context.Context, architecture string, artifact ReleaseArtifact) (indexedArtifact, error) {
-	if !regularFile(artifact.ISOPath) || !regularFile(artifact.RecordPath) || !regularFile(artifact.BundlePath) {
+	if !regularFile(artifact.ISOPath) || !regularFile(artifact.RecordPath) {
 		return indexedArtifact{}, fmt.Errorf("%s paired release artifacts must be regular files", architecture)
 	}
 	record, contents, err := p.readReleaseRecord(ctx, architecture, artifact)
@@ -142,17 +133,15 @@ func (p *Publisher) releaseIndexEntry(ctx context.Context, architecture string, 
 		return indexedArtifact{}, err
 	}
 	if record.ISOChecksum != isoDigest {
-		return indexedArtifact{}, fmt.Errorf("%s installer ISO checksum differs from its signed release record", architecture)
+		return indexedArtifact{}, fmt.Errorf("%s installer ISO checksum differs from its release record", architecture)
 	}
 	digest := sha256.Sum256(contents)
 	entry := indexRelease{Architecture: architecture, ImageReference: record.SodaImageReference, ISOAsset: filepath.Base(artifact.ISOPath), ISOChecksum: isoDigest, RecordAsset: filepath.Base(artifact.RecordPath), RecordChecksum: hex.EncodeToString(digest[:])}
-	return indexedArtifact{release: entry, record: record, paths: []string{artifact.ISOPath, artifact.RecordPath, artifact.BundlePath}}, nil
+	return indexedArtifact{release: entry, record: record, paths: []string{artifact.ISOPath, artifact.RecordPath}}, nil
 }
 
 func (p *Publisher) readReleaseRecord(ctx context.Context, architecture string, artifact ReleaseArtifact) (Record, []byte, error) {
-	if err := p.signer.VerifyBlob(ctx, artifact.RecordPath, artifact.BundlePath); err != nil {
-		return Record{}, nil, fmt.Errorf("verify %s signed release record: %w", architecture, err)
-	}
+	_ = ctx
 	contents, err := os.ReadFile(artifact.RecordPath)
 	if err != nil {
 		return Record{}, nil, err
@@ -168,8 +157,8 @@ func (p *Publisher) readReleaseRecord(ctx context.Context, architecture string, 
 }
 
 type pairedUpload struct {
-	repository, tag, indexPath, bundlePath string
-	paths                                  []string
+	repository, tag, indexPath string
+	paths                      []string
 }
 
 func publishPaired(ctx context.Context, client githubReleaseClient, upload pairedUpload) (PairedResult, error) {
@@ -188,7 +177,7 @@ func publishPaired(ctx context.Context, client githubReleaseClient, upload paire
 	if err := client.Publish(ctx, draft); err != nil {
 		return PairedResult{}, fmt.Errorf("publish GitHub release: %w", err)
 	}
-	return PairedResult{Tag: upload.tag, IndexPath: upload.indexPath, BundlePath: upload.bundlePath}, nil
+	return PairedResult{Tag: upload.tag, IndexPath: upload.indexPath}, nil
 }
 
 func fileSHA256(path string) (string, error) {

@@ -2,7 +2,6 @@ package image
 
 import (
 	"context"
-	"encoding/pem"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -19,7 +18,6 @@ const (
 	testArmBootcNEVRA           = "bootc-0:1.16.10-1.fc44.aarch64"
 	testArmPlatform             = "linux/arm64"
 	testArmBuilderBaseReference = "registry.fedoraproject.org/fedora@sha256:9c8b291e256262b91aac5b3da50ea323760d0a6b449c6d6ad5f01d9550d48d2a"
-	testArmCosignSHA            = "90e7ae0b5dfd60f20816b52c012addf7fc055ebcc7bea4ce81c428ca8518c302"
 )
 
 type recordingRunner struct {
@@ -212,99 +210,18 @@ func TestSodaRPMsAreScriptletFree(t *testing.T) {
 	}
 }
 
-func TestRuntimeCosignInputIsPinnedForLinuxAArch64(t *testing.T) {
-	script, err := os.ReadFile(filepath.Join("..", "..", "..", "scripts", "fetch-release-tools.sh"))
-	require.NoError(t, err)
-	require.Contains(t, string(script), "cosign-linux-arm64")
-	require.Contains(t, string(script), testArmCosignSHA)
-	require.Contains(t, string(script), "cosign-linux-amd64")
-	require.Contains(t, string(script), "releases/download/v3.1.2")
-
-	spec, err := os.ReadFile(filepath.Join("..", "..", "..", "packaging", "rpm", "runtime", "soda-runtime.spec"))
-	require.NoError(t, err)
-	require.Contains(t, string(spec), "install -m 0755 %{_sourcedir}/cosign %{buildroot}%{_libexecdir}/soda/cosign")
-	require.Contains(t, string(spec), "%{_libexecdir}/soda/cosign")
-
+func TestStageDistributionWritesUpdateLocation(t *testing.T) {
 	root := t.TempDir()
-	tool := filepath.Join(root, ".artifacts", "tools", "cosign-linux-arm64")
-	require.NoError(t, os.MkdirAll(filepath.Dir(tool), 0o755))
-	require.NoError(t, os.WriteFile(tool, []byte("not the pinned binary"), 0o755))
-	err = (&Builder{Root: root, Spec: config.DistroSpec{Platform: config.PlatformSpec{Cosign: config.PlatformCosign{Architecture: "arm64", SHA256: testArmCosignSHA}}}}).verifyRuntimeCosign()
-	require.ErrorContains(t, err, "differs from pinned")
-}
-
-func TestStageReleaseTrustStagesPublicKeyAndDistribution(t *testing.T) {
-	root := t.TempDir()
-	publicKeyPath := writeTestReleaseTrust(t, root)
-	builder := &Builder{Root: root, SigningPublicKey: publicKeyPath, Spec: testDistributionSpec()}
-	require.NoError(t, builder.stageReleaseTrust())
-
-	stagedKey, err := os.ReadFile(filepath.Join(root, ".artifacts", "bootc", "trust", "cosign.pub"))
+	builder := &Builder{Root: root, Spec: testDistributionSpec()}
+	require.NoError(t, builder.stageDistribution())
+	distribution, err := os.ReadFile(filepath.Join(root, ".artifacts", "bootc", "distribution", "distribution.json"))
 	require.NoError(t, err)
-	wantKey, err := os.ReadFile(publicKeyPath)
-	require.NoError(t, err)
-	require.Equal(t, wantKey, stagedKey)
-
-	policy, err := os.ReadFile(filepath.Join("..", "..", "..", "packaging", "bootc", "trust", "policy.json"))
-	require.NoError(t, err)
-	require.Contains(t, string(policy), `"ghcr.io/levitateos/soda-os"`)
-	require.Contains(t, string(policy), `"type": "sigstoreSigned"`)
-	require.Contains(t, string(policy), `"keyPath": "/usr/share/soda/release/cosign.pub"`)
-	registries, err := os.ReadFile(filepath.Join("..", "..", "..", "packaging", "bootc", "trust", "registries.d.yaml"))
-	require.NoError(t, err)
-	require.Contains(t, string(registries), "use-sigstore-attachments: true")
-	distribution, err := os.ReadFile(filepath.Join(root, ".artifacts", "bootc", "trust", "distribution.json"))
-	require.NoError(t, err)
-	require.JSONEq(t, `{"github_repository":"LevitateOS/soda-os","index_url":"https://github.com/LevitateOS/soda-os/releases/latest/download/soda-os-release-index.json","index_bundle_url":"https://github.com/LevitateOS/soda-os/releases/latest/download/soda-os-release-index.json.sigstore.json"}`, string(distribution))
-}
-
-func TestStageReleaseTrustPreservesInputsAlreadyAtDestination(t *testing.T) {
-	root := t.TempDir()
-	trustDir := filepath.Join(root, ".artifacts", "bootc", "trust")
-	require.NoError(t, os.MkdirAll(trustDir, 0o755))
-	publicKeyPath := writeTestReleaseTrust(t, trustDir)
-	wantKey, err := os.ReadFile(publicKeyPath)
-	require.NoError(t, err)
-
-	builder := &Builder{Root: root, SigningPublicKey: publicKeyPath, Spec: testDistributionSpec()}
-	require.NoError(t, builder.stageReleaseTrust())
-
-	stagedKey, err := os.ReadFile(publicKeyPath)
-	require.NoError(t, err)
-	require.Equal(t, wantKey, stagedKey)
-}
-
-func TestBuildImageStagesTrustAfterLockedBootcInputs(t *testing.T) {
-	source, err := os.ReadFile("builder.go")
-	require.NoError(t, err)
-	buildRPMs := strings.Index(string(source), "if err := b.BuildRPMs(ctx)")
-	stageTrust := strings.Index(string(source), "if err := b.stageReleaseTrust()")
-	require.Greater(t, buildRPMs, -1)
-	require.Greater(t, stageTrust, buildRPMs)
-
-	root := t.TempDir()
-	publicKeyPath := writeTestReleaseTrust(t, root)
-	bootcInputs := filepath.Join(root, ".artifacts", "bootc")
-	require.NoError(t, recreate(bootcInputs))
-	require.NoError(t, os.WriteFile(filepath.Join(bootcInputs, "expected-packages.txt"), []byte("locked inputs\n"), 0o644))
-	builder := &Builder{Root: root, SigningPublicKey: publicKeyPath, Spec: testDistributionSpec()}
-	require.NoError(t, builder.stageReleaseTrust())
-	require.FileExists(t, filepath.Join(bootcInputs, "expected-packages.txt"))
-	require.FileExists(t, filepath.Join(bootcInputs, "trust", "cosign.pub"))
-	require.FileExists(t, filepath.Join(bootcInputs, "trust", "distribution.json"))
+	require.JSONEq(t, `{"github_repository":"LevitateOS/soda-os","index_url":"https://github.com/LevitateOS/soda-os/releases/latest/download/soda-os-release-index.json"}`, string(distribution))
 }
 
 func testDistributionSpec() config.DistroSpec {
 	return config.DistroSpec{Distribution: config.DistributionSpec{
 		GitHubRepository: "LevitateOS/soda-os",
 		IndexURL:         "https://github.com/LevitateOS/soda-os/releases/latest/download/soda-os-release-index.json",
-		IndexBundleURL:   "https://github.com/LevitateOS/soda-os/releases/latest/download/soda-os-release-index.json.sigstore.json",
 	}}
-}
-
-func writeTestReleaseTrust(t *testing.T, root string) string {
-	t.Helper()
-	publicKeyPath := filepath.Join(root, "cosign.pub")
-	require.NoError(t, os.WriteFile(publicKeyPath, pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: []byte("test key")}), 0o644))
-	return publicKeyPath
 }

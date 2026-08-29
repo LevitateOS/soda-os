@@ -116,7 +116,7 @@ func testJob() *sodav2.ProvisioningJob {
 
 func testOSUpdateStatus() *sodav2.OSUpdateStatus {
 	digest := "sha256:" + strings.Repeat("a", 64)
-	return &sodav2.OSUpdateStatus{ReadOnly: true, Booted: &sodav2.OSDeployment{ImageReference: "ghcr.io/levitateos/soda-os@" + digest, Version: "0.2.0", Digest: digest, Architecture: "arm64", Signature: "containerPolicy"}}
+	return &sodav2.OSUpdateStatus{ReadOnly: true, Booted: &sodav2.OSDeployment{ImageReference: "ghcr.io/levitateos/soda-os@" + digest, Version: "0.2.0", Digest: digest, Architecture: "arm64"}}
 }
 
 func testApp(t *testing.T, server *recordingServer) (*app, *string) {

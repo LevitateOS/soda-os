@@ -21,7 +21,6 @@ type bootcDeployment struct {
 		Image struct {
 			Image     string `json:"image"`
 			Transport string `json:"transport"`
-			Signature string `json:"signature"`
 		} `json:"image"`
 		Version      string `json:"version"`
 		ImageDigest  string `json:"imageDigest"`
@@ -47,21 +46,11 @@ func parseBootcStatus(contents []byte, platform platformContract) (Status, error
 	if document.Status.Staged == nil {
 		return result, nil
 	}
-	staged, err := stagedDeployment(document.Status.Staged, platform)
+	staged, err := deployment(document.Status.Staged, platform)
 	if err != nil {
 		return Status{}, fmt.Errorf("decode staged deployment: %w", err)
 	}
 	result.Staged = &staged
-	return result, nil
-}
-func stagedDeployment(value *bootcDeployment, platform platformContract) (Deployment, error) {
-	result, err := deployment(value, platform)
-	if err != nil {
-		return Deployment{}, err
-	}
-	if value.Image.Image.Signature != "containerPolicy" {
-		return Deployment{}, errors.New("staged deployment does not enforce the Soda container signature policy")
-	}
 	return result, nil
 }
 func deployment(value *bootcDeployment, platform platformContract) (Deployment, error) {
@@ -82,7 +71,7 @@ func deployment(value *bootcDeployment, platform platformContract) (Deployment, 
 	if value.Incompatible {
 		return Deployment{}, errors.New("deployment is incompatible with bootc mutation")
 	}
-	return Deployment{ImageReference: Repository + "@" + digest, Version: value.Image.Version, Digest: digest, Architecture: value.Image.Architecture, Signature: value.Image.Image.Signature, Incompatible: value.Incompatible, DownloadOnly: value.DownloadOnly}, nil
+	return Deployment{ImageReference: Repository + "@" + digest, Version: value.Image.Version, Digest: digest, Architecture: value.Image.Architecture, Incompatible: value.Incompatible, DownloadOnly: value.DownloadOnly}, nil
 }
 func isSodaDigestReference(value string) bool {
 	ref, err := name.NewDigest(value)
@@ -97,5 +86,5 @@ func validSHA256(value string) bool {
 }
 
 func matchesDownloadedDeployment(deployment *Deployment, exactReference, architecture string) bool {
-	return deployment != nil && deployment.ImageReference == exactReference && deployment.DownloadOnly && deployment.Signature == "containerPolicy" && deployment.Architecture == architecture && !deployment.Incompatible
+	return deployment != nil && deployment.ImageReference == exactReference && deployment.DownloadOnly && deployment.Architecture == architecture && !deployment.Incompatible
 }

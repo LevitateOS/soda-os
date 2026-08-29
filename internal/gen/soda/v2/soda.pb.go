@@ -3170,7 +3170,6 @@ type OSDeployment struct {
 	Version        string                 `protobuf:"bytes,2,opt,name=version,proto3" json:"version,omitempty"`
 	Digest         string                 `protobuf:"bytes,3,opt,name=digest,proto3" json:"digest,omitempty"`
 	Architecture   string                 `protobuf:"bytes,4,opt,name=architecture,proto3" json:"architecture,omitempty"`
-	Signature      string                 `protobuf:"bytes,5,opt,name=signature,proto3" json:"signature,omitempty"`
 	Incompatible   bool                   `protobuf:"varint,6,opt,name=incompatible,proto3" json:"incompatible,omitempty"`
 	DownloadOnly   bool                   `protobuf:"varint,7,opt,name=download_only,json=downloadOnly,proto3" json:"download_only,omitempty"`
 	unknownFields  protoimpl.UnknownFields
@@ -3231,13 +3230,6 @@ func (x *OSDeployment) GetDigest() string {
 func (x *OSDeployment) GetArchitecture() string {
 	if x != nil {
 		return x.Architecture
-	}
-	return ""
-}
-
-func (x *OSDeployment) GetSignature() string {
-	if x != nil {
-		return x.Signature
 	}
 	return ""
 }
@@ -3958,15 +3950,14 @@ const file_soda_v2_soda_proto_rawDesc = "" +
 	"\x04jobs\x18\x01 \x03(\v2\x18.soda.v2.ProvisioningJobR\x04jobs\"\x16\n" +
 	"\x14GetHostStatusRequest\"@\n" +
 	"\x15GetHostStatusResponse\x12'\n" +
-	"\x04host\x18\x01 \x01(\v2\x13.soda.v2.HostStatusR\x04host\"\xf4\x01\n" +
+	"\x04host\x18\x01 \x01(\v2\x13.soda.v2.HostStatusR\x04host\"\xe7\x01\n" +
 	"\fOSDeployment\x12'\n" +
 	"\x0fimage_reference\x18\x01 \x01(\tR\x0eimageReference\x12\x18\n" +
 	"\aversion\x18\x02 \x01(\tR\aversion\x12\x16\n" +
 	"\x06digest\x18\x03 \x01(\tR\x06digest\x12\"\n" +
-	"\farchitecture\x18\x04 \x01(\tR\farchitecture\x12\x1c\n" +
-	"\tsignature\x18\x05 \x01(\tR\tsignature\x12\"\n" +
+	"\farchitecture\x18\x04 \x01(\tR\farchitecture\x12\"\n" +
 	"\fincompatible\x18\x06 \x01(\bR\fincompatible\x12#\n" +
-	"\rdownload_only\x18\a \x01(\bR\fdownloadOnly\"\x9b\x01\n" +
+	"\rdownload_only\x18\a \x01(\bR\fdownloadOnlyJ\x04\b\x05\x10\x06R\tsignature\"\x9b\x01\n" +
 	"\x0eOSUpdateStatus\x12-\n" +
 	"\x06booted\x18\x01 \x01(\v2\x15.soda.v2.OSDeploymentR\x06booted\x122\n" +
 	"\x06staged\x18\x02 \x01(\v2\x15.soda.v2.OSDeploymentH\x00R\x06staged\x88\x01\x01\x12\x1b\n" +

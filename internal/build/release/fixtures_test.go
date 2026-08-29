@@ -11,7 +11,6 @@ import (
 	"testing"
 
 	"github.com/LevitateOS/soda-os/internal/config"
-	"github.com/LevitateOS/soda-os/internal/process"
 	v1 "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/google/go-containerregistry/pkg/v1/empty"
 	"github.com/google/go-containerregistry/pkg/v1/layout"
@@ -20,43 +19,6 @@ import (
 	"github.com/google/go-containerregistry/pkg/v1/types"
 	"github.com/stretchr/testify/require"
 )
-
-type recordingRunner struct {
-	Commands []process.Command
-	Outputs  map[string]string
-	Err      error
-}
-
-func (r *recordingRunner) Run(_ context.Context, command process.Command) error {
-	r.Commands = append(r.Commands, command)
-	return r.Err
-}
-
-func (r *recordingRunner) Output(_ context.Context, command process.Command) (string, error) {
-	r.Commands = append(r.Commands, command)
-	return r.Outputs[command.String()], r.Err
-}
-
-type fakeRegistry struct {
-	image  v1.Image
-	digest v1.Hash
-	events *[]string
-}
-
-func (r *fakeRegistry) Push(_ context.Context, reference string, _ v1.Image) error {
-	*r.events = append(*r.events, "push:"+reference)
-	return nil
-}
-
-func (r *fakeRegistry) Resolve(_ context.Context, reference string) (v1.Hash, error) {
-	*r.events = append(*r.events, "resolve:"+reference)
-	if r.digest.Hex != "" {
-		return r.digest, nil
-	}
-	return r.image.Digest()
-}
-
-type fakeSigner struct{ events *[]string }
 
 type fakeISOValidator struct {
 	calls int
@@ -73,26 +35,6 @@ func (v *fakeISOValidator) ValidateISO(_ context.Context, isoPath, _ string, _ s
 		return "", err
 	}
 	return sha256Hex(contents), nil
-}
-
-func (s *fakeSigner) SignImage(_ context.Context, reference string) error {
-	*s.events = append(*s.events, "sign-image:"+reference)
-	return nil
-}
-
-func (s *fakeSigner) VerifyImage(_ context.Context, reference string) error {
-	*s.events = append(*s.events, "verify-image:"+reference)
-	return nil
-}
-
-func (s *fakeSigner) SignBlob(context.Context, string, string) error {
-	*s.events = append(*s.events, "sign-blob")
-	return nil
-}
-
-func (s *fakeSigner) VerifyBlob(context.Context, string, string) error {
-	*s.events = append(*s.events, "verify-blob")
-	return nil
 }
 
 func testSpec() config.DistroSpec {
@@ -119,7 +61,6 @@ func testImageWithSidecar(t *testing.T, sidecarDigest string) v1.Image {
 	for name, contents := range map[string][]byte{
 		"usr/share/soda/rpm-inventory.txt":    inventory,
 		"usr/share/soda/rpm-inventory.sha256": []byte(sidecarDigest + "  rpm-inventory.txt\n"),
-		"usr/share/soda/release/cosign.pub":   testPublicKey,
 	} {
 		require.NoError(t, writer.WriteHeader(&tar.Header{Name: name, Mode: 0o644, Size: int64(len(contents))}))
 		_, err := writer.Write(contents)
@@ -141,19 +82,6 @@ func testImageWithSidecar(t *testing.T, sidecarDigest string) v1.Image {
 	image, err = mutate.ConfigFile(image, configFile)
 	require.NoError(t, err)
 	return image
-}
-
-func testTrust(t *testing.T) string {
-	t.Helper()
-	directory := t.TempDir()
-	publicKey := filepath.Join(directory, "cosign.pub")
-	require.NoError(t, os.WriteFile(publicKey, testPublicKey, 0o644))
-	return publicKey
-}
-
-func testPublisher(t *testing.T, publisher *Publisher) *Publisher {
-	publisher.publicKey = testTrust(t)
-	return publisher
 }
 
 func writeOCIArchive(t *testing.T, image v1.Image) string {

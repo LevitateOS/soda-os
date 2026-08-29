@@ -31,13 +31,9 @@ func main() {
 		command("check", "validate the pinned Fedora bootc image contract", builder, func(ctx context.Context, b *image.Builder) error { return b.Check(ctx) }),
 		command("rpm", "build the four locked Soda RPM inputs", builder, func(ctx context.Context, b *image.Builder) error { return b.BuildRPMs(ctx) }),
 	)
-	var publicKey string
 	oci := command("oci", "build the Soda bootc OCI archive without loading or publishing it", builder, func(ctx context.Context, b *image.Builder) error {
-		b.SigningPublicKey = publicKey
 		return b.BuildImage(ctx)
 	})
-	oci.Flags().StringVar(&publicKey, "public-key", "", "Soda Cosign public key embedded for update verification")
-	_ = oci.MarkFlagRequired("public-key")
 	root.AddCommand(oci)
 	root.AddCommand(releaseCommand(builder))
 	root.AddCommand(installerCommand(builder))
@@ -51,7 +47,7 @@ func installerCommand(builder func() (*image.Builder, error)) *cobra.Command {
 	var options installer.Options
 	command := &cobra.Command{
 		Use:   "iso",
-		Short: "build a platform-matched installer ISO from one signed exact Soda image",
+		Short: "build a platform-matched installer ISO from a local Soda OCI archive",
 		Args:  cobra.NoArgs,
 		RunE: func(command *cobra.Command, _ []string) error {
 			imageBuilder, err := builder()
@@ -70,44 +66,32 @@ func installerCommand(builder func() (*image.Builder, error)) *cobra.Command {
 			return nil
 		},
 	}
-	command.Flags().StringVar(&options.ImageReference, "image", "", "signed exact ghcr.io/levitateos/soda-os@sha256 payload")
-	command.Flags().StringVar(&options.ArchivePath, "archive", "", "local OCI archive matching the exact payload")
-	command.Flags().StringVar(&options.PublicKey, "public-key", "", "Soda Cosign public key")
-	command.Flags().StringVar(&options.CosignPath, "cosign", ".artifacts/tools/cosign", "pinned Cosign executable")
+	command.Flags().StringVar(&options.ArchivePath, "archive", "", "local single-platform Soda OCI archive")
 	command.Flags().StringVar(&options.ToolLock, "tool-lock", "", "pinned Image Builder tool contract (defaults to the selected platform lock)")
 	command.Flags().StringVar(&options.OutputDir, "output-dir", ".artifacts/images", "installer artifact directory")
-	for _, name := range []string{"image", "archive", "public-key"} {
-		_ = command.MarkFlagRequired(name)
-	}
+	_ = command.MarkFlagRequired("archive")
 	return command
 }
 
 type releaseCommandState struct {
-	builder      func() (*image.Builder, error)
-	signing      release.SigningOptions
-	publication  release.PublicationOptions
-	deferCurrent bool
+	builder     func() (*image.Builder, error)
+	publication release.PublicationOptions
 }
 
 func releaseCommand(builder func() (*image.Builder, error)) *cobra.Command {
 	state := &releaseCommandState{builder: builder}
 	command := &cobra.Command{
-		Use:   "publish",
-		Short: "publish and sign one exact Soda bootc release",
+		Use:   "record",
+		Short: "inspect a local OCI archive and installer ISO and write release metadata",
 		Args:  cobra.NoArgs,
 		RunE:  state.run,
 	}
 	command.Flags().StringVar(&state.publication.ArchivePath, "archive", "", "path to the selected-architecture Soda OCI archive")
-	command.Flags().StringVar(&state.signing.PublicKey, "public-key", "", "Soda Cosign public key")
-	command.Flags().StringVar(&state.signing.PrivateKey, "signing-key", "", "passphrase-protected Soda Cosign private key")
-	command.Flags().StringVar(&state.publication.ISOPath, "iso", "", "optional installer ISO to bind into the release record")
-	command.Flags().BoolVar(&state.deferCurrent, "prepare-only", false, "sign and verify the exact image for ISO construction without writing a release record")
-	command.Flags().StringVar(&state.publication.OutputDir, "output-dir", ".artifacts/releases", "signed release record directory")
-	command.Flags().StringVar(&state.signing.CosignPath, "cosign", ".artifacts/tools/cosign", "pinned Cosign executable")
-	command.Flags().StringVar(&state.signing.ToolLock, "tool-lock", "distro/locks/release-tools.toml", "pinned release tool checksums")
+	command.Flags().StringVar(&state.publication.ISOPath, "iso", "", "installer ISO built from the local OCI archive")
+	command.Flags().StringVar(&state.publication.OutputDir, "output-dir", ".artifacts/releases", "release record directory")
 	command.Flags().StringVar(&state.publication.InstallerArchive, "installer-archive", "", "build-only installer environment used to inspect --iso (defaults to the selected architecture artifact)")
 	command.Flags().StringVar(&state.publication.InstallerToolLock, "installer-tool-lock", "", "pinned Image Builder contract used to inspect --iso (defaults to the selected platform lock)")
-	for _, name := range []string{"archive", "public-key", "signing-key"} {
+	for _, name := range []string{"archive", "iso"} {
 		_ = command.MarkFlagRequired(name)
 	}
 	return command
@@ -124,22 +108,15 @@ func (state *releaseCommandState) run(command *cobra.Command, _ []string) error 
 	if state.publication.InstallerToolLock == "" {
 		state.publication.InstallerToolLock = builder.Spec.Platform.Installer.ToolLock
 	}
-	publisher, err := release.NewPublisher(builder.Root, builder.Spec, state.signing, process.OSRunner{Stdin: os.Stdin, Stdout: os.Stdout, Stderr: os.Stderr})
+	publisher, err := release.NewPublisher(builder.Root, builder.Spec, process.OSRunner{Stdout: os.Stdout, Stderr: os.Stderr})
 	if err != nil {
 		return err
 	}
-	if state.deferCurrent {
-		reference, prepareErr := publisher.Prepare(command.Context(), state.publication.ArchivePath)
-		if prepareErr == nil {
-			fmt.Printf("Prepared signed image %s; no release record was written\n", reference)
-		}
-		return prepareErr
-	}
-	result, err := publisher.Publish(command.Context(), state.publication)
+	result, err := publisher.CreateRecord(command.Context(), state.publication)
 	if err != nil {
 		return err
 	}
-	fmt.Printf("Published %s\nRelease record: %s\nSignature bundle: %s\n", result.ImageReference, result.RecordPath, result.BundlePath)
+	fmt.Printf("Recorded %s\nRelease record: %s\n", result.ImageReference, result.RecordPath)
 	return nil
 }
 

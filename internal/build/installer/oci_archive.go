@@ -12,35 +12,31 @@ import (
 	"github.com/google/go-containerregistry/pkg/v1/layout"
 )
 
-func verifyArchiveDigest(path, expectedReference, architecture string) error {
+func archiveReference(path, architecture string) (string, error) {
 	directory, err := os.MkdirTemp("", "soda-installer-oci-")
 	if err != nil {
-		return err
+		return "", err
 	}
 	defer os.RemoveAll(directory)
 	if err := extractRuntimeOCIArchive(path, directory); err != nil {
-		return err
+		return "", err
 	}
 	index, err := layout.ImageIndexFromPath(directory)
 	if err != nil {
-		return fmt.Errorf("read runtime OCI layout: %w", err)
+		return "", fmt.Errorf("read runtime OCI layout: %w", err)
 	}
 	manifest, err := index.IndexManifest()
 	if err != nil {
-		return err
+		return "", err
 	}
 	if len(manifest.Manifests) != 1 {
-		return errors.New("runtime OCI archive must contain exactly one manifest")
+		return "", errors.New("runtime OCI archive must contain exactly one manifest")
 	}
 	descriptor := manifest.Manifests[0]
 	if descriptor.Platform == nil || descriptor.Platform.OS != "linux" || descriptor.Platform.Architecture != architecture {
-		return fmt.Errorf("runtime OCI archive manifest must be linux/%s", architecture)
+		return "", fmt.Errorf("runtime OCI archive manifest must be linux/%s", architecture)
 	}
-	expectedDigest := strings.TrimPrefix(expectedReference, Repository+"@")
-	if descriptor.Digest.String() != expectedDigest {
-		return fmt.Errorf("runtime OCI archive digest %s differs from exact payload %s", descriptor.Digest, expectedDigest)
-	}
-	return nil
+	return Repository + "@" + descriptor.Digest.String(), nil
 }
 
 func extractRuntimeOCIArchive(path, directory string) error {

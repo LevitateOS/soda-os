@@ -29,7 +29,6 @@ type DistroSpec struct {
 type DistributionSpec struct {
 	GitHubRepository string `toml:"github_repository" json:"github_repository"`
 	IndexURL         string `toml:"index_url" json:"index_url"`
-	IndexBundleURL   string `toml:"index_bundle_url" json:"index_bundle_url"`
 }
 
 type IdentitySpec struct {
@@ -56,7 +55,6 @@ type PlatformSpec struct {
 	Architecture  PlatformArchitecture `toml:"architecture"`
 	Base          PlatformBase         `toml:"base"`
 	Builder       PlatformBuilder      `toml:"builder"`
-	Cosign        PlatformCosign       `toml:"cosign"`
 	Installer     PlatformInstaller    `toml:"installer"`
 	Release       PlatformRelease      `toml:"release"`
 }
@@ -82,11 +80,6 @@ type PlatformBuilder struct {
 	PackageLock     string `toml:"package_lock"`
 	GoArchive       string `toml:"go_archive"`
 	GoArchiveSHA256 string `toml:"go_archive_sha256"`
-}
-
-type PlatformCosign struct {
-	Architecture string `toml:"architecture"`
-	SHA256       string `toml:"sha256"`
 }
 
 type PlatformInstaller struct {
@@ -147,7 +140,7 @@ var architectureContract = map[string]struct{ oci, artifact, installer string }{
 func validatePlatformSpec(spec PlatformSpec, requested string) error {
 	expected := architectureContract[requested]
 	if spec.SchemaVersion != 1 || !validPlatformArchitecture(spec.Architecture, requested, expected) ||
-		!validPlatformBase(spec.Base) || !validPlatformBuild(spec.Builder, spec.Cosign, expected.oci) ||
+		!validPlatformBase(spec.Base) || !validPlatformBuild(spec.Builder) ||
 		!validPlatformInstaller(spec.Installer, spec.Release, expected.artifact) {
 		return fmt.Errorf("platform specification for %s differs from the Soda architecture contract", requested)
 	}
@@ -164,9 +157,8 @@ func validPlatformBase(spec PlatformBase) bool {
 		spec.BootcNEVRA != "" && spec.RuntimePackageLock != ""
 }
 
-func validPlatformBuild(builder PlatformBuilder, cosign PlatformCosign, ociArchitecture string) bool {
-	return builder.BaseReference != "" && builder.PackageLock != "" && builder.GoArchive != "" && len(builder.GoArchiveSHA256) == 64 &&
-		cosign.Architecture == ociArchitecture && len(cosign.SHA256) == 64
+func validPlatformBuild(builder PlatformBuilder) bool {
+	return builder.BaseReference != "" && builder.PackageLock != "" && builder.GoArchive != "" && len(builder.GoArchiveSHA256) == 64
 }
 
 func validPlatformInstaller(installer PlatformInstaller, release PlatformRelease, artifactArchitecture string) bool {

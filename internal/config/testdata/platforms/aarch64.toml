@@ -20,10 +20,6 @@ package_lock = "distro/locks/builder-aarch64.toml"
 go_archive = ".artifacts/tools/go1.27.0.linux-arm64.tar.gz"
 go_archive_sha256 = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 
-[cosign]
-architecture = "arm64"
-sha256 = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-
 [installer]
 package_lock = "distro/locks/installer-aarch64.toml"
 tool_lock = "distro/locks/image-builder-aarch64.toml"

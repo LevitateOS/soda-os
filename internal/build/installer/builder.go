@@ -42,12 +42,9 @@ type packageLock struct {
 }
 
 type Options struct {
-	ImageReference string
-	ArchivePath    string
-	PublicKey      string
-	CosignPath     string
-	ToolLock       string
-	OutputDir      string
+	ArchivePath string
+	ToolLock    string
+	OutputDir   string
 }
 
 func (b *Builder) ValidateISO(ctx context.Context, isoPath, reference, installerArchive, toolLockPath string) (string, error) {
@@ -117,21 +114,19 @@ func (b *Builder) Build(ctx context.Context, options Options) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if err := b.verifySignedImage(ctx, options); err != nil {
-		return "", err
-	}
-	if err := verifyArchiveDigest(options.ArchivePath, options.ImageReference, b.Spec.Platform.Architecture.OCI); err != nil {
+	reference, err := archiveReference(options.ArchivePath, b.Spec.Platform.Architecture.OCI)
+	if err != nil {
 		return "", err
 	}
 	baseTag, err := imagebuild.PrepareLocalBootcBase(ctx, b.Root, b.runner, b.Spec.Platform)
 	if err != nil {
 		return "", err
 	}
-	workspace, err := b.prepareInstallerWorkspace(options)
+	workspace, err := b.prepareInstallerWorkspace(options, reference)
 	if err != nil {
 		return "", err
 	}
-	volumeName := fmt.Sprintf("soda-installer-%s-%d", strings.TrimPrefix(options.ImageReference, Repository+"@sha256:")[:12], os.Getpid())
+	volumeName := fmt.Sprintf("soda-installer-%s-%d", strings.TrimPrefix(reference, Repository+"@sha256:")[:12], os.Getpid())
 	if err := b.runner.Run(ctx, process.Command{Dir: b.Root, Name: "docker", Args: []string{"volume", "create", volumeName}}); err != nil {
 		return "", fmt.Errorf("create disposable installer container storage: %w", err)
 	}
@@ -143,7 +138,7 @@ func (b *Builder) Build(ctx context.Context, options Options) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	payloadTag := payloadStagingReference(options.ImageReference)
+	payloadTag := payloadStagingReference(reference)
 	for _, item := range []struct{ archive, reference string }{
 		{installerArchive, installerTag},
 		{options.ArchivePath, payloadTag},
@@ -153,7 +148,7 @@ func (b *Builder) Build(ctx context.Context, options Options) (string, error) {
 		}
 	}
 
-	return b.buildInstallerISO(ctx, isoBuildInput{lock: lock, volumeName: volumeName, installerTag: installerTag, workspace: workspace, reference: options.ImageReference, payloadTag: payloadTag})
+	return b.buildInstallerISO(ctx, isoBuildInput{lock: lock, volumeName: volumeName, installerTag: installerTag, workspace: workspace, reference: reference, payloadTag: payloadTag})
 }
 
 type installerWorkspace struct{ work, context, inspect, output string }
@@ -165,7 +160,7 @@ type isoBuildInput struct {
 	reference, payloadTag    string
 }
 
-func (b *Builder) prepareInstallerWorkspace(options Options) (installerWorkspace, error) {
+func (b *Builder) prepareInstallerWorkspace(options Options, reference string) (installerWorkspace, error) {
 	work := filepath.Join(b.Root, ".artifacts", "installer")
 	output := options.OutputDir
 	if output == "" {
@@ -175,7 +170,7 @@ func (b *Builder) prepareInstallerWorkspace(options Options) (installerWorkspace
 	if err := resetInstallerWorkspace(workspace); err != nil {
 		return installerWorkspace{}, err
 	}
-	if err := b.stageInstallerConfiguration(workspace.context, options); err != nil {
+	if err := b.stageInstallerConfiguration(workspace.context, reference); err != nil {
 		return installerWorkspace{}, err
 	}
 	return workspace, nil
@@ -193,8 +188,8 @@ func resetInstallerWorkspace(workspace installerWorkspace) error {
 	return os.MkdirAll(workspace.output, 0o755)
 }
 
-func (b *Builder) stageInstallerConfiguration(destination string, options Options) error {
-	if err := os.WriteFile(filepath.Join(destination, "interactive-defaults.ks"), []byte(kickstart(options.ImageReference, b.Spec.Identity.Hostname)), 0o644); err != nil {
+func (b *Builder) stageInstallerConfiguration(destination, reference string) error {
+	if err := os.WriteFile(filepath.Join(destination, "interactive-defaults.ks"), []byte(kickstart(reference, b.Spec.Identity.Hostname)), 0o644); err != nil {
 		return err
 	}
 	if err := b.stageInstallerPackageLock(destination); err != nil {
@@ -283,17 +278,16 @@ func (b *Builder) buildInstallerISO(ctx context.Context, input isoBuildInput) (s
 	if err := os.WriteFile(isoPath+".sha256", []byte(digest+"  "+filepath.Base(isoPath)+"\n"), 0o644); err != nil {
 		return "", err
 	}
+	if err := os.Chmod(isoPath+".sha256", 0o644); err != nil {
+		return "", err
+	}
 	return isoPath, nil
 }
 
 func (b *Builder) validate(options Options) (toolLock, error) {
-	if !exactImagePattern.MatchString(options.ImageReference) {
-		return toolLock{}, errors.New("installer payload must be an exact ghcr.io/levitateos/soda-os@sha256 reference")
-	}
 	for label, path := range map[string]string{
 		"runtime OCI archive": options.ArchivePath,
-		"public signing key":  options.PublicKey, "Cosign executable": options.CosignPath,
-		"image-builder lock": options.ToolLock,
+		"image-builder lock":  options.ToolLock,
 	} {
 		if !regularFile(path) {
 			return toolLock{}, fmt.Errorf("%s %q is not a regular file", label, path)
@@ -326,20 +320,6 @@ func validateToolLock(lock toolLock, platform config.PlatformSpec) error {
 	}[platform.Architecture.Name]
 	if lock.Reference != wantReference {
 		return errors.New("image-builder digest differs from the reviewed platform tool")
-	}
-	return nil
-}
-
-func (b *Builder) verifySignedImage(ctx context.Context, options Options) error {
-	output, err := b.runner.Output(ctx, process.Command{Name: options.CosignPath, Args: []string{"version"}})
-	if err != nil || !strings.Contains(output, "v3.1.2") {
-		return errors.New("installer requires the pinned Cosign v3.1.2 tool")
-	}
-	if err := b.runner.Run(ctx, process.Command{Name: options.CosignPath, Args: []string{
-		"verify", "--key", options.PublicKey,
-		"--insecure-ignore-tlog=true", options.ImageReference,
-	}}); err != nil {
-		return fmt.Errorf("verify signed installer payload: %w", err)
 	}
 	return nil
 }

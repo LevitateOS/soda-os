@@ -38,9 +38,9 @@ func (s *Server) checkOSUpdate(w http.ResponseWriter, r *http.Request) {
 		s.renderOSUpdate(w, r, osUpdateView{status: http.StatusUnprocessableEntity, error: err.Error()})
 		return
 	}
-	message := "This host already runs the current signed Soda OS release."
+	message := "This host already runs the current Soda OS release."
 	if release.Available {
-		message = "A signed Soda OS release is available to stage."
+		message = "A Soda OS release is available to stage."
 	}
 	s.renderOSUpdate(w, r, osUpdateView{status: http.StatusOK, message: message, release: &release})
 }
@@ -55,7 +55,7 @@ func (s *Server) stageOSUpdate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !release.Available {
-		s.renderOSUpdate(w, r, osUpdateView{status: http.StatusUnprocessableEntity, error: "No newer signed Soda OS release is available.", release: &release})
+		s.renderOSUpdate(w, r, osUpdateView{status: http.StatusUnprocessableEntity, error: "No newer Soda OS release is available.", release: &release})
 		return
 	}
 	status, err := s.updates.StageOSUpdate(r.Context(), release.ImageReference)

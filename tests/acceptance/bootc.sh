@@ -34,7 +34,7 @@ Optional environment:
   SODA_ACCEPTANCE_COCKPIT_PORT=9090
   SODA_ACCEPTANCE_DISK=$SODA_ACCEPTANCE_DIR/soda-system.qcow2
   SODA_ACCEPTANCE_DISK_SIZE=40G
-  SODA_ACCEPTANCE_RELEASE_INDEX_URL=<signed GitHub release index URL>
+  SODA_ACCEPTANCE_RELEASE_INDEX_URL=<GitHub release index URL>
   SODA_ACCEPTANCE_RELEASE_RECORD=<release record to hash during capture>
   SODA_ACCEPTANCE_ISO=<installer ISO to hash during capture>
   SODA_QEMU=<platform QEMU executable>
@@ -236,7 +236,6 @@ capture_release_index() {
 	release_dir=$1/release
 	mkdir -p "$release_dir"
 	curl --fail --silent --show-error -D "$release_dir/index.headers" -o "$release_dir/index.json" "$index_url"
-	curl --fail --silent --show-error -D "$release_dir/index-bundle.headers" -o "$release_dir/index.sigstore.json" "$index_url.sigstore.json"
 	sha256sum "$release_dir"/* >"$release_dir/sha256sums.txt"
 }
 

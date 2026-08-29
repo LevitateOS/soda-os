@@ -2,7 +2,6 @@ package release
 
 import (
 	"archive/tar"
-	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
@@ -24,9 +23,6 @@ func (p *Publisher) inspect(img v1.Image, exactReference string) (Record, error)
 	}
 	revision, err := p.inspectImageIdentity(configFile)
 	if err != nil {
-		return Record{}, err
-	}
-	if err := inspectEmbeddedTrust(img, p.publicKey); err != nil {
 		return Record{}, err
 	}
 	inventoryDigest, err := inspectRPMInventory(img)
@@ -56,23 +52,6 @@ func (p *Publisher) inspectImageIdentity(configFile *v1.ConfigFile) (string, err
 		return "", errors.New("release image Fedora base label differs from the Soda specification")
 	}
 	return revision, nil
-}
-
-func inspectEmbeddedTrust(img v1.Image, publicKeyPath string) error {
-	for _, trust := range []struct{ label, imagePath, suppliedPath string }{{"signing public key", "usr/share/soda/release/cosign.pub", publicKeyPath}} {
-		embedded, err := imageFile(img, trust.imagePath)
-		if err != nil {
-			return fmt.Errorf("read embedded %s: %w", trust.label, err)
-		}
-		supplied, err := os.ReadFile(trust.suppliedPath)
-		if err != nil {
-			return fmt.Errorf("read supplied %s: %w", trust.label, err)
-		}
-		if !bytes.Equal(embedded, supplied) {
-			return fmt.Errorf("supplied %s differs from the file embedded in the release image", trust.label)
-		}
-	}
-	return nil
 }
 
 func inspectRPMInventory(img v1.Image) (string, error) {

@@ -22,9 +22,6 @@ func (b *Builder) BuildRPMs(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	if err := b.verifyRuntimeCosign(); err != nil {
-		return err
-	}
 	if err := b.buildContainer(ctx); err != nil {
 		return err
 	}
@@ -139,7 +136,6 @@ func (b *Builder) stageRPMSources(build, sources string) error {
 	files := [][2]string{
 		{filepath.Join(build, "sodad"), filepath.Join(sources, "sodad")},
 		{filepath.Join(build, "sodactl"), filepath.Join(sources, "sodactl")},
-		{b.targetCosignPath(), filepath.Join(sources, "cosign")},
 		{filepath.Join(build, "soda-ssh"), filepath.Join(sources, "soda-ssh")},
 		{filepath.Join(build, "soda-cockpit"), filepath.Join(sources, "soda-cockpit")},
 		{filepath.Join(build, "soda-authd"), filepath.Join(sources, "soda-authd")},
@@ -210,23 +206,6 @@ func (b *Builder) writeLockedInstallInputs(rpms string) error {
 	return nil
 }
 
-func (b *Builder) verifyRuntimeCosign() error {
-	path := b.targetCosignPath()
-	if !isFile(path) {
-		return fmt.Errorf("pinned Linux/%s Cosign input is missing; run just release-tools", b.Spec.Platform.Cosign.Architecture)
-	}
-	contents, err := os.ReadFile(path)
-	if err != nil {
-		return err
-	}
-	hash := sha256.Sum256(contents)
-	digest := hex.EncodeToString(hash[:])
-	if digest != b.Spec.Platform.Cosign.SHA256 {
-		return fmt.Errorf("Linux/%s Cosign SHA-256 %s differs from pinned %s", b.Spec.Platform.Cosign.Architecture, digest, b.Spec.Platform.Cosign.SHA256)
-	}
-	return nil
-}
-
 func (b *Builder) buildContainer(ctx context.Context) error {
 	lockDestination := b.artifactPath("builder", "packages.lock")
 	if err := copyFile(b.path(b.Spec.Platform.Builder.PackageLock), lockDestination); err != nil {
@@ -263,10 +242,6 @@ func (b *Builder) dockerCommand(environment []string, name string, args ...strin
 
 func (b *Builder) builderTag() string {
 	return "soda-os-rpm-builder:" + b.Spec.Identity.Version + "-" + b.Spec.Platform.Architecture.Artifact
-}
-
-func (b *Builder) targetCosignPath() string {
-	return b.artifactPath("tools", "cosign-linux-"+b.Spec.Platform.Cosign.Architecture)
 }
 
 func (b *Builder) rpmbuild(ctx context.Context, name string) error {

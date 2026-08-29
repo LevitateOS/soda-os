@@ -44,7 +44,7 @@ func (a *app) osStageCommand(socket *string) *cobra.Command {
 			}
 			release := checked.GetRelease()
 			if release == nil || !release.GetAvailable() {
-				return nil, status.Error(codes.FailedPrecondition, "no newer signed Soda OS release is available")
+				return nil, status.Error(codes.FailedPrecondition, "no newer Soda OS release is available")
 			}
 			response, err := client.StageOSUpdate(ctx, &sodav2.StageOSUpdateRequest{ImageReference: release.GetImageReference()})
 			return osUpdateStatusJSON(response.GetStatus()), err

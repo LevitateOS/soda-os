@@ -13,7 +13,6 @@ mkdir -p %{buildroot}%{_libexecdir}/soda %{buildroot}%{_bindir} %{buildroot}%{_u
 install -m 0755 %{_sourcedir}/sodad %{buildroot}%{_libexecdir}/soda/sodad
 install -m 0755 %{_sourcedir}/soda-ssh %{buildroot}%{_libexecdir}/soda/soda-ssh
 install -m 0755 %{_sourcedir}/sodactl %{buildroot}%{_bindir}/sodactl
-install -m 0755 %{_sourcedir}/cosign %{buildroot}%{_libexecdir}/soda/cosign
 install -m 0755 %{_sourcedir}/soda-console-welcome %{buildroot}%{_libexecdir}/soda/soda-console-welcome
 install -m 0644 %{_sourcedir}/sodad.service %{buildroot}%{_unitdir}/sodad.service
 install -m 0644 %{_sourcedir}/soda-state-directories.service %{buildroot}%{_unitdir}/soda-state-directories.service
@@ -29,7 +28,6 @@ install -m 0644 %{_sourcedir}/soda-console-welcome.sh %{buildroot}%{_sysconfdir}
 %{_libexecdir}/soda/sodad
 %{_libexecdir}/soda/soda-ssh
 %{_bindir}/sodactl
-%{_libexecdir}/soda/cosign
 %{_libexecdir}/soda/soda-console-welcome
 %{_unitdir}/sodad.service
 %{_unitdir}/soda-state-directories.service

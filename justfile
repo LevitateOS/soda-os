@@ -29,17 +29,14 @@ rpm architecture: builder-tools forgejo-source
 forgejo-source:
     ./scripts/fetch-forgejo-source.sh
 
-oci architecture public_key: builder-tools
-    go run ./cmd/soda-image --architecture {{quote(architecture)}} oci --public-key {{quote(public_key)}}
+oci architecture: builder-tools
+    go run ./cmd/soda-image --architecture {{quote(architecture)}} oci
 
 builder-tools:
     ./scripts/fetch-builder-tools.sh
 
-release-tools:
-    ./scripts/fetch-release-tools.sh
+iso architecture archive:
+    go run ./cmd/soda-image --architecture {{quote(architecture)}} iso --archive {{quote(archive)}}
 
-publish architecture archive public_key signing_key:
-    go run ./cmd/soda-image --architecture {{quote(architecture)}} publish --archive {{quote(archive)}} --public-key {{quote(public_key)}} --signing-key {{quote(signing_key)}}
-
-iso architecture image archive public_key:
-    go run ./cmd/soda-image --architecture {{quote(architecture)}} iso --image {{quote(image)}} --archive {{quote(archive)}} --public-key {{quote(public_key)}}
+record architecture archive iso:
+    go run ./cmd/soda-image --architecture {{quote(architecture)}} record --archive {{quote(archive)}} --iso {{quote(iso)}}
