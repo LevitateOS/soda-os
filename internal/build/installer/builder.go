@@ -85,7 +85,7 @@ func (b *Builder) inspectPublishedISO(ctx context.Context, isoPath, reference, i
 	defer func() {
 		_ = b.runner.Run(context.Background(), process.Command{Dir: b.Root, Name: "docker", Args: []string{"volume", "rm", "--force", volumeName}})
 	}()
-	installerTag := "localhost/soda-installer-inspect:" + b.Spec.Identity.Version
+	installerTag := "localhost/soda-installer-inspect:" + b.Spec.Identity.Version + "-" + b.Spec.Platform.ArtifactArchitecture
 	if err := b.copyToStorage(ctx, lock, volumeName, installerArchive, installerTag); err != nil {
 		return "", err
 	}
@@ -229,11 +229,11 @@ func (b *Builder) stageInstallerPackageLock(destination string) error {
 }
 
 func (b *Builder) buildInstallerEnvironment(ctx context.Context, baseTag, work string) (string, string, error) {
-	archive := filepath.Join(work, "soda-installer-environment.oci.tar")
+	archive := filepath.Join(work, "soda-installer-environment-"+b.Spec.Platform.ArtifactArchitecture+".oci.tar")
 	if err := os.Remove(archive); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return "", "", err
 	}
-	tag := "localhost/soda-installer:" + b.Spec.Identity.Version
+	tag := "localhost/soda-installer:" + b.Spec.Identity.Version + "-" + b.Spec.Platform.ArtifactArchitecture
 	args := []string{"buildx", "build", "--platform", b.Spec.Base.Platform, "--build-context", "fedora-base=docker-image://" + baseTag, "--file", "packaging/installer/Containerfile", "--tag", tag, "--provenance=false", "--output", "type=oci,dest=" + archive + ",oci-mediatypes=true", "."}
 	if err := b.runner.Run(ctx, process.Command{Dir: b.Root, Name: "docker", Args: args}); err != nil {
 		return "", "", fmt.Errorf("build installer environment: %w", err)

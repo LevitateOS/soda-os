@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/LevitateOS/soda-os/internal/build/image"
 	"github.com/LevitateOS/soda-os/internal/build/installer"
@@ -60,6 +61,9 @@ func installerCommand(builder func() (*image.Builder, error)) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			if options.ToolLock == "" {
+				options.ToolLock = imageBuilder.Spec.Platform.InstallerToolLock
+			}
 			isoBuilder := installer.NewBuilder(imageBuilder.Root, imageBuilder.Spec, process.OSRunner{Stdout: os.Stdout, Stderr: os.Stderr})
 			isoPath, err := isoBuilder.Build(command.Context(), options)
 			if err != nil {
@@ -74,7 +78,7 @@ func installerCommand(builder func() (*image.Builder, error)) *cobra.Command {
 	command.Flags().StringVar(&options.RegistryCA, "registry-ca", "", "PEM CA certificate for registry.soda.local")
 	command.Flags().StringVar(&options.PublicKey, "public-key", "", "Soda Cosign public key")
 	command.Flags().StringVar(&options.CosignPath, "cosign", ".artifacts/tools/cosign", "pinned Cosign executable")
-	command.Flags().StringVar(&options.ToolLock, "tool-lock", "distro/locks/installer-image-builder.toml", "pinned Image Builder tool contract")
+	command.Flags().StringVar(&options.ToolLock, "tool-lock", "", "pinned Image Builder tool contract (defaults to the selected platform lock)")
 	command.Flags().StringVar(&options.OutputDir, "output-dir", ".artifacts/images", "installer artifact directory")
 	for _, name := range []string{"image", "archive", "registry-ca", "public-key"} {
 		_ = command.MarkFlagRequired(name)
@@ -106,8 +110,8 @@ func releaseCommand(builder func() (*image.Builder, error)) *cobra.Command {
 	command.Flags().StringVar(&state.publication.OutputDir, "output-dir", ".artifacts/releases", "signed release record directory")
 	command.Flags().StringVar(&state.signing.CosignPath, "cosign", ".artifacts/tools/cosign", "pinned Cosign executable")
 	command.Flags().StringVar(&state.signing.ToolLock, "tool-lock", "distro/locks/release-tools.toml", "pinned release tool checksums")
-	command.Flags().StringVar(&state.publication.InstallerArchive, "installer-archive", ".artifacts/installer/soda-installer-environment.oci.tar", "build-only installer environment used to inspect --iso")
-	command.Flags().StringVar(&state.publication.InstallerToolLock, "installer-tool-lock", "distro/locks/installer-image-builder.toml", "pinned Image Builder contract used to inspect --iso")
+	command.Flags().StringVar(&state.publication.InstallerArchive, "installer-archive", "", "build-only installer environment used to inspect --iso (defaults to the selected architecture artifact)")
+	command.Flags().StringVar(&state.publication.InstallerToolLock, "installer-tool-lock", "", "pinned Image Builder contract used to inspect --iso (defaults to the selected platform lock)")
 	for _, name := range []string{"archive", "registry-ca", "public-key", "signing-key"} {
 		_ = command.MarkFlagRequired(name)
 	}
@@ -118,6 +122,12 @@ func (state *releaseCommandState) run(command *cobra.Command, _ []string) error 
 	builder, err := state.builder()
 	if err != nil {
 		return err
+	}
+	if state.publication.InstallerArchive == "" {
+		state.publication.InstallerArchive = filepath.Join(".artifacts", "installer", "soda-installer-environment-"+builder.Spec.Platform.ArtifactArchitecture+".oci.tar")
+	}
+	if state.publication.InstallerToolLock == "" {
+		state.publication.InstallerToolLock = builder.Spec.Platform.InstallerToolLock
 	}
 	publisher, err := release.NewPublisher(builder.Root, builder.Spec, state.signing, process.OSRunner{Stdin: os.Stdin, Stdout: os.Stdout, Stderr: os.Stderr})
 	if err != nil {

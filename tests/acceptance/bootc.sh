@@ -16,6 +16,7 @@ Commands:
 
 Required environment:
   SODA_ACCEPTANCE_DIR              Untracked evidence directory
+  SODA_ACCEPTANCE_ARCHITECTURE     Sibling architecture: aarch64 or x86_64
   SODA_ACCEPTANCE_ADMIN_KEY        Public-key login identity for the Anaconda admin
   SODA_ACCEPTANCE_IMAGE_DIGEST     Expected sha256:... release digest for capture
 
@@ -36,9 +37,10 @@ Optional environment:
   SODA_ACCEPTANCE_REGISTRY_CA=/tmp/soda-acceptance.PSb4PZ/ca.crt
   SODA_ACCEPTANCE_RELEASE_RECORD=<release record to hash during capture>
   SODA_ACCEPTANCE_ISO=<installer ISO to hash during capture>
-  SODA_QEMU=qemu-system-aarch64
+  SODA_QEMU=<platform QEMU executable>
   SODA_QEMU_IMG=qemu-img
-  SODA_QEMU_FIRMWARE=/opt/homebrew/share/qemu/edk2-aarch64-code.fd
+  SODA_QEMU_FIRMWARE=<AArch64 firmware or x86-64 OVMF code image>
+  SODA_QEMU_VARS=<x86-64 OVMF writable variable-store template>
 EOF
 }
 
@@ -56,12 +58,17 @@ need_file() {
 }
 
 acceptance_dir=${SODA_ACCEPTANCE_DIR:-}
+architecture=${SODA_ACCEPTANCE_ARCHITECTURE:-}
 admin=${SODA_ACCEPTANCE_ADMIN:-vince}
 host=${SODA_ACCEPTANCE_HOST:-127.0.0.1}
 ssh_port=${SODA_ACCEPTANCE_SSH_PORT:-2222}
 cockpit_port=${SODA_ACCEPTANCE_COCKPIT_PORT:-9090}
 
 require_dir() {
+	case "$architecture" in
+		aarch64|x86_64) ;;
+		*) die "SODA_ACCEPTANCE_ARCHITECTURE must be aarch64 or x86_64" ;;
+	esac
 	[ -n "$acceptance_dir" ] || die "SODA_ACCEPTANCE_DIR is required"
 	mkdir -p "$acceptance_dir"
 	acceptance_dir=$(CDPATH= cd -- "$acceptance_dir" && pwd)
@@ -114,13 +121,9 @@ launch() {
 	mode=${1:-}
 	[ "$mode" = install ] || [ "$mode" = installed ] || die "launch requires install or installed"
 	require_dir
-	qemu=${SODA_QEMU:-qemu-system-aarch64}
 	qemu_img=${SODA_QEMU_IMG:-qemu-img}
-	firmware=${SODA_QEMU_FIRMWARE:-/opt/homebrew/share/qemu/edk2-aarch64-code.fd}
 	disk=${SODA_ACCEPTANCE_DISK:-$acceptance_dir/soda-system.qcow2}
-	need "$qemu"
 	need "$qemu_img"
-	need_file "$firmware"
 	[ ! -e "$(qmp_path)" ] || die "QMP socket already exists in $acceptance_dir"
 
 	installer_args=
@@ -130,25 +133,33 @@ launch() {
 		need_file "$iso"
 		[ ! -e "$disk" ] || die "refusing to install over existing disk $disk"
 		"$qemu_img" create -f qcow2 "$disk" "${SODA_ACCEPTANCE_DISK_SIZE:-40G}"
-		installer_args="-drive file=$iso,media=cdrom,if=virtio,format=raw,readonly=on"
+		if [ "$architecture" = aarch64 ]; then
+			installer_args="-drive file=$iso,media=cdrom,if=virtio,format=raw,readonly=on"
+		else
+			installer_args="-drive file=$iso,media=cdrom,format=raw,readonly=on"
+		fi
 	else
 		need_file "$disk"
 	fi
 
-	cat >"$acceptance_dir/qemu-command.txt" <<EOF
-$qemu
--machine virt,accel=hvf
--cpu host
--smp 4
--m 4096
--bios $firmware
--drive file=$disk,if=virtio,format=qcow2
-$installer_args
--netdev user,id=net0,hostfwd=tcp:$host:$ssh_port-:22,hostfwd=tcp:$host:$cockpit_port-:9090
--serial file:$acceptance_dir/serial.log
--qmp unix:$(qmp_path),server=on,wait=off
-EOF
+	case "$architecture" in
+		aarch64) launch_aarch64 "$disk" "$installer_args" ;;
+		x86_64) launch_x86_64 "$mode" "$disk" "$installer_args" ;;
+	esac
+}
 
+launch_aarch64() {
+	disk=$1
+	installer_args=$2
+	qemu=${SODA_QEMU:-qemu-system-aarch64}
+	firmware=${SODA_QEMU_FIRMWARE:-/opt/homebrew/share/qemu/edk2-aarch64-code.fd}
+	need "$qemu"
+	need_file "$firmware"
+	cat >"$acceptance_dir/qemu-command.txt" <<EOF
+$qemu -machine virt,accel=hvf -cpu host -smp 4 -m 4096 -bios $firmware
+-drive file=$disk,if=virtio,format=qcow2 $installer_args
+-netdev user,id=net0,hostfwd=tcp:$host:$ssh_port-:22,hostfwd=tcp:$host:$cockpit_port-:9090
+EOF
 	# Word splitting is intentional for the fixed, locally constructed installer arguments.
 	# shellcheck disable=SC2086
 	exec "$qemu" -machine virt,accel=hvf -cpu host -smp 4 -m 4096 -bios "$firmware" \
@@ -156,6 +167,41 @@ EOF
 		-device virtio-gpu-pci -display cocoa -device qemu-xhci -device usb-kbd -device usb-tablet \
 		-netdev "user,id=net0,hostfwd=tcp:$host:$ssh_port-:22,hostfwd=tcp:$host:$cockpit_port-:9090" \
 		-device virtio-net-pci,netdev=net0 -serial "file:$acceptance_dir/serial.log" \
+		-monitor none -qmp "unix:$(qmp_path),server=on,wait=off"
+}
+
+launch_x86_64() {
+	mode=$1
+	disk=$2
+	installer_args=$3
+	qemu=${SODA_QEMU:-/usr/libexec/qemu-kvm}
+	firmware=${SODA_QEMU_FIRMWARE:-/usr/share/edk2/ovmf/OVMF_CODE.fd}
+	vars_template=${SODA_QEMU_VARS:-/usr/share/edk2/ovmf/OVMF_VARS.fd}
+	vars=$acceptance_dir/OVMF_VARS.fd
+	need_file "$qemu"
+	need_file "$firmware"
+	need_file "$vars_template"
+	if [ "$mode" = install ]; then
+		cp "$vars_template" "$vars"
+	else
+		need_file "$vars"
+	fi
+	cat >"$acceptance_dir/qemu-command.txt" <<EOF
+$qemu -machine q35,accel=kvm -cpu host -smp 4 -m 4096
+-drive if=pflash,format=raw,readonly=on,file=$firmware
+-drive if=pflash,format=raw,file=$vars
+-drive file=$disk,if=virtio,format=qcow2 $installer_args
+-netdev user,id=net0,hostfwd=tcp:$host:$ssh_port-:22,hostfwd=tcp:$host:$cockpit_port-:9090
+EOF
+	# Word splitting is intentional for the fixed, locally constructed installer arguments.
+	# shellcheck disable=SC2086
+	exec "$qemu" -machine q35,accel=kvm -cpu host -smp 4 -m 4096 \
+		-drive "if=pflash,format=raw,readonly=on,file=$firmware" \
+		-drive "if=pflash,format=raw,file=$vars" \
+		-drive "file=$disk,if=virtio,format=qcow2" $installer_args \
+		-netdev "user,id=net0,hostfwd=tcp:$host:$ssh_port-:22,hostfwd=tcp:$host:$cockpit_port-:9090" \
+		-device virtio-net-pci,netdev=net0 -display none \
+		-chardev "stdio,id=serial0,signal=off,logfile=$acceptance_dir/serial.log" -serial chardev:serial0 \
 		-monitor none -qmp "unix:$(qmp_path),server=on,wait=off"
 }
 
@@ -195,12 +241,12 @@ capture_registry() {
 	accept='application/vnd.oci.image.manifest.v1+json, application/vnd.oci.image.index.v1+json, application/vnd.docker.distribution.manifest.v2+json'
 	curl --fail --silent --show-error --cacert "$ca" -H "Accept: $accept" \
 		-D "$registry_dir/current.headers" -o "$registry_dir/current.manifest.json" \
-		"https://registry.soda.local/v2/soda/os/manifests/current"
+		"https://registry.soda.local/v2/soda/os/manifests/current-$architecture"
 	signature_tag="sha256-${digest#sha256:}.sig"
 	curl --fail --silent --show-error --cacert "$ca" -H "Accept: $accept" \
 		-D "$registry_dir/signature.headers" -o "$registry_dir/signature.manifest.json" \
 		"https://registry.soda.local/v2/soda/os/manifests/$signature_tag"
-	shasum -a 256 "$registry_dir"/* >"$registry_dir/sha256sums.txt"
+	sha256sum "$registry_dir"/* >"$registry_dir/sha256sums.txt"
 }
 
 capture() {
@@ -218,9 +264,11 @@ capture() {
 		echo "[boot-id]"; cat /proc/sys/kernel/random/boot_id
 		echo "[kernel]"; uname -a
 		echo "[services]"
-		for unit in sodad sshd avahi-daemon soda-state-directories.service srv-soda-projects.mount opt-soda-toolchains.mount; do
+		for unit in sodad sshd cockpit.socket soda-authd.socket avahi-daemon soda-state-directories.service srv-soda-projects.mount opt-soda-toolchains.mount; do
 			printf "%s=" "$unit"; systemctl is-active "$unit" 2>/dev/null || true
 		done
+		echo "[bootc-status]"; bootc status --format=json
+		echo "[boot-entries]"; efibootmgr -v 2>/dev/null || true
 		echo "[automatic-update]"
 		for unit in bootc-fetch-apply-updates.timer bootc-fetch-apply-updates.service; do
 			printf "%s=" "$unit"; systemctl is-enabled "$unit" 2>/dev/null || true
@@ -243,7 +291,7 @@ capture() {
 	fi
 
 	for artifact in "${SODA_ACCEPTANCE_RELEASE_RECORD:-}" "${SODA_ACCEPTANCE_ISO:-}"; do
-		[ -z "$artifact" ] || [ ! -f "$artifact" ] || shasum -a 256 "$artifact" >>"$checkpoint/artifact-sha256sums.txt"
+		[ -z "$artifact" ] || [ ! -f "$artifact" ] || sha256sum "$artifact" >>"$checkpoint/artifact-sha256sums.txt"
 	done
 }
 
