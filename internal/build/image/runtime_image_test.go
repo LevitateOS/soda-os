@@ -107,7 +107,7 @@ func TestForgejoPackagingContract(t *testing.T) {
 
 	buildPipeline, err := os.ReadFile("rpm.go")
 	require.NoError(t, err)
-	require.Contains(t, string(buildPipeline), `"GOFLAGS=-buildvcs=false"`)
+	require.Contains(t, string(buildPipeline), `"EXTRA_GOFLAGS=-buildvcs=false"`)
 	require.Contains(t, string(buildPipeline), `TAGS='bindata timetzdata sqlite sqlite_unlock_notify pam' make backend`)
 }
 

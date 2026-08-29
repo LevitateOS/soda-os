@@ -110,7 +110,7 @@ func (b *Builder) buildForgejo(ctx context.Context) error {
 		"install -m 0755 gitea /src/.artifacts/build/forgejo",
 		"/src/.artifacts/build/forgejo --version | grep -F ': bindata, timetzdata, sqlite, sqlite_unlock_notify, pam'",
 	}, "\n")
-	return b.docker(ctx, []string{"CGO_ENABLED=1", "GOFLAGS=-buildvcs=false", "SOURCE_DATE_EPOCH=" + fmt.Sprint(b.Spec.Build.SourceDateEpoch)}, "sh", "-c", script)
+	return b.docker(ctx, []string{"CGO_ENABLED=1", "EXTRA_GOFLAGS=-buildvcs=false", "SOURCE_DATE_EPOCH=" + fmt.Sprint(b.Spec.Build.SourceDateEpoch)}, "sh", "-c", script)
 }
 
 func (b *Builder) buildGoBinaries(ctx context.Context, revision string) error {
