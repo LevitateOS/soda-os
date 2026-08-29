@@ -12,11 +12,11 @@ reference = "quay.io/fedora/fedora-bootc@sha256:85677d47c03b2e1f8f9a3a19d838023e
 archive = "distro/base/fedora-bootc-44-aarch64/Fedora-bootc-44.20260826.0-aarch64.oci-archive.tar"
 archive_sha256 = "8763c4813eb4f06ef3cc08c33e205245c850feef6aa77b3c4192c90d01cf8ffb"
 bootc_nevra = "bootc-0:1.16.10-1.fc44.aarch64"
-runtime_package_lock = "distro/locks/runtime-packages.toml"
+runtime_package_lock = "distro/locks/runtime-packages-aarch64.toml"
 
 [builder]
 base_reference = "registry.fedoraproject.org/fedora@sha256:9c8b291e256262b91aac5b3da50ea323760d0a6b449c6d6ad5f01d9550d48d2a"
-package_lock = "distro/locks/builder-packages.toml"
+package_lock = "distro/locks/builder-packages-aarch64.toml"
 go_archive = ".artifacts/tools/go1.27.0.linux-arm64.tar.gz"
 go_archive_sha256 = "51798d2c42d0e1c6ed7fd9f48728b4193abac9e8aad6dbac2fe96a81f5909bda"
 
@@ -26,8 +26,8 @@ sha256 = "90e7ae0b5dfd60f20816b52c012addf7fc055ebcc7bea4ce81c428ca8518c302"
 
 [installer]
 package_lock = "distro/locks/installer-packages-aarch64.toml"
-tool_lock = "distro/locks/installer-image-builder.toml"
-iso_config = "packaging/installer/iso.yaml"
+tool_lock = "distro/locks/installer-image-builder-aarch64.toml"
+iso_config = "packaging/installer/iso-aarch64.yaml"
 
 [release]
 channel = "aarch64"

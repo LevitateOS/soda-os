@@ -27,7 +27,7 @@ sha256 = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 [installer]
 package_lock = "distro/locks/installer-aarch64.toml"
 tool_lock = "distro/locks/image-builder-aarch64.toml"
-iso_config = "packaging/installer/iso.yaml"
+iso_config = "packaging/installer/iso-aarch64.yaml"
 
 [release]
 channel = "aarch64"

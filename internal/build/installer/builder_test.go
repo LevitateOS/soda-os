@@ -75,11 +75,11 @@ func TestStorageConfigRequiresExactPlainExt4RootOnlyContract(t *testing.T) {
 	require.NoError(t, os.MkdirAll(extractedDir, 0o755))
 	require.NoError(t, os.MkdirAll(bootConfigDir, 0o755))
 	require.NoError(t, os.WriteFile(filepath.Join(expectedDir, "soda-storage.conf"), expected, 0o644))
-	require.NoError(t, os.WriteFile(filepath.Join(expectedDir, "iso.yaml"), []byte("valid ISO config\n"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(expectedDir, "iso-aarch64.yaml"), []byte("valid ISO config\n"), 0o644))
 	require.NoError(t, os.WriteFile(filepath.Join(bootConfigDir, "iso.yaml"), []byte("valid ISO config\n"), 0o644))
 	actualPath := filepath.Join(extractedDir, "90-soda-storage.conf")
 	require.NoError(t, os.WriteFile(actualPath, expected, 0o644))
-	builder := NewBuilder(root, config.DistroSpec{Platform: config.PlatformSpec{Installer: config.PlatformInstaller{ISOConfig: "packaging/installer/iso.yaml"}}}, &recordingRunner{})
+	builder := NewBuilder(root, config.DistroSpec{Platform: config.PlatformSpec{Installer: config.PlatformInstaller{ISOConfig: "packaging/installer/iso-aarch64.yaml"}}}, &recordingRunner{})
 	require.NoError(t, builder.validateExtractedConfiguration(inspectDir))
 
 	for name, malformed := range map[string]string{
@@ -172,12 +172,12 @@ func TestISOConfigRequiresExactStage2KernelAndInitrdContract(t *testing.T) {
 	require.NoError(t, os.MkdirAll(expectedDir, 0o755))
 	require.NoError(t, os.MkdirAll(extractedStorageDir, 0o755))
 	require.NoError(t, os.MkdirAll(extractedConfigDir, 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(expectedDir, "iso.yaml"), expected, 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(expectedDir, "iso-aarch64.yaml"), expected, 0o644))
 	require.NoError(t, os.WriteFile(filepath.Join(expectedDir, "soda-storage.conf"), []byte("valid storage config\n"), 0o644))
 	require.NoError(t, os.WriteFile(filepath.Join(extractedStorageDir, "90-soda-storage.conf"), []byte("valid storage config\n"), 0o644))
 	actualPath := filepath.Join(extractedConfigDir, "iso.yaml")
 	require.NoError(t, os.WriteFile(actualPath, expected, 0o644))
-	builder := NewBuilder(root, config.DistroSpec{Platform: config.PlatformSpec{Installer: config.PlatformInstaller{ISOConfig: "packaging/installer/iso.yaml"}}}, &recordingRunner{})
+	builder := NewBuilder(root, config.DistroSpec{Platform: config.PlatformSpec{Installer: config.PlatformInstaller{ISOConfig: "packaging/installer/iso-aarch64.yaml"}}}, &recordingRunner{})
 	require.NoError(t, builder.validateExtractedConfiguration(inspectDir))
 
 	for name, malformed := range map[string]string{

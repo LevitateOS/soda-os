@@ -47,9 +47,9 @@ func (r *recordingRunner) Output(_ context.Context, command process.Command) (st
 func TestBootcContractForEqualSiblingArchitectures(t *testing.T) {
 	root, err := filepath.Abs(filepath.Join("..", "..", ".."))
 	require.NoError(t, err)
-	for architecture, packages := range map[string][2]string{
-		"aarch64": {testArmBootcNEVRA, "soda-forgejo-0:15.0.7-1.fc44.aarch64"},
-		"x86_64":  {"bootc-0:1.16.10-1.fc44.x86_64", "soda-forgejo-0:15.0.7-1.fc44.x86_64"},
+	for architecture, expected := range map[string][6]string{
+		"aarch64": {testArmBootcNEVRA, "soda-forgejo-0:15.0.7-1.fc44.aarch64", "distro/locks/runtime-packages-aarch64.toml", "distro/locks/builder-packages-aarch64.toml", "distro/locks/installer-image-builder-aarch64.toml", "packaging/installer/iso-aarch64.yaml"},
+		"x86_64":  {"bootc-0:1.16.10-1.fc44.x86_64", "soda-forgejo-0:15.0.7-1.fc44.x86_64", "distro/locks/runtime-packages-x86_64.toml", "distro/locks/builder-packages-x86_64.toml", "distro/locks/installer-image-builder-x86_64.toml", "packaging/installer/iso-x86_64.yaml"},
 	} {
 		t.Run(architecture, func(t *testing.T) {
 			builder, err := NewBuilder(root, "distro/soda.toml", architecture, &recordingRunner{})
@@ -60,8 +60,12 @@ func TestBootcContractForEqualSiblingArchitectures(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, builder.Spec.Base.Reference, lock.BaseReference)
 			require.Greater(t, len(lock.Package), len(targetRPMs))
-			require.Contains(t, lock.Package, lockedPackage{Name: "bootc", NEVRA: packages[0], Source: "fedora"})
-			require.Contains(t, lock.Package, lockedPackage{Name: "soda-forgejo", NEVRA: packages[1], Source: "local-rpm", File: strings.ReplaceAll(packages[1], "-0:", "-") + ".rpm"})
+			require.Contains(t, lock.Package, lockedPackage{Name: "bootc", NEVRA: expected[0], Source: "fedora"})
+			require.Contains(t, lock.Package, lockedPackage{Name: "soda-forgejo", NEVRA: expected[1], Source: "local-rpm", File: strings.ReplaceAll(expected[1], "-0:", "-") + ".rpm"})
+			require.Equal(t, expected[2], builder.Spec.Image.PackageLock)
+			require.Equal(t, expected[3], builder.Spec.Platform.Builder.PackageLock)
+			require.Equal(t, expected[4], builder.Spec.Platform.Installer.ToolLock)
+			require.Equal(t, expected[5], builder.Spec.Platform.Installer.ISOConfig)
 		})
 	}
 }
@@ -184,8 +188,8 @@ nevra = "soda-release-0:0.2.0-1.fc44.noarch"
 source = "local-rpm"
 file = "soda-release.rpm"
 `
-	require.NoError(t, os.WriteFile(filepath.Join(root, "distro", "locks", "runtime-packages.toml"), []byte(lock), 0o644))
-	builder := &Builder{Root: root, Spec: config.DistroSpec{Image: config.ImageSpec{PackageLock: "distro/locks/runtime-packages.toml"}}}
+	require.NoError(t, os.WriteFile(filepath.Join(root, "distro", "locks", "runtime-packages-aarch64.toml"), []byte(lock), 0o644))
+	builder := &Builder{Root: root, Spec: config.DistroSpec{Image: config.ImageSpec{PackageLock: "distro/locks/runtime-packages-aarch64.toml"}}}
 	require.ErrorContains(t, builder.writeLockedInstallInputs(filepath.Join(root, "rpms")), "locked local RPM soda-release.rpm is missing")
 }
 
