@@ -1,24 +1,24 @@
 {
   "schema_version": 1,
   "artifact": {
-    "filename": "Fedora-bootc-44.20260826.0-aarch64.oci-archive.tar",
+    "filename": "Fedora-bootc-44.20260829.0-aarch64.oci-archive.tar",
     "format": "OCI Image Layout 1.0.0 tar archive with Docker manifest.json compatibility metadata",
-    "bytes": 968966656,
-    "sha256": "8763c4813eb4f06ef3cc08c33e205245c850feef6aa77b3c4192c90d01cf8ffb",
+    "bytes": 968826880,
+    "sha256": "6805e85fda436c1afd8f9c540a05f5028982b44b965ae1ff6ca249702a328c7d",
     "tracked": false
   },
   "source": {
     "official_project": "https://gitlab.com/fedora/bootc/base-images",
     "registry_repository": "quay.io/fedora/fedora-bootc",
     "requested_tag": "44",
-    "resolved_reference": "quay.io/fedora/fedora-bootc@sha256:85677d47c03b2e1f8f9a3a19d838023ea154229817d579d4b4da5b87a21c9c1a",
+    "resolved_reference": "quay.io/fedora/fedora-bootc@sha256:950a52fa1244db4d7fe2673af57fd6784a605a83bec3cd2d716ed8c00ebd366d",
     "platform": "linux/arm64",
-    "manifest_digest": "sha256:85677d47c03b2e1f8f9a3a19d838023ea154229817d579d4b4da5b87a21c9c1a",
-    "config_digest": "sha256:c4603aa4d0fc9cac0eba42bf4be70d8277569faa3632f42e1bcbb80a8d5582ca",
-    "image_version": "44.20260826.0",
-    "image_created": "2026-08-26T10:07:18Z",
+    "manifest_digest": "sha256:950a52fa1244db4d7fe2673af57fd6784a605a83bec3cd2d716ed8c00ebd366d",
+    "config_digest": "sha256:cbb5724c794dc0adc069110c9100e550462b3b026f9a68a9e8914233c9c69172",
+    "image_version": "44.20260829.0",
+    "image_created": "2026-08-29T10:06:43Z",
     "containers_bootc_label": "1",
-    "pulled_at": "2026-08-27T09:08:05Z"
+    "pulled_at": "2026-08-29T11:48:22Z"
   },
   "verification": {
     "registry_pull": "pulled by immutable manifest digest for linux/arm64; Docker reported the same digest",

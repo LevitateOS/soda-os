@@ -8,9 +8,9 @@ artifact = "aarch64"
 installer = "aarch64"
 
 [base]
-reference = "quay.io/fedora/fedora-bootc@sha256:85677d47c03b2e1f8f9a3a19d838023ea154229817d579d4b4da5b87a21c9c1a"
-archive = "distro/base/fedora-bootc-44-aarch64/Fedora-bootc-44.20260826.0-aarch64.oci-archive.tar"
-archive_sha256 = "8763c4813eb4f06ef3cc08c33e205245c850feef6aa77b3c4192c90d01cf8ffb"
+reference = "quay.io/fedora/fedora-bootc@sha256:950a52fa1244db4d7fe2673af57fd6784a605a83bec3cd2d716ed8c00ebd366d"
+archive = "distro/base/fedora-bootc-44-aarch64/Fedora-bootc-44.20260829.0-aarch64.oci-archive.tar"
+archive_sha256 = "6805e85fda436c1afd8f9c540a05f5028982b44b965ae1ff6ca249702a328c7d"
 bootc_nevra = "bootc-0:1.16.10-1.fc44.aarch64"
 runtime_package_lock = "distro/locks/runtime-packages-aarch64.toml"
 

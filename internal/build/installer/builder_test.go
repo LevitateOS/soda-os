@@ -261,7 +261,7 @@ platform = "linux/arm64"
 	require.NoError(t, os.WriteFile(isoConfig, []byte("test ISO config\n"), 0o644))
 	platform := config.PlatformSpec{
 		Architecture: config.PlatformArchitecture{Name: "aarch64", OCI: "arm64", Platform: "linux/arm64", Artifact: "aarch64", Installer: "aarch64"},
-		Base:         config.PlatformBase{Reference: "quay.io/fedora/fedora-bootc@sha256:85677d47c03b2e1f8f9a3a19d838023ea154229817d579d4b4da5b87a21c9c1a", Archive: "unused.oci.tar", ArchiveSHA256: strings.Repeat("a", 64)},
+		Base:         config.PlatformBase{Reference: "quay.io/fedora/fedora-bootc@sha256:950a52fa1244db4d7fe2673af57fd6784a605a83bec3cd2d716ed8c00ebd366d", Archive: "unused.oci.tar", ArchiveSHA256: strings.Repeat("a", 64)},
 		Installer:    config.PlatformInstaller{PackageLock: packageLock, ISOConfig: isoConfig},
 	}
 	builder := NewBuilder(root, config.DistroSpec{Identity: config.IdentitySpec{Architecture: "aarch64", Hostname: "soda", Version: "0.2.0"}, Base: config.BaseSpec{Reference: platform.Base.Reference, Platform: platform.Architecture.Platform}, Platform: platform}, runner)
@@ -277,7 +277,7 @@ platform = "linux/arm64"
 	require.Contains(t, commands, "docker volume rm --force "+volumeName)
 	payloadTag := payloadStagingReference(options.ImageReference)
 	require.Contains(t, strings.Join(commands, "\n"), "containers-storage:"+payloadTag)
-	require.Contains(t, strings.Join(commands, "\n"), "--build-context fedora-base=docker-image://soda-fedora-bootc:sha256-85677d47c03b2e1f8f9a3a19d838023ea154229817d579d4b4da5b87a21c9c1a")
+	require.Contains(t, strings.Join(commands, "\n"), "--build-context fedora-base=docker-image://soda-fedora-bootc:sha256-950a52fa1244db4d7fe2673af57fd6784a605a83bec3cd2d716ed8c00ebd366d")
 	require.Contains(t, strings.Join(commands, "\n"), "--bootc-installer-payload-ref "+payloadTag)
 	require.NotContains(t, strings.Join(commands, "\n"), "--bootc-installer-payload-ref "+options.ImageReference)
 	require.NotContains(t, strings.Join(commands, "\n"), root+"/.artifacts/installer/containers-storage:/var/lib/containers/storage")

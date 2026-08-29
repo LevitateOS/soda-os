@@ -21,7 +21,7 @@ import (
 )
 
 const (
-	testArmBaseReference        = "quay.io/fedora/fedora-bootc@sha256:85677d47c03b2e1f8f9a3a19d838023ea154229817d579d4b4da5b87a21c9c1a"
+	testArmBaseReference        = "quay.io/fedora/fedora-bootc@sha256:950a52fa1244db4d7fe2673af57fd6784a605a83bec3cd2d716ed8c00ebd366d"
 	testArmBootcNEVRA           = "bootc-0:1.16.10-1.fc44.aarch64"
 	testArmPlatform             = "linux/arm64"
 	testArmBuilderBaseReference = "registry.fedoraproject.org/fedora@sha256:9c8b291e256262b91aac5b3da50ea323760d0a6b449c6d6ad5f01d9550d48d2a"
@@ -198,8 +198,8 @@ func TestPrepareLocalBootcBaseUsesExactDigestDerivedLocalTag(t *testing.T) {
 	platform := config.PlatformSpec{Base: config.PlatformBase{Reference: testArmBaseReference, Archive: "unused.oci.tar", ArchiveSHA256: strings.Repeat("a", 64)}}
 	tag, err := PrepareLocalBootcBase(context.Background(), "/workspace", runner, platform)
 	require.NoError(t, err)
-	require.Equal(t, "soda-fedora-bootc:sha256-85677d47c03b2e1f8f9a3a19d838023ea154229817d579d4b4da5b87a21c9c1a", tag)
-	require.Equal(t, "docker image tag sha256:85677d47c03b2e1f8f9a3a19d838023ea154229817d579d4b4da5b87a21c9c1a "+tag, runner.Commands[0].String())
+	require.Equal(t, "soda-fedora-bootc:sha256-950a52fa1244db4d7fe2673af57fd6784a605a83bec3cd2d716ed8c00ebd366d", tag)
+	require.Equal(t, "docker image tag sha256:950a52fa1244db4d7fe2673af57fd6784a605a83bec3cd2d716ed8c00ebd366d "+tag, runner.Commands[0].String())
 
 	platform.Base.Reference = "quay.io/fedora/fedora-bootc:44"
 	_, err = PrepareLocalBootcBase(context.Background(), "/workspace", runner, platform)
