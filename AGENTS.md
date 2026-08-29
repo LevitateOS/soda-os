@@ -190,8 +190,14 @@ user behavior. Report only the level of evidence actually exercised.
 
 ## Architecture and platform changes
 
-Development actively uses both x86-64 and AArch64 computers. Perform and
-validate x86-specific work on x86-64 and AArch64-specific work on AArch64.
+Development actively uses both x86-64 and AArch64 computers. Keep every
+architecture-specific operation on matching hardware: perform x86-64 input
+preparation, dependency resolution, builds, artifact generation, inspection,
+signing, publication, installation, and validation on an x86-64 computer, and
+perform the corresponding AArch64 operations on an AArch64 computer. An agent
+may coordinate from a computer of the other architecture only by executing the
+work remotely on the matching target; do not build, inspect, sign, publish,
+install, or validate one architecture's artifacts on the sibling architecture.
 Whenever a change, dependency, artifact, test procedure, limitation, or
 follow-up is architecture-specific, record the affected architecture, what was
 done, what the sibling architecture must reproduce or verify, and any known
