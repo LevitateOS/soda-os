@@ -47,7 +47,10 @@ func (r *recordingRunner) Output(_ context.Context, command process.Command) (st
 func TestBootcContractForEqualSiblingArchitectures(t *testing.T) {
 	root, err := filepath.Abs(filepath.Join("..", "..", ".."))
 	require.NoError(t, err)
-	for architecture, expectedBootc := range map[string]string{"aarch64": testArmBootcNEVRA, "x86_64": "bootc-0:1.16.10-1.fc44.x86_64"} {
+	for architecture, packages := range map[string][2]string{
+		"aarch64": {testArmBootcNEVRA, "soda-forgejo-0:15.0.7-1.fc44.aarch64"},
+		"x86_64":  {"bootc-0:1.16.10-1.fc44.x86_64", "soda-forgejo-0:15.0.7-1.fc44.x86_64"},
+	} {
 		t.Run(architecture, func(t *testing.T) {
 			builder, err := NewBuilder(root, "distro/soda.toml", architecture, &recordingRunner{})
 			require.NoError(t, err)
@@ -57,16 +60,8 @@ func TestBootcContractForEqualSiblingArchitectures(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, builder.Spec.Base.Reference, lock.BaseReference)
 			require.Greater(t, len(lock.Package), len(targetRPMs))
-			foundBootc := false
-			for _, item := range lock.Package {
-				require.NotEmpty(t, item.NEVRA)
-				if item.Name == "bootc" {
-					foundBootc = true
-					require.Equal(t, expectedBootc, item.NEVRA)
-					require.Equal(t, "fedora", item.Source)
-				}
-			}
-			require.True(t, foundBootc)
+			require.Contains(t, lock.Package, lockedPackage{Name: "bootc", NEVRA: packages[0], Source: "fedora"})
+			require.Contains(t, lock.Package, lockedPackage{Name: "soda-forgejo", NEVRA: packages[1], Source: "local-rpm", File: strings.ReplaceAll(packages[1], "-0:", "-") + ".rpm"})
 		})
 	}
 }

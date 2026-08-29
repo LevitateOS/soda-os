@@ -53,7 +53,7 @@ func (b *Builder) prepareRPMWorkspace() (rpmWorkspace, error) {
 }
 
 func (b *Builder) buildLockedRPMs(ctx context.Context, workspace rpmWorkspace, revision string) error {
-	if err := b.buildGoBinaries(ctx, revision); err != nil {
+	if err := b.buildProductBinaries(ctx, revision); err != nil {
 		return err
 	}
 	if err := b.stageRPMSources(workspace.build, filepath.Join(workspace.topdir, "SOURCES")); err != nil {
@@ -76,6 +76,41 @@ func (b *Builder) buildLockedRPMs(ctx context.Context, workspace rpmWorkspace, r
 	}
 	fmt.Printf("Built locked Soda RPM inputs at %s\n", workspace.rpms)
 	return nil
+}
+
+func (b *Builder) buildProductBinaries(ctx context.Context, revision string) error {
+	if err := b.buildGoBinaries(ctx, revision); err != nil {
+		return err
+	}
+	return b.buildForgejo(ctx)
+}
+
+const (
+	forgejoVersion      = "15.0.7"
+	forgejoSourceSHA256 = "e11490f52542104651d81cfa7a23376a4c005397499e6dc1a7850e2fb8176ad6"
+)
+
+func (b *Builder) buildForgejo(ctx context.Context) error {
+	archive := b.artifactPath("tools", "forgejo-src-"+forgejoVersion+".tar.gz")
+	contents, err := os.ReadFile(archive)
+	if err != nil {
+		return fmt.Errorf("pinned Forgejo source is missing; run just forgejo-source: %w", err)
+	}
+	hash := sha256.Sum256(contents)
+	if hex.EncodeToString(hash[:]) != forgejoSourceSHA256 {
+		return errors.New("Forgejo source archive checksum differs from the distribution contract")
+	}
+	script := strings.Join([]string{
+		"set -eu",
+		"rm -rf /src/.artifacts/build/forgejo-source",
+		"mkdir -p /src/.artifacts/build/forgejo-source",
+		"tar -xzf /src/.artifacts/tools/forgejo-src-" + forgejoVersion + ".tar.gz -C /src/.artifacts/build/forgejo-source --strip-components=1",
+		"cd /src/.artifacts/build/forgejo-source",
+		"TAGS='bindata timetzdata sqlite sqlite_unlock_notify pam' make backend",
+		"install -m 0755 gitea /src/.artifacts/build/forgejo",
+		"/src/.artifacts/build/forgejo --version | grep -F ': bindata, timetzdata, sqlite, sqlite_unlock_notify, pam'",
+	}, "\n")
+	return b.docker(ctx, []string{"CGO_ENABLED=1", "SOURCE_DATE_EPOCH=" + fmt.Sprint(b.Spec.Build.SourceDateEpoch)}, "sh", "-c", script)
 }
 
 func (b *Builder) buildGoBinaries(ctx context.Context, revision string) error {
@@ -108,6 +143,7 @@ func (b *Builder) stageRPMSources(build, sources string) error {
 		{filepath.Join(build, "soda-ssh"), filepath.Join(sources, "soda-ssh")},
 		{filepath.Join(build, "soda-cockpit"), filepath.Join(sources, "soda-cockpit")},
 		{filepath.Join(build, "soda-authd"), filepath.Join(sources, "soda-authd")},
+		{filepath.Join(build, "forgejo"), filepath.Join(sources, "forgejo")},
 		{b.path("packaging/rpm/runtime/sources/systemd/sodad.service"), filepath.Join(sources, "sodad.service")},
 		{b.path("packaging/rpm/runtime/sources/systemd/soda-state-directories.service"), filepath.Join(sources, "soda-state-directories.service")},
 		{b.path("packaging/rpm/runtime/sources/systemd/var-srv-soda-projects.mount"), filepath.Join(sources, "var-srv-soda-projects.mount")},
@@ -122,6 +158,12 @@ func (b *Builder) stageRPMSources(build, sources string) error {
 		{b.path("packaging/rpm/cockpit/sources/systemd/soda-authd.service"), filepath.Join(sources, "soda-authd.service")},
 		{b.path("packaging/rpm/cockpit/sources/avahi/soda-cockpit.service"), filepath.Join(sources, "soda-cockpit.avahi.service")},
 		{b.path("packaging/rpm/cockpit/sources/pam/soda-cockpit"), filepath.Join(sources, "soda-cockpit.pam")},
+		{b.path("packaging/rpm/forgejo/sources/systemd/forgejo.service"), filepath.Join(sources, "forgejo.service")},
+		{b.path("packaging/rpm/forgejo/sources/systemd/forgejo-init.service"), filepath.Join(sources, "forgejo-init.service")},
+		{b.path("packaging/rpm/forgejo/sources/forgejo-init"), filepath.Join(sources, "forgejo-init")},
+		{b.path("packaging/rpm/forgejo/sources/app.ini.tmpl"), filepath.Join(sources, "forgejo-app.ini.tmpl")},
+		{b.path("packaging/rpm/forgejo/sources/sysusers/forgejo.conf"), filepath.Join(sources, "forgejo.sysusers")},
+		{b.path("packaging/rpm/forgejo/sources/tmpfiles/forgejo.conf"), filepath.Join(sources, "forgejo.tmpfiles")},
 		{b.path("packaging/rpm/release/sources/BASE_SYSTEM.md"), filepath.Join(sources, "BASE_SYSTEM.md")},
 		{b.path("assets/branding/source/soda-symbol.svg"), filepath.Join(sources, "soda-symbol.svg")},
 	}

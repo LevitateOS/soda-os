@@ -37,6 +37,11 @@ nevra = "git-core-0:2.55.0-1.fc44.x86_64"
 source = "fedora"
 
 [[package]]
+name = "git-lfs"
+nevra = "git-lfs-0:3.7.1-6.fc44.x86_64"
+source = "fedora"
+
+[[package]]
 name = "glibc-devel"
 nevra = "glibc-devel-0:2.43-8.fc44.x86_64"
 source = "fedora"
@@ -133,3 +138,9 @@ name = "soda-cockpit"
 nevra = "soda-cockpit-0:0.3.1-1.fc44.x86_64"
 source = "local-rpm"
 file = "soda-cockpit-0.3.1-1.fc44.x86_64.rpm"
+
+[[package]]
+name = "soda-forgejo"
+nevra = "soda-forgejo-0:15.0.7-1.fc44.x86_64"
+source = "local-rpm"
+file = "soda-forgejo-15.0.7-1.fc44.x86_64.rpm"

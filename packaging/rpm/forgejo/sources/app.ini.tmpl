@@ -1,0 +1,43 @@
+APP_NAME = Built-in Git
+RUN_MODE = prod
+RUN_USER = forgejo
+WORK_PATH = /var/lib/forgejo
+
+[database]
+DB_TYPE = sqlite3
+PATH = /var/lib/forgejo/data/forgejo.db
+
+[repository]
+ROOT = /var/lib/forgejo/data/repositories
+DEFAULT_PRIVATE = public
+
+[server]
+DOMAIN = localhost
+HTTP_ADDR = 127.0.0.1
+HTTP_PORT = 3000
+ROOT_URL = http://127.0.0.1:3000/
+START_SSH_SERVER = false
+LFS_START_SERVER = false
+
+[service]
+DISABLE_REGISTRATION = true
+
+[actions]
+ENABLED = false
+
+[packages]
+ENABLED = false
+
+[federation]
+ENABLED = false
+
+[security]
+INSTALL_LOCK = true
+INTERNAL_TOKEN = @INTERNAL_TOKEN@
+SECRET_KEY = @SECRET_KEY@
+
+[oauth2]
+JWT_SECRET = @JWT_SECRET@
+
+[lfs]
+JWT_SECRET = @LFS_JWT_SECRET@

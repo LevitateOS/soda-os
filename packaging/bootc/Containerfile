@@ -20,6 +20,7 @@ LABEL org.opencontainers.image.title="Soda OS" \
 COPY .artifacts/rpms/soda-release-*.rpm /var/tmp/soda-rpms/
 COPY .artifacts/rpms/soda-runtime-*.rpm /var/tmp/soda-rpms/
 COPY .artifacts/rpms/soda-cockpit-*.rpm /var/tmp/soda-rpms/
+COPY .artifacts/rpms/soda-forgejo-*.rpm /var/tmp/soda-rpms/
 COPY .artifacts/bootc/fedora-packages.txt /var/tmp/soda-lock/fedora-packages.txt
 COPY .artifacts/bootc/expected-packages.txt /var/tmp/soda-lock/expected-packages.txt
 COPY .artifacts/bootc/trust/registry-ca.crt /usr/share/pki/ca-trust-source/anchors/soda-registry-ca.crt
@@ -46,6 +47,7 @@ RUN dnf -y --setopt=install_weak_deps=False --enablerepo=updates-testing install
     && install -d -m 0755 /opt/soda/toolchains \
     && systemctl preset sshd.service sodad.service soda-authd.service soda-cockpit.service avahi-daemon.service var-srv-soda-projects.mount opt-soda-toolchains.mount \
     && systemctl enable sshd.service sodad.service soda-authd.service soda-cockpit.service avahi-daemon.service var-srv-soda-projects.mount opt-soda-toolchains.mount \
+    && getent passwd forgejo \
     && systemctl mask bootc-fetch-apply-updates.timer \
     && cp -f /usr/lib/soda/os-release /etc/os-release \
     && cp -f /usr/lib/soda/os-release /usr/lib/os-release \

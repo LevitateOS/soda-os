@@ -23,8 +23,11 @@ check:
     go run ./cmd/soda-image --architecture aarch64 check
     go run ./cmd/soda-image --architecture x86_64 check
 
-rpm architecture: builder-tools
+rpm architecture: builder-tools forgejo-source
     go run ./cmd/soda-image --architecture {{quote(architecture)}} rpm
+
+forgejo-source:
+    ./scripts/fetch-forgejo-source.sh
 
 oci architecture registry_ca public_key: builder-tools
     go run ./cmd/soda-image --architecture {{quote(architecture)}} oci --registry-ca {{quote(registry_ca)}} --public-key {{quote(public_key)}}

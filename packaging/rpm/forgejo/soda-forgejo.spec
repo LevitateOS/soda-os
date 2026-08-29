@@ -1,0 +1,28 @@
+Name:           soda-forgejo
+Version:        15.0.7
+Release:        1%{?dist}
+Summary:        Soda OS built-in Git service
+License:        MIT AND GPL-3.0-or-later
+Requires:       git-core, git-lfs, pam, shadow-utils, systemd
+
+%description
+Pinned PAM-enabled Forgejo runtime for the Soda OS built-in Git service.
+
+%install
+mkdir -p %{buildroot}%{_bindir} %{buildroot}%{_libexecdir}/soda %{buildroot}%{_unitdir} %{buildroot}%{_sysusersdir} %{buildroot}%{_tmpfilesdir} %{buildroot}%{_datadir}/soda/forgejo
+install -m 0755 %{_sourcedir}/forgejo %{buildroot}%{_bindir}/forgejo
+install -m 0755 %{_sourcedir}/forgejo-init %{buildroot}%{_libexecdir}/soda/forgejo-init
+install -m 0644 %{_sourcedir}/forgejo.service %{buildroot}%{_unitdir}/forgejo.service
+install -m 0644 %{_sourcedir}/forgejo-init.service %{buildroot}%{_unitdir}/forgejo-init.service
+install -m 0644 %{_sourcedir}/forgejo.sysusers %{buildroot}%{_sysusersdir}/forgejo.conf
+install -m 0644 %{_sourcedir}/forgejo.tmpfiles %{buildroot}%{_tmpfilesdir}/forgejo.conf
+install -m 0644 %{_sourcedir}/forgejo-app.ini.tmpl %{buildroot}%{_datadir}/soda/forgejo/app.ini.tmpl
+
+%files
+%{_bindir}/forgejo
+%{_libexecdir}/soda/forgejo-init
+%{_unitdir}/forgejo.service
+%{_unitdir}/forgejo-init.service
+%{_sysusersdir}/forgejo.conf
+%{_tmpfilesdir}/forgejo.conf
+%{_datadir}/soda/forgejo/app.ini.tmpl

@@ -17,6 +17,8 @@ func TestRuntimeImageBootcContainerContract(t *testing.T) {
 	for _, expected := range []string{
 		"ARG FEDORA_BASE_REFERENCE", "org.opencontainers.image.base.name=\"${FEDORA_BASE_REFERENCE}\"", "systemd-sysusers /usr/lib/sysusers.d/soda.conf", "install -d -m 0755 /opt/soda/toolchains",
 		"systemctl enable sshd.service sodad.service soda-authd.service soda-cockpit.service avahi-daemon.service var-srv-soda-projects.mount opt-soda-toolchains.mount",
+		"COPY .artifacts/rpms/soda-forgejo-*.rpm /var/tmp/soda-rpms/",
+		"getent passwd forgejo",
 		"systemctl mask bootc-fetch-apply-updates.timer", "cp -f /usr/lib/soda/os-release /etc/os-release",
 		"cp -f /usr/lib/soda/os-release /usr/lib/os-release", "cp -f /usr/lib/soda/issue /etc/issue",
 		"cp -f /usr/lib/soda/issue /etc/issue.net", "cp -f /usr/lib/soda/system-release /etc/system-release",
@@ -62,6 +64,7 @@ func TestRuntimeImageRPMStagingAndPackageContract(t *testing.T) {
 	require.NoError(t, err)
 	require.Contains(t, string(staging), `b.path("packaging/rpm/runtime/sources/systemd/soda-state-directories.service"), filepath.Join(sources, "soda-state-directories.service")`)
 	require.Contains(t, string(staging), `b.path("packaging/rpm/runtime/sources/systemd/var-srv-soda-projects.mount"), filepath.Join(sources, "var-srv-soda-projects.mount")`)
+	require.Contains(t, string(staging), `b.path("packaging/rpm/forgejo/sources/systemd/forgejo.service"), filepath.Join(sources, "forgejo.service")`)
 	require.NotContains(t, string(staging), "00-soda-var-srv.conf")
 
 	runtimeSpec, err := os.ReadFile(filepath.Join("..", "..", "..", "packaging", "rpm", "runtime", "soda-runtime.spec"))
@@ -70,7 +73,37 @@ func TestRuntimeImageRPMStagingAndPackageContract(t *testing.T) {
 	require.Contains(t, string(runtimeSpec), "%{_unitdir}/soda-state-directories.service")
 	require.Contains(t, string(runtimeSpec), "install -m 0644 %{_sourcedir}/var-srv-soda-projects.mount %{buildroot}%{_unitdir}/var-srv-soda-projects.mount")
 	require.Contains(t, string(runtimeSpec), "%{_unitdir}/var-srv-soda-projects.mount")
+	require.Contains(t, string(runtimeSpec), "soda-forgejo = 15.0.7")
 	require.NotContains(t, string(runtimeSpec), "00-soda-var-srv.conf")
+}
+
+func TestForgejoPackagingContract(t *testing.T) {
+	root := filepath.Join("..", "..", "..")
+	forgejoRoot := filepath.Join(root, "packaging", "rpm", "forgejo")
+	spec, err := os.ReadFile(filepath.Join(forgejoRoot, "soda-forgejo.spec"))
+	require.NoError(t, err)
+	require.Contains(t, string(spec), "Version:        15.0.7")
+	require.Contains(t, string(spec), "Pinned PAM-enabled Forgejo runtime")
+	require.Contains(t, string(spec), "%{_unitdir}/forgejo.service")
+
+	unit, err := os.ReadFile(filepath.Join(forgejoRoot, "sources", "systemd", "forgejo.service"))
+	require.NoError(t, err)
+	require.Contains(t, string(unit), "User=forgejo")
+	require.Contains(t, string(unit), "ExecStart=/usr/bin/forgejo web --config /etc/forgejo/app.ini")
+	require.Contains(t, string(unit), "ReadWritePaths=/var/lib/forgejo")
+
+	configuration, err := os.ReadFile(filepath.Join(forgejoRoot, "sources", "app.ini.tmpl"))
+	require.NoError(t, err)
+	require.Contains(t, string(configuration), "HTTP_ADDR = 127.0.0.1")
+	require.Contains(t, string(configuration), "START_SSH_SERVER = false")
+	require.Contains(t, string(configuration), "DISABLE_REGISTRATION = true")
+	require.Contains(t, string(configuration), "ENABLED = false")
+
+	sourceLock, err := os.ReadFile(filepath.Join(root, "distro", "locks", "forgejo-source.toml"))
+	require.NoError(t, err)
+	require.Contains(t, string(sourceLock), `version = "15.0.7"`)
+	require.Contains(t, string(sourceLock), `sha256 = "`+forgejoSourceSHA256+`"`)
+	require.Contains(t, string(sourceLock), `build_tags = "bindata timetzdata sqlite sqlite_unlock_notify pam"`)
 }
 
 func TestRuntimeImageSystemdMountAndLoggingContract(t *testing.T) {
@@ -80,6 +113,7 @@ func TestRuntimeImageSystemdMountAndLoggingContract(t *testing.T) {
 	for _, unit := range []string{"sshd.service", "sodad.service", "soda-authd.service", "soda-cockpit.service", "avahi-daemon.service", "var-srv-soda-projects.mount", "opt-soda-toolchains.mount"} {
 		require.True(t, strings.Contains(string(preset), "enable "+unit))
 	}
+	require.NotContains(t, string(preset), "forgejo.service")
 
 	projectMount, err := os.ReadFile(filepath.Join(runtimeSources, "systemd", "var-srv-soda-projects.mount"))
 	require.NoError(t, err)

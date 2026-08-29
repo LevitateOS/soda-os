@@ -1,0 +1,23 @@
+[Unit]
+Description=Soda OS built-in Git service
+Requires=forgejo-init.service
+After=forgejo-init.service network.target
+
+[Service]
+Type=notify
+User=forgejo
+Group=forgejo
+WorkingDirectory=/var/lib/forgejo
+Environment=HOME=/var/lib/forgejo USER=forgejo FORGEJO_WORK_DIR=/var/lib/forgejo
+ExecStart=/usr/bin/forgejo web --config /etc/forgejo/app.ini
+Restart=on-failure
+RestartSec=2s
+WatchdogSec=30s
+PrivateDevices=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/forgejo
+
+[Install]
+WantedBy=multi-user.target

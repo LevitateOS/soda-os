@@ -3,7 +3,7 @@ Version:        0.3.1
 Release:        1%{?dist}
 Summary:        Soda OS project runtime
 License:        MIT OR Apache-2.0
-Requires:       ca-certificates, gcc, gcc-c++, git-core, iproute, make, openssh-clients, openssh-server, policycoreutils, policycoreutils-python-utils, pkgconf-pkg-config, shadow-utils, sqlite-libs, systemd, tar, unzip, util-linux-core, xz
+Requires:       ca-certificates, gcc, gcc-c++, git-core, iproute, make, openssh-clients, openssh-server, policycoreutils, policycoreutils-python-utils, pkgconf-pkg-config, shadow-utils, soda-forgejo = 15.0.7, sqlite-libs, systemd, tar, unzip, util-linux-core, xz
 
 %description
 Privileged project daemon, administrator CLI, and SSH session gateway for Soda OS.

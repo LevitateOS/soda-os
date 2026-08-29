@@ -1,0 +1,7 @@
+[Unit]
+Description=Initialize Soda OS built-in Git service
+ConditionPathExists=!/etc/forgejo/app.ini
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/soda/forgejo-init

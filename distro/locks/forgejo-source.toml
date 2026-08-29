@@ -1,0 +1,4 @@
+version = "15.0.7"
+url = "https://codeberg.org/forgejo/forgejo/releases/download/v15.0.7/forgejo-src-15.0.7.tar.gz"
+sha256 = "e11490f52542104651d81cfa7a23376a4c005397499e6dc1a7850e2fb8176ad6"
+build_tags = "bindata timetzdata sqlite sqlite_unlock_notify pam"

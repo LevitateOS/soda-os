@@ -22,7 +22,7 @@ const (
 	cosignVersion = "v3.1.2"
 )
 
-var targetRPMs = []string{"soda-release", "soda-runtime", "soda-cockpit"}
+var targetRPMs = []string{"soda-release", "soda-runtime", "soda-cockpit", "soda-forgejo"}
 
 type packageLock struct {
 	SchemaVersion uint32          `toml:"schema_version"`
@@ -120,7 +120,7 @@ func validateRuntimePackageLock(lock packageLock, spec config.DistroSpec) error 
 		return err
 	}
 	if !bootcLocked || strings.Join(local, ",") != strings.Join(targetRPMs, ",") {
-		return errors.New("package lock must contain the locked bootc package and exactly the three Soda RPM inputs")
+		return errors.New("package lock must contain the locked bootc package and exactly the Soda RPM inputs")
 	}
 	return nil
 }
@@ -161,7 +161,7 @@ func validateReleaseToolLock(lock releaseToolLock, platform config.PlatformSpec)
 }
 
 func (b *Builder) validateBuildInputs() error {
-	for _, path := range []string{"packaging/bootc/Containerfile", "packaging/builder/Containerfile", b.Spec.Platform.Builder.PackageLock, b.Spec.Platform.Installer.PackageLock, b.Spec.Platform.Installer.ToolLock, b.Spec.Platform.Installer.ISOConfig, "packaging/rpm/release/soda-release.spec", "packaging/rpm/runtime/soda-runtime.spec", "packaging/rpm/cockpit/soda-cockpit.spec", "packaging/rpm/runtime/sources/sysusers/soda.conf", "packaging/bootc/trust/policy.json", "packaging/bootc/trust/registries.d.yaml", "distro/locks/release-tools.toml"} {
+	for _, path := range []string{"packaging/bootc/Containerfile", "packaging/builder/Containerfile", b.Spec.Platform.Builder.PackageLock, b.Spec.Platform.Installer.PackageLock, b.Spec.Platform.Installer.ToolLock, b.Spec.Platform.Installer.ISOConfig, "packaging/rpm/release/soda-release.spec", "packaging/rpm/runtime/soda-runtime.spec", "packaging/rpm/cockpit/soda-cockpit.spec", "packaging/rpm/forgejo/soda-forgejo.spec", "packaging/rpm/runtime/sources/sysusers/soda.conf", "packaging/bootc/trust/policy.json", "packaging/bootc/trust/registries.d.yaml", "distro/locks/release-tools.toml", "distro/locks/forgejo-source.toml"} {
 		if !isFile(b.path(path)) {
 			return fmt.Errorf("required bootc build input %s is missing", path)
 		}
