@@ -61,7 +61,7 @@ func TestInstallerStorageUsesOnePlainExt4Root(t *testing.T) {
 
 	containerfile, err := os.ReadFile(filepath.Join(root, "packaging", "installer", "Containerfile"))
 	require.NoError(t, err)
-	require.Contains(t, string(containerfile), "COPY packaging/installer/soda-storage.conf /etc/anaconda/conf.d/90-soda-storage.conf")
+	require.Contains(t, string(containerfile), "COPY --chmod=0644 packaging/installer/soda-storage.conf /etc/anaconda/conf.d/90-soda-storage.conf")
 }
 
 func TestStorageConfigRequiresExactPlainExt4RootOnlyContract(t *testing.T) {
@@ -121,6 +121,7 @@ func TestInstallerEnvironmentUsesVerifiedLocalFedoraBaseContext(t *testing.T) {
 	contents, err := os.ReadFile(filepath.Join("..", "..", "..", "packaging", "installer", "Containerfile"))
 	require.NoError(t, err)
 	require.True(t, strings.HasPrefix(string(contents), "FROM fedora-base\n"))
+	require.Contains(t, string(contents), "COPY --chmod=0644 .artifacts/installer/context/interactive-defaults.ks /usr/share/anaconda/interactive-defaults.ks")
 }
 
 func TestPayloadStagingReferenceUsesFullExactDigestOnlyForImageBuilderStorage(t *testing.T) {

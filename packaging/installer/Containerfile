@@ -27,12 +27,12 @@ RUN mkdir -p /boot/efi /usr/lib/image-builder/bootc /usr/lib/systemd/logind.conf
     && ln -sf /usr/lib/systemd/system/anaconda-shell@.service /usr/lib/systemd/system/autovt@.service \
     && mkdir -p /etc/systemd/user/pipewire.service.d /etc/systemd/user/pipewire.socket.d
 
-COPY .artifacts/installer/context/interactive-defaults.ks /usr/share/anaconda/interactive-defaults.ks
-COPY packaging/installer/soda-storage.conf /etc/anaconda/conf.d/90-soda-storage.conf
-COPY .artifacts/installer/context/iso.yaml /usr/lib/image-builder/bootc/iso.yaml
-COPY packaging/installer/anaconda-shell.conf /usr/lib/systemd/logind.conf.d/anaconda-shell.conf
-COPY packaging/installer/pipewire-allow-root.conf /etc/systemd/user/pipewire.service.d/allowroot.conf
-COPY packaging/installer/pipewire-allow-root.conf /etc/systemd/user/pipewire.socket.d/allowroot.conf
+COPY --chmod=0644 .artifacts/installer/context/interactive-defaults.ks /usr/share/anaconda/interactive-defaults.ks
+COPY --chmod=0644 packaging/installer/soda-storage.conf /etc/anaconda/conf.d/90-soda-storage.conf
+COPY --chmod=0644 .artifacts/installer/context/iso.yaml /usr/lib/image-builder/bootc/iso.yaml
+COPY --chmod=0644 packaging/installer/anaconda-shell.conf /usr/lib/systemd/logind.conf.d/anaconda-shell.conf
+COPY --chmod=0644 packaging/installer/pipewire-allow-root.conf /etc/systemd/user/pipewire.service.d/allowroot.conf
+COPY --chmod=0644 packaging/installer/pipewire-allow-root.conf /etc/systemd/user/pipewire.socket.d/allowroot.conf
 
 RUN kernel="$(find /usr/lib/modules -mindepth 2 -maxdepth 2 -name vmlinuz -printf '%h\n' | sed 's#.*/##')" \
     && test -n "$kernel" \

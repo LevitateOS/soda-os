@@ -264,7 +264,7 @@ capture() {
 		echo "[boot-id]"; cat /proc/sys/kernel/random/boot_id
 		echo "[kernel]"; uname -a
 		echo "[services]"
-		for unit in sodad sshd cockpit.socket soda-authd.socket avahi-daemon soda-state-directories.service srv-soda-projects.mount opt-soda-toolchains.mount; do
+		for unit in sodad sshd soda-cockpit soda-authd avahi-daemon soda-state-directories.service var-srv-soda-projects.mount opt-soda-toolchains.mount; do
 			printf "%s=" "$unit"; systemctl is-active "$unit" 2>/dev/null || true
 		done
 		echo "[bootc-status]"; bootc status --format=json
