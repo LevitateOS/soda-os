@@ -71,8 +71,10 @@ type PlatformBase struct {
 }
 
 type PlatformBuilder struct {
-	BaseReference string `toml:"base_reference"`
-	PackageLock   string `toml:"package_lock"`
+	BaseReference   string `toml:"base_reference"`
+	PackageLock     string `toml:"package_lock"`
+	GoArchive       string `toml:"go_archive"`
+	GoArchiveSHA256 string `toml:"go_archive_sha256"`
 }
 
 type PlatformCosign struct {
@@ -156,7 +158,7 @@ func validPlatformBase(spec PlatformBase) bool {
 }
 
 func validPlatformBuild(builder PlatformBuilder, cosign PlatformCosign, ociArchitecture string) bool {
-	return builder.BaseReference != "" && builder.PackageLock != "" &&
+	return builder.BaseReference != "" && builder.PackageLock != "" && builder.GoArchive != "" && len(builder.GoArchiveSHA256) == 64 &&
 		cosign.Architecture == ociArchitecture && len(cosign.SHA256) == 64
 }
 

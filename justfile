@@ -23,11 +23,14 @@ check:
     go run ./cmd/soda-image --architecture aarch64 check
     go run ./cmd/soda-image --architecture x86_64 check
 
-rpm architecture:
+rpm architecture: builder-tools
     go run ./cmd/soda-image --architecture {{quote(architecture)}} rpm
 
-oci architecture registry_ca public_key:
+oci architecture registry_ca public_key: builder-tools
     go run ./cmd/soda-image --architecture {{quote(architecture)}} oci --registry-ca {{quote(registry_ca)}} --public-key {{quote(public_key)}}
+
+builder-tools:
+    ./scripts/fetch-builder-tools.sh
 
 release-tools:
     ./scripts/fetch-release-tools.sh

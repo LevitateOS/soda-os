@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -185,6 +186,18 @@ func (b *Builder) buildContainer(ctx context.Context) error {
 	lockDestination := b.artifactPath("builder", "packages.lock")
 	if err := copyFile(b.path(b.Spec.Platform.Builder.PackageLock), lockDestination); err != nil {
 		return fmt.Errorf("stage builder package lock: %w", err)
+	}
+	goArchive := b.path(b.Spec.Platform.Builder.GoArchive)
+	contents, err := os.ReadFile(goArchive)
+	if err != nil {
+		return fmt.Errorf("pinned Go 1.27 builder input is missing; run just builder-tools: %w", err)
+	}
+	hash := sha256.Sum256(contents)
+	if hex.EncodeToString(hash[:]) != b.Spec.Platform.Builder.GoArchiveSHA256 {
+		return errors.New("Go 1.27 builder archive checksum differs from the selected platform contract")
+	}
+	if err := copyFile(goArchive, b.artifactPath("builder", "go.tar.gz")); err != nil {
+		return fmt.Errorf("stage Go 1.27 builder toolchain: %w", err)
 	}
 	return b.runner.Run(ctx, process.Command{Dir: b.Root, Name: "docker", Args: []string{"build", "--quiet", "--platform", b.Spec.Base.Platform, "--build-arg", "BUILDER_BASE_REFERENCE=" + b.Spec.Platform.Builder.BaseReference, "--file", "packaging/builder/Containerfile", "--tag", b.builderTag(), "."}})
 }

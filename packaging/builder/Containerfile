@@ -2,11 +2,19 @@ ARG BUILDER_BASE_REFERENCE
 FROM ${BUILDER_BASE_REFERENCE}
 
 COPY .artifacts/builder/packages.lock /usr/share/soda-builder/packages.lock
+COPY .artifacts/builder/go.tar.gz /usr/share/soda-builder/go.tar.gz
 
 RUN dnf -y install --setopt=install_weak_deps=False $(awk -F '"' '/^nevra = / { print $2 }' /usr/share/soda-builder/packages.lock) \
     && actual="$(rpm -qa --qf '%{NAME}-%{EPOCHNUM}:%{VERSION}-%{RELEASE}.%{ARCH}\n' | LC_ALL=C sort | sha256sum | awk '{print $1}')" \
     && expected="$(awk -F '"' '/^inventory_sha256 = / { print $2 }' /usr/share/soda-builder/packages.lock)" \
     && test "$actual" = "$expected" \
     && dnf clean all
+
+RUN rm -rf /usr/local/go \
+    && tar -C /usr/local -xzf /usr/share/soda-builder/go.tar.gz \
+    && test "$(/usr/local/go/bin/go version)" = "go version go1.27.0 linux/$(uname -m | sed 's/x86_64/amd64/; s/aarch64/arm64/')"
+
+ENV PATH="/usr/local/go/bin:${PATH}" \
+    GOTOOLCHAIN=local
 
 WORKDIR /src
