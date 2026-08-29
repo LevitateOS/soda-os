@@ -117,18 +117,6 @@ func TestInstallerEnvironmentUsesAnacondaGeneratorCompatibleDefaultTarget(t *tes
 	require.NotContains(t, string(contents), "ln -sf /usr/lib/systemd/system/anaconda.target /etc/systemd/system/default.target")
 }
 
-func TestInstallerEnvironmentDeclaresBootISOForLocalGraphicalUI(t *testing.T) {
-	root, err := filepath.Abs(filepath.Join("..", "..", ".."))
-	require.NoError(t, err)
-	config, err := os.ReadFile(filepath.Join(root, "packaging", "installer", "anaconda-boot-iso.conf"))
-	require.NoError(t, err)
-	require.Equal(t, "# Allow Anaconda to start its local Wayland compositor in installer media.\n[Installation System]\ntype = BOOT_ISO\n", string(config))
-
-	containerfile, err := os.ReadFile(filepath.Join(root, "packaging", "installer", "Containerfile"))
-	require.NoError(t, err)
-	require.Contains(t, string(containerfile), "COPY --chmod=0644 packaging/installer/anaconda-boot-iso.conf /etc/anaconda/conf.d/80-soda-boot-iso.conf")
-}
-
 func TestInstallerEnvironmentUsesVerifiedLocalFedoraBaseContext(t *testing.T) {
 	contents, err := os.ReadFile(filepath.Join("..", "..", "..", "packaging", "installer", "Containerfile"))
 	require.NoError(t, err)
@@ -175,7 +163,7 @@ func TestValidateEmbeddedPayloadRequiresStagingTagAndOriginalManifestDigest(t *t
 }
 
 func TestISOConfigRequiresExactStage2KernelAndInitrdContract(t *testing.T) {
-	expected := []byte("label: \"SodaOS-Installer\"\ngrub2:\n  default: 0\n  timeout: 10\n  entries:\n    - name: \"Install Soda OS\"\n      linux: \"/images/pxeboot/vmlinuz inst.stage2=hd:LABEL=SodaOS-Installer console=tty0 enforcing=0\"\n      initrd: \"/images/pxeboot/initrd.img\"\n")
+	expected := []byte("label: \"SodaOS-Installer\"\ngrub2:\n  default: 0\n  timeout: 10\n  entries:\n    - name: \"Install Soda OS\"\n      linux: \"/images/pxeboot/vmlinuz inst.stage2=hd:LABEL=SodaOS-Installer console=tty0 inst.graphical enforcing=0\"\n      initrd: \"/images/pxeboot/initrd.img\"\n")
 	root := t.TempDir()
 	inspectDir := t.TempDir()
 	expectedDir := filepath.Join(root, "packaging", "installer")
