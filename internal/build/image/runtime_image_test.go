@@ -104,6 +104,11 @@ func TestForgejoPackagingContract(t *testing.T) {
 	require.Contains(t, string(sourceLock), `version = "15.0.7"`)
 	require.Contains(t, string(sourceLock), `sha256 = "`+forgejoSourceSHA256+`"`)
 	require.Contains(t, string(sourceLock), `build_tags = "bindata timetzdata sqlite sqlite_unlock_notify pam"`)
+
+	buildPipeline, err := os.ReadFile("rpm.go")
+	require.NoError(t, err)
+	require.Contains(t, string(buildPipeline), `"GOFLAGS=-buildvcs=false"`)
+	require.Contains(t, string(buildPipeline), `TAGS='bindata timetzdata sqlite sqlite_unlock_notify pam' make backend`)
 }
 
 func TestRuntimeImageSystemdMountAndLoggingContract(t *testing.T) {
