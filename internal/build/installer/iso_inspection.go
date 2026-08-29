@@ -62,12 +62,16 @@ func validateExtractedPayload(inspectDir, payloadTag, reference string) error {
 func (b *Builder) validateExtractedConfiguration(inspectDir string) error {
 	for _, file := range []struct {
 		actual, expected, label, mismatch string
-	}{{"usr/lib/image-builder/bootc/iso.yaml", "iso.yaml", "ISO configuration", "ISO boot configuration differs from the Soda installer contract"}, {"etc/anaconda/conf.d/90-soda-storage.conf", "soda-storage.conf", "installer storage configuration", "ISO storage configuration differs from the Soda ext4 root-only contract"}} {
+	}{{"usr/lib/image-builder/bootc/iso.yaml", b.Spec.Platform.InstallerISOConfig, "ISO configuration", "ISO boot configuration differs from the Soda installer contract"}, {"etc/anaconda/conf.d/90-soda-storage.conf", filepath.Join("packaging", "installer", "soda-storage.conf"), "installer storage configuration", "ISO storage configuration differs from the Soda ext4 root-only contract"}} {
 		actual, err := os.ReadFile(filepath.Join(inspectDir, "root", file.actual))
 		if err != nil {
 			return fmt.Errorf("read %s: %w", file.label, err)
 		}
-		expected, err := os.ReadFile(filepath.Join(b.Root, "packaging", "installer", file.expected))
+		expectedPath := file.expected
+		if !filepath.IsAbs(expectedPath) {
+			expectedPath = filepath.Join(b.Root, expectedPath)
+		}
+		expected, err := os.ReadFile(expectedPath)
 		if err != nil {
 			return fmt.Errorf("read expected %s: %w", file.label, err)
 		}

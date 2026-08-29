@@ -161,7 +161,7 @@ func validateReleaseToolLock(lock releaseToolLock, platform config.PlatformSpec)
 }
 
 func (b *Builder) validateBuildInputs() error {
-	for _, path := range []string{"packaging/bootc/Containerfile", "packaging/builder/Containerfile", b.Spec.Platform.BuilderPackageLock, b.Spec.Platform.InstallerPackageLock, b.Spec.Platform.InstallerToolLock, "packaging/rpm/release/soda-release.spec", "packaging/rpm/runtime/soda-runtime.spec", "packaging/rpm/cockpit/soda-cockpit.spec", "packaging/rpm/runtime/sources/sysusers/soda.conf", "packaging/bootc/trust/policy.json", "packaging/bootc/trust/registries.d.yaml", "distro/locks/release-tools.toml"} {
+	for _, path := range []string{"packaging/bootc/Containerfile", "packaging/builder/Containerfile", b.Spec.Platform.BuilderPackageLock, b.Spec.Platform.InstallerPackageLock, b.Spec.Platform.InstallerToolLock, b.Spec.Platform.InstallerISOConfig, "packaging/rpm/release/soda-release.spec", "packaging/rpm/runtime/soda-runtime.spec", "packaging/rpm/cockpit/soda-cockpit.spec", "packaging/rpm/runtime/sources/sysusers/soda.conf", "packaging/bootc/trust/policy.json", "packaging/bootc/trust/registries.d.yaml", "distro/locks/release-tools.toml"} {
 		if !isFile(b.path(path)) {
 			return fmt.Errorf("required bootc build input %s is missing", path)
 		}

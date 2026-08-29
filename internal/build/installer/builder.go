@@ -190,7 +190,22 @@ func (b *Builder) prepareInstallerWorkspace(options Options) (installerWorkspace
 	if err := b.stageInstallerPackageLock(workspace.context); err != nil {
 		return installerWorkspace{}, err
 	}
+	isoConfig := b.Spec.Platform.InstallerISOConfig
+	if !filepath.IsAbs(isoConfig) {
+		isoConfig = filepath.Join(b.Root, isoConfig)
+	}
+	if err := copyFile(isoConfig, filepath.Join(workspace.context, "iso.yaml")); err != nil {
+		return installerWorkspace{}, fmt.Errorf("stage installer ISO configuration: %w", err)
+	}
 	return workspace, nil
+}
+
+func copyFile(source, destination string) error {
+	contents, err := os.ReadFile(source)
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(destination, contents, 0o644)
 }
 
 func (b *Builder) stageInstallerPackageLock(destination string) error {

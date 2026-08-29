@@ -29,7 +29,7 @@ RUN mkdir -p /boot/efi /usr/lib/image-builder/bootc /usr/lib/systemd/logind.conf
 
 COPY .artifacts/installer/context/interactive-defaults.ks /usr/share/anaconda/interactive-defaults.ks
 COPY packaging/installer/soda-storage.conf /etc/anaconda/conf.d/90-soda-storage.conf
-COPY packaging/installer/iso.yaml /usr/lib/image-builder/bootc/iso.yaml
+COPY .artifacts/installer/context/iso.yaml /usr/lib/image-builder/bootc/iso.yaml
 COPY packaging/installer/anaconda-shell.conf /usr/lib/systemd/logind.conf.d/anaconda-shell.conf
 COPY packaging/installer/pipewire-allow-root.conf /etc/systemd/user/pipewire.service.d/allowroot.conf
 COPY packaging/installer/pipewire-allow-root.conf /etc/systemd/user/pipewire.socket.d/allowroot.conf

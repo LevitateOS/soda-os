@@ -79,7 +79,7 @@ func TestStorageConfigRequiresExactPlainExt4RootOnlyContract(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(bootConfigDir, "iso.yaml"), []byte("valid ISO config\n"), 0o644))
 	actualPath := filepath.Join(extractedDir, "90-soda-storage.conf")
 	require.NoError(t, os.WriteFile(actualPath, expected, 0o644))
-	builder := NewBuilder(root, config.DistroSpec{}, &recordingRunner{})
+	builder := NewBuilder(root, config.DistroSpec{Platform: config.PlatformSpec{InstallerISOConfig: "packaging/installer/iso.yaml"}}, &recordingRunner{})
 	require.NoError(t, builder.validateExtractedConfiguration(inspectDir))
 
 	for name, malformed := range map[string]string{
@@ -160,7 +160,7 @@ func TestISOConfigRequiresExactStage2KernelAndInitrdContract(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(extractedStorageDir, "90-soda-storage.conf"), []byte("valid storage config\n"), 0o644))
 	actualPath := filepath.Join(extractedConfigDir, "iso.yaml")
 	require.NoError(t, os.WriteFile(actualPath, expected, 0o644))
-	builder := NewBuilder(root, config.DistroSpec{}, &recordingRunner{})
+	builder := NewBuilder(root, config.DistroSpec{Platform: config.PlatformSpec{InstallerISOConfig: "packaging/installer/iso.yaml"}}, &recordingRunner{})
 	require.NoError(t, builder.validateExtractedConfiguration(inspectDir))
 
 	for name, malformed := range map[string]string{
@@ -240,7 +240,9 @@ platform = "linux/arm64"
 	runner := &recordingRunner{Outputs: map[string]string{options.CosignPath + " version": "GitVersion: v3.1.2\n"}}
 	packageLock := filepath.Join(root, "installer-packages.toml")
 	require.NoError(t, os.WriteFile(packageLock, []byte("schema_version = 1\nplatform = \"linux/arm64\"\npackages = [\"anaconda\"]\nboot_packages = [\"shim-aa64\"]\nefi_vendor = \"fedora\"\n"), 0o644))
-	platform := config.PlatformSpec{Architecture: "aarch64", OCIArchitecture: "arm64", OCIPlatform: "linux/arm64", ArtifactArchitecture: "aarch64", InstallerArchitecture: "aarch64", BaseReference: "quay.io/fedora/fedora-bootc@sha256:85677d47c03b2e1f8f9a3a19d838023ea154229817d579d4b4da5b87a21c9c1a", BaseArchive: "unused.oci.tar", BaseArchiveSHA256: strings.Repeat("a", 64), InstallerPackageLock: packageLock}
+	isoConfig := filepath.Join(root, "iso.yaml")
+	require.NoError(t, os.WriteFile(isoConfig, []byte("test ISO config\n"), 0o644))
+	platform := config.PlatformSpec{Architecture: "aarch64", OCIArchitecture: "arm64", OCIPlatform: "linux/arm64", ArtifactArchitecture: "aarch64", InstallerArchitecture: "aarch64", BaseReference: "quay.io/fedora/fedora-bootc@sha256:85677d47c03b2e1f8f9a3a19d838023ea154229817d579d4b4da5b87a21c9c1a", BaseArchive: "unused.oci.tar", BaseArchiveSHA256: strings.Repeat("a", 64), InstallerPackageLock: packageLock, InstallerISOConfig: isoConfig}
 	builder := NewBuilder(root, config.DistroSpec{Identity: config.IdentitySpec{Architecture: "aarch64", Hostname: "soda", Version: "0.2.0"}, Base: config.BaseSpec{Reference: platform.BaseReference, Platform: platform.OCIPlatform}, Platform: platform}, runner)
 	_, err := builder.Build(context.Background(), options)
 	require.ErrorContains(t, err, "image-builder did not create")

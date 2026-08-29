@@ -62,6 +62,7 @@ type PlatformSpec struct {
 	TargetCosignSHA256       string `toml:"target_cosign_sha256"`
 	InstallerPackageLock     string `toml:"installer_package_lock"`
 	InstallerToolLock        string `toml:"installer_tool_lock"`
+	InstallerISOConfig       string `toml:"installer_iso_config"`
 	ReleaseChannel           string `toml:"release_channel"`
 }
 
@@ -117,7 +118,7 @@ func validatePlatformSpec(spec PlatformSpec, requested string) error {
 		spec.InstallerArchitecture != expected.installer || spec.BaseReference == "" || spec.BaseArchive == "" ||
 		len(spec.BaseArchiveSHA256) != 64 || spec.BootcNEVRA == "" || spec.RuntimePackageLock == "" ||
 		spec.BuilderBaseReference == "" || spec.BuilderPackageLock == "" || spec.TargetCosignArchitecture != expected.oci || len(spec.TargetCosignSHA256) != 64 ||
-		spec.InstallerPackageLock == "" || spec.InstallerToolLock == "" || spec.ReleaseChannel != expected.artifact {
+		spec.InstallerPackageLock == "" || spec.InstallerToolLock == "" || spec.InstallerISOConfig == "" || spec.ReleaseChannel != expected.artifact {
 		return fmt.Errorf("platform specification for %s differs from the Soda architecture contract", requested)
 	}
 	return nil
