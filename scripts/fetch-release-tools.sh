@@ -15,7 +15,14 @@ fetch_cosign() {
   fetch_output=$3
   mkdir -p "$(dirname "$fetch_output")"
   curl --fail --location --output "$fetch_output.tmp" "https://github.com/sigstore/cosign/releases/download/v3.1.2/$fetch_asset"
-  actual=$(shasum -a 256 "$fetch_output.tmp" | awk '{print $1}')
+  if command -v sha256sum >/dev/null 2>&1; then
+    actual=$(sha256sum "$fetch_output.tmp" | awk '{print $1}')
+  elif command -v shasum >/dev/null 2>&1; then
+    actual=$(shasum -a 256 "$fetch_output.tmp" | awk '{print $1}')
+  else
+    echo "a SHA-256 checksum utility is required" >&2
+    exit 1
+  fi
   if [ "$actual" != "$fetch_checksum" ]; then
     echo "cosign checksum mismatch for $fetch_asset: got $actual, expected $fetch_checksum" >&2
     exit 1
