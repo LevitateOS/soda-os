@@ -4,6 +4,8 @@ ARG SODA_VERSION
 ARG SODA_SOURCE_REVISION
 ARG SOURCE_DATE_EPOCH
 ARG SODA_CREATED
+ARG FEDORA_BASE_REFERENCE
+ARG BOOTC_NEVRA
 
 LABEL org.opencontainers.image.title="Soda OS" \
       org.opencontainers.image.description="Soda OS remote development appliance" \
@@ -11,7 +13,7 @@ LABEL org.opencontainers.image.title="Soda OS" \
       org.opencontainers.image.version="${SODA_VERSION}" \
       org.opencontainers.image.revision="${SODA_SOURCE_REVISION}" \
       org.opencontainers.image.created="${SODA_CREATED}" \
-      org.opencontainers.image.base.name="quay.io/fedora/fedora-bootc@sha256:85677d47c03b2e1f8f9a3a19d838023ea154229817d579d4b4da5b87a21c9c1a" \
+      org.opencontainers.image.base.name="${FEDORA_BASE_REFERENCE}" \
       org.sodaos.state-schema="2" \
       org.sodaos.source-date-epoch="${SOURCE_DATE_EPOCH}"
 
@@ -62,7 +64,7 @@ RUN dnf -y --setopt=install_weak_deps=False --enablerepo=updates-testing install
     && ssh-keygen -q -t ed25519 -N '' -f /run/soda-sshd-hostkey \
     && /usr/sbin/sshd -t -h /run/soda-sshd-hostkey \
     && rm -f /run/soda-sshd-hostkey /run/soda-sshd-hostkey.pub \
-    && test "$(rpm -q --qf '%{NAME}-%{EPOCHNUM}:%{VERSION}-%{RELEASE}.%{ARCH}' bootc)" = "bootc-0:1.16.10-1.fc44.aarch64" \
+    && test "$(rpm -q --qf '%{NAME}-%{EPOCHNUM}:%{VERSION}-%{RELEASE}.%{ARCH}' bootc)" = "${BOOTC_NEVRA}" \
     && rpm -q skopeo \
     && /usr/libexec/soda/cosign version | grep -F 'GitVersion:    v3.1.2' \
     && bootc switch --help | grep -F -- '--download-only' \

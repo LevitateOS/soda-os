@@ -19,10 +19,12 @@ func main() {
 		SilenceUsage:  true,
 		SilenceErrors: true,
 	}
-	var specPath string
+	var specPath, architecture string
 	root.PersistentFlags().StringVar(&specPath, "spec", "distro/soda.toml", "path to the Soda distribution specification")
+	root.PersistentFlags().StringVar(&architecture, "architecture", "", "Soda architecture to operate on: aarch64 or x86_64")
+	_ = root.MarkPersistentFlagRequired("architecture")
 	builder := func() (*image.Builder, error) {
-		return image.NewBuilderFromWorkingDirectory(specPath, process.OSRunner{Stdout: os.Stdout, Stderr: os.Stderr})
+		return image.NewBuilderFromWorkingDirectory(specPath, architecture, process.OSRunner{Stdout: os.Stdout, Stderr: os.Stderr})
 	}
 	root.AddCommand(
 		command("check", "validate the pinned Fedora bootc image contract", builder, func(ctx context.Context, b *image.Builder) error { return b.Check(ctx) }),
@@ -51,7 +53,7 @@ func installerCommand(builder func() (*image.Builder, error)) *cobra.Command {
 	var options installer.Options
 	command := &cobra.Command{
 		Use:   "iso",
-		Short: "build an AArch64 installer ISO from one signed exact Soda image",
+		Short: "build a platform-matched installer ISO from one signed exact Soda image",
 		Args:  cobra.NoArgs,
 		RunE: func(command *cobra.Command, _ []string) error {
 			imageBuilder, err := builder()
@@ -95,7 +97,7 @@ func releaseCommand(builder func() (*image.Builder, error)) *cobra.Command {
 		Args:  cobra.NoArgs,
 		RunE:  state.run,
 	}
-	command.Flags().StringVar(&state.publication.ArchivePath, "archive", "", "path to the AArch64 Soda OCI archive")
+	command.Flags().StringVar(&state.publication.ArchivePath, "archive", "", "path to the selected-architecture Soda OCI archive")
 	command.Flags().StringVar(&state.signing.RegistryCA, "registry-ca", "", "PEM CA certificate for registry.soda.local")
 	command.Flags().StringVar(&state.signing.PublicKey, "public-key", "", "Soda Cosign public key")
 	command.Flags().StringVar(&state.signing.PrivateKey, "signing-key", "", "passphrase-protected Soda Cosign private key")

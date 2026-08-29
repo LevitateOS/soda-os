@@ -16,6 +16,20 @@ const (
 	testUpdateDigest = "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
 )
 
+var testARM64Platform = platformContract{"arm64", "arm64", "aarch64", "linux/arm64"}
+
+func TestSiblingPlatformsHaveSeparateDiscoveryChannels(t *testing.T) {
+	arm, err := platformFor("arm64")
+	require.NoError(t, err)
+	x86, err := platformFor("amd64")
+	require.NoError(t, err)
+	require.Equal(t, Repository+":current-aarch64", arm.discoveryTag())
+	require.Equal(t, Repository+":current-x86_64", x86.discoveryTag())
+	require.NotEqual(t, arm.discoveryTag(), x86.discoveryTag())
+	_, err = candidateFromMetadata(Repository+"@"+testUpdateDigest, validMetadata(testUpdateDigest), x86)
+	require.ErrorIs(t, err, ErrRejected)
+}
+
 type recordingRunner struct {
 	Commands []process.Command
 	Outputs  map[string]string
@@ -75,6 +89,7 @@ func TestStatusComesOnlyFromBootcAndPreservesDownloadLock(t *testing.T) {
 	manager := &Manager{
 		runner: runner, bootc: "bootc", verifier: fakeVerifier{},
 		inspector: fakeInspector{metadata: validMetadata(testUpdateDigest)},
+		platform:  testARM64Platform,
 	}
 	status, err := manager.Status(context.Background())
 	require.NoError(t, err)
@@ -98,6 +113,7 @@ func TestCheckResolvesOnceVerifiesExactDigestAndRejectsWrongMetadata(t *testing.
 		runner: runner, bootc: "bootc", discovery: fakeDiscovery{reference: exact},
 		verifier:  fakeVerifier{seen: &seen},
 		inspector: fakeInspector{seen: &seen, metadata: validMetadata(testUpdateDigest)},
+		platform:  testARM64Platform,
 	}
 	candidate, err := manager.Check(context.Background())
 	require.NoError(t, err)
@@ -135,7 +151,7 @@ func TestSkopeoInspectorReadsMetadataOnlyAfterVerification(t *testing.T) {
 	runner := &recordingRunner{Outputs: map[string]string{
 		"skopeo --override-os linux --override-arch arm64 inspect --no-creds --no-tags --tls-verify=true docker://" + exact: `{"Digest":"` + testUpdateDigest + `","Architecture":"arm64","Os":"linux","Labels":{}}`,
 	}}
-	inspector := skopeoInspector{runner: runner, executable: "skopeo"}
+	inspector := skopeoInspector{runner: runner, executable: "skopeo", architecture: "arm64"}
 	metadata, err := inspector.Inspect(context.Background(), exact)
 	require.NoError(t, err)
 	require.Equal(t, testUpdateDigest, metadata.Digest)
@@ -150,6 +166,7 @@ func TestStageUsesOnlyExactDigestAndRequiresLockedMatchingStatus(t *testing.T) {
 	manager := &Manager{
 		runner: runner, bootc: "bootc", verifier: fakeVerifier{},
 		inspector: fakeInspector{metadata: validMetadata(testUpdateDigest)},
+		platform:  testARM64Platform,
 	}
 	status, err := manager.Stage(context.Background(), exact)
 	require.NoError(t, err)
@@ -160,7 +177,7 @@ func TestStageUsesOnlyExactDigestAndRequiresLockedMatchingStatus(t *testing.T) {
 		"bootc status --format=json --format-version=1",
 	}, commandStrings(runner.Commands))
 
-	for _, invalid := range []string{DiscoveryTag, "quay.io/example/os@" + testUpdateDigest, Repository + "@sha256:short"} {
+	for _, invalid := range []string{testARM64Platform.discoveryTag(), "quay.io/example/os@" + testUpdateDigest, Repository + "@sha256:short"} {
 		runner.Commands = nil
 		_, err = manager.Stage(context.Background(), invalid)
 		require.ErrorIs(t, err, ErrInvalid)
@@ -191,7 +208,7 @@ func TestActivateRequiresConfirmationAndDownloadedDeployment(t *testing.T) {
 	runner := &recordingRunner{Outputs: map[string]string{
 		"bootc status --format=json --format-version=1": bootcStatusJSON(testBootedDigest, testUpdateDigest, true),
 	}}
-	manager := &Manager{runner: runner, bootc: "bootc"}
+	manager := &Manager{runner: runner, bootc: "bootc", platform: testARM64Platform}
 	require.NoError(t, manager.Activate(context.Background()))
 	require.Equal(t, []string{
 		"bootc status --format=json --format-version=1",

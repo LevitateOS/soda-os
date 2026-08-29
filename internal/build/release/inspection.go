@@ -33,12 +33,12 @@ func (p *Publisher) inspect(img v1.Image, exactReference string) (Record, error)
 	if err != nil {
 		return Record{}, err
 	}
-	return Record{SchemaVersion: 1, SodaVersion: p.spec.Identity.Version, SourceRevision: revision, Platform: Platform, FedoraBaseReference: p.spec.Base.Reference, SodaImageReference: exactReference, StateSchema: p.spec.Image.StateSchema, RPMInventorySHA256: inventoryDigest}, nil
+	return Record{SchemaVersion: 2, SodaVersion: p.spec.Identity.Version, SourceRevision: revision, Platform: p.spec.Base.Platform, Channel: p.spec.Platform.ReleaseChannel, FedoraBaseReference: p.spec.Base.Reference, SodaImageReference: exactReference, StateSchema: p.spec.Image.StateSchema, RPMInventorySHA256: inventoryDigest}, nil
 }
 
 func (p *Publisher) inspectImageIdentity(configFile *v1.ConfigFile) (string, error) {
-	if configFile.OS != "linux" || configFile.Architecture != "arm64" {
-		return "", fmt.Errorf("release image platform is %s/%s, expected %s", configFile.OS, configFile.Architecture, Platform)
+	if configFile.OS != "linux" || configFile.Architecture != p.spec.Platform.OCIArchitecture {
+		return "", fmt.Errorf("release image platform is %s/%s, expected %s", configFile.OS, configFile.Architecture, p.spec.Base.Platform)
 	}
 	labels := configFile.Config.Labels
 	revision := labels["org.opencontainers.image.revision"]
@@ -92,7 +92,7 @@ func inspectRPMInventory(img v1.Image) (string, error) {
 	return inventoryDigest, nil
 }
 
-func imageFromOCIArchive(path string) (v1.Image, func(), error) {
+func imageFromOCIArchive(path, architecture string) (v1.Image, func(), error) {
 	if !regularFile(path) {
 		return nil, func() {}, fmt.Errorf("OCI archive %q is not a regular file", path)
 	}
@@ -110,7 +110,7 @@ func imageFromOCIArchive(path string) (v1.Image, func(), error) {
 		cleanup()
 		return nil, func() {}, fmt.Errorf("read OCI archive: %w", err)
 	}
-	image, err := arm64Image(index)
+	image, err := platformImage(index, architecture)
 	if err != nil {
 		cleanup()
 		return nil, func() {}, err
@@ -118,7 +118,7 @@ func imageFromOCIArchive(path string) (v1.Image, func(), error) {
 	return image, cleanup, nil
 }
 
-func arm64Image(index v1.ImageIndex) (v1.Image, error) {
+func platformImage(index v1.ImageIndex, architecture string) (v1.Image, error) {
 	manifest, err := index.IndexManifest()
 	if err != nil {
 		return nil, err
@@ -127,12 +127,12 @@ func arm64Image(index v1.ImageIndex) (v1.Image, error) {
 		return nil, errors.New("OCI archive must contain exactly one manifest")
 	}
 	selected := &manifest.Manifests[0]
-	if selected.Platform == nil || selected.Platform.OS != "linux" || selected.Platform.Architecture != "arm64" {
-		return nil, errors.New("OCI archive manifest must be linux/arm64")
+	if selected.Platform == nil || selected.Platform.OS != "linux" || selected.Platform.Architecture != architecture {
+		return nil, fmt.Errorf("OCI archive manifest must be linux/%s", architecture)
 	}
 	img, err := index.Image(selected.Digest)
 	if err != nil {
-		return nil, fmt.Errorf("read AArch64 image: %w", err)
+		return nil, fmt.Errorf("read platform image: %w", err)
 	}
 	return img, nil
 }

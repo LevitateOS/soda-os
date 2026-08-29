@@ -98,8 +98,9 @@ func (s *fakeSigner) VerifyBlob(context.Context, string, string) error {
 func testSpec() config.DistroSpec {
 	return config.DistroSpec{
 		Identity: config.IdentitySpec{Version: "0.2.0"},
-		Base:     config.BaseSpec{Reference: "quay.io/fedora/fedora-bootc@sha256:" + strings.Repeat("b", 64)},
+		Base:     config.BaseSpec{Reference: "quay.io/fedora/fedora-bootc@sha256:" + strings.Repeat("b", 64), Platform: "linux/arm64"},
 		Image:    config.ImageSpec{Registry: Repository, StateSchema: 2},
+		Platform: config.PlatformSpec{Architecture: "aarch64", OCIArchitecture: "arm64", OCIPlatform: "linux/arm64", ArtifactArchitecture: "aarch64", ReleaseChannel: "aarch64"},
 	}
 }
 

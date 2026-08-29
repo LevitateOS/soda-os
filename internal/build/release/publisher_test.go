@@ -45,13 +45,13 @@ func TestPublishUsesExactDigestAndUpdatesCurrentLast(t *testing.T) {
 	exact := Repository + "@" + digest.String()
 	require.Equal(t, exact, result.ImageReference)
 	require.Equal(t, []string{
-		"push:" + Repository + ":0.2.0",
-		"resolve:" + Repository + ":0.2.0",
+		"push:" + Repository + ":0.2.0-aarch64",
+		"resolve:" + Repository + ":0.2.0-aarch64",
 		"sign-image:" + exact,
 		"verify-image:" + exact,
 		"sign-blob",
 		"verify-blob",
-		"push:" + Repository + ":current",
+		"push:" + Repository + ":current-aarch64",
 	}, events)
 
 	contents, err := os.ReadFile(result.RecordPath)
@@ -65,6 +65,20 @@ func TestPublishUsesExactDigestAndUpdatesCurrentLast(t *testing.T) {
 	require.Equal(t, uint32(2), record.StateSchema)
 	require.Equal(t, sha256Hex([]byte("rpm inventory\n")), record.RPMInventorySHA256)
 	require.Empty(t, record.ISOChecksum)
+}
+
+func TestArchitectureSpecificReleaseChannelsNeverCollide(t *testing.T) {
+	for architecture, channel := range map[string]string{"aarch64": "aarch64", "x86_64": "x86_64"} {
+		t.Run(architecture, func(t *testing.T) {
+			spec := testSpec()
+			spec.Platform.Architecture = architecture
+			spec.Platform.ArtifactArchitecture = channel
+			spec.Platform.ReleaseChannel = channel
+			publisher := &Publisher{spec: spec}
+			require.Equal(t, Repository+":0.2.0-"+channel, publisher.versionTag())
+			require.Equal(t, Repository+":current-"+channel, publisher.discoveryTag())
+		})
+	}
 }
 
 func TestPublishDeferredSignsExactImageWithoutRecordOrCurrent(t *testing.T) {
@@ -82,8 +96,8 @@ func TestPublishDeferredSignsExactImageWithoutRecordOrCurrent(t *testing.T) {
 	require.Equal(t, exact, reference)
 	require.NoDirExists(t, output)
 	require.Equal(t, []string{
-		"push:" + Repository + ":0.2.0",
-		"resolve:" + Repository + ":0.2.0",
+		"push:" + Repository + ":0.2.0-aarch64",
+		"resolve:" + Repository + ":0.2.0-aarch64",
 		"sign-image:" + exact,
 		"verify-image:" + exact,
 	}, events)
@@ -108,13 +122,13 @@ func TestPublishWithISOBindsExactDigestAndUpdatesCurrentLast(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 1, validator.calls)
 	require.Equal(t, []string{
-		"push:" + Repository + ":0.2.0",
-		"resolve:" + Repository + ":0.2.0",
+		"push:" + Repository + ":0.2.0-aarch64",
+		"resolve:" + Repository + ":0.2.0-aarch64",
 		"sign-image:" + exact,
 		"verify-image:" + exact,
 		"sign-blob",
 		"verify-blob",
-		"push:" + Repository + ":current",
+		"push:" + Repository + ":current-aarch64",
 	}, events)
 
 	contents, err := os.ReadFile(result.RecordPath)
@@ -133,7 +147,7 @@ func TestPublishRejectsCanonicalRegistryDigestMismatchBeforeSigning(t *testing.T
 
 	_, err := publisher.Publish(context.Background(), PublicationOptions{ArchivePath: writeOCIArchive(t, img), OutputDir: t.TempDir()})
 	require.ErrorContains(t, err, "canonical registry digest")
-	require.Equal(t, []string{"push:" + Repository + ":0.2.0", "resolve:" + Repository + ":0.2.0"}, events)
+	require.Equal(t, []string{"push:" + Repository + ":0.2.0-aarch64", "resolve:" + Repository + ":0.2.0-aarch64"}, events)
 }
 
 func TestPublishRejectsISOWithoutIndependentInspection(t *testing.T) {
@@ -150,8 +164,8 @@ func TestPublishRejectsISOWithoutIndependentInspection(t *testing.T) {
 	require.ErrorContains(t, err, "independently inspect installer ISO")
 	require.Equal(t, 1, validator.calls)
 	require.Equal(t, []string{
-		"push:" + Repository + ":0.2.0",
-		"resolve:" + Repository + ":0.2.0",
+		"push:" + Repository + ":0.2.0-aarch64",
+		"resolve:" + Repository + ":0.2.0-aarch64",
 	}, events)
 }
 
@@ -209,7 +223,7 @@ func TestOCIArchiveRequiresExactlyOneArm64Manifest(t *testing.T) {
 		mutate.IndexAddendum{Add: img, Descriptor: v1.Descriptor{Platform: &v1.Platform{OS: "linux", Architecture: "amd64"}}},
 	)
 	archive := writeIndexArchive(t, index)
-	_, cleanup, err := imageFromOCIArchive(archive)
+	_, cleanup, err := imageFromOCIArchive(archive, "arm64")
 	defer cleanup()
 	require.EqualError(t, err, "OCI archive must contain exactly one manifest")
 }

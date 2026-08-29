@@ -25,11 +25,18 @@ fetch_cosign() {
 }
 
 host_output=.artifacts/tools/cosign
-target_output=.artifacts/tools/cosign-linux-arm64
 fetch_cosign "$asset" "$checksum" "$host_output"
-if [ "$asset" = cosign-linux-arm64 ]; then
-  cp "$host_output" "$target_output"
-else
-  fetch_cosign cosign-linux-arm64 90e7ae0b5dfd60f20816b52c012addf7fc055ebcc7bea4ce81c428ca8518c302 "$target_output"
-fi
+for target in arm64 amd64; do
+  case "$target" in
+    arm64) target_checksum=90e7ae0b5dfd60f20816b52c012addf7fc055ebcc7bea4ce81c428ca8518c302 ;;
+    amd64) target_checksum=f7622ed3cf22e55e1ae6377c080979ff77a22da9981c11df222a2e444991e7cf ;;
+  esac
+  target_asset=cosign-linux-$target
+  target_output=.artifacts/tools/$target_asset
+  if [ "$asset" = "$target_asset" ]; then
+    cp "$host_output" "$target_output"
+  else
+    fetch_cosign "$target_asset" "$target_checksum" "$target_output"
+  fi
+done
 "$host_output" version

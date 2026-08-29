@@ -12,7 +12,7 @@ import (
 	"github.com/google/go-containerregistry/pkg/v1/layout"
 )
 
-func verifyArchiveDigest(path, expectedReference string) error {
+func verifyArchiveDigest(path, expectedReference, architecture string) error {
 	directory, err := os.MkdirTemp("", "soda-installer-oci-")
 	if err != nil {
 		return err
@@ -33,8 +33,8 @@ func verifyArchiveDigest(path, expectedReference string) error {
 		return errors.New("runtime OCI archive must contain exactly one manifest")
 	}
 	descriptor := manifest.Manifests[0]
-	if descriptor.Platform == nil || descriptor.Platform.OS != "linux" || descriptor.Platform.Architecture != "arm64" {
-		return errors.New("runtime OCI archive manifest must be linux/arm64")
+	if descriptor.Platform == nil || descriptor.Platform.OS != "linux" || descriptor.Platform.Architecture != architecture {
+		return fmt.Errorf("runtime OCI archive manifest must be linux/%s", architecture)
 	}
 	expectedDigest := strings.TrimPrefix(expectedReference, Repository+"@")
 	if descriptor.Digest.String() != expectedDigest {

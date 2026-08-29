@@ -3,6 +3,7 @@ package toolchain
 import (
 	"context"
 	"net/http"
+	"runtime"
 	"time"
 
 	"github.com/LevitateOS/soda-os/internal/domain"
@@ -17,8 +18,9 @@ type httpClient interface {
 }
 
 type Manager struct {
-	root   string
-	client httpClient
+	root         string
+	client       httpClient
+	architecture string
 }
 
 type archiveKind uint8
@@ -40,5 +42,5 @@ type artifact struct {
 var normalizedToolBinaries = map[string]bool{"uv": true, "bun": true}
 
 func New(root string) *Manager {
-	return &Manager{root: root, client: &http.Client{Timeout: defaultHTTPRequestTimeout}}
+	return &Manager{root: root, client: &http.Client{Timeout: defaultHTTPRequestTimeout}, architecture: runtime.GOARCH}
 }

@@ -20,6 +20,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const (
+	testArmBaseReference        = "quay.io/fedora/fedora-bootc@sha256:85677d47c03b2e1f8f9a3a19d838023ea154229817d579d4b4da5b87a21c9c1a"
+	testArmBootcNEVRA           = "bootc-0:1.16.10-1.fc44.aarch64"
+	testArmPlatform             = "linux/arm64"
+	testArmBuilderBaseReference = "registry.fedoraproject.org/fedora@sha256:9c8b291e256262b91aac5b3da50ea323760d0a6b449c6d6ad5f01d9550d48d2a"
+	testArmCosignSHA            = "90e7ae0b5dfd60f20816b52c012addf7fc055ebcc7bea4ce81c428ca8518c302"
+)
+
 type recordingRunner struct {
 	Commands []process.Command
 	Outputs  map[string]string
@@ -36,39 +44,44 @@ func (r *recordingRunner) Output(_ context.Context, command process.Command) (st
 	return r.Outputs[command.String()], r.Err
 }
 
-func TestBootcContract(t *testing.T) {
+func TestBootcContractForEqualSiblingArchitectures(t *testing.T) {
 	root, err := filepath.Abs(filepath.Join("..", "..", ".."))
 	require.NoError(t, err)
-	builder, err := NewBuilder(root, "distro/soda.toml", &recordingRunner{})
-	require.NoError(t, err)
-	require.NoError(t, builder.Check(context.Background()))
+	for architecture, expectedBootc := range map[string]string{"aarch64": testArmBootcNEVRA, "x86_64": "bootc-0:1.16.10-1.fc44.x86_64"} {
+		t.Run(architecture, func(t *testing.T) {
+			builder, err := NewBuilder(root, "distro/soda.toml", architecture, &recordingRunner{})
+			require.NoError(t, err)
+			require.NoError(t, builder.Check(context.Background()))
 
-	lock, err := builder.packageLock()
-	require.NoError(t, err)
-	require.Equal(t, bootcBaseReference, lock.BaseReference)
-	require.Greater(t, len(lock.Package), len(targetRPMs))
-	foundBootc := false
-	for _, item := range lock.Package {
-		require.NotEmpty(t, item.NEVRA)
-		if item.Name == "bootc" {
-			foundBootc = true
-			require.Equal(t, bootcRuntimeNEVRA, item.NEVRA)
-			require.Equal(t, "fedora", item.Source)
-		}
+			lock, err := builder.packageLock()
+			require.NoError(t, err)
+			require.Equal(t, builder.Spec.Base.Reference, lock.BaseReference)
+			require.Greater(t, len(lock.Package), len(targetRPMs))
+			foundBootc := false
+			for _, item := range lock.Package {
+				require.NotEmpty(t, item.NEVRA)
+				if item.Name == "bootc" {
+					foundBootc = true
+					require.Equal(t, expectedBootc, item.NEVRA)
+					require.Equal(t, "fedora", item.Source)
+				}
+			}
+			require.True(t, foundBootc)
+		})
 	}
-	require.True(t, foundBootc)
 }
 
 func TestDockerCommandUsesPinnedArm64Builder(t *testing.T) {
 	builder := &Builder{Root: "/workspace/soda", Spec: config.DistroSpec{
 		Identity: config.IdentitySpec{Version: "0.2.0"},
-		Base:     config.BaseSpec{Platform: bootcPlatform},
+		Base:     config.BaseSpec{Platform: testArmPlatform},
+		Platform: config.PlatformSpec{ArtifactArchitecture: "aarch64"},
 	}}
 	command := builder.dockerCommand([]string{"SOURCE_DATE_EPOCH=1787825905"}, "rpm", "--version")
 	require.Equal(t, "docker", command.Name)
 	require.Equal(t, []string{
 		"run", "--rm", "--platform", "linux/arm64", "--volume", "/workspace/soda:/src", "--workdir", "/src",
-		"--env", "SOURCE_DATE_EPOCH=1787825905", "soda-os-rpm-builder:0.2.0", "rpm", "--version",
+		"--env", "SOURCE_DATE_EPOCH=1787825905", "soda-os-rpm-builder:0.2.0-aarch64", "rpm", "--version",
 	}, command.Args)
 }
 
@@ -79,8 +92,8 @@ func TestRPMBuilderContractPinsFedoraBaseAndInstalledInventory(t *testing.T) {
 	contents, err := os.ReadFile(filepath.Join(root, "packaging", "builder", "Containerfile"))
 	require.NoError(t, err)
 	containerfile := string(contents)
-	require.Contains(t, containerfile, "FROM "+builderBaseReference)
-	require.Contains(t, containerfile, "COPY distro/locks/builder-packages.toml")
+	require.Contains(t, containerfile, "FROM ${BUILDER_BASE_REFERENCE}")
+	require.Contains(t, containerfile, "COPY .artifacts/builder/packages.lock")
 	require.Contains(t, containerfile, "dnf -y install --setopt=install_weak_deps=False $(awk")
 	require.Contains(t, containerfile, "%{ARCH}\\n' | LC_ALL=C sort")
 	require.Contains(t, containerfile, "test \"$actual\" = \"$expected\"")
@@ -91,7 +104,8 @@ func TestRPMBuildPinsHeaderTimeAndHost(t *testing.T) {
 	runner := &recordingRunner{}
 	builder := &Builder{Root: "/workspace/soda", runner: runner, Spec: config.DistroSpec{
 		Identity: config.IdentitySpec{Version: "0.2.0"},
-		Base:     config.BaseSpec{Platform: bootcPlatform},
+		Base:     config.BaseSpec{Platform: testArmPlatform},
+		Platform: config.PlatformSpec{ArtifactArchitecture: "aarch64"},
 		Build:    config.BuildSpec{SourceDateEpoch: 1787825905},
 	}}
 	require.NoError(t, builder.rpmbuild(context.Background(), "soda-runtime"))
@@ -146,7 +160,7 @@ func TestArtifactBuildsRejectDirtyWorktreeBeforeDocker(t *testing.T) {
 			runner := &recordingRunner{Outputs: map[string]string{
 				"git status --porcelain=v1 --untracked-files=all": "?? relevant-source.go\n",
 			}}
-			builder, err := NewBuilder(root, "distro/soda.toml", runner)
+			builder, err := NewBuilder(root, "distro/soda.toml", "aarch64", runner)
 			require.NoError(t, err)
 			require.ErrorContains(t, build(context.Background(), builder), "release artifact builds require a clean Git worktree")
 			require.Len(t, runner.Commands, 1)
@@ -159,7 +173,7 @@ func TestLockedInstallInputsRequireExactLocalRPMFiles(t *testing.T) {
 	root := t.TempDir()
 	require.NoError(t, os.MkdirAll(filepath.Join(root, "distro", "locks"), 0o755))
 	lock := `schema_version = 1
-base_reference = "` + bootcBaseReference + `"
+base_reference = "` + testArmBaseReference + `"
 
 [[package]]
 name = "make"
@@ -179,13 +193,15 @@ file = "soda-release.rpm"
 
 func TestPrepareLocalBootcBaseUsesExactDigestDerivedLocalTag(t *testing.T) {
 	runner := &recordingRunner{}
-	tag, err := PrepareLocalBootcBase(context.Background(), "/workspace", runner, bootcBaseReference)
+	platform := config.PlatformSpec{BaseReference: testArmBaseReference, BaseArchive: "unused.oci.tar", BaseArchiveSHA256: strings.Repeat("a", 64)}
+	tag, err := PrepareLocalBootcBase(context.Background(), "/workspace", runner, platform)
 	require.NoError(t, err)
 	require.Equal(t, "soda-fedora-bootc:sha256-85677d47c03b2e1f8f9a3a19d838023ea154229817d579d4b4da5b87a21c9c1a", tag)
 	require.Equal(t, "docker image tag sha256:85677d47c03b2e1f8f9a3a19d838023ea154229817d579d4b4da5b87a21c9c1a "+tag, runner.Commands[0].String())
 
-	_, err = PrepareLocalBootcBase(context.Background(), "/workspace", runner, "quay.io/fedora/fedora-bootc:44")
-	require.EqualError(t, err, "local Fedora bootc base differs from the approved digest")
+	platform.BaseReference = "quay.io/fedora/fedora-bootc:44"
+	_, err = PrepareLocalBootcBase(context.Background(), "/workspace", runner, platform)
+	require.EqualError(t, err, "local Fedora bootc base differs from the approved digest contract")
 }
 
 func TestSodaRPMsAreScriptletFree(t *testing.T) {
@@ -204,7 +220,8 @@ func TestRuntimeCosignInputIsPinnedForLinuxAArch64(t *testing.T) {
 	script, err := os.ReadFile(filepath.Join("..", "..", "..", "scripts", "fetch-release-tools.sh"))
 	require.NoError(t, err)
 	require.Contains(t, string(script), "cosign-linux-arm64")
-	require.Contains(t, string(script), cosignArm64SHA256)
+	require.Contains(t, string(script), testArmCosignSHA)
+	require.Contains(t, string(script), "cosign-linux-amd64")
 	require.Contains(t, string(script), "releases/download/v3.1.2")
 
 	spec, err := os.ReadFile(filepath.Join("..", "..", "..", "packaging", "rpm", "runtime", "soda-runtime.spec"))
@@ -216,7 +233,7 @@ func TestRuntimeCosignInputIsPinnedForLinuxAArch64(t *testing.T) {
 	tool := filepath.Join(root, ".artifacts", "tools", "cosign-linux-arm64")
 	require.NoError(t, os.MkdirAll(filepath.Dir(tool), 0o755))
 	require.NoError(t, os.WriteFile(tool, []byte("not the pinned binary"), 0o755))
-	err = (&Builder{Root: root}).verifyRuntimeCosign()
+	err = (&Builder{Root: root, Spec: config.DistroSpec{Platform: config.PlatformSpec{TargetCosignArchitecture: "arm64", TargetCosignSHA256: testArmCosignSHA}}}).verifyRuntimeCosign()
 	require.ErrorContains(t, err, "differs from pinned")
 }
 

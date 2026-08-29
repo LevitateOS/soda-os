@@ -95,11 +95,17 @@ func TestStorageConfigRequiresExactPlainExt4RootOnlyContract(t *testing.T) {
 }
 
 func TestInstallerEnvironmentPinsLegacyGRUBHybridBootModule(t *testing.T) {
-	contents, err := os.ReadFile(filepath.Join("..", "..", "..", "packaging", "installer", "Containerfile"))
+	root := filepath.Join("..", "..", "..")
+	contents, err := os.ReadFile(filepath.Join(root, "packaging", "installer", "Containerfile"))
 	require.NoError(t, err)
-	require.Contains(t, string(contents), "grub2-pc-modules-1:2.12-64.fc44.noarch")
-	require.Contains(t, string(contents), "rpm -q shim-aa64 grub2-efi-aa64 grub2-efi-aa64-cdboot grub2-pc-modules")
+	require.Contains(t, string(contents), "rpm -q $(cat /usr/share/soda-installer/boot-packages.txt)")
 	require.Contains(t, string(contents), "test -f /usr/lib/grub/i386-pc/boot_hybrid.img")
+	for _, architecture := range []string{"aarch64", "x86_64"} {
+		lock, readErr := os.ReadFile(filepath.Join(root, "distro", "locks", "installer-packages-"+architecture+".toml"))
+		require.NoError(t, readErr)
+		require.Contains(t, string(lock), "grub2-pc-modules-1:2.12-64.fc44.noarch")
+		require.Contains(t, string(lock), "shim-")
+	}
 }
 
 func TestInstallerEnvironmentUsesAnacondaGeneratorCompatibleDefaultTarget(t *testing.T) {
@@ -184,7 +190,8 @@ platform = "linux/arm64"
 	}
 	builder := NewBuilder(root, config.DistroSpec{
 		Identity: config.IdentitySpec{Architecture: "aarch64", Hostname: "soda"},
-		Base:     config.BaseSpec{Platform: Platform},
+		Base:     config.BaseSpec{Platform: "linux/arm64"},
+		Platform: config.PlatformSpec{Architecture: "aarch64", OCIArchitecture: "arm64", OCIPlatform: "linux/arm64"},
 	}, &recordingRunner{})
 	actual, err := builder.validate(options)
 	require.NoError(t, err)
@@ -209,9 +216,9 @@ func TestVerifySignedImageUsesPinnedKeyAndExactDigest(t *testing.T) {
 func TestVerifyArchiveDigestRequiresOneMatchingArm64Manifest(t *testing.T) {
 	archive, digest := writeTestOCIArchiveAt(t, filepath.Join(t.TempDir(), "runtime.oci.tar"))
 	exact := Repository + "@" + digest
-	require.NoError(t, verifyArchiveDigest(archive, exact))
+	require.NoError(t, verifyArchiveDigest(archive, exact, "arm64"))
 
-	err := verifyArchiveDigest(archive, Repository+"@sha256:"+strings.Repeat("f", 64))
+	err := verifyArchiveDigest(archive, Repository+"@sha256:"+strings.Repeat("f", 64), "arm64")
 	require.ErrorContains(t, err, "differs from exact payload")
 }
 
@@ -231,7 +238,10 @@ platform = "linux/arm64"
 		require.NoError(t, os.WriteFile(path, []byte("input"), 0o644))
 	}
 	runner := &recordingRunner{Outputs: map[string]string{options.CosignPath + " version": "GitVersion: v3.1.2\n"}}
-	builder := NewBuilder(root, config.DistroSpec{Identity: config.IdentitySpec{Architecture: "aarch64", Hostname: "soda", Version: "0.2.0"}, Base: config.BaseSpec{Reference: "quay.io/fedora/fedora-bootc@sha256:85677d47c03b2e1f8f9a3a19d838023ea154229817d579d4b4da5b87a21c9c1a", Platform: Platform}}, runner)
+	packageLock := filepath.Join(root, "installer-packages.toml")
+	require.NoError(t, os.WriteFile(packageLock, []byte("schema_version = 1\nplatform = \"linux/arm64\"\npackages = [\"anaconda\"]\nboot_packages = [\"shim-aa64\"]\nefi_vendor = \"fedora\"\n"), 0o644))
+	platform := config.PlatformSpec{Architecture: "aarch64", OCIArchitecture: "arm64", OCIPlatform: "linux/arm64", ArtifactArchitecture: "aarch64", InstallerArchitecture: "aarch64", BaseReference: "quay.io/fedora/fedora-bootc@sha256:85677d47c03b2e1f8f9a3a19d838023ea154229817d579d4b4da5b87a21c9c1a", BaseArchive: "unused.oci.tar", BaseArchiveSHA256: strings.Repeat("a", 64), InstallerPackageLock: packageLock}
+	builder := NewBuilder(root, config.DistroSpec{Identity: config.IdentitySpec{Architecture: "aarch64", Hostname: "soda", Version: "0.2.0"}, Base: config.BaseSpec{Reference: platform.BaseReference, Platform: platform.OCIPlatform}, Platform: platform}, runner)
 	_, err := builder.Build(context.Background(), options)
 	require.ErrorContains(t, err, "image-builder did not create")
 	require.FileExists(t, archive)

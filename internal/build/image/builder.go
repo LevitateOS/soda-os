@@ -18,14 +18,8 @@ import (
 )
 
 const (
-	bootcBaseReference   = "quay.io/fedora/fedora-bootc@sha256:85677d47c03b2e1f8f9a3a19d838023ea154229817d579d4b4da5b87a21c9c1a"
-	bootcPlatform        = "linux/arm64"
-	bootcRuntimeNEVRA    = "bootc-0:1.16.10-1.fc44.aarch64"
-	bootcBaseArchive     = "distro/base/fedora-bootc-44-aarch64/Fedora-bootc-44.20260826.0-aarch64.oci-archive.tar"
-	builderBaseReference = "registry.fedoraproject.org/fedora@sha256:9c8b291e256262b91aac5b3da50ea323760d0a6b449c6d6ad5f01d9550d48d2a"
-	sodaRegistry         = "registry.soda.local/soda/os"
-	cosignVersion        = "v3.1.2"
-	cosignArm64SHA256    = "90e7ae0b5dfd60f20816b52c012addf7fc055ebcc7bea4ce81c428ca8518c302"
+	sodaRegistry  = "registry.soda.local/soda/os"
+	cosignVersion = "v3.1.2"
 )
 
 var targetRPMs = []string{"soda-release", "soda-runtime", "soda-cockpit"}
@@ -62,15 +56,15 @@ type Builder struct {
 	runner           process.Runner
 }
 
-func NewBuilderFromWorkingDirectory(specPath string, runner process.Runner) (*Builder, error) {
+func NewBuilderFromWorkingDirectory(specPath, architecture string, runner process.Runner) (*Builder, error) {
 	root, err := os.Getwd()
 	if err != nil {
 		return nil, fmt.Errorf("get working directory: %w", err)
 	}
-	return NewBuilder(root, specPath, runner)
+	return NewBuilder(root, specPath, architecture, runner)
 }
 
-func NewBuilder(root, specPath string, runner process.Runner) (*Builder, error) {
+func NewBuilder(root, specPath, architecture string, runner process.Runner) (*Builder, error) {
 	canonicalRoot, err := filepath.EvalSymlinks(root)
 	if err != nil {
 		return nil, fmt.Errorf("canonicalize workspace: %w", err)
@@ -78,7 +72,7 @@ func NewBuilder(root, specPath string, runner process.Runner) (*Builder, error) 
 	if !filepath.IsAbs(specPath) {
 		specPath = filepath.Join(canonicalRoot, specPath)
 	}
-	spec, err := config.LoadDistro(specPath)
+	spec, err := config.LoadDistro(specPath, architecture)
 	if err != nil {
 		return nil, err
 	}
@@ -105,14 +99,14 @@ func (b *Builder) Check(_ context.Context) error {
 	return errors.Join(
 		validateImageSpec(spec),
 		validateRuntimePackageLock(lock, spec),
-		validateReleaseToolLock(toolLock),
+		validateReleaseToolLock(toolLock, spec.Platform),
 		b.validateBuildInputs(),
 	)
 }
 
 func validateImageSpec(spec config.DistroSpec) error {
-	if spec.Identity.Architecture != "aarch64" || spec.Base.Reference != bootcBaseReference || spec.Base.Platform != bootcPlatform || spec.Image.Registry != sodaRegistry || spec.Image.StateSchema != 2 || spec.Build.SourceDateEpoch < 0 {
-		return errors.New("Soda image specification differs from the approved AArch64 bootc contract")
+	if spec.Identity.Architecture != spec.Platform.Architecture || spec.Base.Reference != spec.Platform.BaseReference || spec.Base.Platform != spec.Platform.OCIPlatform || spec.Image.Registry != sodaRegistry || spec.Image.StateSchema != 2 || spec.Build.SourceDateEpoch < 0 {
+		return errors.New("Soda image specification differs from the selected architecture contract")
 	}
 	return nil
 }
@@ -121,7 +115,7 @@ func validateRuntimePackageLock(lock packageLock, spec config.DistroSpec) error 
 	if lock.SchemaVersion != 1 || lock.BaseReference != spec.Base.Reference || len(lock.Package) <= len(targetRPMs) {
 		return errors.New("package lock does not bind the configured Fedora bootc base")
 	}
-	local, bootcLocked, err := classifyRuntimePackages(lock.Package)
+	local, bootcLocked, err := classifyRuntimePackages(lock.Package, spec.Platform.BootcNEVRA)
 	if err != nil {
 		return err
 	}
@@ -131,7 +125,7 @@ func validateRuntimePackageLock(lock packageLock, spec config.DistroSpec) error 
 	return nil
 }
 
-func classifyRuntimePackages(packages []lockedPackage) ([]string, bool, error) {
+func classifyRuntimePackages(packages []lockedPackage, bootcNEVRA string) ([]string, bool, error) {
 	seen, local, bootcLocked := make(map[string]bool, len(packages)), make([]string, 0, len(targetRPMs)), false
 	for _, item := range packages {
 		if err := validateLockedPackage(item, seen); err != nil {
@@ -140,7 +134,7 @@ func classifyRuntimePackages(packages []lockedPackage) ([]string, bool, error) {
 		if item.Source == "local-rpm" {
 			local = append(local, item.Name)
 		}
-		bootcLocked = bootcLocked || item.Name == "bootc" && item.NEVRA == bootcRuntimeNEVRA
+		bootcLocked = bootcLocked || item.Name == "bootc" && item.NEVRA == bootcNEVRA
 	}
 	return local, bootcLocked, nil
 }
@@ -159,15 +153,15 @@ func validateLockedPackage(item lockedPackage, seen map[string]bool) error {
 	return fmt.Errorf("package lock entry %s has an unsupported source or file", item.Name)
 }
 
-func validateReleaseToolLock(lock releaseToolLock) error {
-	if lock.Version != cosignVersion || lock.checksum("linux", "arm64") != cosignArm64SHA256 {
-		return errors.New("release tool lock must pin the approved Cosign v3.1.2 Linux/AArch64 binary")
+func validateReleaseToolLock(lock releaseToolLock, platform config.PlatformSpec) error {
+	if lock.Version != cosignVersion || lock.checksum("linux", platform.TargetCosignArchitecture) != platform.TargetCosignSHA256 {
+		return fmt.Errorf("release tool lock must pin the approved Cosign %s Linux/%s binary", cosignVersion, platform.TargetCosignArchitecture)
 	}
 	return nil
 }
 
 func (b *Builder) validateBuildInputs() error {
-	for _, path := range []string{"packaging/bootc/Containerfile", "packaging/builder/Containerfile", "distro/locks/builder-packages.toml", "packaging/rpm/release/soda-release.spec", "packaging/rpm/runtime/soda-runtime.spec", "packaging/rpm/cockpit/soda-cockpit.spec", "packaging/rpm/runtime/sources/sysusers/soda.conf", "packaging/bootc/trust/policy.json", "packaging/bootc/trust/registries.d.yaml", "distro/locks/release-tools.toml"} {
+	for _, path := range []string{"packaging/bootc/Containerfile", "packaging/builder/Containerfile", b.Spec.Platform.BuilderPackageLock, b.Spec.Platform.InstallerPackageLock, b.Spec.Platform.InstallerToolLock, "packaging/rpm/release/soda-release.spec", "packaging/rpm/runtime/soda-runtime.spec", "packaging/rpm/cockpit/soda-cockpit.spec", "packaging/rpm/runtime/sources/sysusers/soda.conf", "packaging/bootc/trust/policy.json", "packaging/bootc/trust/registries.d.yaml", "distro/locks/release-tools.toml"} {
 		if !isFile(b.path(path)) {
 			return fmt.Errorf("required bootc build input %s is missing", path)
 		}
@@ -179,7 +173,7 @@ func (b *Builder) BuildImage(ctx context.Context) error {
 	if err := b.BuildRPMs(ctx); err != nil {
 		return err
 	}
-	baseTag, err := PrepareLocalBootcBase(ctx, b.Root, b.runner, b.Spec.Base.Reference)
+	baseTag, err := PrepareLocalBootcBase(ctx, b.Root, b.runner, b.Spec.Platform)
 	if err != nil {
 		return err
 	}
@@ -194,7 +188,7 @@ func (b *Builder) BuildImage(ctx context.Context) error {
 	if err := os.MkdirAll(images, 0o755); err != nil {
 		return err
 	}
-	output := filepath.Join(images, "soda-os-"+b.Spec.Identity.Version+"-aarch64.oci.tar")
+	output := filepath.Join(images, "soda-os-"+b.Spec.Identity.Version+"-"+b.Spec.Platform.ArtifactArchitecture+".oci.tar")
 	if err := os.Remove(output); err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return err
 	}
@@ -208,6 +202,8 @@ func (b *Builder) BuildImage(ctx context.Context) error {
 		"--build-arg", "SODA_SOURCE_REVISION=" + revision,
 		"--build-arg", "SOURCE_DATE_EPOCH=" + fmt.Sprint(b.Spec.Build.SourceDateEpoch),
 		"--build-arg", "SODA_CREATED=" + created,
+		"--build-arg", "FEDORA_BASE_REFERENCE=" + b.Spec.Base.Reference,
+		"--build-arg", "BOOTC_NEVRA=" + b.Spec.Platform.BootcNEVRA,
 		"--provenance=false",
 		"--output", "type=oci,dest=" + output + ",oci-mediatypes=true,rewrite-timestamp=true",
 		".",
@@ -215,7 +211,21 @@ func (b *Builder) BuildImage(ctx context.Context) error {
 	if err := b.runner.Run(ctx, process.Command{Dir: b.Root, Name: "docker", Args: args}); err != nil {
 		return err
 	}
+	if err := b.lintImage(ctx, output); err != nil {
+		return err
+	}
 	fmt.Printf("Built OCI archive %s from %s\n", output, b.Spec.Base.Reference)
+	return nil
+}
+
+func (b *Builder) lintImage(ctx context.Context, archive string) error {
+	if err := b.runner.Run(ctx, process.Command{Dir: b.Root, Name: "docker", Args: []string{"load", "--input", archive}}); err != nil {
+		return fmt.Errorf("load Soda image for bootc lint: %w", err)
+	}
+	reference := b.Spec.Image.Registry + ":" + b.Spec.Identity.Version
+	if err := b.runner.Run(ctx, process.Command{Dir: b.Root, Name: "docker", Args: []string{"run", "--rm", "--platform", b.Spec.Base.Platform, "--entrypoint", "bootc", reference, "container", "lint"}}); err != nil {
+		return fmt.Errorf("bootc container lint: %w", err)
+	}
 	return nil
 }
 

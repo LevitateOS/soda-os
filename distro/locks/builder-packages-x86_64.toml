@@ -1,0 +1,60 @@
+schema_version = 1
+base_reference = "registry.fedoraproject.org/fedora@sha256:459d2bd81d249a52f7d4be6ffaeeb9fbad795501cdbe7be207c0745f5ad7de66"
+platform = "linux/amd64"
+inventory_sha256 = "741134a9fb6c37635d06b583f235a84189b774bf8e2b00f30fe2ce43a776d3ca"
+
+[[package]]
+name = "ca-certificates"
+nevra = "ca-certificates-0:2025.2.80_v9.0.304-7.fc44.noarch"
+
+[[package]]
+name = "cpio"
+nevra = "cpio-0:2.15-9.fc44.x86_64"
+
+[[package]]
+name = "gcc"
+nevra = "gcc-0:16.2.1-2.fc44.x86_64"
+
+[[package]]
+name = "gcc-c++"
+nevra = "gcc-c++-0:16.2.1-2.fc44.x86_64"
+
+[[package]]
+name = "git"
+nevra = "git-0:2.55.0-1.fc44.x86_64"
+
+[[package]]
+name = "golang"
+nevra = "golang-0:1.26.7-1.fc44.x86_64"
+
+[[package]]
+name = "make"
+nevra = "make-1:4.4.1-12.fc44.x86_64"
+
+[[package]]
+name = "pam-devel"
+nevra = "pam-devel-0:1.7.2-2.fc44.x86_64"
+
+[[package]]
+name = "pkgconf-pkg-config"
+nevra = "pkgconf-pkg-config-0:2.5.1-1.fc44.x86_64"
+
+[[package]]
+name = "rpm-build"
+nevra = "rpm-build-0:6.0.2-1.fc44.x86_64"
+
+[[package]]
+name = "systemd-rpm-macros"
+nevra = "systemd-rpm-macros-0:259.8-1.fc44.noarch"
+
+[[package]]
+name = "tar"
+nevra = "tar-2:1.35-8.fc44.x86_64"
+
+[[package]]
+name = "unzip"
+nevra = "unzip-0:6.0-69.fc44.x86_64"
+
+[[package]]
+name = "xz"
+nevra = "xz-1:5.8.2-2.fc44.x86_64"

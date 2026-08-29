@@ -5,16 +5,10 @@ name = "Soda OS"
 id = "sodaos"
 version = "0.3.1"
 hostname = "soda"
-architecture = "aarch64"
-
-[base]
-reference = "quay.io/fedora/fedora-bootc@sha256:85677d47c03b2e1f8f9a3a19d838023ea154229817d579d4b4da5b87a21c9c1a"
-platform = "linux/arm64"
 
 [image]
 registry = "registry.soda.local/soda/os"
 state_schema = 2
-package_lock = "distro/locks/runtime-packages.toml"
 
 [build]
 source_date_epoch = 1787825905

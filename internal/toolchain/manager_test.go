@@ -24,6 +24,18 @@ type fixtureClient struct {
 	calls     map[string]int
 }
 
+func TestToolchainAssetsMapBothSiblingArchitectures(t *testing.T) {
+	arm, err := toolchainTarget("arm64")
+	require.NoError(t, err)
+	x86, err := toolchainTarget("amd64")
+	require.NoError(t, err)
+	require.Equal(t, "bun-linux-aarch64.zip", arm.bunAsset)
+	require.Equal(t, "uv-aarch64-unknown-linux-gnu.tar.gz", arm.uvAsset)
+	require.Equal(t, "bun-linux-x64.zip", x86.bunAsset)
+	require.Equal(t, "uv-x86_64-unknown-linux-gnu.tar.gz", x86.uvAsset)
+	require.Equal(t, "x86_64-unknown-linux-gnu", x86.rustTriple)
+}
+
 func (c *fixtureClient) Do(request *http.Request) (*http.Response, error) {
 	c.calls[request.URL.String()]++
 	body, ok := c.responses[request.URL.String()]
@@ -48,7 +60,7 @@ func TestResolvesAllPublisherVerifiedProfiles(t *testing.T) {
 		"https://static.rust-lang.org/rustup/dist/aarch64-unknown-linux-gnu/rustup-init.sha256": []byte(rustSum + "  rustup-init\n"),
 		"https://go.dev/dl/?mode=json":                                                          []byte(`[{"version":"go1.25.1","stable":true,"files":[{"filename":"go1.25.1.linux-arm64.tar.gz","os":"linux","arch":"arm64","sha256":"` + strings.Repeat("e", 64) + `","kind":"archive"}]}]`),
 	}}
-	manager := &Manager{root: t.TempDir(), client: client}
+	manager := &Manager{root: t.TempDir(), client: client, architecture: "arm64"}
 	for _, profile := range []domain.ToolchainProfile{domain.ToolchainWeb, domain.ToolchainPython, domain.ToolchainRust, domain.ToolchainGo} {
 		items, err := manager.resolve(context.Background(), profile)
 		if err != nil {

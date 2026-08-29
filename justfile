@@ -20,19 +20,20 @@ check:
     ./scripts/check-complexity.sh
     go vet ./...
     go test ./...
-    go run ./cmd/soda-image check
+    go run ./cmd/soda-image --architecture aarch64 check
+    go run ./cmd/soda-image --architecture x86_64 check
 
-rpm:
-    go run ./cmd/soda-image rpm
+rpm architecture:
+    go run ./cmd/soda-image --architecture {{quote(architecture)}} rpm
 
-oci registry_ca public_key:
-    go run ./cmd/soda-image oci --registry-ca {{quote(registry_ca)}} --public-key {{quote(public_key)}}
+oci architecture registry_ca public_key:
+    go run ./cmd/soda-image --architecture {{quote(architecture)}} oci --registry-ca {{quote(registry_ca)}} --public-key {{quote(public_key)}}
 
 release-tools:
     ./scripts/fetch-release-tools.sh
 
-publish archive registry_ca public_key signing_key:
-    go run ./cmd/soda-image publish --archive {{quote(archive)}} --registry-ca {{quote(registry_ca)}} --public-key {{quote(public_key)}} --signing-key {{quote(signing_key)}}
+publish architecture archive registry_ca public_key signing_key:
+    go run ./cmd/soda-image --architecture {{quote(architecture)}} publish --archive {{quote(archive)}} --registry-ca {{quote(registry_ca)}} --public-key {{quote(public_key)}} --signing-key {{quote(signing_key)}}
 
-iso image archive registry_ca public_key:
-    go run ./cmd/soda-image iso --image {{quote(image)}} --archive {{quote(archive)}} --registry-ca {{quote(registry_ca)}} --public-key {{quote(public_key)}}
+iso architecture image archive registry_ca public_key:
+    go run ./cmd/soda-image --architecture {{quote(architecture)}} iso --image {{quote(image)}} --archive {{quote(archive)}} --registry-ca {{quote(registry_ca)}} --public-key {{quote(public_key)}}

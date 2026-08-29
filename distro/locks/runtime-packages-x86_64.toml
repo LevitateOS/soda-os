@@ -1,0 +1,135 @@
+schema_version = 1
+base_reference = "quay.io/fedora/fedora-bootc@sha256:7b7db1d22fe0291fa7e05bc6aeece054b51be5f4857a8ecdb1e69cd368e129d6"
+
+[[package]]
+name = "binutils"
+nevra = "binutils-0:2.46.1-1.fc44.x86_64"
+source = "fedora"
+
+[[package]]
+name = "bootc"
+nevra = "bootc-0:1.16.10-1.fc44.x86_64"
+source = "fedora"
+
+[[package]]
+name = "checkpolicy"
+nevra = "checkpolicy-0:3.11-1.fc44.x86_64"
+source = "fedora"
+
+[[package]]
+name = "cpp"
+nevra = "cpp-0:16.2.1-2.fc44.x86_64"
+source = "fedora"
+
+[[package]]
+name = "gcc"
+nevra = "gcc-0:16.2.1-2.fc44.x86_64"
+source = "fedora"
+
+[[package]]
+name = "gcc-c++"
+nevra = "gcc-c++-0:16.2.1-2.fc44.x86_64"
+source = "fedora"
+
+[[package]]
+name = "git-core"
+nevra = "git-core-0:2.55.0-1.fc44.x86_64"
+source = "fedora"
+
+[[package]]
+name = "glibc-devel"
+nevra = "glibc-devel-0:2.43-8.fc44.x86_64"
+source = "fedora"
+
+[[package]]
+name = "kernel-headers"
+nevra = "kernel-headers-0:7.1.3-200.fc44.x86_64"
+source = "fedora"
+
+[[package]]
+name = "libasan"
+nevra = "libasan-0:16.2.1-2.fc44.x86_64"
+source = "fedora"
+
+[[package]]
+name = "libatomic"
+nevra = "libatomic-0:16.2.1-2.fc44.x86_64"
+source = "fedora"
+
+[[package]]
+name = "libmpc"
+nevra = "libmpc-0:1.4.1-1.fc44.x86_64"
+source = "fedora"
+
+[[package]]
+name = "libstdc++-devel"
+nevra = "libstdc++-devel-0:16.2.1-2.fc44.x86_64"
+source = "fedora"
+
+[[package]]
+name = "libubsan"
+nevra = "libubsan-0:16.2.1-2.fc44.x86_64"
+source = "fedora"
+
+[[package]]
+name = "libxcrypt-devel"
+nevra = "libxcrypt-devel-0:4.5.2-3.fc44.x86_64"
+source = "fedora"
+
+[[package]]
+name = "make"
+nevra = "make-1:4.4.1-12.fc44.x86_64"
+source = "fedora"
+
+[[package]]
+name = "policycoreutils-python-utils"
+nevra = "policycoreutils-python-utils-0:3.11-2.fc44.noarch"
+source = "fedora"
+
+[[package]]
+name = "python3-audit"
+nevra = "python3-audit-0:4.2.1-1.fc44.x86_64"
+source = "fedora"
+
+[[package]]
+name = "python3-distro"
+nevra = "python3-distro-0:1.9.0-11.fc44.noarch"
+source = "fedora"
+
+[[package]]
+name = "python3-libselinux"
+nevra = "python3-libselinux-0:3.11-1.fc44.x86_64"
+source = "fedora"
+
+[[package]]
+name = "python3-libsemanage"
+nevra = "python3-libsemanage-0:3.11-1.fc44.x86_64"
+source = "fedora"
+
+[[package]]
+name = "python3-policycoreutils"
+nevra = "python3-policycoreutils-0:3.11-2.fc44.noarch"
+source = "fedora"
+
+[[package]]
+name = "python3-setools"
+nevra = "python3-setools-0:4.6.0-6.fc44.x86_64"
+source = "fedora"
+
+[[package]]
+name = "soda-release"
+nevra = "soda-release-0:0.3.1-1.fc44.noarch"
+source = "local-rpm"
+file = "soda-release-0.3.1-1.fc44.noarch.rpm"
+
+[[package]]
+name = "soda-runtime"
+nevra = "soda-runtime-0:0.3.1-1.fc44.x86_64"
+source = "local-rpm"
+file = "soda-runtime-0.3.1-1.fc44.x86_64.rpm"
+
+[[package]]
+name = "soda-cockpit"
+nevra = "soda-cockpit-0:0.3.1-1.fc44.x86_64"
+source = "local-rpm"
+file = "soda-cockpit-0.3.1-1.fc44.x86_64.rpm"

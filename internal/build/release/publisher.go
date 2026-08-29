@@ -24,7 +24,6 @@ import (
 
 const (
 	Repository    = "registry.soda.local/soda/os"
-	Platform      = "linux/arm64"
 	CosignVersion = "v3.1.2"
 )
 
@@ -49,6 +48,7 @@ type Record struct {
 	SodaVersion         string `json:"soda_version"`
 	SourceRevision      string `json:"source_revision"`
 	Platform            string `json:"platform"`
+	Channel             string `json:"channel"`
 	FedoraBaseReference string `json:"fedora_base_reference"`
 	SodaImageReference  string `json:"soda_image_reference"`
 	StateSchema         uint32 `json:"state_schema"`
@@ -155,11 +155,11 @@ type preparedRelease struct {
 }
 
 func (p *Publisher) prepareExactImage(ctx context.Context, archive string) (preparedRelease, error) {
-	img, cleanup, err := imageFromOCIArchive(archive)
+	img, cleanup, err := imageFromOCIArchive(archive, p.spec.Platform.OCIArchitecture)
 	if err != nil {
 		return preparedRelease{}, err
 	}
-	versionTag := Repository + ":" + p.spec.Identity.Version
+	versionTag := p.versionTag()
 	if err := p.registry.Push(ctx, versionTag, img); err != nil {
 		cleanup()
 		return preparedRelease{}, fmt.Errorf("push versioned image: %w", err)
@@ -200,7 +200,7 @@ func (p *Publisher) finalizePublication(ctx context.Context, prepared preparedRe
 	if err != nil {
 		return Result{}, err
 	}
-	if err := p.registry.Push(ctx, Repository+":current", prepared.image); err != nil {
+	if err := p.registry.Push(ctx, p.discoveryTag(), prepared.image); err != nil {
 		return Result{}, fmt.Errorf("update current discovery tag: %w", err)
 	}
 	return Result{ImageReference: prepared.reference, RecordPath: recordPath, BundlePath: bundlePath}, nil
@@ -223,7 +223,7 @@ func (p *Publisher) writeSignedRecord(ctx context.Context, record Record, output
 	if err := os.MkdirAll(outputDir, 0o755); err != nil {
 		return "", "", fmt.Errorf("create release output: %w", err)
 	}
-	recordPath := filepath.Join(outputDir, "soda-os-"+p.spec.Identity.Version+".release.json")
+	recordPath := filepath.Join(outputDir, "soda-os-"+p.spec.Identity.Version+"-"+p.spec.Platform.ArtifactArchitecture+".release.json")
 	bundlePath := recordPath + ".sigstore.json"
 	encoded, err := json.Marshal(record)
 	if err != nil {
@@ -240,6 +240,14 @@ func (p *Publisher) writeSignedRecord(ctx context.Context, record Record, output
 		return "", "", fmt.Errorf("verify release record: %w", err)
 	}
 	return recordPath, bundlePath, nil
+}
+
+func (p *Publisher) versionTag() string {
+	return Repository + ":" + p.spec.Identity.Version + "-" + p.spec.Platform.ReleaseChannel
+}
+
+func (p *Publisher) discoveryTag() string {
+	return Repository + ":current-" + p.spec.Platform.ReleaseChannel
 }
 
 type remoteRegistry struct{ options []remote.Option }

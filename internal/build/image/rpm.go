@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -104,7 +103,7 @@ func (b *Builder) stageRPMSources(build, sources string) error {
 	files := [][2]string{
 		{filepath.Join(build, "sodad"), filepath.Join(sources, "sodad")},
 		{filepath.Join(build, "sodactl"), filepath.Join(sources, "sodactl")},
-		{b.artifactPath("tools", "cosign-linux-arm64"), filepath.Join(sources, "cosign")},
+		{b.targetCosignPath(), filepath.Join(sources, "cosign")},
 		{filepath.Join(build, "soda-ssh"), filepath.Join(sources, "soda-ssh")},
 		{filepath.Join(build, "soda-cockpit"), filepath.Join(sources, "soda-cockpit")},
 		{filepath.Join(build, "soda-authd"), filepath.Join(sources, "soda-authd")},
@@ -166,9 +165,9 @@ func (b *Builder) writeLockedInstallInputs(rpms string) error {
 }
 
 func (b *Builder) verifyRuntimeCosign() error {
-	path := b.artifactPath("tools", "cosign-linux-arm64")
+	path := b.targetCosignPath()
 	if !isFile(path) {
-		return errors.New("pinned Linux/AArch64 Cosign input is missing; run just release-tools")
+		return fmt.Errorf("pinned Linux/%s Cosign input is missing; run just release-tools", b.Spec.Platform.TargetCosignArchitecture)
 	}
 	contents, err := os.ReadFile(path)
 	if err != nil {
@@ -176,14 +175,18 @@ func (b *Builder) verifyRuntimeCosign() error {
 	}
 	hash := sha256.Sum256(contents)
 	digest := hex.EncodeToString(hash[:])
-	if digest != cosignArm64SHA256 {
-		return fmt.Errorf("Linux/AArch64 Cosign SHA-256 %s differs from pinned %s", digest, cosignArm64SHA256)
+	if digest != b.Spec.Platform.TargetCosignSHA256 {
+		return fmt.Errorf("Linux/%s Cosign SHA-256 %s differs from pinned %s", b.Spec.Platform.TargetCosignArchitecture, digest, b.Spec.Platform.TargetCosignSHA256)
 	}
 	return nil
 }
 
 func (b *Builder) buildContainer(ctx context.Context) error {
-	return b.runner.Run(ctx, process.Command{Dir: b.Root, Name: "docker", Args: []string{"build", "--quiet", "--platform", b.Spec.Base.Platform, "--file", "packaging/builder/Containerfile", "--tag", "soda-os-rpm-builder:" + b.Spec.Identity.Version, "."}})
+	lockDestination := b.artifactPath("builder", "packages.lock")
+	if err := copyFile(b.path(b.Spec.Platform.BuilderPackageLock), lockDestination); err != nil {
+		return fmt.Errorf("stage builder package lock: %w", err)
+	}
+	return b.runner.Run(ctx, process.Command{Dir: b.Root, Name: "docker", Args: []string{"build", "--quiet", "--platform", b.Spec.Base.Platform, "--build-arg", "BUILDER_BASE_REFERENCE=" + b.Spec.Platform.BuilderBaseReference, "--file", "packaging/builder/Containerfile", "--tag", b.builderTag(), "."}})
 }
 
 func (b *Builder) docker(ctx context.Context, environment []string, name string, args ...string) error {
@@ -195,9 +198,17 @@ func (b *Builder) dockerCommand(environment []string, name string, args ...strin
 	for _, pair := range environment {
 		dockerArgs = append(dockerArgs, "--env", pair)
 	}
-	dockerArgs = append(dockerArgs, "soda-os-rpm-builder:"+b.Spec.Identity.Version, name)
+	dockerArgs = append(dockerArgs, b.builderTag(), name)
 	dockerArgs = append(dockerArgs, args...)
 	return process.Command{Dir: b.Root, Name: "docker", Args: dockerArgs}
+}
+
+func (b *Builder) builderTag() string {
+	return "soda-os-rpm-builder:" + b.Spec.Identity.Version + "-" + b.Spec.Platform.ArtifactArchitecture
+}
+
+func (b *Builder) targetCosignPath() string {
+	return b.artifactPath("tools", "cosign-linux-"+b.Spec.Platform.TargetCosignArchitecture)
 }
 
 func (b *Builder) rpmbuild(ctx context.Context, name string) error {

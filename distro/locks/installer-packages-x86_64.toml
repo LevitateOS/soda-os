@@ -1,0 +1,22 @@
+schema_version = 1
+platform = "linux/amd64"
+
+packages = [
+  "anaconda-44.30-2.fc44.x86_64",
+  "anaconda-install-img-deps-44.30-2.fc44.x86_64",
+  "anaconda-dracut-44.30-2.fc44.x86_64",
+  "dracut-config-generic-108-7.fc44.x86_64",
+  "dracut-network-108-7.fc44.x86_64",
+  "net-tools-2.0-0.77.20160912git.fc44.x86_64",
+  "grub2-efi-x64-cdboot-1:2.12-64.fc44.x86_64",
+  "grub2-pc-modules-1:2.12-64.fc44.noarch",
+  "plymouth-24.004.60-24.fc44.x86_64",
+  "default-fonts-core-sans-4.3-1.fc44.noarch",
+  "default-fonts-other-sans-4.3-1.fc44.noarch",
+  "google-noto-sans-cjk-fonts-1:2.004-11.fc44.noarch",
+  "xorriso-1.5.8-2.fc44.x86_64",
+  "squashfs-tools-4.6.1-8.fc44.x86_64",
+]
+
+boot_packages = ["shim-x64", "grub2-efi-x64", "grub2-efi-x64-cdboot", "grub2-pc-modules"]
+efi_vendor = "fedora"

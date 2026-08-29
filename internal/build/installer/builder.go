@@ -22,7 +22,6 @@ import (
 
 const (
 	Repository = "registry.soda.local/soda/os"
-	Platform   = "linux/arm64"
 )
 
 var exactImagePattern = regexp.MustCompile(`^registry\.soda\.local/soda/os@sha256:[0-9a-f]{64}$`)
@@ -32,6 +31,14 @@ type toolLock struct {
 	Commit    string `toml:"commit"`
 	Reference string `toml:"reference"`
 	Platform  string `toml:"platform"`
+}
+
+type packageLock struct {
+	SchemaVersion uint32   `toml:"schema_version"`
+	Platform      string   `toml:"platform"`
+	Packages      []string `toml:"packages"`
+	BootPackages  []string `toml:"boot_packages"`
+	EFIVendor     string   `toml:"efi_vendor"`
 }
 
 type Options struct {
@@ -55,7 +62,7 @@ func (b *Builder) ValidateISO(ctx context.Context, isoPath, reference, installer
 	if _, err := toml.DecodeFile(toolLockPath, &lock); err != nil {
 		return "", fmt.Errorf("read image-builder lock: %w", err)
 	}
-	if err := validateToolLock(lock); err != nil {
+	if err := validateToolLock(lock, b.Spec.Platform); err != nil {
 		return "", err
 	}
 	return b.inspectPublishedISO(ctx, isoPath, reference, installerArchive, lock)
@@ -114,10 +121,10 @@ func (b *Builder) Build(ctx context.Context, options Options) (string, error) {
 	if err := b.verifySignedImage(ctx, options); err != nil {
 		return "", err
 	}
-	if err := verifyArchiveDigest(options.ArchivePath, options.ImageReference); err != nil {
+	if err := verifyArchiveDigest(options.ArchivePath, options.ImageReference, b.Spec.Platform.OCIArchitecture); err != nil {
 		return "", err
 	}
-	baseTag, err := imagebuild.PrepareLocalBootcBase(ctx, b.Root, b.runner, b.Spec.Base.Reference)
+	baseTag, err := imagebuild.PrepareLocalBootcBase(ctx, b.Root, b.runner, b.Spec.Platform)
 	if err != nil {
 		return "", err
 	}
@@ -180,7 +187,30 @@ func (b *Builder) prepareInstallerWorkspace(options Options) (installerWorkspace
 	if err := os.WriteFile(filepath.Join(workspace.context, "interactive-defaults.ks"), []byte(kickstart(options.ImageReference, b.Spec.Identity.Hostname)), 0o644); err != nil {
 		return installerWorkspace{}, err
 	}
+	if err := b.stageInstallerPackageLock(workspace.context); err != nil {
+		return installerWorkspace{}, err
+	}
 	return workspace, nil
+}
+
+func (b *Builder) stageInstallerPackageLock(destination string) error {
+	var lock packageLock
+	lockPath := b.Spec.Platform.InstallerPackageLock
+	if !filepath.IsAbs(lockPath) {
+		lockPath = filepath.Join(b.Root, lockPath)
+	}
+	if _, err := toml.DecodeFile(lockPath, &lock); err != nil {
+		return fmt.Errorf("read installer package lock: %w", err)
+	}
+	if lock.SchemaVersion != 1 || lock.Platform != b.Spec.Base.Platform || len(lock.Packages) == 0 || len(lock.BootPackages) == 0 || lock.EFIVendor == "" {
+		return errors.New("installer package lock differs from the selected platform contract")
+	}
+	for name, values := range map[string][]string{"installer-packages.txt": lock.Packages, "installer-boot-packages.txt": lock.BootPackages} {
+		if err := os.WriteFile(filepath.Join(destination, name), []byte(strings.Join(values, "\n")+"\n"), 0o644); err != nil {
+			return err
+		}
+	}
+	return os.WriteFile(filepath.Join(destination, "installer-efi-vendor.txt"), []byte(lock.EFIVendor+"\n"), 0o644)
 }
 
 func (b *Builder) buildInstallerEnvironment(ctx context.Context, baseTag, work string) (string, string, error) {
@@ -189,7 +219,7 @@ func (b *Builder) buildInstallerEnvironment(ctx context.Context, baseTag, work s
 		return "", "", err
 	}
 	tag := "localhost/soda-installer:" + b.Spec.Identity.Version
-	args := []string{"buildx", "build", "--platform", Platform, "--build-context", "fedora-base=docker-image://" + baseTag, "--file", "packaging/installer/Containerfile", "--tag", tag, "--provenance=false", "--output", "type=oci,dest=" + archive + ",oci-mediatypes=true", "."}
+	args := []string{"buildx", "build", "--platform", b.Spec.Base.Platform, "--build-context", "fedora-base=docker-image://" + baseTag, "--file", "packaging/installer/Containerfile", "--tag", tag, "--provenance=false", "--output", "type=oci,dest=" + archive + ",oci-mediatypes=true", "."}
 	if err := b.runner.Run(ctx, process.Command{Dir: b.Root, Name: "docker", Args: args}); err != nil {
 		return "", "", fmt.Errorf("build installer environment: %w", err)
 	}
@@ -197,16 +227,16 @@ func (b *Builder) buildInstallerEnvironment(ctx context.Context, baseTag, work s
 }
 
 func (b *Builder) buildInstallerISO(ctx context.Context, input isoBuildInput) (string, error) {
-	outputName := "SodaOS-" + b.Spec.Identity.Version + "-aarch64"
+	outputName := "SodaOS-" + b.Spec.Identity.Version + "-" + b.Spec.Platform.ArtifactArchitecture
 	for _, suffix := range []string{".iso", ".iso.sha256"} {
 		if err := os.Remove(filepath.Join(input.workspace.output, outputName+suffix)); err != nil && !errors.Is(err, os.ErrNotExist) {
 			return "", err
 		}
 	}
-	args := []string{"run", "--rm", "--platform", Platform, "--privileged",
+	args := []string{"run", "--rm", "--platform", b.Spec.Base.Platform, "--privileged",
 		"--volume", input.volumeName + ":/var/lib/containers/storage",
 		"--volume", input.workspace.output + ":/output", input.lock.Reference,
-		"build", "--arch", "aarch64", "--bootc-ref", input.installerTag,
+		"build", "--arch", b.Spec.Platform.InstallerArchitecture, "--bootc-ref", input.installerTag,
 		"--bootc-installer-payload-ref", input.payloadTag,
 		"--bootc-default-fs", "ext4", "--output-dir", "/output",
 		"--output-name", outputName, "bootc-generic-iso",
@@ -244,8 +274,8 @@ func (b *Builder) validate(options Options) (toolLock, error) {
 			return toolLock{}, fmt.Errorf("%s %q is not a regular file", label, path)
 		}
 	}
-	if b.Spec.Identity.Architecture != "aarch64" || b.Spec.Base.Platform != Platform {
-		return toolLock{}, errors.New("installer builds support only Soda AArch64")
+	if b.Spec.Identity.Architecture != b.Spec.Platform.Architecture || b.Spec.Base.Platform != b.Spec.Platform.OCIPlatform {
+		return toolLock{}, errors.New("installer architecture differs from the selected Soda platform")
 	}
 	if b.Spec.Identity.Hostname != "soda" {
 		return toolLock{}, errors.New("installer default hostname must be soda")
@@ -254,16 +284,23 @@ func (b *Builder) validate(options Options) (toolLock, error) {
 	if _, err := toml.DecodeFile(options.ToolLock, &lock); err != nil {
 		return toolLock{}, fmt.Errorf("read image-builder lock: %w", err)
 	}
-	if err := validateToolLock(lock); err != nil {
+	if err := validateToolLock(lock, b.Spec.Platform); err != nil {
 		return toolLock{}, err
 	}
 	return lock, nil
 }
 
-func validateToolLock(lock toolLock) error {
+func validateToolLock(lock toolLock, platform config.PlatformSpec) error {
 	if lock.Version != "81.0.0" || lock.Commit != "3130fb87ee1f684b6e9d1909f354861c43d7a092" ||
-		lock.Reference != "ghcr.io/osbuild/image-builder@sha256:704dc05d6033799248a33c415f7f7253ec20b40f0b2bff03b06d8687179e058a" || lock.Platform != Platform {
-		return errors.New("image-builder lock differs from the reviewed AArch64 tool")
+		lock.Platform != platform.OCIPlatform {
+		return errors.New("image-builder lock differs from the selected platform tool")
+	}
+	wantReference := map[string]string{
+		"aarch64": "ghcr.io/osbuild/image-builder@sha256:704dc05d6033799248a33c415f7f7253ec20b40f0b2bff03b06d8687179e058a",
+		"x86_64":  "ghcr.io/osbuild/image-builder@sha256:9ce9e1452483e3642f0e6d67ce522f71d1f1c6a45280dd09a16b90d63dfea9b7",
+	}[platform.Architecture]
+	if lock.Reference != wantReference {
+		return errors.New("image-builder digest differs from the reviewed platform tool")
 	}
 	return nil
 }
@@ -283,7 +320,7 @@ func (b *Builder) verifySignedImage(ctx context.Context, options Options) error 
 }
 
 func (b *Builder) copyToStorage(ctx context.Context, lock toolLock, volumeName, archive, reference string) error {
-	args := append([]string{"run", "--rm", "--platform", Platform, "--privileged", "--entrypoint", "skopeo",
+	args := append([]string{"run", "--rm", "--platform", b.Spec.Base.Platform, "--privileged", "--entrypoint", "skopeo",
 		"--volume", volumeName + ":/var/lib/containers/storage",
 		"--volume", archive + ":/input/image.oci.tar:ro", lock.Reference},
 		"copy", "oci-archive:/input/image.oci.tar", "containers-storage:"+reference)
