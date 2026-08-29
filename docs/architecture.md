@@ -60,6 +60,21 @@ using those visible paths. `tmpfiles.d` creates the state and mount-point
 directories at boot rather than shipping mutable Soda state in the image.
 Soda service logs are written below `/var/log/soda`.
 
+## Sibling platforms
+
+AArch64 and x86-64 are equal Soda OS sibling architectures. Shared Go code owns
+the product and runtime behavior; platform TOML files select only the upstream
+base, OCI identity, package and tool locks, installer/UEFI inputs, artifact
+names, discovery channel, and test harness that genuinely differ. Neither
+platform is a default, compatibility path, or experimental target.
+
+Each sibling publishes a single-platform exact-digest release. Discovery tags
+(`current-aarch64` and `current-x86_64`) and release-record filenames remain
+separate so publication order cannot replace the other architecture. Both use
+the same Cosign trust contract, non-disruptive staging, explicit reboot
+activation, rollback visibility, persistent-state policy, and equivalent
+acceptance gates. Soda does not use a multi-platform discovery index.
+
 Soda-created Linux users and their PAM passwords remain system account state;
 SSH host keys remain under `/etc/ssh`; and per-project forced-command key files
 remain root-owned under `/etc/soda/authorized_keys`. Those paths, the SQLite

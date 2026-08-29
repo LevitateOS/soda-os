@@ -2,10 +2,10 @@
 
 ![soda os](assets/branding/source/soda-logo-horizontal.svg)
 
-Soda OS is a Fedora bootc AArch64 development appliance for trusted local
-networks. A thin client connects over SSH to project-owned development
-environments and uses a small Go/HTMX cockpit for team, project, personal
-workspace, and development-environment management.
+Soda OS is a Fedora bootc development appliance for trusted local networks,
+with equal AArch64 and x86-64 sibling support. A thin client connects over SSH
+to project-owned development environments and uses a small Go/HTMX cockpit for
+team, project, personal workspace, and development-environment management.
 
 This repository is independent from LevitateOS. It borrows the separation
 between declarative distro specifications, Go orchestration, explicit
@@ -28,34 +28,41 @@ base, kernel, userspace, RPM/DNF, systemd, SELinux, and SSH.
 
 ```sh
 just check
-just rpm
-just oci /path/to/registry-ca.crt /path/to/cosign.pub
+ARCH=x86_64 # or aarch64
+just rpm "$ARCH"
+just oci "$ARCH" /path/to/registry-ca.crt /path/to/cosign.pub
 ```
 
 Build artifacts are written under `.artifacts/` and are never committed.
 `just rpm` builds exactly the three locked local Soda RPM inputs. `just oci`
 builds those RPMs and emits
-`.artifacts/images/soda-os-0.3.1-aarch64.oci.tar` without loading or publishing
-the image. It requires the trusted registry CA and the public half of Soda's
-Cosign key so both become image inputs; a private key is never an image input.
+`.artifacts/images/soda-os-0.3.1-${ARCH}.oci.tar` without loading or publishing
+the image. Architecture selection is always explicit; neither sibling is a
+default or fallback. The build requires the trusted registry CA and the public
+half of Soda's Cosign key so both become image inputs; a private key is never
+an image input.
 The package lock pins every Fedora package added to the immutable base, and the
 finished image contains a complete RPM inventory plus its verified SHA-256
 checksum.
 
 Soda publishes only to `registry.soda.local/soda/os`. A release first pushes,
 resolves, signs, and verifies its versioned image to an exact `@sha256:`
-reference. Use `soda-image publish --defer-current` for that pre-ISO step;
-it intentionally writes neither a release record nor the `current` discovery
-tag. Build the installer from that signed exact reference, then run the final
-`soda-image publish --iso ...` publication. The final publication validates the
-ISO, writes and signs the release record, and updates `current` last. See the
+reference. Use the architecture-selected `soda-image publish --defer-current`
+for that pre-ISO step; it intentionally writes neither a release record nor an
+architecture-specific discovery tag. Build the installer from that signed
+exact reference, then run the final `soda-image publish --iso ...` publication.
+The final publication validates the ISO, writes and signs the
+architecture-named release record, and updates only
+`current-aarch64` or `current-x86_64` last. The two channels remain separate;
+Soda does not publish a multi-platform index. See the
 [release and operator runbook](docs/release-operations.md) for the exact
 commands and [runtime image and installer contract](docs/installer.md) for the
 artifact boundary.
 
-Initial installation is a fresh AArch64 bootc installation from the generated
-ISO. The stock interactive Anaconda flow selects storage, networking, hostname,
-and the first Linux administrator; it does not convert an existing Rocky host.
+Initial installation is a fresh platform-matched bootc installation from the
+generated AArch64 or x86-64 ISO. The stock interactive Anaconda flow selects
+storage, networking, hostname, and the first Linux administrator; it does not
+convert an existing Rocky host.
 
 Mutable Soda state is preserved outside the image. The database, certificates,
 projects, and toolchains physically live below `/var/lib/soda`; systemd bind
@@ -72,10 +79,11 @@ sudo sodactl os update stage
 sudo sodactl os update activate --confirm-reboot
 ```
 
-Checking resolves `current` once, verifies its signature, and records only the
-exact digest. Staging downloads that exact signed digest without changing the
-running deployment. Activation is the separate, explicit maintenance-reboot
-action. Soda neither polls, downloads, activates, nor reboots automatically.
+Checking resolves the installed sibling's architecture-specific discovery tag
+once, verifies its signature and platform, and records only the exact digest.
+Staging downloads that exact signed digest without changing the running
+deployment. Activation is the separate, explicit maintenance-reboot action.
+Soda neither polls, downloads, activates, nor reboots automatically.
 
 After the installed host has its first Linux administrator, register that
 account with Soda while preserving its PAM password:

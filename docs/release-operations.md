@@ -1,10 +1,13 @@
 # Soda OS release and operator runbook
 
-This is the trusted-LAN MVP release path for Fedora 44 bootc AArch64. It uses
-one HTTPS registry, `registry.soda.local/soda/os`, with anonymous pulls and
-publisher-only pushes. The administrator supplies the registry CA, the Soda
-Cosign public key, and a passphrase-protected private key; only the CA and
-public key are copied into the image.
+This is the trusted-LAN MVP release path for Fedora 44 bootc on the equal
+AArch64 and x86-64 sibling architectures. It uses one HTTPS repository,
+`registry.soda.local/soda/os`, with anonymous pulls and publisher-only pushes,
+but keeps separate `current-aarch64` and `current-x86_64` discovery tags and
+architecture-named release records. It does not publish a multi-platform index.
+The administrator supplies the registry CA, the Soda Cosign public key, and a
+passphrase-protected private key; only the CA and public key are copied into
+the images.
 
 ## Build and initial install release
 
@@ -14,10 +17,11 @@ The paths below are operator inputs, not repository files.
 ```sh
 just check
 just release-tools
-just oci /path/to/registry-ca.crt /path/to/cosign.pub
+ARCH=x86_64 # or aarch64
+just oci "$ARCH" /path/to/registry-ca.crt /path/to/cosign.pub
 
-go run ./cmd/soda-image publish \
-  --archive .artifacts/images/soda-os-0.3.1-aarch64.oci.tar \
+go run ./cmd/soda-image --architecture "$ARCH" publish \
+  --archive ".artifacts/images/soda-os-0.3.1-${ARCH}.oci.tar" \
   --registry-ca /path/to/registry-ca.crt \
   --public-key /path/to/cosign.pub \
   --signing-key /path/to/cosign.key \
@@ -28,28 +32,31 @@ Cosign prompts for the private-key passphrase during publication. Save the
 printed exact image reference, then build the ISO from it:
 
 ```sh
-go run ./cmd/soda-image iso \
+go run ./cmd/soda-image --architecture "$ARCH" iso \
   --image registry.soda.local/soda/os@sha256:EXACT_DIGEST \
-  --archive .artifacts/images/soda-os-0.3.1-aarch64.oci.tar \
+  --archive ".artifacts/images/soda-os-0.3.1-${ARCH}.oci.tar" \
   --registry-ca /path/to/registry-ca.crt \
   --public-key /path/to/cosign.pub
 
-go run ./cmd/soda-image publish \
-  --archive .artifacts/images/soda-os-0.3.1-aarch64.oci.tar \
+go run ./cmd/soda-image --architecture "$ARCH" publish \
+  --archive ".artifacts/images/soda-os-0.3.1-${ARCH}.oci.tar" \
   --registry-ca /path/to/registry-ca.crt \
   --public-key /path/to/cosign.pub \
   --signing-key /path/to/cosign.key \
-  --iso .artifacts/images/SodaOS-0.3.1-aarch64.iso
+  --iso ".artifacts/images/SodaOS-0.3.1-${ARCH}.iso"
 ```
 
-The final command re-checks the exact ISO payload, writes a signed release
-record under `.artifacts/releases/`, and updates `:current` last. Treat
-`current` solely as discovery: installations and updates use the resolved,
-signed exact digest. The ISO has matching `.sha256` and `.payload.json` files.
+The final command re-checks the exact ISO payload, writes an
+architecture-named signed release record under `.artifacts/releases/`, and
+updates only `:current-$ARCH` last. Treat that architecture-specific tag solely
+as discovery: installations and updates use the resolved, signed exact digest.
+The ISO has a matching `.sha256` file, and the publisher independently
+re-inspects its embedded exact payload before releasing it.
 
-Boot the ISO on AArch64 UEFI and complete stock interactive Anaconda. Use the
-installer for a new Soda host only; there is no Rocky in-place conversion. The
-default hostname is `soda`, but the installer permits a different hostname.
+Boot the matching ISO on AArch64 or x86-64 UEFI and complete stock interactive
+Anaconda. Use the installer for a new Soda host only; there is no Rocky in-place
+conversion. The default hostname is `soda`, but the installer permits a
+different hostname.
 
 ## Administrator-controlled updates
 
@@ -62,11 +69,12 @@ sudo sodactl os update check
 sudo sodactl os update stage
 ```
 
-`check` resolves `current` once, uses the registry CA to authenticate HTTPS
-transport, and uses Soda's embedded Cosign public key to verify the exact image
-signature. It accepts only a signed `linux/arm64` exact digest with state schema
-2. `stage` downloads that digest using bootc's container signature policy
-but leaves the booted deployment and running Soda services untouched.
+`check` resolves the installed architecture's `current-aarch64` or
+`current-x86_64` tag once, uses the registry CA to authenticate HTTPS transport,
+and uses Soda's embedded Cosign public key to verify the exact image signature.
+It accepts only a signed exact digest matching the installed platform with
+state schema 2. `stage` downloads that digest using bootc's container signature
+policy but leaves the booted deployment and running Soda services untouched.
 
 During a planned maintenance window, activate the already staged deployment:
 
@@ -85,20 +93,20 @@ toolchains, SQLite state, certificates, and logs persist across the image
 transition. This MVP does not support database-schema-changing releases or
 state rollback across incompatible schemas.
 
-## Local AArch64 acceptance
+## Local sibling-architecture acceptance
 
 `tests/acceptance/bootc.sh` separates repeatable evidence collection from
 operator-owned authentication. Set an untracked evidence directory, the
-Anaconda administrator's SSH identity, and the exact digest under test before
-using `launch`, `wait`, `capture`, `workload`, or `stop`. Run `--help` for the
-complete input contract.
+selected architecture, Anaconda administrator's SSH identity, and exact digest
+under test before using `launch`, `wait`, `capture`, `workload`, or `stop`. Run
+`--help` for the complete input contract.
 
-The `launch install` operation creates a blank sparse disk and starts the stock
-Anaconda ISO with AArch64 UEFI, SSH forwarded to port 2222, Cockpit forwarded
-to port 9090, a passive serial log, and a QMP lifecycle socket. The operator
-alone completes Anaconda. After installation, enroll the administrator's
-public key and record the disposable host key once, then use a normal `ssh -tt`
-session for password and `sudo` prompts:
+The `launch install` operation creates a blank sparse disk and starts the
+platform-matched stock Anaconda ISO. AArch64 uses its UEFI/HVF harness; x86-64
+uses OVMF/KVM and a serial text console. Both forward SSH and Cockpit only to
+the configured host address and expose a QMP lifecycle socket. Complete
+Anaconda, then enroll the administrator's public key and record the disposable
+host key once before using normal SSH sessions for privileged evidence:
 
 ```sh
 ssh-copy-id \
@@ -125,7 +133,9 @@ signature attachment, release hashes, stdout, stderr, and timestamps. The
 workload operation uses a registered Soda device key and the project's forced
 SSH account to prove that staging does not interrupt a live workspace.
 
-Use the graphical console only for Anaconda. Use QMP only for observation and
-clean shutdown. The acceptance path does not inject QEMU keys, store
-passwords, enable passwordless sudo, take polling screenshots, or repair a
-failed final disk.
+Use the platform's configured Anaconda console and use QMP only for observation
+and clean shutdown. Equal support requires equivalent evidence from both
+sibling paths: exact booted and staged deployment identity, UEFI boot entries,
+Soda/SSH/Cockpit behavior, persistent state, non-disruptive staging, and manual
+reboot activation. A successful run for one architecture does not substitute
+for the other's acceptance gate.
