@@ -27,7 +27,39 @@ func (b *Builder) inspectISO(ctx context.Context, input isoInspectionInput) erro
 	if err := b.runner.Run(ctx, process.Command{Dir: b.Root, Name: "docker", Args: args}); err != nil {
 		return fmt.Errorf("inspect installer squashfs: %w", err)
 	}
+	args = []string{"run", "--rm", "--platform", b.Spec.Base.Platform, "--volume", input.inspectDir + ":/inspect", "--entrypoint", "chown", input.lock.Reference, "-R", fmt.Sprintf("%d:%d", os.Getuid(), os.Getgid()), "/inspect"}
+	if err := b.runner.Run(ctx, process.Command{Dir: b.Root, Name: "docker", Args: args}); err != nil {
+		return fmt.Errorf("own extracted ISO inspection files: %w", err)
+	}
+	if err := makeInspectionOwnerWritable(input.inspectDir); err != nil {
+		return fmt.Errorf("make extracted ISO inspection files readable: %w", err)
+	}
 	return b.validateExtractedISO(input.inspectDir, input.reference, input.payloadTag)
+}
+
+func makeInspectionOwnerWritable(root string) error {
+	return filepath.WalkDir(root, func(path string, entry os.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if entry.Type()&os.ModeSymlink != 0 {
+			return nil
+		}
+		info, err := entry.Info()
+		if err != nil {
+			return err
+		}
+		mode := info.Mode()
+		switch {
+		case entry.IsDir():
+			mode |= 0o700
+		case mode.IsRegular():
+			mode |= 0o600
+		default:
+			return nil
+		}
+		return os.Chmod(path, mode)
+	})
 }
 
 func (b *Builder) validateExtractedISO(inspectDir, reference, payloadTag string) error {

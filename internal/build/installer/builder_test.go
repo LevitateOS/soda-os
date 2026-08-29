@@ -124,6 +124,22 @@ func TestInstallerEnvironmentUsesVerifiedLocalFedoraBaseContext(t *testing.T) {
 	require.Contains(t, string(contents), "COPY --chmod=0644 .artifacts/installer/context/interactive-defaults.ks /usr/share/anaconda/interactive-defaults.ks")
 }
 
+func TestInspectionTreeBecomesReadableAndRemovableByOwner(t *testing.T) {
+	root := t.TempDir()
+	directory := filepath.Join(root, "root", "usr", "share", "anaconda")
+	require.NoError(t, os.MkdirAll(directory, 0o755))
+	file := filepath.Join(directory, "interactive-defaults.ks")
+	require.NoError(t, os.WriteFile(file, []byte("kickstart"), 0o600))
+	require.NoError(t, os.Chmod(file, 0o400))
+	require.NoError(t, os.Chmod(directory, 0o500))
+
+	require.NoError(t, makeInspectionOwnerWritable(root))
+	contents, err := os.ReadFile(file)
+	require.NoError(t, err)
+	require.Equal(t, "kickstart", string(contents))
+	require.NoError(t, os.RemoveAll(filepath.Join(root, "root")))
+}
+
 func TestPayloadStagingReferenceUsesFullExactDigestOnlyForImageBuilderStorage(t *testing.T) {
 	expected := Repository + ":payload-" + strings.TrimPrefix(testExactImage, Repository+"@sha256:")
 	require.Equal(t, expected, payloadStagingReference(testExactImage))
