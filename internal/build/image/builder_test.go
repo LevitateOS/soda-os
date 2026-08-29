@@ -2,6 +2,9 @@ package image
 
 import (
 	"context"
+	"crypto/sha256"
+	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -21,13 +24,19 @@ const (
 )
 
 type recordingRunner struct {
-	Commands []process.Command
-	Outputs  map[string]string
-	Err      error
+	Commands  []process.Command
+	Outputs   map[string]string
+	Err       error
+	RunErrors []error
 }
 
 func (r *recordingRunner) Run(_ context.Context, command process.Command) error {
 	r.Commands = append(r.Commands, command)
+	if len(r.RunErrors) > 0 {
+		err := r.RunErrors[0]
+		r.RunErrors = r.RunErrors[1:]
+		return err
+	}
 	return r.Err
 }
 
@@ -191,11 +200,33 @@ func TestPrepareLocalBootcBaseUsesExactDigestDerivedLocalTag(t *testing.T) {
 	tag, err := PrepareLocalBootcBase(context.Background(), "/workspace", runner, platform)
 	require.NoError(t, err)
 	require.Equal(t, "soda-fedora-bootc:sha256-950a52fa1244db4d7fe2673af57fd6784a605a83bec3cd2d716ed8c00ebd366d", tag)
-	require.Equal(t, "docker image tag sha256:950a52fa1244db4d7fe2673af57fd6784a605a83bec3cd2d716ed8c00ebd366d "+tag, runner.Commands[0].String())
+	require.Equal(t, "docker image tag "+testArmBaseReference+" "+tag, runner.Commands[0].String())
 
 	platform.Base.Reference = "quay.io/fedora/fedora-bootc:44"
 	_, err = PrepareLocalBootcBase(context.Background(), "/workspace", runner, platform)
 	require.EqualError(t, err, "local Fedora bootc base differs from the approved digest contract")
+}
+
+func TestPrepareLocalBootcBaseTagsReferenceCreatedByDockerLoad(t *testing.T) {
+	root := t.TempDir()
+	archive := []byte("valid local OCI archive")
+	require.NoError(t, os.WriteFile(filepath.Join(root, "base.oci.tar"), archive, 0o644))
+	checksum := sha256.Sum256(archive)
+	platform := config.PlatformSpec{Base: config.PlatformBase{
+		Reference:     testArmBaseReference,
+		Archive:       "base.oci.tar",
+		ArchiveSHA256: fmt.Sprintf("%x", checksum),
+	}}
+	runner := &recordingRunner{RunErrors: []error{errors.New("image is not loaded"), nil, nil}}
+
+	tag, err := PrepareLocalBootcBase(context.Background(), root, runner, platform)
+	require.NoError(t, err)
+	require.Equal(t, "soda-fedora-bootc:sha256-950a52fa1244db4d7fe2673af57fd6784a605a83bec3cd2d716ed8c00ebd366d", tag)
+	require.Equal(t, []string{
+		"docker image tag " + testArmBaseReference + " " + tag,
+		"docker load --input " + filepath.Join(root, "base.oci.tar"),
+		"docker image tag " + testArmBaseReference + " " + tag,
+	}, []string{runner.Commands[0].String(), runner.Commands[1].String(), runner.Commands[2].String()})
 }
 
 func TestSodaRPMsAreScriptletFree(t *testing.T) {

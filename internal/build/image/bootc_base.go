@@ -23,8 +23,7 @@ func PrepareLocalBootcBase(ctx context.Context, root string, runner process.Runn
 	if err != nil {
 		return "", err
 	}
-	digest := strings.TrimPrefix(platform.Base.Reference, "quay.io/fedora/fedora-bootc@")
-	tag := process.Command{Dir: root, Name: "docker", Args: []string{"image", "tag", digest, localTag}}
+	tag := process.Command{Dir: root, Name: "docker", Args: []string{"image", "tag", platform.Base.Reference, localTag}}
 	if err := runner.Run(ctx, tag); err == nil {
 		return localTag, nil
 	}
