@@ -358,7 +358,7 @@ func validateEmbeddedPayload(metadata []byte, payloadTag, reference string) erro
 
 func kickstart(reference, hostname string) string {
 	return "# Soda OS stock interactive Anaconda defaults.\n" +
-		"text\n" +
+		"graphical\n" +
 		"network --bootproto=dhcp --device=link --activate --onboot=on --hostname=" + hostname + "\n" +
 		"bootc --source-imgref=\"containers-storage:" + reference + "\" --target-imgref=\"" + reference + "\"\n"
 }

@@ -38,8 +38,8 @@ func (r *recordingRunner) Output(_ context.Context, command process.Command) (st
 
 func TestKickstartKeepsStockInteractiveFlowAndExactDigest(t *testing.T) {
 	contents := kickstart(testExactImage, "soda")
-	require.Contains(t, contents, "text\n")
-	require.NotContains(t, contents, "graphical\n")
+	require.Contains(t, contents, "graphical\n")
+	require.NotContains(t, contents, "text\n")
 	require.Contains(t, contents, "network --bootproto=dhcp --device=link --activate --onboot=on --hostname=soda")
 	require.Contains(t, contents, `--source-imgref="containers-storage:`+testExactImage+`"`)
 	require.Contains(t, contents, `--target-imgref="`+testExactImage+`"`)
