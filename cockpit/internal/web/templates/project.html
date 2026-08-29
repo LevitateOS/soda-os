@@ -3,7 +3,7 @@
 <dl class="summary">
   <div><dt>Project account</dt><dd><code>{{.Project.UnixUser}}</code></dd></div>
   <div><dt>Development environment</dt><dd>{{.Project.Profile}}</dd></div>
-  <div><dt>Repository</dt><dd>{{with remote .Project}}<code>{{.}}</code>{{else}}New repository{{end}}</dd></div>
+  <div><dt>Repository</dt><dd>{{with remote .Project}}<code>{{.}}</code>{{else}}Built-in Git on this Soda server{{end}}</dd></div>
 </dl>
 {{template "connect" .Connection}}
 {{template "provisioning" .Provisioning}}

@@ -39,9 +39,20 @@ func (s *Server) createProject(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid project", http.StatusBadRequest)
 		return
 	}
-	var source daemonclient.ProjectSource = daemonclient.EmptyProjectSource{}
-	if remote := strings.TrimSpace(r.FormValue("remote_url")); remote != "" {
+	var source daemonclient.ProjectSource
+	switch r.FormValue("repository_source") {
+	case "built_in":
+		source = daemonclient.EmptyProjectSource{}
+	case "external":
+		remote := strings.TrimSpace(r.FormValue("remote_url"))
+		if remote == "" {
+			s.renderProjectCreateError(w, r, "Existing repository address is required.")
+			return
+		}
 		source = daemonclient.GitProjectSource{RemoteURL: remote}
+	default:
+		s.renderProjectCreateError(w, r, "Choose a repository source.")
+		return
 	}
 	members := append([]string(nil), r.Form["member_ids"]...)
 	project, err := s.projectAPI.CreateProject(r.Context(), daemonclient.CreateProjectRequest{
@@ -57,6 +68,15 @@ func (s *Server) createProject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	redirect(w, r, "/projects/"+project.ID)
+}
+
+func (s *Server) renderProjectCreateError(w http.ResponseWriter, r *http.Request, message string) {
+	if isHTMX(r) {
+		people, _ := s.accounts.People(r.Context())
+		s.render(w, http.StatusUnprocessableEntity, "project-create", projectsView{pageIdentity: pageIdentity{User: currentUser(r)}, People: people, Error: message})
+		return
+	}
+	http.Error(w, message, http.StatusBadRequest)
 }
 
 func (s *Server) project(w http.ResponseWriter, r *http.Request) {

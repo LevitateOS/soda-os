@@ -120,7 +120,7 @@ func TestProjectCreationForwardsInitialTeamAndHasNoWorktreeCreationRoute(t *test
 		t.Fatal(err)
 	}
 	cookie := &http.Cookie{Name: sessionCookie, Value: token}
-	form := url.Values{"slug": {"demo"}, "name": {"Demo"}, "profile": {"go"}, "member_ids": {admin.ID, bob.ID}}.Encode()
+	form := url.Values{"slug": {"demo"}, "name": {"Demo"}, "profile": {"go"}, "repository_source": {"built_in"}, "member_ids": {admin.ID, bob.ID}}.Encode()
 	response := request(app, http.MethodPost, "/projects", form, cookie)
 	if response.Code != http.StatusSeeOther || api.projects.created == nil || len(api.projects.created.InitialPersonIDs) != 2 {
 		t.Fatalf("project creation = %d %#v", response.Code, api.projects.created)
@@ -128,6 +128,39 @@ func TestProjectCreationForwardsInitialTeamAndHasNoWorktreeCreationRoute(t *test
 	removed := request(app, http.MethodPost, "/projects/project-1/worktrees", "", cookie)
 	if removed.Code != http.StatusMethodNotAllowed {
 		t.Fatalf("removed worktree creation route returned %d", removed.Code)
+	}
+}
+
+func TestProjectCreationOffersBuiltInAndExternalGit(t *testing.T) {
+	admin := daemonclient.Person{ID: "admin-1", Username: "admin", DisplayName: "Admin", Role: daemonclient.RoleAdmin}
+	api := &fakePorts{accounts: fakeAccounts{people: []daemonclient.Person{admin}}}
+	app := testServer(t, api, &changingAuth{})
+	token, err := app.sessions.create(admin)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cookie := &http.Cookie{Name: sessionCookie, Value: token}
+	page := request(app, http.MethodGet, "/projects", "", cookie)
+	for _, text := range []string{"Create a new repository on this Soda server", "Connect an existing Git repository"} {
+		if !strings.Contains(page.Body.String(), text) {
+			t.Fatalf("project source choice %q missing from %q", text, page.Body.String())
+		}
+	}
+
+	external := url.Values{"slug": {"external"}, "name": {"External"}, "profile": {"go"}, "repository_source": {"external"}, "remote_url": {"ssh://git@example.test/team/external.git"}, "member_ids": {admin.ID}}.Encode()
+	response := request(app, http.MethodPost, "/projects", external, cookie)
+	if response.Code != http.StatusSeeOther {
+		t.Fatalf("external project creation status = %d", response.Code)
+	}
+	source, ok := api.projects.created.Source.(daemonclient.GitProjectSource)
+	if !ok || source.RemoteURL != "ssh://git@example.test/team/external.git" {
+		t.Fatalf("external source = %#v", api.projects.created.Source)
+	}
+
+	missing := url.Values{"slug": {"missing"}, "name": {"Missing"}, "profile": {"go"}, "repository_source": {"external"}, "member_ids": {admin.ID}}.Encode()
+	response = request(app, http.MethodPost, "/projects", missing, cookie)
+	if response.Code != http.StatusBadRequest {
+		t.Fatalf("missing external address status = %d", response.Code)
 	}
 }
 
