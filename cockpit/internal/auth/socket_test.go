@@ -9,17 +9,43 @@ import (
 )
 
 type fixedAuthenticator struct {
-	result    Result
-	authErr   error
-	changeErr error
+	result             Result
+	authErr            error
+	passwordlessResult Result
+	passwordlessErr    error
+	changeErr          error
 }
 
 func (a fixedAuthenticator) Authenticate(_, _ string) (Result, error) {
 	return a.result, a.authErr
 }
 
+func (a fixedAuthenticator) AuthenticatePasswordless(_ string) (Result, error) {
+	return a.passwordlessResult, a.passwordlessErr
+}
+
 func (a fixedAuthenticator) ChangePassword(_, _, _ string) error {
 	return a.changeErr
+}
+
+func TestSocketClientPasswordlessAuthenticationResults(t *testing.T) {
+	tests := []struct {
+		name          string
+		authenticator fixedAuthenticator
+		want          Result
+		wantError     bool
+	}{
+		{name: "authenticated", authenticator: fixedAuthenticator{passwordlessResult: Authenticated}, want: Authenticated},
+		{name: "password required", authenticator: fixedAuthenticator{passwordlessErr: errors.New("rejected")}, wantError: true},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			result, err := socketClient(t, test.authenticator).AuthenticatePasswordless("alice")
+			if (err != nil) != test.wantError || result != test.want {
+				t.Fatalf("passwordless authentication result = %q, %v", result, err)
+			}
+		})
+	}
 }
 
 func TestSocketClientAuthenticationResults(t *testing.T) {

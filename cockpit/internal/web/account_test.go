@@ -9,6 +9,7 @@ import (
 
 	"github.com/LevitateOS/soda-os/cockpit/internal/auth"
 	"github.com/LevitateOS/soda-os/cockpit/internal/daemonclient"
+	"github.com/stretchr/testify/require"
 )
 
 func TestHealthAndLoginPageArePublic(t *testing.T) {
@@ -19,6 +20,8 @@ func TestHealthAndLoginPageArePublic(t *testing.T) {
 			t.Fatalf("unexpected %s response: %d %q", path, response.Code, response.Body.String())
 		}
 	}
+	login := request(app, http.MethodGet, "/login", "", nil)
+	require.NotContains(t, login.Body.String(), `name="password"`)
 }
 
 func TestProtectedPageRedirectsToLogin(t *testing.T) {
@@ -89,45 +92,96 @@ func TestOSUpdateControlsAreAdministratorOnlyAndUseVerifiedExactRelease(t *testi
 	}
 }
 
-func TestPAMLoginCreatesSessionForRegisteredPerson(t *testing.T) {
+func TestPasswordLoginProgressesToPasswordPageAndCreatesSession(t *testing.T) {
 	api := &fakePorts{accounts: fakeAccounts{people: []daemonclient.Person{{ID: "person-1", Username: "alice", DisplayName: "Alice", Role: daemonclient.RoleDeveloper}}}}
-	app := testServer(t, api, &changingAuth{})
+	authenticator := &changingAuth{}
+	app := testServer(t, api, authenticator)
+	username := request(app, http.MethodPost, "/login", url.Values{"username": {"alice"}}.Encode(), nil)
+	require.Equal(t, http.StatusOK, username.Code)
+	require.Contains(t, username.Body.String(), `name="password"`)
+	require.Empty(t, username.Result().Cookies())
 	form := url.Values{"username": {"alice"}, "password": {"correct"}}.Encode()
-	login := request(app, http.MethodPost, "/login", form, nil)
-	if login.Code != http.StatusSeeOther {
-		t.Fatalf("unexpected login response: %d %q", login.Code, login.Body.String())
-	}
+	login := request(app, http.MethodPost, "/login/password", form, nil)
+	require.Equal(t, http.StatusSeeOther, login.Code, login.Body.String())
+	require.Equal(t, []string{"alice"}, authenticator.passwordlessCalls)
+	require.Equal(t, [][2]string{{"alice", "correct"}}, authenticator.authenticateCalls)
 	cookies := login.Result().Cookies()
-	if len(cookies) != 1 || !cookies[0].Secure || !cookies[0].HttpOnly {
-		t.Fatalf("expected secure session cookie, got %#v", cookies)
-	}
+	require.Len(t, cookies, 1)
+	require.True(t, cookies[0].Secure)
+	require.True(t, cookies[0].HttpOnly)
 	home := request(app, http.MethodGet, "/", "", cookies[0])
-	if home.Code != http.StatusOK || !strings.Contains(home.Body.String(), "Your Soda projects") {
-		t.Fatalf("unexpected home response: %d %q", home.Code, home.Body.String())
-	}
+	require.Equal(t, http.StatusOK, home.Code)
+	require.Contains(t, home.Body.String(), "Your Soda projects")
 	people := request(app, http.MethodGet, "/team", "", cookies[0])
-	if people.Code != http.StatusForbidden {
-		t.Fatalf("developer accessed people page: %d", people.Code)
-	}
+	require.Equal(t, http.StatusForbidden, people.Code)
 }
 
-func TestFailedAuthenticationDoesNotCreateSession(t *testing.T) {
-	app := testServer(t, &fakePorts{}, &changingAuth{authErr: errors.New("denied")})
-	form := url.Values{"username": {"alice"}, "password": {"wrong"}}.Encode()
-	response := request(app, http.MethodPost, "/login", form, nil)
-	if response.Code != http.StatusUnauthorized || !strings.Contains(response.Body.String(), "Invalid username or password") {
-		t.Fatalf("unexpected response: %d %q", response.Code, response.Body.String())
+func TestPasswordlessLoginCreatesNormalSession(t *testing.T) {
+	alice := daemonclient.Person{ID: "person-1", Username: "alice", DisplayName: "Alice", Role: daemonclient.RoleDeveloper}
+	authenticator := &changingAuth{passwordless: true}
+	app := testServer(t, &fakePorts{accounts: fakeAccounts{people: []daemonclient.Person{alice}}}, authenticator)
+	login := request(app, http.MethodPost, "/login", url.Values{"username": {"alice"}}.Encode(), nil)
+	require.Equal(t, http.StatusSeeOther, login.Code)
+	require.Equal(t, "/", login.Header().Get("Location"))
+	cookies := login.Result().Cookies()
+	require.Len(t, cookies, 1)
+	require.True(t, cookies[0].Secure)
+	require.True(t, cookies[0].HttpOnly)
+	require.Empty(t, authenticator.authenticateCalls)
+	home := request(app, http.MethodGet, "/", "", cookies[0])
+	require.Equal(t, http.StatusOK, home.Code)
+	require.Contains(t, home.Body.String(), "Your Soda projects")
+}
+
+func TestInvalidAndUnregisteredLoginsDoNotCreateSessionOrExposeRegistration(t *testing.T) {
+	alice := daemonclient.Person{ID: "person-1", Username: "alice", DisplayName: "Alice", Role: daemonclient.RoleDeveloper}
+	tests := []struct {
+		name          string
+		username      string
+		authenticator *changingAuth
+		passwordless  []string
+		password      [][2]string
+	}{
+		{name: "invalid password", username: "alice", authenticator: &changingAuth{authErr: errors.New("denied")}, passwordless: []string{"alice"}, password: [][2]string{{"alice", "wrong"}}},
+		{name: "unregistered account", username: "mallory", authenticator: &changingAuth{}},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			app := testServer(t, &fakePorts{accounts: fakeAccounts{people: []daemonclient.Person{alice}}}, test.authenticator)
+			username := request(app, http.MethodPost, "/login", url.Values{"username": {test.username}}.Encode(), nil)
+			require.Equal(t, http.StatusOK, username.Code)
+			require.Contains(t, username.Body.String(), `name="password"`)
+			response := request(app, http.MethodPost, "/login/password", url.Values{"username": {test.username}, "password": {"wrong"}}.Encode(), nil)
+			require.Equal(t, http.StatusUnauthorized, response.Code)
+			require.Contains(t, response.Body.String(), "Invalid username or password")
+			require.NotContains(t, response.Body.String(), "not registered")
+			require.Empty(t, response.Result().Cookies())
+			require.Equal(t, test.passwordless, test.authenticator.passwordlessCalls)
+			require.Equal(t, test.password, test.authenticator.authenticateCalls)
+		})
 	}
 }
 
 type changingAuth struct {
-	result    auth.Result
-	authErr   error
-	changes   [][3]string
-	changeErr error
+	result            auth.Result
+	authErr           error
+	passwordless      bool
+	passwordlessCalls []string
+	authenticateCalls [][2]string
+	changes           [][3]string
+	changeErr         error
 }
 
-func (a *changingAuth) Authenticate(_, _ string) (auth.Result, error) {
+func (a *changingAuth) AuthenticatePasswordless(username string) (auth.Result, error) {
+	a.passwordlessCalls = append(a.passwordlessCalls, username)
+	if a.passwordless {
+		return auth.Authenticated, nil
+	}
+	return "", errors.New("password required")
+}
+
+func (a *changingAuth) Authenticate(username, password string) (auth.Result, error) {
+	a.authenticateCalls = append(a.authenticateCalls, [2]string{username, password})
 	if a.authErr != nil {
 		return "", a.authErr
 	}
@@ -145,7 +199,10 @@ func TestFirstLoginRequiresPasswordReplacementThenSignsIn(t *testing.T) {
 	alice := daemonclient.Person{ID: "person-1", Username: "alice", DisplayName: "Alice", Role: daemonclient.RoleDeveloper}
 	authenticator := &changingAuth{result: auth.PasswordChangeRequired}
 	app := testServer(t, &fakePorts{accounts: fakeAccounts{people: []daemonclient.Person{alice}}}, authenticator)
-	login := request(app, http.MethodPost, "/login", url.Values{"username": {"alice"}, "password": {"temporary"}}.Encode(), nil)
+	username := request(app, http.MethodPost, "/login", url.Values{"username": {"alice"}}.Encode(), nil)
+	require.Equal(t, http.StatusOK, username.Code)
+	require.Contains(t, username.Body.String(), `name="password"`)
+	login := request(app, http.MethodPost, "/login/password", url.Values{"username": {"alice"}, "password": {"temporary"}}.Encode(), nil)
 	if login.Code != http.StatusOK || len(login.Result().Cookies()) != 0 {
 		t.Fatalf("unexpected activation response: %d %q", login.Code, login.Body.String())
 	}

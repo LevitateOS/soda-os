@@ -31,6 +31,15 @@ func NewClient(socket string) Client {
 
 func (c Client) Authenticate(username, password string) (Result, error) {
 	response, err := c.call(socketRequest{Operation: "authenticate", Username: username, Password: password})
+	return authenticationResult(response, err)
+}
+
+func (c Client) AuthenticatePasswordless(username string) (Result, error) {
+	response, err := c.call(socketRequest{Operation: "authenticate_passwordless", Username: username})
+	return authenticationResult(response, err)
+}
+
+func authenticationResult(response socketResponse, err error) (Result, error) {
 	if err != nil {
 		return "", err
 	}
@@ -111,6 +120,8 @@ func serveConnection(connection net.Conn, authenticator Authenticator) {
 	switch request.Operation {
 	case "authenticate":
 		result, operationError = authenticator.Authenticate(request.Username, request.Password)
+	case "authenticate_passwordless":
+		result, operationError = authenticator.AuthenticatePasswordless(request.Username)
 	case "change_password":
 		operationError = authenticator.ChangePassword(request.Username, request.Password, request.NewPassword)
 		if operationError == nil {

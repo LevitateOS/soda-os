@@ -11,6 +11,14 @@ import (
 )
 
 func (PAM) Authenticate(username, password string) (Result, error) {
+	return authenticate(username, password, pam.DisallowNullAuthtok)
+}
+
+func (PAM) AuthenticatePasswordless(username string) (Result, error) {
+	return authenticate(username, "", 0)
+}
+
+func authenticate(username, password string, flags pam.Flags) (Result, error) {
 	transaction, err := pam.StartFunc("soda-cockpit", username, func(style pam.Style, _ string) (string, error) {
 		switch style {
 		case pam.PromptEchoOff:
@@ -27,7 +35,7 @@ func (PAM) Authenticate(username, password string) (Result, error) {
 		return "", err
 	}
 	defer transaction.End()
-	if err := transaction.Authenticate(pam.DisallowNullAuthtok); err != nil {
+	if err := transaction.Authenticate(flags); err != nil {
 		return "", err
 	}
 	if err := transaction.AcctMgmt(pam.Silent); err != nil {

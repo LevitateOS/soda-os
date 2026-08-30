@@ -8,6 +8,7 @@ const (
 )
 
 type Authenticator interface {
+	AuthenticatePasswordless(username string) (Result, error)
 	Authenticate(username, password string) (Result, error)
 	ChangePassword(username, currentPassword, newPassword string) error
 }

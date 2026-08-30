@@ -110,6 +110,7 @@ func (s *Server) Handler() http.Handler {
 	public.HandleFunc("GET /healthz", health)
 	public.HandleFunc("GET /login", s.loginPage)
 	public.HandleFunc("POST /login", s.login)
+	public.HandleFunc("POST /login/password", s.loginPassword)
 	public.HandleFunc("POST /activate-password", s.activatePassword)
 
 	protected := http.NewServeMux()

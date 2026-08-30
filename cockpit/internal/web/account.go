@@ -13,6 +13,7 @@ import (
 type loginView struct {
 	pageIdentity
 	Error                  string
+	PasswordRequired       bool
 	PasswordChangeRequired bool
 	Username               string
 }
@@ -51,16 +52,50 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	username := r.FormValue("username")
+	person, err := s.registeredPerson(r, username)
+	if err != nil {
+		http.Error(w, "Soda service unavailable", http.StatusBadGateway)
+		return
+	}
+	if person != nil {
+		result, authenticateErr := s.auth.AuthenticatePasswordless(username)
+		if authenticateErr == nil && result == auth.Authenticated {
+			s.finishLogin(w, r, *person, "/")
+			return
+		}
+	}
+	s.renderPasswordLogin(w, http.StatusOK, username, "")
+}
+
+func (s *Server) loginPassword(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "invalid login", http.StatusBadRequest)
+		return
+	}
+	username := r.FormValue("username")
+	person, err := s.registeredPerson(r, username)
+	if err != nil {
+		http.Error(w, "Soda service unavailable", http.StatusBadGateway)
+		return
+	}
+	if person == nil {
+		s.renderPasswordLogin(w, http.StatusUnauthorized, username, "Invalid username or password.")
+		return
+	}
 	result, err := s.auth.Authenticate(username, r.FormValue("password"))
 	if err != nil {
-		s.render(w, http.StatusUnauthorized, "login.html", loginView{pageIdentity: pageIdentity{Title: "Sign in · Soda OS"}, Error: "Invalid username or password."})
+		s.renderPasswordLogin(w, http.StatusUnauthorized, username, "Invalid username or password.")
 		return
 	}
 	if result == auth.PasswordChangeRequired {
 		s.render(w, http.StatusOK, "login.html", loginView{pageIdentity: pageIdentity{Title: "Activate account · Soda OS"}, PasswordChangeRequired: true, Username: username})
 		return
 	}
-	s.finishLogin(w, r, username, "/")
+	s.finishLogin(w, r, *person, "/")
+}
+
+func (s *Server) renderPasswordLogin(w http.ResponseWriter, status int, username, errorMessage string) {
+	s.render(w, status, "login.html", loginView{pageIdentity: pageIdentity{Title: "Sign in · Soda OS"}, PasswordRequired: true, Username: username, Error: errorMessage})
 }
 
 func (s *Server) activatePassword(w http.ResponseWriter, r *http.Request) {
@@ -69,6 +104,15 @@ func (s *Server) activatePassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	username := r.FormValue("username")
+	person, err := s.registeredPerson(r, username)
+	if err != nil {
+		http.Error(w, "Soda service unavailable", http.StatusBadGateway)
+		return
+	}
+	if person == nil {
+		s.render(w, http.StatusUnauthorized, "login.html", loginView{pageIdentity: pageIdentity{Title: "Sign in · Soda OS"}, Error: "Invalid username or password."})
+		return
+	}
 	current := r.FormValue("current_password")
 	newPassword := r.FormValue("new_password")
 	if newPassword != r.FormValue("confirm_password") {
@@ -83,27 +127,24 @@ func (s *Server) activatePassword(w http.ResponseWriter, r *http.Request) {
 		s.render(w, http.StatusUnauthorized, "login.html", loginView{pageIdentity: pageIdentity{Title: "Activate account · Soda OS"}, PasswordChangeRequired: true, Username: username, Error: "The current password was invalid or the password could not be changed."})
 		return
 	}
-	s.finishLogin(w, r, username, "/account")
+	s.finishLogin(w, r, *person, "/account")
 }
 
-func (s *Server) finishLogin(w http.ResponseWriter, r *http.Request, username, destination string) {
+func (s *Server) registeredPerson(r *http.Request, username string) (*daemonclient.Person, error) {
 	people, err := s.accounts.People(r.Context())
 	if err != nil {
-		http.Error(w, "Soda service unavailable", http.StatusBadGateway)
-		return
+		return nil, err
 	}
-	var person *daemonclient.Person
 	for i := range people {
 		if people[i].Username == username {
-			person = &people[i]
-			break
+			return &people[i], nil
 		}
 	}
-	if person == nil {
-		s.render(w, http.StatusForbidden, "login.html", loginView{pageIdentity: pageIdentity{Title: "Sign in · Soda OS"}, Error: "This Linux account is not registered with Soda OS."})
-		return
-	}
-	token, err := s.sessions.create(*person)
+	return nil, nil
+}
+
+func (s *Server) finishLogin(w http.ResponseWriter, r *http.Request, person daemonclient.Person, destination string) {
+	token, err := s.sessions.create(person)
 	if err != nil {
 		http.Error(w, "create session", http.StatusInternalServerError)
 		return
