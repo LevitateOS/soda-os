@@ -56,7 +56,7 @@ Before Anaconda creates the interactive administrator, the installer creates
 the persistent `/var/home` parent in the mounted target. Fedora bootc otherwise
 creates that parent only through `tmpfiles.d` on first boot, which is too late
 for Anaconda to create `/home/<administrator>` through the image-owned
-`/home -> var/home` compatibility symlink.
+`/home -> var/home` symlink.
 
 The ISO embeds the local OCI payload under its exact digest in container
 storage. Fedora 44's `bootc` Kickstart command installs from that ISO-local
@@ -88,5 +88,4 @@ confirmation. There is no background polling, download, activation, or reboot.
 The optional local release record binds Soda version and source revision, the Fedora
 base reference, exact Soda image reference, platform, state schema, RPM
 inventory checksum, and the installer ISO checksum when an ISO is produced.
-The state schema remains 2 for this MVP; cross-schema state rollback is not
-supported.
+The state schema is 3; cross-schema state rollback is not supported.

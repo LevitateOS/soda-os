@@ -95,7 +95,7 @@ func TestStorageConfigRequiresExactPlainExt4RootOnlyContract(t *testing.T) {
 	}
 }
 
-func TestInstallerEnvironmentPinsLegacyGRUBHybridBootModule(t *testing.T) {
+func TestInstallerEnvironmentPinsBIOSHybridBootModule(t *testing.T) {
 	root := filepath.Join("..", "..", "..")
 	contents, err := os.ReadFile(filepath.Join(root, "packaging", "installer", "Containerfile"))
 	require.NoError(t, err)
@@ -109,7 +109,7 @@ func TestInstallerEnvironmentPinsLegacyGRUBHybridBootModule(t *testing.T) {
 	}
 }
 
-func TestInstallerEnvironmentUsesAnacondaGeneratorCompatibleDefaultTarget(t *testing.T) {
+func TestInstallerEnvironmentUsesDefaultTargetRequiredByAnacondaGenerator(t *testing.T) {
 	contents, err := os.ReadFile(filepath.Join("..", "..", "..", "packaging", "installer", "Containerfile"))
 	require.NoError(t, err)
 

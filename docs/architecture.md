@@ -46,11 +46,11 @@ Linux accounts ownership of project files.
 
 ## Runtime state
 
-`sodad` exposes gRPC only through `/run/soda/sodad.sock`. Schema version 2
-stores people, SSH device keys, projects, memberships, worktrees, development
-environment resolutions, and project-setup jobs in `/var/lib/soda/soda.db`.
-It intentionally requires a fresh database. Cockpit certificates also live in
-`/var/lib/soda/certs`.
+`sodad` exposes gRPC only through `/run/soda/sodad.sock`. Schema version 3
+stores people, SSH device keys, projects, memberships, worktrees, toolchain
+installations and resolutions, provisioning jobs, and built-in Git mappings in
+`/var/lib/soda/soda.db`. It intentionally requires a fresh database. Cockpit
+certificates also live in `/var/lib/soda/certs`.
 
 Mutable project repositories and toolchain caches physically live at
 `/var/lib/soda/projects` and `/var/lib/soda/toolchains`. Image-owned systemd
