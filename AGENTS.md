@@ -37,6 +37,8 @@ machinery, or architecture that only its authors can understand.
 This records the user's operational instruction; repository text does not create
 authority. For completed, verified work directly authorized within its exact
 scope, create a clean logical Git commit by default without asking separately.
+Throughout an implementation, commit focused completed milestones as they are
+reached; do not leave completed work only in a disposable worktree.
 Inspect the full diff first and preserve unrelated user work. This covers
 commits only, not push, pull requests, merges, publication, deployment,
 releases, registry mutation, destructive cleanup, or history rewriting.
