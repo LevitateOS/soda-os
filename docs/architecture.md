@@ -22,6 +22,17 @@ repositories and processes. A registered device-key fingerprint identifies the
 person, while the SSH project account selects the project. The gateway enters
 that person's personal workspace while retaining the project Unix UID.
 
+Forgejo provides Soda's bundled Git repositories. Soda remains the source of
+truth for people, roles, memberships, SSH device keys, and projects; the daemon
+projects those records into Forgejo and stores only their remote identifiers.
+Creating a repository on this Soda server and connecting an external repository
+both continue through the same project, membership, and workspace lifecycle.
+
+Forgejo starts alongside the daemon but is not a daemon prerequisite. If it is
+unavailable at boot, Soda still reconciles project SSH access and keeps existing
+worktrees and external repositories usable. The daemon logs the failed Forgejo
+reconciliation, and a later successful restart retries it.
+
 ## Identity model
 
 - A person is a normal Linux account plus Soda metadata and an `admin` or

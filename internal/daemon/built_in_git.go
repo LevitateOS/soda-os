@@ -140,5 +140,8 @@ func (s *Service) ReconcileAllAccess(ctx context.Context) error {
 	if err := s.ReconcileAllAuthorizedKeys(ctx); err != nil {
 		return err
 	}
-	return s.ReconcileAllBuiltInGit(ctx)
+	if err := s.ReconcileAllBuiltInGit(ctx); err != nil {
+		s.logger.Warn("Built-in Git reconciliation failed; local and external project access remains available", "error", err)
+	}
+	return nil
 }

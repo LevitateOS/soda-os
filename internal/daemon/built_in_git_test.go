@@ -1,8 +1,10 @@
 package daemon
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"log/slog"
 	"path/filepath"
 	"testing"
 
@@ -20,12 +22,48 @@ type fakeBuiltInGit struct {
 	members   [][]domain.Person
 	deleted   []int64
 	deleteErr error
+	personErr error
 }
 
 func (f *fakeBuiltInGit) EnsurePerson(_ context.Context, person domain.Person, kind builtingit.PersonKind) (builtingit.User, error) {
+	if f.personErr != nil {
+		return builtingit.User{}, f.personErr
+	}
 	f.people = append(f.people, person)
 	f.kinds = append(f.kinds, kind)
 	return builtingit.User{ID: int64(len(f.people))}, nil
+}
+
+func TestReconcileAllAccessKeepsSodaAvailableWhenBuiltInGitFails(t *testing.T) {
+	repository, err := store.Open(filepath.Join(t.TempDir(), "soda.db"))
+	require.NoError(t, err)
+	require.NoError(t, repository.CreatePerson(context.Background(), domain.Person{ID: "person-1", Username: "alice", DisplayName: "Alice", Email: "alice@example.test", Role: domain.RoleAdmin}))
+	var logs bytes.Buffer
+	service := New(Options{
+		Store:      repository,
+		Host:       &fakeHost{},
+		Toolchains: fakeInstaller{},
+		BuiltInGit: &fakeBuiltInGit{personErr: errors.New("forgejo unavailable")},
+		Logger:     slog.New(slog.NewTextHandler(&logs, nil)),
+	})
+	defer service.Close()
+
+	require.NoError(t, service.ReconcileAllAccess(context.Background()))
+	require.Contains(t, logs.String(), "Built-in Git reconciliation failed")
+	require.Contains(t, logs.String(), "forgejo unavailable")
+}
+
+func TestReconcileAllAccessStillRequiresAuthorizedKeyReconciliation(t *testing.T) {
+	repository, err := store.Open(filepath.Join(t.TempDir(), "soda.db"))
+	require.NoError(t, err)
+	require.NoError(t, repository.CreateProjectWithMemberships(context.Background(), domain.Project{
+		ID: "project-1", Slug: "demo", Name: "Demo", UnixUser: "soda-p-demo", Profile: domain.ToolchainGo, Source: domain.EmptyProjectSource{},
+	}, nil))
+	want := errors.New("authorized keys unavailable")
+	service := New(Options{Store: repository, Host: &fakeHost{access: accessEvents{err: want}}, Toolchains: fakeInstaller{}, BuiltInGit: &fakeBuiltInGit{}})
+	defer service.Close()
+
+	require.ErrorIs(t, service.ReconcileAllAccess(context.Background()), want)
 }
 
 func (*fakeBuiltInGit) EnsureKey(context.Context, domain.Person, domain.SSHDeviceKey) (builtingit.Key, error) {

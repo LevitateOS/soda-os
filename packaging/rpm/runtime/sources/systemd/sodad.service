@@ -1,8 +1,8 @@
 [Unit]
 Description=Soda OS project daemon
-Requires=var-srv-soda-projects.mount opt-soda-toolchains.mount forgejo.service
+Requires=var-srv-soda-projects.mount opt-soda-toolchains.mount
 After=local-fs.target network-online.target var-srv-soda-projects.mount opt-soda-toolchains.mount forgejo.service
-Wants=network-online.target
+Wants=network-online.target forgejo.service
 
 [Service]
 Type=simple

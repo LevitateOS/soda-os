@@ -196,8 +196,10 @@ func TestRuntimeImageSystemdMountAndLoggingContract(t *testing.T) {
 
 	sodadUnit, err := os.ReadFile(filepath.Join(runtimeSources, "systemd", "sodad.service"))
 	require.NoError(t, err)
-	require.Contains(t, string(sodadUnit), "Requires=var-srv-soda-projects.mount opt-soda-toolchains.mount")
-	require.Contains(t, string(sodadUnit), "After=local-fs.target network-online.target var-srv-soda-projects.mount opt-soda-toolchains.mount")
+	require.Contains(t, string(sodadUnit), "Requires=var-srv-soda-projects.mount opt-soda-toolchains.mount\n")
+	require.Contains(t, string(sodadUnit), "After=local-fs.target network-online.target var-srv-soda-projects.mount opt-soda-toolchains.mount forgejo.service")
+	require.Contains(t, string(sodadUnit), "Wants=network-online.target forgejo.service")
+	require.NotContains(t, string(sodadUnit), "Requires=var-srv-soda-projects.mount opt-soda-toolchains.mount forgejo.service")
 
 	services := []string{
 		filepath.Join(runtimeSources, "systemd", "sodad.service"),
