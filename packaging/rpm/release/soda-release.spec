@@ -9,13 +9,10 @@ BuildArch:      noarch
 Release identity and defaults for the Soda OS Fedora bootc derivative.
 
 %install
-mkdir -p %{buildroot}%{_sysconfdir} %{buildroot}%{_prefix}/lib/soda %{buildroot}%{_datadir}/doc/soda-release %{buildroot}%{_datadir}/pixmaps
+mkdir -p %{buildroot}%{_prefix}/lib/soda %{buildroot}%{_datadir}/doc/soda-release %{buildroot}%{_datadir}/pixmaps
 for size in 16 24 32 48 64 128 256 512; do
   mkdir -p %{buildroot}%{_datadir}/icons/hicolor/${size}x${size}/apps
 done
-cat > %{buildroot}%{_sysconfdir}/soda-release <<'EOF'
-Soda OS release 0.3.1
-EOF
 cat > %{buildroot}%{_prefix}/lib/soda/os-release <<'EOF'
 NAME="Soda OS"
 VERSION="0.3.1"
@@ -43,7 +40,6 @@ for size in 16 24 32 48 64 128 256 512; do
 done
 
 %files
-%{_sysconfdir}/soda-release
 %{_prefix}/lib/soda
 %{_datadir}/doc/soda-release/BASE_SYSTEM.md
 %{_datadir}/pixmaps/soda-os.svg

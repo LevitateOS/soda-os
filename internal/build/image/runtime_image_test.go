@@ -74,6 +74,11 @@ func TestRuntimeImageRPMStagingAndPackageContract(t *testing.T) {
 	require.Contains(t, string(runtimeSpec), "%{_unitdir}/var-srv-soda-projects.mount")
 	require.Contains(t, string(runtimeSpec), "soda-forgejo = 15.0.7")
 	require.NotContains(t, string(runtimeSpec), "00-soda-var-srv.conf")
+
+	releaseSpec, err := os.ReadFile(filepath.Join("..", "..", "..", "packaging", "rpm", "release", "soda-release.spec"))
+	require.NoError(t, err)
+	require.Contains(t, string(releaseSpec), `%{_prefix}/lib/soda/os-release`)
+	require.NotContains(t, string(releaseSpec), `%{_sysconfdir}/soda-release`)
 }
 
 func TestForgejoPackagingContract(t *testing.T) {
