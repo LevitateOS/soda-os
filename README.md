@@ -35,7 +35,7 @@ just iso "$ARCH" ".artifacts/images/soda-os-0.4.0-${ARCH}.oci.tar"
 ```
 
 Build artifacts are written under `.artifacts/` and are never committed.
-`just rpm` builds exactly the three locked local Soda RPM inputs. `just oci`
+`just rpm` builds exactly the four locked local Soda RPM inputs. `just oci`
 builds those RPMs and emits
 `.artifacts/images/soda-os-0.4.0-${ARCH}.oci.tar` without loading or publishing
 the image. `just iso` derives the exact image digest from that local archive and

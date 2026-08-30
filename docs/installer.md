@@ -10,7 +10,7 @@ source revision from the current Git commit, and every command requires an
 explicit `--architecture aarch64` or `--architecture x86_64` selection.
 
 The platform-selected runtime package lock records exact NEVRAs for every
-Fedora RPM added to its pinned base and for the three locally built Soda RPM
+Fedora RPM added to its pinned base and for the four locally built Soda RPM
 inputs. The Soda RPMs are build inputs only; no mutable Soda RPM repository is
 created or embedded. Weak dependencies are disabled.
 
@@ -18,8 +18,8 @@ During `just oci ARCH`, the Go builder:
 
 1. validates the immutable base, platform, registry, state schema, and package
    lock;
-2. reproducibly builds `soda-release`, `soda-runtime`, and `soda-cockpit` with
-   the configured version, source revision, and source date;
+2. reproducibly builds `soda-release`, `soda-runtime`, `soda-cockpit`, and
+   `soda-forgejo` with the configured version, source revision, and source date;
 3. installs the exact locked transaction into the pinned Fedora bootc base;
 4. creates the fixed `soda-api` group and `soda-cockpit` service account;
 5. enables SSH, Soda services, Avahi, and the persistent-state bind mounts;
@@ -80,7 +80,7 @@ The runtime masks Fedora's automatic bootc update timer. An administrator uses
 `activate --confirm-reboot`. Checking resolves the installed sibling's
 release-index entry once and inspects the immutable image metadata. It accepts
 only an exact Soda repository digest, the installed platform, and state schema
-3. Staging calls bootc with the exact `@sha256:` reference and download-only, so it
+4. Staging calls bootc with the exact `@sha256:` reference and download-only, so it
 does not restart Soda services or change the running deployment. Activation
 uses the already-downloaded deployment and requires the explicit reboot
 confirmation. There is no background polling, download, activation, or reboot.
@@ -88,4 +88,4 @@ confirmation. There is no background polling, download, activation, or reboot.
 The optional local release record binds Soda version and source revision, the Fedora
 base reference, exact Soda image reference, platform, state schema, RPM
 inventory checksum, and the installer ISO checksum when an ISO is produced.
-The state schema is 3; cross-schema state rollback is not supported.
+The state schema is 4; cross-schema state rollback is not supported.
