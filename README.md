@@ -56,8 +56,7 @@ artifact boundary.
 
 Initial installation is a fresh platform-matched bootc installation from the
 generated AArch64 or x86-64 ISO. The stock interactive Anaconda flow selects
-storage, networking, hostname, and the first Linux administrator; it does not
-convert an existing Rocky host.
+storage, networking, hostname, and the first Linux administrator.
 
 Mutable Soda state is preserved outside the image. The database, certificates,
 projects, and toolchains physically live below `/var/lib/soda`; systemd bind

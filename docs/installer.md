@@ -42,16 +42,15 @@ does not push to GHCR, access GHCR, use Cosign, require signing credentials, or
 verify a signature. The ISO and checksum are architecture-named so sibling
 artifacts cannot overwrite one another.
 
-The installer is for fresh installation only. It uses stock interactive
-Anaconda text mode with DHCP, a default hostname of `soda`, and the normal
-interactive choices for storage, networking, hostname, and the first
-administrator. Declaring text mode directly avoids Fedora 44 Anaconda's broken
-graphical-fallback chooser when the pinned bootc installer environment has no
-local graphical frontend. Soda does not preserve the former custom graphical
-overlay and does not perform an in-place Rocky conversion. The Fedora 44
-installer environment runs SELinux in permissive mode because its live overlay
-cannot be relabeled; this boot option does not change the installed Soda image,
-which retains enforcing SELinux.
+The installer is for fresh installation only. It uses graphical Anaconda with
+DHCP, a default hostname of `soda`, and the normal interactive choices for
+storage, networking, hostname, and the first administrator. The current Soda
+Anaconda visual layer predates the approved v3 branding suite. Replacing it
+requires an installer-specific v3 sidebar, top bar, background, and stylesheet;
+the generic v3 web and icon assets are not substitutes for that missing design.
+The Fedora 44 installer environment runs SELinux in permissive mode because its
+live overlay cannot be relabeled; this boot option does not change the installed
+Soda image, which retains enforcing SELinux.
 
 Before Anaconda creates the interactive administrator, the installer creates
 the persistent `/var/home` parent in the mounted target. Fedora bootc otherwise

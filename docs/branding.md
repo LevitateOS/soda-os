@@ -32,8 +32,7 @@ Keep clear space equal to one bubble diameter around every mark. Do not use the
 horizontal wordmark below 114 px wide or the standard symbol below 32 px. The
 small symbol is the only approved mark below 32 px. Do not recolour, outline,
 stretch, rotate, add effects, or place the full-colour mark on cyan or busy
-backgrounds. Customer-facing branding must say Soda OS only; Rocky attribution
-belongs in technical documentation.
+backgrounds. Customer-facing branding must say Soda OS only.
 
 ## Outputs and regeneration
 

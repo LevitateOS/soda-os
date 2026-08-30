@@ -44,5 +44,5 @@ state stay under ignored artifact paths.
    preserve all host state.
 9. Run `go test ./...` and `go vet ./...` with a writable Go build cache.
 
-The gate excludes Rocky conversion, automatic updates or reboot, alternate
-registries or channels, and database schema changes.
+The gate excludes automatic updates or reboot, alternate registries or channels,
+and database schema changes.
