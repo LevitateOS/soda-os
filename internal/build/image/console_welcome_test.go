@@ -113,3 +113,21 @@ func TestConsolePromptIsNotOverwrittenByRoutineKernelNotices(t *testing.T) {
 	require.NoError(t, err)
 	require.Contains(t, string(staging), `b.path("packaging/rpm/runtime/sources/sysctl/60-soda-console.conf"), filepath.Join(sources, "60-soda-console.conf")`)
 }
+
+func TestConsoleLoginPromptClearsBeforeIssueRedraw(t *testing.T) {
+	root := filepath.Join("..", "..", "..")
+	override, err := os.ReadFile(filepath.Join(root, "packaging", "rpm", "runtime", "sources", "systemd", "getty@tty1.service.d", "10-soda-console.conf"))
+	require.NoError(t, err)
+	require.Contains(t, string(override), "ExecStart=\n")
+	require.Contains(t, string(override), "ExecStart=-/usr/sbin/agetty --noreset --issue-file=")
+	require.NotContains(t, string(override), "--noclear")
+
+	runtimeSpec, err := os.ReadFile(filepath.Join(root, "packaging", "rpm", "runtime", "soda-runtime.spec"))
+	require.NoError(t, err)
+	require.Contains(t, string(runtimeSpec), "install -m 0644 %{_sourcedir}/10-soda-console.conf %{buildroot}%{_unitdir}/getty@tty1.service.d/10-soda-console.conf")
+	require.Contains(t, string(runtimeSpec), "%{_unitdir}/getty@tty1.service.d/10-soda-console.conf")
+
+	staging, err := os.ReadFile("rpm.go")
+	require.NoError(t, err)
+	require.Contains(t, string(staging), `b.path("packaging/rpm/runtime/sources/systemd/getty@tty1.service.d/10-soda-console.conf"), filepath.Join(sources, "10-soda-console.conf")`)
+}

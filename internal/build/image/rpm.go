@@ -152,6 +152,7 @@ func (b *Builder) stageRPMSources(build, sources string) error {
 		{b.path("packaging/rpm/runtime/sources/systemd/opt-soda-toolchains.mount"), filepath.Join(sources, "opt-soda-toolchains.mount")},
 		{b.path("packaging/rpm/runtime/sources/systemd/90-soda.preset"), filepath.Join(sources, "90-soda.preset")},
 		{b.path("packaging/rpm/runtime/sources/systemd/tailscaled.service.d/10-soda-state.conf"), filepath.Join(sources, "10-soda-state.conf")},
+		{b.path("packaging/rpm/runtime/sources/systemd/getty@tty1.service.d/10-soda-console.conf"), filepath.Join(sources, "10-soda-console.conf")},
 		{b.path("packaging/rpm/runtime/sources/tmpfiles/soda.conf"), filepath.Join(sources, "soda.conf")},
 		{b.path("packaging/rpm/runtime/sources/sysctl/60-soda-console.conf"), filepath.Join(sources, "60-soda-console.conf")},
 		{b.path("packaging/rpm/runtime/sources/sysusers/soda.conf"), filepath.Join(sources, "soda.sysusers")},
