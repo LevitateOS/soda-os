@@ -37,6 +37,16 @@ Customer-facing branding must say Soda OS only.
 and 512 px. `assets/branding/web` contains favicon and touch-icon PNGs. Cockpit
 embeds its synchronized copies from `cockpit/internal/web/static`.
 
+`assets/branding/installer/manifest.tsv` maps every approved SVG master to a
+managed Anaconda raster derivative. Horizontal lockups use the established
+114x36 slot and symbols use a 256x256 canvas. The dark horizontal lockup is the
+installer sidebar logo and the full-colour symbol is its square product mark;
+the other seven derivatives remain managed variants without invented UI
+placements. Navy sidebar and top-bar backgrounds are CSS colors taken from the
+same artwork rather than duplicated raster images. Run
+`scripts/render-installer-branding.sh` to regenerate the set, or pass `--check`
+to verify that all tracked outputs are current.
+
 Run the following from the repository root after changing an SVG:
 
 ```sh
@@ -47,4 +57,4 @@ just check
 The renderer requires the macOS Swift toolchain/AppKit and ImageMagick. AppKit
 rasterizes the SVGs and ImageMagick sizes its lossless TIFF output and
 synchronizes direct consumers. Review every regenerated derivative before
-shipping.
+shipping. Installer rendering separately requires `rsvg-convert` from librsvg.

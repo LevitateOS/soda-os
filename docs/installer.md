@@ -44,10 +44,10 @@ artifacts cannot overwrite one another.
 
 The installer is for fresh installation only. It uses graphical Anaconda with
 DHCP, a default hostname of `soda`, and the normal interactive choices for
-storage, networking, hostname, and the first administrator. The current Soda
-Anaconda visual layer predates the approved v3 branding suite. Replacing it
-requires an installer-specific v3 sidebar, top bar, background, and stylesheet;
-the generic v3 web and icon assets are not substitutes for that missing design.
+storage, networking, hostname, and the first administrator. Its sidebar and
+product-mark PNGs are generated from the approved Soda v3 SVG masters; the
+surrounding navy and cyan visual treatment uses the same established palette in
+the Anaconda stylesheet.
 The Fedora 44 installer environment runs SELinux in permissive mode because its
 live overlay cannot be relabeled; this boot option does not change the installed
 Soda image, which retains enforcing SELinux.

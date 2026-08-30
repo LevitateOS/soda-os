@@ -1,0 +1,10 @@
+# kind	source	output	installer-role
+horizontal	assets/branding/source/soda-logo-black.svg	assets/branding/installer/soda-logo-black.png	managed-variant
+horizontal	assets/branding/source/soda-logo-horizontal-dark.svg	assets/branding/installer/soda-logo-horizontal-dark.png	sidebar-logo
+horizontal	assets/branding/source/soda-logo-horizontal.svg	assets/branding/installer/soda-logo-horizontal.png	managed-variant
+horizontal	assets/branding/source/soda-logo-navy.svg	assets/branding/installer/soda-logo-navy.png	managed-variant
+horizontal	assets/branding/source/soda-logo-white.svg	assets/branding/installer/soda-logo-white.png	managed-variant
+symbol	assets/branding/source/soda-symbol-black.svg	assets/branding/installer/soda-symbol-black.png	managed-variant
+symbol	assets/branding/source/soda-symbol-navy.svg	assets/branding/installer/soda-symbol-navy.png	managed-variant
+symbol	assets/branding/source/soda-symbol-white.svg	assets/branding/installer/soda-symbol-white.png	managed-variant
+symbol	assets/branding/source/soda-symbol.svg	assets/branding/installer/soda-symbol.png	product-logo

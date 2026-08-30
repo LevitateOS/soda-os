@@ -6,10 +6,6 @@
 
 .logo-sidebar {
     background-color: @soda_navy;
-    background-image: url('/usr/share/anaconda/pixmaps/soda-sidebar-bg.png');
-    background-position: top left;
-    background-repeat: no-repeat;
-    background-size: cover;
 }
 
 .logo {
@@ -30,10 +26,6 @@
 AnacondaSpokeWindow #nav-box,
 AnacondaStandaloneWindow #nav-box {
     background-color: @soda_navy;
-    background-image: url('/usr/share/anaconda/pixmaps/soda-topbar-bg.png');
-    background-position: top left;
-    background-repeat: no-repeat;
-    background-size: cover;
     color: @soda_white;
 }
 

@@ -2,8 +2,9 @@ package installer
 
 import (
 	"context"
-	"crypto/sha256"
+	"encoding/csv"
 	"fmt"
+	"image/png"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -125,7 +126,7 @@ func TestInstallerEnvironmentUsesVerifiedLocalFedoraBaseContext(t *testing.T) {
 	require.Contains(t, string(contents), "COPY --chmod=0644 .artifacts/installer/context/interactive-defaults.ks /usr/share/anaconda/interactive-defaults.ks")
 }
 
-func TestInstallerEnvironmentRestoresSodaAnacondaBranding(t *testing.T) {
+func TestInstallerEnvironmentUsesCurrentSodaAnacondaBranding(t *testing.T) {
 	root := filepath.Join("..", "..", "..")
 	profile, err := os.ReadFile(filepath.Join(root, "packaging", "installer", "branding", "sodaos.conf"))
 	require.NoError(t, err)
@@ -146,24 +147,75 @@ func TestInstallerEnvironmentRestoresSodaAnacondaBranding(t *testing.T) {
 		"COPY --chmod=0644 packaging/installer/branding/os-release /usr/lib/os-release",
 		"COPY --chmod=0644 packaging/installer/branding/buildstamp /.buildstamp",
 		"COPY --chmod=0644 packaging/installer/branding/soda.css /usr/share/anaconda/pixmaps/soda.css",
-		"COPY --chmod=0644 assets/branding/installer/sidebar-bg.png /usr/share/anaconda/pixmaps/soda-sidebar-bg.png",
-		"COPY --chmod=0644 assets/branding/installer/sidebar-logo.png /usr/share/anaconda/pixmaps/soda-sidebar-logo.png",
-		"COPY --chmod=0644 assets/branding/installer/soda-symbol-256.png /usr/share/anaconda/pixmaps/soda-symbol.png",
-		"COPY --chmod=0644 assets/branding/installer/topbar-bg.png /usr/share/anaconda/pixmaps/soda-topbar-bg.png",
+		"COPY --chmod=0644 assets/branding/installer/soda-logo-horizontal-dark.png /usr/share/anaconda/pixmaps/soda-sidebar-logo.png",
+		"COPY --chmod=0644 assets/branding/installer/soda-symbol.png /usr/share/anaconda/pixmaps/soda-symbol.png",
 	} {
 		require.Contains(t, string(containerfile), copyInstruction)
 	}
+	require.NotContains(t, string(containerfile), "soda-sidebar-bg.png")
+	require.NotContains(t, string(containerfile), "soda-topbar-bg.png")
 
-	for name, expected := range map[string]string{
-		"sidebar-bg.png":      "9b501e08832bc19933de51fd03b1f4a3c671b7c30e07b0a563ce65faf9a0dacb",
-		"sidebar-logo.png":    "3253f4f496e54f2a551e4678af9e25167fb2f5dc9099fd54aa3930c4756ac583",
-		"soda-symbol-256.png": "6c3d81a56917de5c0f605df35523139b1b7be25f913608bb65a3d470bd9034c5",
-		"topbar-bg.png":       "951854875059af77ce8f52425888b234e7b51da6ca3db464a1a097a03ebc1896",
-	} {
-		asset, readErr := os.ReadFile(filepath.Join(root, "assets", "branding", "installer", name))
-		require.NoError(t, readErr)
-		require.Equal(t, expected, fmt.Sprintf("%x", sha256.Sum256(asset)))
+	stylesheet, err := os.ReadFile(filepath.Join(root, "packaging", "installer", "branding", "soda.css"))
+	require.NoError(t, err)
+	require.NotContains(t, string(stylesheet), "soda-sidebar-bg.png")
+	require.NotContains(t, string(stylesheet), "soda-topbar-bg.png")
+}
+
+func TestInstallerBrandingManifestCoversEverySVGMaster(t *testing.T) {
+	root := filepath.Join("..", "..", "..")
+	manifest, err := os.Open(filepath.Join(root, "assets", "branding", "installer", "manifest.tsv"))
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, manifest.Close()) })
+	reader := csv.NewReader(manifest)
+	reader.Comma = '\t'
+	reader.Comment = '#'
+	records, err := reader.ReadAll()
+	require.NoError(t, err)
+
+	masters, err := filepath.Glob(filepath.Join(root, "assets", "branding", "source", "*.svg"))
+	require.NoError(t, err)
+	manifestSources := make([]string, 0, len(records))
+	outputs := make(map[string]struct{}, len(records))
+	roles := make(map[string]string, len(records))
+	roleCounts := make(map[string]int, len(records))
+	for _, record := range records {
+		require.Len(t, record, 4)
+		kind, source, output, role := record[0], record[1], record[2], record[3]
+		manifestSources = append(manifestSources, filepath.Join(root, source))
+		_, duplicate := outputs[output]
+		require.False(t, duplicate, "duplicate generated installer branding output %s", output)
+		outputs[output] = struct{}{}
+		roles[role] = source
+		roleCounts[role]++
+
+		asset, openErr := os.Open(filepath.Join(root, output))
+		require.NoError(t, openErr)
+		config, decodeErr := png.DecodeConfig(asset)
+		require.NoError(t, asset.Close())
+		require.NoError(t, decodeErr)
+		switch kind {
+		case "horizontal":
+			require.Equal(t, 114, config.Width)
+			require.Equal(t, 36, config.Height)
+		case "symbol":
+			require.Equal(t, 256, config.Width)
+			require.Equal(t, 256, config.Height)
+		default:
+			t.Fatalf("unknown installer branding asset kind %q", kind)
+		}
 	}
+	require.ElementsMatch(t, masters, manifestSources)
+	require.Equal(t, "assets/branding/source/soda-logo-horizontal-dark.svg", roles["sidebar-logo"])
+	require.Equal(t, "assets/branding/source/soda-symbol.svg", roles["product-logo"])
+	require.Equal(t, 7, roleCounts["managed-variant"])
+	require.Equal(t, 1, roleCounts["sidebar-logo"])
+	require.Equal(t, 1, roleCounts["product-logo"])
+	require.Len(t, records, 9)
+
+	check := exec.Command("scripts/render-installer-branding.sh", "--check")
+	check.Dir = root
+	output, err := check.CombinedOutput()
+	require.NoErrorf(t, err, "installer branding is stale:\n%s", output)
 }
 
 func TestISOInspectionRequiresExactSodaAnacondaBranding(t *testing.T) {
@@ -174,10 +226,8 @@ func TestISOInspectionRequiresExactSodaAnacondaBranding(t *testing.T) {
 		{"usr/lib/os-release", "packaging/installer/branding/os-release"},
 		{"etc/anaconda/profile.d/sodaos.conf", "packaging/installer/branding/sodaos.conf"},
 		{"usr/share/anaconda/pixmaps/soda.css", "packaging/installer/branding/soda.css"},
-		{"usr/share/anaconda/pixmaps/soda-sidebar-bg.png", "assets/branding/installer/sidebar-bg.png"},
-		{"usr/share/anaconda/pixmaps/soda-sidebar-logo.png", "assets/branding/installer/sidebar-logo.png"},
-		{"usr/share/anaconda/pixmaps/soda-symbol.png", "assets/branding/installer/soda-symbol-256.png"},
-		{"usr/share/anaconda/pixmaps/soda-topbar-bg.png", "assets/branding/installer/topbar-bg.png"},
+		{"usr/share/anaconda/pixmaps/soda-sidebar-logo.png", "assets/branding/installer/soda-logo-horizontal-dark.png"},
+		{"usr/share/anaconda/pixmaps/soda-symbol.png", "assets/branding/installer/soda-symbol.png"},
 	}
 	for _, file := range files {
 		contents := []byte(file.expected)

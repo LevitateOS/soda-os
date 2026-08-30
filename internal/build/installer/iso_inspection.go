@@ -23,7 +23,7 @@ func (b *Builder) inspectISO(ctx context.Context, input isoInspectionInput) erro
 	if err := b.runner.Run(ctx, process.Command{Dir: b.Root, Name: "docker", Args: args}); err != nil {
 		return fmt.Errorf("extract installer squashfs: %w", err)
 	}
-	args = append(append([]string{}, outer...), "unsquashfs", "-f", "-d", "/inspect/root", "/inspect/squashfs.img", ".buildstamp", "usr/lib/os-release", "usr/share/anaconda/interactive-defaults.ks", "etc/anaconda/conf.d/90-soda-storage.conf", "etc/anaconda/profile.d/sodaos.conf", "usr/share/anaconda/pixmaps/soda.css", "usr/share/anaconda/pixmaps/soda-sidebar-bg.png", "usr/share/anaconda/pixmaps/soda-sidebar-logo.png", "usr/share/anaconda/pixmaps/soda-symbol.png", "usr/share/anaconda/pixmaps/soda-topbar-bg.png", "usr/lib/image-builder/bootc/iso.yaml", "var/lib/containers/storage/overlay-images/images.json")
+	args = append(append([]string{}, outer...), "unsquashfs", "-f", "-d", "/inspect/root", "/inspect/squashfs.img", ".buildstamp", "usr/lib/os-release", "usr/share/anaconda/interactive-defaults.ks", "etc/anaconda/conf.d/90-soda-storage.conf", "etc/anaconda/profile.d/sodaos.conf", "usr/share/anaconda/pixmaps/soda.css", "usr/share/anaconda/pixmaps/soda-sidebar-logo.png", "usr/share/anaconda/pixmaps/soda-symbol.png", "usr/lib/image-builder/bootc/iso.yaml", "var/lib/containers/storage/overlay-images/images.json")
 	if err := b.runner.Run(ctx, process.Command{Dir: b.Root, Name: "docker", Args: args}); err != nil {
 		return fmt.Errorf("inspect installer squashfs: %w", err)
 	}
@@ -123,10 +123,8 @@ func (b *Builder) validateExtractedBranding(inspectDir string) error {
 		{"usr/lib/os-release", "packaging/installer/branding/os-release"},
 		{"etc/anaconda/profile.d/sodaos.conf", "packaging/installer/branding/sodaos.conf"},
 		{"usr/share/anaconda/pixmaps/soda.css", "packaging/installer/branding/soda.css"},
-		{"usr/share/anaconda/pixmaps/soda-sidebar-bg.png", "assets/branding/installer/sidebar-bg.png"},
-		{"usr/share/anaconda/pixmaps/soda-sidebar-logo.png", "assets/branding/installer/sidebar-logo.png"},
-		{"usr/share/anaconda/pixmaps/soda-symbol.png", "assets/branding/installer/soda-symbol-256.png"},
-		{"usr/share/anaconda/pixmaps/soda-topbar-bg.png", "assets/branding/installer/topbar-bg.png"},
+		{"usr/share/anaconda/pixmaps/soda-sidebar-logo.png", "assets/branding/installer/soda-logo-horizontal-dark.png"},
+		{"usr/share/anaconda/pixmaps/soda-symbol.png", "assets/branding/installer/soda-symbol.png"},
 	} {
 		actual, err := os.ReadFile(filepath.Join(inspectDir, "root", file.actual))
 		if err != nil {
