@@ -123,6 +123,7 @@ func (b *Builder) buildGoBinaries(ctx context.Context, revision string) error {
 		{"sodactl", "./cmd/sodactl"},
 		{"soda-ssh", "./cmd/soda-ssh"},
 		{"soda-tailnet", "./cmd/soda-tailnet"},
+		{"soda-forgejo-tailnet", "./cmd/soda-forgejo-tailnet"},
 		{"soda-cockpit", "./cockpit/cmd/soda-cockpit"},
 		{"soda-authd", "./cockpit/cmd/soda-authd"},
 	} {
@@ -159,6 +160,7 @@ func (b *Builder) stageRPMSources(build, sources string) error {
 		{b.path("packaging/rpm/forgejo/sources/systemd/forgejo.service"), filepath.Join(sources, "forgejo.service")},
 		{b.path("packaging/rpm/forgejo/sources/systemd/forgejo-init.service"), filepath.Join(sources, "forgejo-init.service")},
 		{b.path("packaging/rpm/forgejo/sources/forgejo-init"), filepath.Join(sources, "forgejo-init")},
+		{filepath.Join(build, "soda-forgejo-tailnet"), filepath.Join(sources, "forgejo-tailnet")},
 		{b.path("packaging/rpm/forgejo/sources/app.ini.tmpl"), filepath.Join(sources, "forgejo-app.ini.tmpl")},
 		{b.path("packaging/rpm/forgejo/sources/sysusers/forgejo.conf"), filepath.Join(sources, "forgejo.sysusers")},
 		{b.path("packaging/rpm/forgejo/sources/tmpfiles/forgejo.conf"), filepath.Join(sources, "forgejo.tmpfiles")},

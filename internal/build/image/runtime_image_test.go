@@ -64,6 +64,7 @@ func TestRuntimeImageRPMStagingAndPackageContract(t *testing.T) {
 	require.Contains(t, string(staging), `b.path("packaging/rpm/runtime/sources/systemd/tailscaled.service.d/10-soda-state.conf"), filepath.Join(sources, "10-soda-state.conf")`)
 	require.Contains(t, string(staging), `b.path("packaging/rpm/runtime/sources/systemd/var-srv-soda-projects.mount"), filepath.Join(sources, "var-srv-soda-projects.mount")`)
 	require.Contains(t, string(staging), `b.path("packaging/rpm/forgejo/sources/systemd/forgejo.service"), filepath.Join(sources, "forgejo.service")`)
+	require.Contains(t, string(staging), `filepath.Join(build, "soda-forgejo-tailnet"), filepath.Join(sources, "forgejo-tailnet")`)
 	require.Contains(t, string(staging), `b.path("packaging/rpm/forgejo/sources/pam/soda-forgejo"), filepath.Join(sources, "soda-forgejo.pam")`)
 	require.NotContains(t, string(staging), "00-soda-var-srv.conf")
 
@@ -129,6 +130,29 @@ func TestForgejoPackagingContract(t *testing.T) {
 	require.NoError(t, err)
 	require.Contains(t, string(buildPipeline), `"EXTRA_GOFLAGS=-buildvcs=false"`)
 	require.Contains(t, string(buildPipeline), `TAGS='bindata timetzdata sqlite sqlite_unlock_notify pam' make backend`)
+}
+
+func TestForgejoTailnetPackagingContract(t *testing.T) {
+	forgejoRoot := filepath.Join("..", "..", "..", "packaging", "rpm", "forgejo")
+	spec, err := os.ReadFile(filepath.Join(forgejoRoot, "soda-forgejo.spec"))
+	require.NoError(t, err)
+	require.Contains(t, string(spec), "tailscale")
+	require.Contains(t, string(spec), "%{_libexecdir}/soda/forgejo-tailnet")
+
+	initialization, err := os.ReadFile(filepath.Join(forgejoRoot, "sources", "forgejo-init"))
+	require.NoError(t, err)
+	for _, expected := range []string{
+		"/usr/libexec/soda/forgejo-tailnet", "address=127.0.0.1", "root_url=http://127.0.0.1:3000/",
+		"HTTP_ADDR = ${address}", "DOMAIN = ${identity}", "root_url=http://${identity}:3000/", "ROOT_URL = ${root_url}",
+	} {
+		require.Contains(t, string(initialization), expected)
+	}
+	require.NotContains(t, string(initialization), "tailscale serve")
+
+	initUnit, err := os.ReadFile(filepath.Join(forgejoRoot, "sources", "systemd", "forgejo-init.service"))
+	require.NoError(t, err)
+	require.Contains(t, string(initUnit), "Wants=tailscaled.service")
+	require.Contains(t, string(initUnit), "After=systemd-sysusers.service systemd-tmpfiles-setup.service tailscaled.service")
 }
 
 func TestRuntimeImageSystemdMountAndLoggingContract(t *testing.T) {

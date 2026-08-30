@@ -22,6 +22,6 @@ func enrollmentMessage(status tailnet.Status, statusErr error) string {
 	case tailnet.IdentityUnavailable:
 		return "\nTailscale is running but has no MagicDNS identity. Tailnet access is unavailable.\n"
 	default:
-		return "\nTailscale is not enrolled. Tailnet access is unavailable.\nInfrastructure owner: run `sudo tailscale up`, then open the one-time URL it prints to authorize this appliance. After authorization, run `sudo systemctl restart soda-cockpit` to load the Tailnet dashboard certificate. Soda does not store a Tailnet authorization key.\n"
+		return "\nTailscale is not enrolled. Tailnet access is unavailable.\nInfrastructure owner: run `sudo tailscale up`, then open the one-time URL it prints to authorize this appliance. After authorization, run `sudo systemctl restart soda-cockpit forgejo` to load the Tailnet dashboard certificate and Forgejo address. Soda does not store a Tailnet authorization key.\n"
 	}
 }

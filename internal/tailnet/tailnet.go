@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/netip"
 	"strings"
 
 	"github.com/LevitateOS/soda-os/internal/process"
@@ -18,6 +19,7 @@ var (
 	ErrUnavailable         = errors.New("Tailscale status is unavailable")
 	ErrNotEnrolled         = errors.New("Tailscale is not enrolled")
 	ErrIdentityUnavailable = errors.New("Tailscale did not report a MagicDNS identity")
+	ErrIPv4Unavailable     = errors.New("Tailscale did not report an IPv4 address")
 	ErrInvalidMagicDNSName = errors.New("invalid Tailscale MagicDNS identity")
 )
 
@@ -34,6 +36,14 @@ const (
 type Status struct {
 	BackendState string
 	Identity     string
+	IPv4         string
+}
+
+// Endpoint identifies an enrolled appliance at its MagicDNS name and its
+// Tailnet-only IPv4 listener address.
+type Endpoint struct {
+	Identity string
+	IPv4     string
 }
 
 // EnrollmentState returns Enrolled only when the local Tailscale node is
@@ -98,10 +108,31 @@ func (c *Client) Identity(ctx context.Context) (string, error) {
 	}
 }
 
+// Endpoint returns the canonical MagicDNS identity and Tailnet IPv4 address
+// required by services that bind only to the Tailnet interface.
+func (c *Client) Endpoint(ctx context.Context) (Endpoint, error) {
+	status, err := c.Status(ctx)
+	if err != nil {
+		return Endpoint{}, err
+	}
+	switch status.EnrollmentState() {
+	case Enrolled:
+		if status.IPv4 == "" {
+			return Endpoint{}, ErrIPv4Unavailable
+		}
+		return Endpoint{Identity: status.Identity, IPv4: status.IPv4}, nil
+	case IdentityUnavailable:
+		return Endpoint{}, ErrIdentityUnavailable
+	default:
+		return Endpoint{}, ErrNotEnrolled
+	}
+}
+
 type statusDocument struct {
 	BackendState string `json:"BackendState"`
 	Self         struct {
-		DNSName string `json:"DNSName"`
+		DNSName      string   `json:"DNSName"`
+		TailscaleIPs []string `json:"TailscaleIPs"`
 	} `json:"Self"`
 }
 
@@ -122,6 +153,13 @@ func parseStatus(contents []byte) (Status, error) {
 		return Status{}, err
 	}
 	status.Identity = identity
+	for _, rawAddress := range document.Self.TailscaleIPs {
+		address, parseErr := netip.ParseAddr(rawAddress)
+		if parseErr == nil && address.Is4() {
+			status.IPv4 = address.String()
+			break
+		}
+	}
 	return status, nil
 }
 

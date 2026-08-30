@@ -32,6 +32,21 @@ func TestClientReadsCanonicalMagicDNSIdentity(t *testing.T) {
 	require.Equal(t, []process.Command{{Name: "tailscale", Args: []string{"status", "--json"}}}, runner.seen)
 }
 
+func TestClientReadsTailnetEndpoint(t *testing.T) {
+	runner := &recordingRunner{output: `{"BackendState":"Running","Self":{"DNSName":"Atlas.Example.ts.net.","TailscaleIPs":["fd7a:115c:a1e0::1","100.88.77.66"]}}`}
+	client := New(Options{Runner: runner, CLI: "tailscale"})
+
+	endpoint, err := client.Endpoint(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, Endpoint{Identity: "atlas.example.ts.net", IPv4: "100.88.77.66"}, endpoint)
+}
+
+func TestEndpointRejectsIdentityWithoutTailnetIPv4(t *testing.T) {
+	client := New(Options{Runner: &recordingRunner{output: `{"BackendState":"Running","Self":{"DNSName":"atlas.example.ts.net","TailscaleIPs":["fd7a:115c:a1e0::1"]}}`}, CLI: "tailscale"})
+	_, err := client.Endpoint(context.Background())
+	require.ErrorIs(t, err, ErrIPv4Unavailable)
+}
+
 func TestEnrollmentStateDoesNotPretendTailnetAccessIsAvailable(t *testing.T) {
 	for name, test := range map[string]struct {
 		status Status
