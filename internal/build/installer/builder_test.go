@@ -2,6 +2,7 @@ package installer
 
 import (
 	"context"
+	"crypto/sha256"
 	"fmt"
 	"os"
 	"os/exec"
@@ -122,6 +123,67 @@ func TestInstallerEnvironmentUsesVerifiedLocalFedoraBaseContext(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, strings.HasPrefix(string(contents), "FROM fedora-base\n"))
 	require.Contains(t, string(contents), "COPY --chmod=0644 .artifacts/installer/context/interactive-defaults.ks /usr/share/anaconda/interactive-defaults.ks")
+}
+
+func TestInstallerEnvironmentRestoresSodaAnacondaBranding(t *testing.T) {
+	root := filepath.Join("..", "..", "..")
+	profile, err := os.ReadFile(filepath.Join(root, "packaging", "installer", "branding", "sodaos.conf"))
+	require.NoError(t, err)
+	require.Equal(t, "# Soda OS Anaconda profile layered on Fedora's installer defaults.\n\n[Profile]\nprofile_id = sodaos\nbase_profile = fedora\n\n[Profile Detection]\nos_id = sodaos\n\n[User Interface]\ncustom_stylesheet = /usr/share/anaconda/pixmaps/soda.css\n", string(profile))
+
+	containerfile, err := os.ReadFile(filepath.Join(root, "packaging", "installer", "Containerfile"))
+	require.NoError(t, err)
+	for _, copyInstruction := range []string{
+		"COPY --chmod=0644 packaging/installer/branding/sodaos.conf /etc/anaconda/profile.d/sodaos.conf",
+		"COPY --chmod=0644 packaging/installer/branding/os-release /usr/lib/os-release",
+		"COPY --chmod=0644 packaging/installer/branding/buildstamp /.buildstamp",
+		"COPY --chmod=0644 packaging/installer/branding/soda.css /usr/share/anaconda/pixmaps/soda.css",
+		"COPY --chmod=0644 assets/branding/installer/sidebar-bg.png /usr/share/anaconda/pixmaps/soda-sidebar-bg.png",
+		"COPY --chmod=0644 assets/branding/installer/sidebar-logo.png /usr/share/anaconda/pixmaps/soda-sidebar-logo.png",
+		"COPY --chmod=0644 assets/branding/installer/soda-symbol-256.png /usr/share/anaconda/pixmaps/soda-symbol.png",
+		"COPY --chmod=0644 assets/branding/installer/topbar-bg.png /usr/share/anaconda/pixmaps/soda-topbar-bg.png",
+	} {
+		require.Contains(t, string(containerfile), copyInstruction)
+	}
+
+	for name, expected := range map[string]string{
+		"sidebar-bg.png":      "9b501e08832bc19933de51fd03b1f4a3c671b7c30e07b0a563ce65faf9a0dacb",
+		"sidebar-logo.png":    "3253f4f496e54f2a551e4678af9e25167fb2f5dc9099fd54aa3930c4756ac583",
+		"soda-symbol-256.png": "6c3d81a56917de5c0f605df35523139b1b7be25f913608bb65a3d470bd9034c5",
+		"topbar-bg.png":       "951854875059af77ce8f52425888b234e7b51da6ca3db464a1a097a03ebc1896",
+	} {
+		asset, readErr := os.ReadFile(filepath.Join(root, "assets", "branding", "installer", name))
+		require.NoError(t, readErr)
+		require.Equal(t, expected, fmt.Sprintf("%x", sha256.Sum256(asset)))
+	}
+}
+
+func TestISOInspectionRequiresExactSodaAnacondaBranding(t *testing.T) {
+	root := t.TempDir()
+	inspectDir := t.TempDir()
+	files := []struct{ actual, expected string }{
+		{".buildstamp", "packaging/installer/branding/buildstamp"},
+		{"usr/lib/os-release", "packaging/installer/branding/os-release"},
+		{"etc/anaconda/profile.d/sodaos.conf", "packaging/installer/branding/sodaos.conf"},
+		{"usr/share/anaconda/pixmaps/soda.css", "packaging/installer/branding/soda.css"},
+		{"usr/share/anaconda/pixmaps/soda-sidebar-bg.png", "assets/branding/installer/sidebar-bg.png"},
+		{"usr/share/anaconda/pixmaps/soda-sidebar-logo.png", "assets/branding/installer/sidebar-logo.png"},
+		{"usr/share/anaconda/pixmaps/soda-symbol.png", "assets/branding/installer/soda-symbol-256.png"},
+		{"usr/share/anaconda/pixmaps/soda-topbar-bg.png", "assets/branding/installer/topbar-bg.png"},
+	}
+	for _, file := range files {
+		contents := []byte(file.expected)
+		expectedPath := filepath.Join(root, file.expected)
+		actualPath := filepath.Join(inspectDir, "root", file.actual)
+		require.NoError(t, os.MkdirAll(filepath.Dir(expectedPath), 0o755))
+		require.NoError(t, os.MkdirAll(filepath.Dir(actualPath), 0o755))
+		require.NoError(t, os.WriteFile(expectedPath, contents, 0o644))
+		require.NoError(t, os.WriteFile(actualPath, contents, 0o644))
+	}
+	builder := NewBuilder(root, config.DistroSpec{}, &recordingRunner{})
+	require.NoError(t, builder.validateExtractedBranding(inspectDir))
+	require.NoError(t, os.WriteFile(filepath.Join(inspectDir, "root", "usr", "share", "anaconda", "pixmaps", "soda.css"), []byte("not Soda"), 0o644))
+	require.EqualError(t, builder.validateExtractedBranding(inspectDir), "ISO Anaconda branding differs from the Soda installer contract")
 }
 
 func TestInspectionTreeBecomesReadableAndRemovableByOwner(t *testing.T) {

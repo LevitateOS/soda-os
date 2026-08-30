@@ -23,7 +23,7 @@ func (b *Builder) inspectISO(ctx context.Context, input isoInspectionInput) erro
 	if err := b.runner.Run(ctx, process.Command{Dir: b.Root, Name: "docker", Args: args}); err != nil {
 		return fmt.Errorf("extract installer squashfs: %w", err)
 	}
-	args = append(append([]string{}, outer...), "unsquashfs", "-f", "-d", "/inspect/root", "/inspect/squashfs.img", "usr/share/anaconda/interactive-defaults.ks", "etc/anaconda/conf.d/90-soda-storage.conf", "usr/lib/image-builder/bootc/iso.yaml", "var/lib/containers/storage/overlay-images/images.json")
+	args = append(append([]string{}, outer...), "unsquashfs", "-f", "-d", "/inspect/root", "/inspect/squashfs.img", ".buildstamp", "usr/lib/os-release", "usr/share/anaconda/interactive-defaults.ks", "etc/anaconda/conf.d/90-soda-storage.conf", "etc/anaconda/profile.d/sodaos.conf", "usr/share/anaconda/pixmaps/soda.css", "usr/share/anaconda/pixmaps/soda-sidebar-bg.png", "usr/share/anaconda/pixmaps/soda-sidebar-logo.png", "usr/share/anaconda/pixmaps/soda-symbol.png", "usr/share/anaconda/pixmaps/soda-topbar-bg.png", "usr/lib/image-builder/bootc/iso.yaml", "var/lib/containers/storage/overlay-images/images.json")
 	if err := b.runner.Run(ctx, process.Command{Dir: b.Root, Name: "docker", Args: args}); err != nil {
 		return fmt.Errorf("inspect installer squashfs: %w", err)
 	}
@@ -69,7 +69,10 @@ func (b *Builder) validateExtractedISO(inspectDir, reference, payloadTag string)
 	if err := validateExtractedPayload(inspectDir, payloadTag, reference); err != nil {
 		return err
 	}
-	return b.validateExtractedConfiguration(inspectDir)
+	if err := b.validateExtractedConfiguration(inspectDir); err != nil {
+		return err
+	}
+	return b.validateExtractedBranding(inspectDir)
 }
 
 func (b *Builder) validateExtractedKickstart(inspectDir, reference string) error {
@@ -109,6 +112,32 @@ func (b *Builder) validateExtractedConfiguration(inspectDir string) error {
 		}
 		if !bytes.Equal(actual, expected) {
 			return errors.New(file.mismatch)
+		}
+	}
+	return nil
+}
+
+func (b *Builder) validateExtractedBranding(inspectDir string) error {
+	for _, file := range []struct{ actual, expected string }{
+		{".buildstamp", "packaging/installer/branding/buildstamp"},
+		{"usr/lib/os-release", "packaging/installer/branding/os-release"},
+		{"etc/anaconda/profile.d/sodaos.conf", "packaging/installer/branding/sodaos.conf"},
+		{"usr/share/anaconda/pixmaps/soda.css", "packaging/installer/branding/soda.css"},
+		{"usr/share/anaconda/pixmaps/soda-sidebar-bg.png", "assets/branding/installer/sidebar-bg.png"},
+		{"usr/share/anaconda/pixmaps/soda-sidebar-logo.png", "assets/branding/installer/sidebar-logo.png"},
+		{"usr/share/anaconda/pixmaps/soda-symbol.png", "assets/branding/installer/soda-symbol-256.png"},
+		{"usr/share/anaconda/pixmaps/soda-topbar-bg.png", "assets/branding/installer/topbar-bg.png"},
+	} {
+		actual, err := os.ReadFile(filepath.Join(inspectDir, "root", file.actual))
+		if err != nil {
+			return fmt.Errorf("read ISO Anaconda branding: %w", err)
+		}
+		expected, err := os.ReadFile(filepath.Join(b.Root, file.expected))
+		if err != nil {
+			return fmt.Errorf("read expected Anaconda branding: %w", err)
+		}
+		if !bytes.Equal(actual, expected) {
+			return errors.New("ISO Anaconda branding differs from the Soda installer contract")
 		}
 	}
 	return nil
