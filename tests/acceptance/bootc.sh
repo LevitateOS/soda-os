@@ -279,6 +279,9 @@ capture() {
 		findmnt /var/lib/soda /srv/soda/projects /opt/soda/toolchains 2>/dev/null || true
 		echo "[host-keys]"
 		sha256sum /etc/ssh/ssh_host_*_key.pub 2>/dev/null || true
+		echo "[console]"
+		systemctl show getty@tty1.service autovt@tty1.service -p Id -p Names -p MainPID -p NRestarts
+		sysctl kernel.printk
 	' >"$checkpoint/guest.txt" 2>"$checkpoint/guest.stderr"
 	curl --fail --silent --show-error --insecure "https://$host:$cockpit_port/healthz" >"$checkpoint/cockpit-health.txt"
 	capture_release_index "$checkpoint"

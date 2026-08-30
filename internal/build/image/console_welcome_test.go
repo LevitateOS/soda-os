@@ -96,3 +96,19 @@ func TestConsoleWelcomeRPMContract(t *testing.T) {
 	require.Contains(t, string(staging), `b.path("packaging/rpm/runtime/sources/profile.d/soda-console-welcome.sh"), filepath.Join(sources, "soda-console-welcome.sh")`)
 	require.NotContains(t, strings.TrimSpace(string(runtimeSpec)), "%post")
 }
+
+func TestConsolePromptIsNotOverwrittenByRoutineKernelNotices(t *testing.T) {
+	root := filepath.Join("..", "..", "..")
+	policy, err := os.ReadFile(filepath.Join(root, "packaging", "rpm", "runtime", "sources", "sysctl", "60-soda-console.conf"))
+	require.NoError(t, err)
+	require.Contains(t, string(policy), "kernel.printk = 4 4 1 7")
+
+	runtimeSpec, err := os.ReadFile(filepath.Join(root, "packaging", "rpm", "runtime", "soda-runtime.spec"))
+	require.NoError(t, err)
+	require.Contains(t, string(runtimeSpec), "install -m 0644 %{_sourcedir}/60-soda-console.conf %{buildroot}%{_sysctldir}/60-soda-console.conf")
+	require.Contains(t, string(runtimeSpec), "%{_sysctldir}/60-soda-console.conf")
+
+	staging, err := os.ReadFile("rpm.go")
+	require.NoError(t, err)
+	require.Contains(t, string(staging), `b.path("packaging/rpm/runtime/sources/sysctl/60-soda-console.conf"), filepath.Join(sources, "60-soda-console.conf")`)
+}
