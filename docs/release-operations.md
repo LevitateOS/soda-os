@@ -36,12 +36,59 @@ just record "$ARCH" \
   ".artifacts/images/SodaOS-0.3.1-${ARCH}.iso"
 ```
 
-## Distribution and updates
+## Distribution infrastructure decision
 
-`soda-release` accepts completed AArch64 and x86-64 ISOs and records, creates a
-paired release index, uploads the files to a GitHub draft, verifies the uploaded
-bytes, and publishes the draft. This publishing step is separate from local OCI
-and ISO construction.
+Production releases use these two distribution services:
+
+- GHCR stores each architecture-specific Soda OS OCI image. The exact OCI
+  manifest digest, never a mutable tag, is the update authority.
+- GitHub Releases stores the paired AArch64 and x86-64 installer ISOs, their
+  SHA-256 files, architecture-specific release records, the paired release
+  index, and the release index's Sigstore bundle. The marketing website may
+  link to these releases, but is not an update authority.
+
+Published release data is append-only. A production publisher must fail before
+publishing if the Git tag, GitHub Release, or any intended asset name already
+exists. It must never replace a published version asset or move a published
+version to different bytes or digests.
+
+One future protected GitHub Actions workflow owns production publication:
+
+- workflow: `.github/workflows/release.yml`;
+- OIDC issuer: `https://token.actions.githubusercontent.com`;
+- certificate identity:
+  `https://github.com/LevitateOS/soda-os/.github/workflows/release.yml@refs/tags/v<VERSION>`,
+  expanded to the exact release tag being verified;
+- protected GitHub environment: `production-release`, with required human
+  approval.
+
+The workflow must run architecture-owned build, inspection, signing, and
+publication jobs on native AArch64 and x86-64 runners. A coordinating job may
+create and publish the paired index only after both architecture records report
+the same Soda version and source revision.
+
+For each architecture, the future workflow pushes the image to GHCR, resolves
+its exact manifest digest, and signs that digest with Sigstore keyless signing.
+It then generates the paired release index, signs the index as a blob with
+Sigstore keyless signing, retains the bundle beside the index, and publishes
+both architectures' ISOs, SHA-256 files, and release records in one GitHub
+Release. The index continues to identify images by exact GHCR digest.
+
+Verification must require both the exact workflow certificate identity for the
+release tag and the GitHub Actions OIDC issuer. The retained blob bundle carries
+the signature, signing certificate, and transparency-log proof required to
+verify the paired release index.
+
+The current `soda-release` command can assemble a paired index and GitHub draft,
+but it is not the production publisher described above until the protected
+workflow, collision checks, GHCR publication, and Sigstore verification are
+implemented.
+
+This release cycle records the infrastructure decision only. It does not add
+the workflow, configure the GitHub environment or runners, provision a service,
+push an image, sign an artifact, upload an asset, or publish a release.
+
+## Installed-system updates
 
 Installed hosts resolve their platform entry from the release index, require an
 exact `ghcr.io/levitateos/soda-os@sha256:...` reference, inspect the image's
@@ -49,8 +96,8 @@ platform and Soda metadata, and stage it with `bootc switch --download-only`.
 Activation remains a separate administrator-confirmed reboot. Soda does not
 poll, download, activate, or reboot automatically.
 
-The current development and distribution flow is unsigned. Release signing and
-provenance are outside this contract and require a separate product decision.
+Local development artifacts and records remain unsigned. Production signing and
+publication belong only to the protected workflow defined above.
 
 ## Acceptance evidence
 
@@ -59,4 +106,4 @@ production installations. It can install or boot an architecture-selected VM,
 wait for SSH and Cockpit health, exercise an attributed SSH workload, capture
 host and guest evidence, and request a clean ACPI shutdown. Captures may include
 the release index, local record, ISO hashes, bootc status, service state, and
-QEMU state; they do not require or capture signature bundles.
+QEMU state. Local acceptance does not create or require production signatures.
