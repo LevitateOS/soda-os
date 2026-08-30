@@ -4,6 +4,7 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
+	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
@@ -12,13 +13,14 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"slices"
 	"time"
 
 	"github.com/LevitateOS/soda-os/cockpit/internal/appliance"
 )
 
 func Ensure(certPath, keyPath string, identity appliance.Identity) error {
-	if fileExists(certPath) && fileExists(keyPath) {
+	if existingCertificateMatches(certPath, keyPath, identity) {
 		return nil
 	}
 	if err := os.MkdirAll(filepath.Dir(certPath), 0o750); err != nil {
@@ -40,7 +42,7 @@ func Ensure(certPath, keyPath string, identity appliance.Identity) error {
 		NotAfter:     now.AddDate(2, 0, 0),
 		KeyUsage:     x509.KeyUsageDigitalSignature,
 		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
-		DNSNames:     []string{identity.Address, identity.Label},
+		DNSNames:     identity.CertificateNames(),
 		IPAddresses:  []net.IP{net.ParseIP("127.0.0.1"), net.ParseIP("::1")},
 	}
 	der, err := x509.CreateCertificate(rand.Reader, template, template, &key.PublicKey, key)
@@ -60,9 +62,13 @@ func Ensure(certPath, keyPath string, identity appliance.Identity) error {
 	return nil
 }
 
-func fileExists(path string) bool {
-	info, err := os.Stat(path)
-	return err == nil && info.Mode().IsRegular()
+func existingCertificateMatches(certPath, keyPath string, identity appliance.Identity) bool {
+	pair, err := tls.LoadX509KeyPair(certPath, keyPath)
+	if err != nil || len(pair.Certificate) == 0 {
+		return false
+	}
+	certificate, err := x509.ParseCertificate(pair.Certificate[0])
+	return err == nil && certificate.Subject.CommonName == identity.Address && slices.Equal(certificate.DNSNames, identity.CertificateNames())
 }
 
 func writePEM(path string, mode os.FileMode, kind string, contents []byte) error {

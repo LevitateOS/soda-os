@@ -17,7 +17,7 @@ func TestEnsureCreatesTLSKeyPair(t *testing.T) {
 	directory := t.TempDir()
 	certificate := filepath.Join(directory, "cockpit.crt")
 	key := filepath.Join(directory, "cockpit.key")
-	identity, err := appliance.FromHostname("Atlas")
+	identity, err := appliance.FromTailnet("Atlas", "atlas.example.ts.net")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -30,8 +30,8 @@ func TestEnsureCreatesTLSKeyPair(t *testing.T) {
 	contents := readFile(t, certificate)
 	block, _ := pem.Decode(contents)
 	parsed := parseCertificate(t, block)
-	requireEqual(t, "certificate common name", parsed.Subject.CommonName, "atlas.local")
-	requireEqual(t, "certificate DNS names", parsed.DNSNames, []string{"atlas.local", "atlas"})
+	requireEqual(t, "certificate common name", parsed.Subject.CommonName, "atlas.example.ts.net")
+	requireEqual(t, "certificate DNS names", parsed.DNSNames, []string{"atlas.example.ts.net", "atlas.local", "atlas"})
 	requireEqual(t, "certificate IP addresses", ipStrings(parsed.IPAddresses), []string{"127.0.0.1", "::1"})
 }
 
@@ -48,7 +48,7 @@ func TestEnsureKeepsExistingKeyPair(t *testing.T) {
 	}
 	before := readFile(t, certificate)
 	beforeKey := readFile(t, key)
-	second, err := appliance.FromHostname("atlas")
+	second, err := appliance.FromHostname("soda")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -57,6 +57,32 @@ func TestEnsureKeepsExistingKeyPair(t *testing.T) {
 	}
 	requireEqual(t, "existing certificate", readFile(t, certificate), before)
 	requireEqual(t, "existing key", readFile(t, key), beforeKey)
+}
+
+func TestEnsureReplacesCertificateWhenTailnetIdentityBecomesAvailable(t *testing.T) {
+	directory := t.TempDir()
+	certificate := filepath.Join(directory, "cockpit.crt")
+	key := filepath.Join(directory, "cockpit.key")
+	local, err := appliance.FromHostname("atlas")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := Ensure(certificate, key, local); err != nil {
+		t.Fatal(err)
+	}
+	before := readFile(t, certificate)
+	tailnet, err := appliance.FromTailnet("atlas", "atlas.example.ts.net")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := Ensure(certificate, key, tailnet); err != nil {
+		t.Fatal(err)
+	}
+	block, _ := pem.Decode(readFile(t, certificate))
+	parsed := parseCertificate(t, block)
+	if reflect.DeepEqual(before, readFile(t, certificate)) || !reflect.DeepEqual(parsed.DNSNames, []string{"atlas.example.ts.net", "atlas.local", "atlas"}) {
+		t.Fatalf("certificate was not reissued for Tailnet identity: %#v", parsed.DNSNames)
+	}
 }
 
 func readFile(t *testing.T, path string) []byte {

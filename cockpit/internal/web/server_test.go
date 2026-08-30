@@ -197,20 +197,20 @@ func TestConnectFragmentRendersPersonalizedSSHConfiguration(t *testing.T) {
 		accounts: fakeAccounts{people: []daemonclient.Person{alice}, keys: []daemonclient.SSHDeviceKey{key}},
 		projects: fakeProjects{members: []daemonclient.Person{alice}, projects: []daemonclient.Project{project}, worktrees: []daemonclient.Worktree{workspace}, jobs: []daemonclient.ProvisioningJob{{ID: "job-1", ProjectID: project.ID, State: "ready"}}},
 	}
-	app := testServerWithAddress(t, api, &changingAuth{}, "atlas.local")
+	app := testServerWithAddress(t, api, &changingAuth{}, "atlas.example.ts.net")
 	token, err := app.sessions.create(alice)
 	if err != nil {
 		t.Fatal(err)
 	}
 	cookie := &http.Cookie{Name: sessionCookie, Value: token}
 	fragment := request(app, http.MethodGet, "/projects/project-1/connect?key_id=key-1", "", cookie)
-	for _, expected := range []string{`Host soda-storefront`, `HostName atlas.local`, `User soda-p-storefront`, `IdentityFile &#34;~/.ssh/key with space&#34;`, workspace.Path, `ssh soda-storefront`, `soda-p-storefront@atlas.local`} {
+	for _, expected := range []string{`Host soda-storefront`, `HostName atlas.example.ts.net`, `User soda-p-storefront`, `IdentityFile &#34;~/.ssh/key with space&#34;`, workspace.Path, `ssh soda-storefront`, `soda-p-storefront@atlas.example.ts.net`} {
 		if fragment.Code != http.StatusOK || !strings.Contains(fragment.Body.String(), expected) {
 			t.Fatalf("connect fragment missing %q: %d %q", expected, fragment.Code, fragment.Body.String())
 		}
 	}
 	download := request(app, http.MethodGet, "/projects/project-1/ssh-config?key_id=key-1", "", cookie)
-	if download.Code != http.StatusOK || download.Header().Get("Content-Type") != "text/plain; charset=utf-8" || !strings.Contains(download.Body.String(), `HostName atlas.local`) || !strings.Contains(download.Body.String(), `IdentityFile "~/.ssh/key with space"`) {
+	if download.Code != http.StatusOK || download.Header().Get("Content-Type") != "text/plain; charset=utf-8" || !strings.Contains(download.Body.String(), `HostName atlas.example.ts.net`) || !strings.Contains(download.Body.String(), `IdentityFile "~/.ssh/key with space"`) {
 		t.Fatalf("downloaded SSH config = %d %v %q", download.Code, download.Header(), download.Body.String())
 	}
 }
@@ -218,19 +218,19 @@ func TestConnectFragmentRendersPersonalizedSSHConfiguration(t *testing.T) {
 func TestAdminHomeRendersApplianceAddress(t *testing.T) {
 	admin := daemonclient.Person{ID: "admin-1", Username: "admin", DisplayName: "Admin", Role: daemonclient.RoleAdmin}
 	api := &fakePorts{accounts: fakeAccounts{people: []daemonclient.Person{admin}}}
-	app := testServerWithAddress(t, api, &changingAuth{}, "atlas.local")
+	app := testServerWithAddress(t, api, &changingAuth{}, "atlas.example.ts.net")
 	token, err := app.sessions.create(admin)
 	if err != nil {
 		t.Fatal(err)
 	}
 	page := request(app, http.MethodGet, "/", "", &http.Cookie{Name: sessionCookie, Value: token})
-	if page.Code != http.StatusOK || !strings.Contains(page.Body.String(), `https://atlas.local:9090`) {
+	if page.Code != http.StatusOK || !strings.Contains(page.Body.String(), `https://atlas.example.ts.net:9090`) || strings.Contains(page.Body.String(), `atlas.local`) {
 		t.Fatalf("home page = %d %q", page.Code, page.Body.String())
 	}
 }
 
 func testServer(t *testing.T, ports *fakePorts, authenticator auth.Authenticator) *Server {
-	return testServerWithAddress(t, ports, authenticator, "soda.local")
+	return testServerWithAddress(t, ports, authenticator, "soda.example.ts.net")
 }
 
 func testServerWithAddress(t *testing.T, ports *fakePorts, authenticator auth.Authenticator, address string) *Server {

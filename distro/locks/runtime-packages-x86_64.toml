@@ -128,6 +128,11 @@ source = "local-rpm"
 file = "soda-release-0.3.1-1.fc44.noarch.rpm"
 
 [[package]]
+name = "tailscale"
+nevra = "tailscale-0:1.98.8-1.fc44.x86_64"
+source = "fedora"
+
+[[package]]
 name = "soda-runtime"
 nevra = "soda-runtime-0:0.3.1-1.fc44.x86_64"
 source = "local-rpm"

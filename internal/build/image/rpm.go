@@ -122,6 +122,7 @@ func (b *Builder) buildGoBinaries(ctx context.Context, revision string) error {
 		{"sodad", "./cmd/sodad"},
 		{"sodactl", "./cmd/sodactl"},
 		{"soda-ssh", "./cmd/soda-ssh"},
+		{"soda-tailnet", "./cmd/soda-tailnet"},
 		{"soda-cockpit", "./cockpit/cmd/soda-cockpit"},
 		{"soda-authd", "./cockpit/cmd/soda-authd"},
 	} {
@@ -145,6 +146,7 @@ func (b *Builder) stageRPMSources(build, sources string) error {
 		{b.path("packaging/rpm/runtime/sources/systemd/var-srv-soda-projects.mount"), filepath.Join(sources, "var-srv-soda-projects.mount")},
 		{b.path("packaging/rpm/runtime/sources/systemd/opt-soda-toolchains.mount"), filepath.Join(sources, "opt-soda-toolchains.mount")},
 		{b.path("packaging/rpm/runtime/sources/systemd/90-soda.preset"), filepath.Join(sources, "90-soda.preset")},
+		{b.path("packaging/rpm/runtime/sources/systemd/tailscaled.service.d/10-soda-state.conf"), filepath.Join(sources, "10-soda-state.conf")},
 		{b.path("packaging/rpm/runtime/sources/tmpfiles/soda.conf"), filepath.Join(sources, "soda.conf")},
 		{b.path("packaging/rpm/runtime/sources/sysusers/soda.conf"), filepath.Join(sources, "soda.sysusers")},
 		{b.path("packaging/rpm/runtime/sources/sshd/41-soda-project-accounts.conf"), filepath.Join(sources, "41-soda-project-accounts.conf")},

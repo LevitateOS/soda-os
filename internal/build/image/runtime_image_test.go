@@ -16,7 +16,7 @@ func TestRuntimeImageBootcContainerContract(t *testing.T) {
 	require.True(t, strings.HasPrefix(containerfile, "FROM fedora-base\n"))
 	for _, expected := range []string{
 		"ARG FEDORA_BASE_REFERENCE", "org.opencontainers.image.base.name=\"${FEDORA_BASE_REFERENCE}\"", "systemd-sysusers /usr/lib/sysusers.d/soda.conf", "install -d -m 0755 /opt/soda/toolchains",
-		"systemctl enable sshd.service sodad.service soda-authd.service soda-cockpit.service forgejo.service avahi-daemon.service var-srv-soda-projects.mount opt-soda-toolchains.mount",
+		"systemctl enable sshd.service sodad.service soda-authd.service soda-cockpit.service forgejo.service avahi-daemon.service tailscaled.service var-srv-soda-projects.mount opt-soda-toolchains.mount",
 		"COPY .artifacts/rpms/soda-forgejo-*.rpm /var/tmp/soda-rpms/",
 		"getent passwd git",
 		"systemctl mask bootc-fetch-apply-updates.timer", "cp -f /usr/lib/soda/os-release /etc/os-release",
@@ -61,6 +61,7 @@ func TestRuntimeImageRPMStagingAndPackageContract(t *testing.T) {
 	staging, err := os.ReadFile("rpm.go")
 	require.NoError(t, err)
 	require.Contains(t, string(staging), `b.path("packaging/rpm/runtime/sources/systemd/soda-state-directories.service"), filepath.Join(sources, "soda-state-directories.service")`)
+	require.Contains(t, string(staging), `b.path("packaging/rpm/runtime/sources/systemd/tailscaled.service.d/10-soda-state.conf"), filepath.Join(sources, "10-soda-state.conf")`)
 	require.Contains(t, string(staging), `b.path("packaging/rpm/runtime/sources/systemd/var-srv-soda-projects.mount"), filepath.Join(sources, "var-srv-soda-projects.mount")`)
 	require.Contains(t, string(staging), `b.path("packaging/rpm/forgejo/sources/systemd/forgejo.service"), filepath.Join(sources, "forgejo.service")`)
 	require.Contains(t, string(staging), `b.path("packaging/rpm/forgejo/sources/pam/soda-forgejo"), filepath.Join(sources, "soda-forgejo.pam")`)
@@ -70,6 +71,9 @@ func TestRuntimeImageRPMStagingAndPackageContract(t *testing.T) {
 	require.NoError(t, err)
 	require.Contains(t, string(runtimeSpec), "install -m 0644 %{_sourcedir}/soda-state-directories.service %{buildroot}%{_unitdir}/soda-state-directories.service")
 	require.Contains(t, string(runtimeSpec), "%{_unitdir}/soda-state-directories.service")
+	require.Contains(t, string(runtimeSpec), "tailscale")
+	require.Contains(t, string(runtimeSpec), "install -m 0644 %{_sourcedir}/10-soda-state.conf %{buildroot}%{_unitdir}/tailscaled.service.d/10-soda-state.conf")
+	require.Contains(t, string(runtimeSpec), "%{_unitdir}/tailscaled.service.d/10-soda-state.conf")
 	require.Contains(t, string(runtimeSpec), "install -m 0644 %{_sourcedir}/var-srv-soda-projects.mount %{buildroot}%{_unitdir}/var-srv-soda-projects.mount")
 	require.Contains(t, string(runtimeSpec), "%{_unitdir}/var-srv-soda-projects.mount")
 	require.Contains(t, string(runtimeSpec), "soda-forgejo = 15.0.7")
@@ -131,10 +135,17 @@ func TestRuntimeImageSystemdMountAndLoggingContract(t *testing.T) {
 	runtimeSources := filepath.Join("..", "..", "..", "packaging", "rpm", "runtime", "sources")
 	preset, err := os.ReadFile(filepath.Join(runtimeSources, "systemd", "90-soda.preset"))
 	require.NoError(t, err)
-	for _, unit := range []string{"sshd.service", "sodad.service", "soda-authd.service", "soda-cockpit.service", "avahi-daemon.service", "var-srv-soda-projects.mount", "opt-soda-toolchains.mount"} {
+	for _, unit := range []string{"sshd.service", "sodad.service", "soda-authd.service", "soda-cockpit.service", "avahi-daemon.service", "tailscaled.service", "var-srv-soda-projects.mount", "opt-soda-toolchains.mount"} {
 		require.True(t, strings.Contains(string(preset), "enable "+unit))
 	}
 	require.Contains(t, string(preset), "enable forgejo.service")
+
+	tailscaleDropIn, err := os.ReadFile(filepath.Join(runtimeSources, "systemd", "tailscaled.service.d", "10-soda-state.conf"))
+	require.NoError(t, err)
+	require.Contains(t, string(tailscaleDropIn), "StateDirectory=soda/tailscale")
+	require.Contains(t, string(tailscaleDropIn), "--state=/var/lib/soda/tailscale/tailscaled.state")
+	require.Contains(t, string(tailscaleDropIn), "--statedir=/var/lib/soda/tailscale")
+	require.NotContains(t, string(tailscaleDropIn), "authkey")
 
 	projectMount, err := os.ReadFile(filepath.Join(runtimeSources, "systemd", "var-srv-soda-projects.mount"))
 	require.NoError(t, err)

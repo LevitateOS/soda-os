@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"log"
 	"os"
 
@@ -9,6 +10,7 @@ import (
 	"github.com/LevitateOS/soda-os/cockpit/internal/cert"
 	"github.com/LevitateOS/soda-os/cockpit/internal/daemonclient"
 	"github.com/LevitateOS/soda-os/cockpit/internal/web"
+	"github.com/LevitateOS/soda-os/internal/tailnet"
 )
 
 func main() {
@@ -25,6 +27,14 @@ func main() {
 	identity, err := appliance.FromHostname(hostname)
 	if err != nil {
 		log.Fatalf("resolve appliance address: %v", err)
+	}
+	if magicDNSName, identityErr := tailnet.New(tailnet.Options{}).Identity(context.Background()); identityErr != nil {
+		log.Printf("Tailnet identity is unavailable; dashboard is limited to local-console access until enrollment: %v", identityErr)
+	} else {
+		identity, err = appliance.FromTailnet(hostname, magicDNSName)
+		if err != nil {
+			log.Fatalf("resolve Tailnet appliance identity: %v", err)
+		}
 	}
 	if err := cert.Ensure(certFile, keyFile, identity); err != nil {
 		log.Fatal(err)
