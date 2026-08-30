@@ -17,7 +17,7 @@ Commands:
 Required environment:
   SODA_ACCEPTANCE_DIR              Untracked evidence directory
   SODA_ACCEPTANCE_ARCHITECTURE     Sibling architecture: aarch64 or x86_64
-  SODA_ACCEPTANCE_ADMIN_KEY        Public-key login identity for the Anaconda admin
+  SODA_ACCEPTANCE_ADMIN_KEY        Private SSH key for the Anaconda administrator
   SODA_ACCEPTANCE_IMAGE_DIGEST     Expected sha256:... release digest for capture
 
 Additional launch install environment:
@@ -28,14 +28,19 @@ Additional workload environment:
   SODA_ACCEPTANCE_PROJECT          Project slug selected through SODA_PROJECT
   SODA_ACCEPTANCE_WORKSPACE_KEY    Registered Soda device private key
 
+Before capture NAME, create privileged bootc evidence in the guest:
+  mkdir -p "$HOME/.local/state/soda-acceptance"
+  sudo bootc status --format=json >"$HOME/.local/state/soda-acceptance/NAME-privileged.json"
+
 Optional environment:
   SODA_ACCEPTANCE_ADMIN=vince
   SODA_ACCEPTANCE_HOST=127.0.0.1
   SODA_ACCEPTANCE_SSH_PORT=2222
   SODA_ACCEPTANCE_COCKPIT_PORT=9090
+  SODA_ACCEPTANCE_VNC=127.0.0.1:1  Loopback VNC endpoint for x86-64 graphical install
   SODA_ACCEPTANCE_DISK=$SODA_ACCEPTANCE_DIR/soda-system.qcow2
   SODA_ACCEPTANCE_DISK_SIZE=40G
-  SODA_ACCEPTANCE_RELEASE_INDEX_URL=<GitHub release index URL>
+  SODA_ACCEPTANCE_RELEASE_INDEX_URL=<optional GitHub release index URL>
   SODA_ACCEPTANCE_RELEASE_RECORD=<release record to hash during capture>
   SODA_ACCEPTANCE_ISO=<installer ISO to hash during capture>
   SODA_QEMU=<platform QEMU executable>
@@ -190,6 +195,18 @@ launch_x86_64() {
 	need_file "$qemu"
 	need_file "$firmware"
 	need_file "$vars_template"
+	vnc=${SODA_ACCEPTANCE_VNC:-}
+	if [ -n "$vnc" ]; then
+		case "$vnc" in
+			127.0.0.1:[0-9]|127.0.0.1:[0-9][0-9]) ;;
+			*) die "SODA_ACCEPTANCE_VNC must be a loopback display such as 127.0.0.1:1" ;;
+		esac
+		set -- -vnc "$vnc"
+		display_command="-vnc $vnc"
+	else
+		set -- -display none
+		display_command="-display none"
+	fi
 	if [ "$mode" = install ]; then
 		cp "$vars_template" "$vars"
 	else
@@ -201,6 +218,7 @@ $qemu -machine q35,accel=kvm -cpu host -smp 4 -m 4096
 -drive if=pflash,format=raw,file=$vars
 -drive file=$disk,if=virtio,format=qcow2 $installer_args
 -netdev user,id=net0,hostfwd=tcp:$host:$ssh_port-:22,hostfwd=tcp:$host:$cockpit_port-:9090
+$display_command
 EOF
 	# Word splitting is intentional for the fixed, locally constructed installer arguments.
 	# shellcheck disable=SC2086
@@ -209,7 +227,7 @@ EOF
 		-drive "if=pflash,format=raw,file=$vars" \
 		-drive "file=$disk,if=virtio,format=qcow2" $installer_args \
 		-netdev "user,id=net0,hostfwd=tcp:$host:$ssh_port-:22,hostfwd=tcp:$host:$cockpit_port-:9090" \
-		-device virtio-net-pci,netdev=net0 -display none \
+		-device virtio-net-pci,netdev=net0 "$@" \
 		-chardev "stdio,id=serial0,signal=off,logfile=$acceptance_dir/serial.log" -serial chardev:serial0 \
 		-monitor none -qmp "unix:$(qmp_path),server=on,wait=off"
 }
@@ -241,7 +259,11 @@ valid_name() {
 }
 
 capture_release_index() {
-	index_url=${SODA_ACCEPTANCE_RELEASE_INDEX_URL:-https://github.com/LevitateOS/soda-os/releases/latest/download/soda-os-release-index.json}
+	index_url=${SODA_ACCEPTANCE_RELEASE_INDEX_URL:-}
+	if [ -z "$index_url" ]; then
+		echo "release index capture skipped: SODA_ACCEPTANCE_RELEASE_INDEX_URL is unset" >"$1/release-index.skipped"
+		return
+	fi
 	release_dir=$1/release
 	mkdir -p "$release_dir"
 	curl --fail --silent --show-error -D "$release_dir/index.headers" -o "$release_dir/index.json" "$index_url"
@@ -252,10 +274,27 @@ capture() {
 	name=${1:-}
 	valid_name "$name" || die "capture requires a lowercase name containing only letters, digits, and hyphens"
 	require_dir
+	need jq
+	image_digest=${SODA_ACCEPTANCE_IMAGE_DIGEST:-}
+	case "$image_digest" in
+		sha256:????????????????????????????????????????????????????????????????) ;;
+		*) die "SODA_ACCEPTANCE_IMAGE_DIGEST must be an exact sha256 digest" ;;
+	esac
+	privileged=".local/state/soda-acceptance/$name-privileged.json"
+	admin_ssh "test -r \"\$HOME/$privileged\"" || die "missing operator evidence: $privileged"
+	privileged_tmp=$acceptance_dir/."$name-privileged.$$.json"
+	trap 'rm -f "$privileged_tmp"' 0 1 2 15
+	scp -q -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
+		-o "UserKnownHostsFile=$(known_hosts_path)" -i "${SODA_ACCEPTANCE_ADMIN_KEY}" -P "$ssh_port" \
+		"$admin@$host:$privileged" "$privileged_tmp"
+	booted_digest=$(jq -r '.status.booted.image.imageDigest // empty' "$privileged_tmp")
+	[ "$booted_digest" = "$image_digest" ] || die "booted digest $booted_digest does not match expected $image_digest"
 	checkpoint=$acceptance_dir/$name
 	[ ! -e "$checkpoint" ] || die "checkpoint $checkpoint already exists"
 	mkdir -p "$checkpoint"
 	date -u +%Y-%m-%dT%H:%M:%SZ >"$checkpoint/captured-at.txt"
+	mv "$privileged_tmp" "$checkpoint/privileged.json"
+	trap - 0 1 2 15
 	qmp '{"execute":"query-status"}' >"$checkpoint/qmp-status.json"
 	admin_ssh '
 		echo "[identity]"; id
@@ -263,9 +302,10 @@ capture() {
 		echo "[boot-id]"; cat /proc/sys/kernel/random/boot_id
 		echo "[kernel]"; uname -a
 		echo "[services]"
-		for unit in sodad sshd soda-cockpit soda-authd forgejo avahi-daemon soda-state-directories.service var-srv-soda-projects.mount opt-soda-toolchains.mount; do
+		for unit in sodad sshd soda-cockpit soda-authd forgejo avahi-daemon tailscaled soda-state-directories.service var-srv-soda-projects.mount opt-soda-toolchains.mount; do
 			printf "%s=" "$unit"; systemctl is-active "$unit" 2>/dev/null || true
 		done
+		echo "[failed-units]"; systemctl --failed --no-legend --plain || true
 		echo "[built-in-git]"
 		rpm -q soda-forgejo
 		forgejo --version
@@ -273,7 +313,6 @@ capture() {
 		test -s /etc/forgejo/app.ini && echo configuration=present
 		test -s /var/lib/soda/built-in-git-token && echo automation-token=present
 		test -d /var/lib/forgejo/data/repositories/soda && echo repositories=present
-		echo "[bootc-status]"; bootc status --format=json
 		echo "[boot-entries]"; efibootmgr -v 2>/dev/null || true
 		echo "[automatic-update]"
 		for unit in bootc-fetch-apply-updates.timer bootc-fetch-apply-updates.service; do
@@ -289,15 +328,6 @@ capture() {
 	' >"$checkpoint/guest.txt" 2>"$checkpoint/guest.stderr"
 	curl --fail --silent --show-error --insecure "https://$host:$cockpit_port/healthz" >"$checkpoint/cockpit-health.txt"
 	capture_release_index "$checkpoint"
-
-	privileged=".local/state/soda-acceptance/$name-privileged.json"
-	if admin_ssh "test -r \"\$HOME/$privileged\""; then
-		scp -q -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
-			-o "UserKnownHostsFile=$(known_hosts_path)" -i "${SODA_ACCEPTANCE_ADMIN_KEY}" -P "$ssh_port" \
-			"$admin@$host:$privileged" "$checkpoint/privileged.json"
-	else
-		echo "missing operator evidence: $privileged" >"$checkpoint/privileged.missing"
-	fi
 
 	for artifact in "${SODA_ACCEPTANCE_RELEASE_RECORD:-}" "${SODA_ACCEPTANCE_ISO:-}"; do
 		[ -z "$artifact" ] || [ ! -f "$artifact" ] || sha256sum "$artifact" >>"$checkpoint/artifact-sha256sums.txt"
