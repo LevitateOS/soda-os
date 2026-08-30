@@ -1,6 +1,6 @@
 # Bootc runtime image, installer, and update release gate
 
-This scenario covers Soda OS 0.3.1 on Fedora 44 bootc for the equal AArch64 and
+This scenario covers Soda OS 0.4.0 on Fedora 44 bootc for the equal AArch64 and
 x86-64 sibling architectures. Run it independently for each architecture;
 evidence from one does not satisfy the other's gate. Generated images, package
 inventories, RPMs, credentials, logs, databases, and ephemeral registry
@@ -13,7 +13,7 @@ state stay under ignored artifact paths.
    `soda-release`, `soda-runtime`, `soda-cockpit`, and `soda-forgejo` RPM inputs plus their
    recorded hashes.
 3. Run `just oci ARCH`; require an OCI archive at
-   `.artifacts/images/soda-os-0.3.1-ARCH.oci.tar` and no registry push.
+   `.artifacts/images/soda-os-0.4.0-ARCH.oci.tar` and no registry push.
 4. Require the build to verify all locked Fedora and Soda NEVRAs, fixed UID/GID
    976, enabled SSH/Soda/Avahi services, enabled persistent-state mounts, the
    masked `bootc-fetch-apply-updates.timer`, the embedded GitHub release index

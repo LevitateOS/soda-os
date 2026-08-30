@@ -3,7 +3,7 @@ package version
 const (
 	Name           = "Soda OS"
 	ID             = "sodaos"
-	DefaultVersion = "0.3.1"
+	DefaultVersion = "0.4.0"
 )
 
 var (

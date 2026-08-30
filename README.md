@@ -31,13 +31,13 @@ just check
 ARCH=x86_64 # or aarch64
 just rpm "$ARCH"
 just oci "$ARCH"
-just iso "$ARCH" ".artifacts/images/soda-os-0.3.1-${ARCH}.oci.tar"
+just iso "$ARCH" ".artifacts/images/soda-os-0.4.0-${ARCH}.oci.tar"
 ```
 
 Build artifacts are written under `.artifacts/` and are never committed.
 `just rpm` builds exactly the three locked local Soda RPM inputs. `just oci`
 builds those RPMs and emits
-`.artifacts/images/soda-os-0.3.1-${ARCH}.oci.tar` without loading or publishing
+`.artifacts/images/soda-os-0.4.0-${ARCH}.oci.tar` without loading or publishing
 the image. `just iso` derives the exact image digest from that local archive and
 embeds it in a platform-matched installer without a registry, signing key, or
 network publication step. Architecture selection is always explicit; neither

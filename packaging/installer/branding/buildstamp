@@ -1,7 +1,7 @@
 [Main]
 Product=Soda OS
-Version=0.3.1
+Version=0.4.0
 BugURL=
 IsFinal=True
-UUID=SodaOS-0.3.1
+UUID=SodaOS-0.4.0
 Variant=Appliance

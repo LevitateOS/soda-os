@@ -17,7 +17,7 @@ source and contract check and may run on either host.
 ARCH=x86_64 # run this only on an x86-64 host; use aarch64 only on an AArch64 host
 just check
 just oci "$ARCH"
-just iso "$ARCH" ".artifacts/images/soda-os-0.3.1-${ARCH}.oci.tar"
+just iso "$ARCH" ".artifacts/images/soda-os-0.4.0-${ARCH}.oci.tar"
 ```
 
 The ISO builder validates the archive platform, derives the exact manifest
@@ -32,8 +32,8 @@ RPM inventory checksum, and ISO checksum:
 
 ```sh
 just record "$ARCH" \
-  ".artifacts/images/soda-os-0.3.1-${ARCH}.oci.tar" \
-  ".artifacts/images/SodaOS-0.3.1-${ARCH}.iso"
+  ".artifacts/images/soda-os-0.4.0-${ARCH}.oci.tar" \
+  ".artifacts/images/SodaOS-0.4.0-${ARCH}.iso"
 ```
 
 ## Distribution infrastructure decision

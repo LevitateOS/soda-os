@@ -1,9 +1,9 @@
 NAME="Soda OS"
-VERSION="0.3"
+VERSION="0.4"
 ID=sodaos
 ID_LIKE=fedora
-VERSION_ID="0.3"
-PRETTY_NAME="Soda OS 0.3.1"
+VERSION_ID="0.4"
+PRETTY_NAME="Soda OS 0.4.0"
 ANSI_COLOR="0;38;2;16;215;232"
 HOME_URL="https://github.com/LevitateOS/soda-os"
 VARIANT="Remote Development Appliance"
