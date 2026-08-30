@@ -45,15 +45,17 @@ autostart disabled. It remains visible and controllable in Cockpit, and only the
 owner starts it to complete the stock graphical installer. This is the
 human-operated staging appliance.
 
-Use `tests/acceptance/libvirt.sh launch test` for repeatable qualification. It
-defines a separate `soda-acceptance` domain and attaches a per-run `OEMDRV`
-Kickstart ISO containing test-only identity, password, SSH-key, storage, and
-reboot inputs. The qualified Soda installer ISO remains unchanged. Credentials
-stay in the ignored acceptance evidence directory, and the runner can use them
-for SSH, Cockpit authentication, privileged bootc evidence, restart, and reboot
-checks without owner intervention. The bootstrap key is written to Soda's
-authoritative per-person authorized-key path; qualification must then register
-that same key through the normal account flow before testing other people.
+For repeatable qualification outside libvirt, run
+`tests/acceptance/unattended.sh prepare`, load the generated `runner.env`, and
+use `tests/acceptance/bootc.sh launch install`. Raw QEMU attaches a per-run
+`OEMDRV` Kickstart ISO containing test-only identity, password, SSH-key,
+storage, and reboot inputs. The qualified Soda installer ISO remains unchanged,
+and the test VM never appears in Cockpit's libvirt inventory. Credentials stay
+in the ignored acceptance evidence directory for automated SSH, Cockpit,
+privileged bootc evidence, restart, and reboot checks. The bootstrap key is
+written to Soda's authoritative per-person authorized-key path; qualification
+must then register that same key through the normal account flow before testing
+other people.
 8. Publish a distinct runtime digest. While a direct SSH workload stays
    active, require `sodactl os update check` and `stage` to leave the running
    deployment and services unchanged. Require an ordinary reboot before

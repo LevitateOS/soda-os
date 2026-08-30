@@ -22,6 +22,7 @@ Required environment:
 
 Additional launch install environment:
   SODA_ACCEPTANCE_ISO              Exact-digest Soda installer ISO
+  SODA_ACCEPTANCE_KICKSTART_ISO    Optional test-only OEMDRV automation ISO
 
 Additional workload environment:
   SODA_ACCEPTANCE_WORKSPACE_TARGET Soda person's Linux username, for example vince
@@ -38,8 +39,6 @@ Optional environment:
   SODA_ACCEPTANCE_SSH_PORT=2222
   SODA_ACCEPTANCE_COCKPIT_PORT=9090
   SODA_ACCEPTANCE_VNC=127.0.0.1:1  Loopback VNC endpoint for x86-64 graphical install
-  SODA_ACCEPTANCE_LIBVIRT_DOMAIN=<system-libvirt domain managed through Cockpit>
-  SODA_ACCEPTANCE_LIBVIRT_URI=qemu:///system
   SODA_ACCEPTANCE_ADMIN_PASSWORD_FILE=<test-only administrator password file>
   SODA_ACCEPTANCE_DISK=$SODA_ACCEPTANCE_DIR/soda-system.qcow2
   SODA_ACCEPTANCE_DISK_SIZE=40G
@@ -122,14 +121,6 @@ workspace_ssh() {
 }
 
 qmp() {
-	libvirt_domain=${SODA_ACCEPTANCE_LIBVIRT_DOMAIN:-}
-	if [ -n "$libvirt_domain" ]; then
-		need sudo
-		need virsh
-		sudo -n virsh -c "${SODA_ACCEPTANCE_LIBVIRT_URI:-qemu:///system}" \
-			qemu-monitor-command "$libvirt_domain" "$1"
-		return
-	fi
 	qmp_socket=$(qmp_path)
 	[ -S "$qmp_socket" ] || die "QMP socket $qmp_socket is unavailable"
 	if command -v socat >/dev/null 2>&1; then
@@ -162,6 +153,11 @@ launch() {
 			installer_args="-drive file=$iso,media=cdrom,if=virtio,format=raw,readonly=on"
 		else
 			installer_args="-drive file=$iso,media=cdrom,format=raw,readonly=on"
+		fi
+		kickstart_iso=${SODA_ACCEPTANCE_KICKSTART_ISO:-}
+		if [ -n "$kickstart_iso" ]; then
+			need_file "$kickstart_iso"
+			installer_args="$installer_args -drive file=$kickstart_iso,media=cdrom,format=raw,readonly=on"
 		fi
 	else
 		need_file "$disk"
@@ -245,19 +241,31 @@ EOF
 
 wait_ready() {
 	require_dir
-	need nc
 	need curl
+	need ssh-keyscan
+	need ssh-keygen
 	started=$(date +%s)
-	deadline=$((started + 600))
-	while ! nc -z "$host" "$ssh_port" >/dev/null 2>&1; do
-		[ "$(date +%s)" -lt "$deadline" ] || die "SSH did not become ready within 600 seconds"
-		sleep 2
+	deadline=$((started + 1200))
+	known_hosts=$(known_hosts_path)
+	known_hosts_tmp=$acceptance_dir/.known-hosts.$$
+	trap 'rm -f "$known_hosts_tmp"' 0 1 2 15
+	while :; do
+		[ "$(date +%s)" -lt "$deadline" ] || die "installed guest SSH did not become ready within 1200 seconds"
+		ssh-keyscan -T 5 -t ed25519 -p "$ssh_port" "$host" >"$known_hosts_tmp" 2>/dev/null || true
+		if [ -s "$known_hosts_tmp" ]; then
+			mv "$known_hosts_tmp" "$known_hosts"
+			if admin_ssh 'id; cat /proc/sys/kernel/random/boot_id'; then
+				break
+			fi
+		fi
+		sleep 30
 	done
+	trap - 0 1 2 15
+	ssh-keygen -lf "$known_hosts" >"$acceptance_dir/ssh-host-key-fingerprint.txt"
 	while ! curl --fail --silent --show-error --insecure "https://$host:$cockpit_port/healthz" >/dev/null 2>&1; do
-		[ "$(date +%s)" -lt "$deadline" ] || die "Cockpit did not become ready within 600 seconds"
+		[ "$(date +%s)" -lt "$deadline" ] || die "Cockpit did not become ready within 1200 seconds"
 		sleep 2
 	done
-	admin_ssh 'id; cat /proc/sys/kernel/random/boot_id'
 	printf 'ready_at=%s\nelapsed_seconds=%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$(( $(date +%s) - started ))" |
 		tee "$acceptance_dir/readiness.txt"
 }
@@ -375,14 +383,6 @@ workload() {
 
 stop_vm() {
 	require_dir
-	libvirt_domain=${SODA_ACCEPTANCE_LIBVIRT_DOMAIN:-}
-	if [ -n "$libvirt_domain" ]; then
-		need sudo
-		need virsh
-		sudo -n virsh -c "${SODA_ACCEPTANCE_LIBVIRT_URI:-qemu:///system}" shutdown "$libvirt_domain" |
-			tee "$acceptance_dir/libvirt-shutdown.txt"
-		return
-	fi
 	qmp '{"execute":"system_powerdown"}' | tee "$acceptance_dir/qmp-powerdown.json"
 }
 
