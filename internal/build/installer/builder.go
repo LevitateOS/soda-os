@@ -61,15 +61,15 @@ func (b *Builder) ValidateISO(ctx context.Context, isoPath, reference, installer
 	if err := validateToolLock(lock, b.Spec.Platform); err != nil {
 		return "", err
 	}
-	return b.inspectPublishedISO(ctx, isoPath, reference, installerArchive, lock)
+	return b.inspectISOArtifact(ctx, isoPath, reference, installerArchive, lock)
 }
 
-func (b *Builder) inspectPublishedISO(ctx context.Context, isoPath, reference, installerArchive string, lock toolLock) (string, error) {
+func (b *Builder) inspectISOArtifact(ctx context.Context, isoPath, reference, installerArchive string, lock toolLock) (string, error) {
 	workRoot := filepath.Join(b.Root, ".artifacts", "installer")
 	if err := os.MkdirAll(workRoot, 0o755); err != nil {
 		return "", err
 	}
-	inspectDir, err := os.MkdirTemp(workRoot, "publish-inspect-")
+	inspectDir, err := os.MkdirTemp(workRoot, "iso-inspect-")
 	if err != nil {
 		return "", err
 	}

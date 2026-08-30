@@ -24,7 +24,7 @@ func TestCreateRecordUsesLocalArchiveDigest(t *testing.T) {
 	publisher := &Publisher{spec: testSpec()}
 	output := t.TempDir()
 
-	result, err := publisher.CreateRecord(context.Background(), PublicationOptions{ArchivePath: archive, OutputDir: output})
+	result, err := publisher.CreateRecord(context.Background(), RecordOptions{ArchivePath: archive, OutputDir: output})
 	require.NoError(t, err)
 	digest, err := img.Digest()
 	require.NoError(t, err)
@@ -48,7 +48,7 @@ func TestCreateRecordBindsInspectedISO(t *testing.T) {
 	validator := &fakeISOValidator{}
 	publisher := &Publisher{spec: testSpec(), isoValidator: validator}
 
-	result, err := publisher.CreateRecord(context.Background(), PublicationOptions{ArchivePath: writeOCIArchive(t, matchingTestImage(t)), ISOPath: iso, OutputDir: t.TempDir()})
+	result, err := publisher.CreateRecord(context.Background(), RecordOptions{ArchivePath: writeOCIArchive(t, matchingTestImage(t)), ISOPath: iso, OutputDir: t.TempDir()})
 	require.NoError(t, err)
 	require.Equal(t, 1, validator.calls)
 	contents, err := os.ReadFile(result.RecordPath)
@@ -80,7 +80,7 @@ func TestReleaseIndexRequiresTwoMatchingSiblingArtifacts(t *testing.T) {
 		require.NoError(t, os.WriteFile(recordPath, encoded, 0o644))
 		artifacts[architecture] = ReleaseArtifact{ISOPath: isoPath, RecordPath: recordPath}
 	}
-	index, paths, err := publisher.releaseIndex(context.Background(), artifacts)
+	index, paths, err := publisher.releaseIndex(artifacts)
 	require.NoError(t, err)
 	require.Equal(t, []string{"aarch64", "x86_64"}, []string{index.Releases[0].Architecture, index.Releases[1].Architecture})
 	require.Len(t, paths, 4)
@@ -93,7 +93,7 @@ func TestReleaseIndexRequiresTwoMatchingSiblingArtifacts(t *testing.T) {
 	encoded, err := json.Marshal(mismatched)
 	require.NoError(t, err)
 	require.NoError(t, os.WriteFile(artifacts["x86_64"].RecordPath, encoded, 0o644))
-	_, _, err = publisher.releaseIndex(context.Background(), artifacts)
+	_, _, err = publisher.releaseIndex(artifacts)
 	require.EqualError(t, err, "paired release records have different source revisions")
 }
 

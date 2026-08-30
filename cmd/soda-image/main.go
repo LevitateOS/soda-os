@@ -74,8 +74,8 @@ func installerCommand(builder func() (*image.Builder, error)) *cobra.Command {
 }
 
 type releaseCommandState struct {
-	builder     func() (*image.Builder, error)
-	publication release.PublicationOptions
+	builder func() (*image.Builder, error)
+	record  release.RecordOptions
 }
 
 func releaseCommand(builder func() (*image.Builder, error)) *cobra.Command {
@@ -86,11 +86,11 @@ func releaseCommand(builder func() (*image.Builder, error)) *cobra.Command {
 		Args:  cobra.NoArgs,
 		RunE:  state.run,
 	}
-	command.Flags().StringVar(&state.publication.ArchivePath, "archive", "", "path to the selected-architecture Soda OCI archive")
-	command.Flags().StringVar(&state.publication.ISOPath, "iso", "", "installer ISO built from the local OCI archive")
-	command.Flags().StringVar(&state.publication.OutputDir, "output-dir", ".artifacts/releases", "release record directory")
-	command.Flags().StringVar(&state.publication.InstallerArchive, "installer-archive", "", "build-only installer environment used to inspect --iso (defaults to the selected architecture artifact)")
-	command.Flags().StringVar(&state.publication.InstallerToolLock, "installer-tool-lock", "", "pinned Image Builder contract used to inspect --iso (defaults to the selected platform lock)")
+	command.Flags().StringVar(&state.record.ArchivePath, "archive", "", "path to the selected-architecture Soda OCI archive")
+	command.Flags().StringVar(&state.record.ISOPath, "iso", "", "installer ISO built from the local OCI archive")
+	command.Flags().StringVar(&state.record.OutputDir, "output-dir", ".artifacts/releases", "release record directory")
+	command.Flags().StringVar(&state.record.InstallerArchive, "installer-archive", "", "build-only installer environment used to inspect --iso (defaults to the selected architecture artifact)")
+	command.Flags().StringVar(&state.record.InstallerToolLock, "installer-tool-lock", "", "pinned Image Builder contract used to inspect --iso (defaults to the selected platform lock)")
 	for _, name := range []string{"archive", "iso"} {
 		_ = command.MarkFlagRequired(name)
 	}
@@ -102,17 +102,17 @@ func (state *releaseCommandState) run(command *cobra.Command, _ []string) error 
 	if err != nil {
 		return err
 	}
-	if state.publication.InstallerArchive == "" {
-		state.publication.InstallerArchive = filepath.Join(".artifacts", "installer", "soda-installer-environment-"+builder.Spec.Platform.Architecture.Artifact+".oci.tar")
+	if state.record.InstallerArchive == "" {
+		state.record.InstallerArchive = filepath.Join(".artifacts", "installer", "soda-installer-environment-"+builder.Spec.Platform.Architecture.Artifact+".oci.tar")
 	}
-	if state.publication.InstallerToolLock == "" {
-		state.publication.InstallerToolLock = builder.Spec.Platform.Installer.ToolLock
+	if state.record.InstallerToolLock == "" {
+		state.record.InstallerToolLock = builder.Spec.Platform.Installer.ToolLock
 	}
 	publisher, err := release.NewPublisher(builder.Root, builder.Spec, process.OSRunner{Stdout: os.Stdout, Stderr: os.Stderr})
 	if err != nil {
 		return err
 	}
-	result, err := publisher.CreateRecord(command.Context(), state.publication)
+	result, err := publisher.CreateRecord(command.Context(), state.record)
 	if err != nil {
 		return err
 	}

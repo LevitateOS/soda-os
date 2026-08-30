@@ -71,7 +71,7 @@ func (p *Publisher) PublishPaired(ctx context.Context, options PairedPublication
 		return PairedResult{}, errors.New("Soda distribution has no GitHub release repository")
 	}
 	artifacts := map[string]ReleaseArtifact{"aarch64": options.AArch64, "x86_64": options.X8664}
-	index, paths, err := p.releaseIndex(ctx, artifacts)
+	index, paths, err := p.releaseIndex(artifacts)
 	if err != nil {
 		return PairedResult{}, err
 	}
@@ -95,11 +95,11 @@ func (p *Publisher) PublishPaired(ctx context.Context, options PairedPublication
 	return publishPaired(ctx, client, pairedUpload{repository: p.spec.Distribution.GitHubRepository, tag: tag, indexPath: indexPath, paths: paths})
 }
 
-func (p *Publisher) releaseIndex(ctx context.Context, artifacts map[string]ReleaseArtifact) (releaseIndex, []string, error) {
+func (p *Publisher) releaseIndex(artifacts map[string]ReleaseArtifact) (releaseIndex, []string, error) {
 	index := releaseIndex{SchemaVersion: 1, Releases: make([]indexRelease, 0, 2)}
 	paths := make([]string, 0, 4)
 	for _, architecture := range []string{"aarch64", "x86_64"} {
-		indexed, err := p.releaseIndexEntry(ctx, architecture, artifacts[architecture])
+		indexed, err := p.releaseIndexEntry(architecture, artifacts[architecture])
 		if err != nil {
 			return releaseIndex{}, nil, err
 		}
@@ -120,11 +120,11 @@ type indexedArtifact struct {
 	paths   []string
 }
 
-func (p *Publisher) releaseIndexEntry(ctx context.Context, architecture string, artifact ReleaseArtifact) (indexedArtifact, error) {
+func (p *Publisher) releaseIndexEntry(architecture string, artifact ReleaseArtifact) (indexedArtifact, error) {
 	if !regularFile(artifact.ISOPath) || !regularFile(artifact.RecordPath) {
 		return indexedArtifact{}, fmt.Errorf("%s paired release artifacts must be regular files", architecture)
 	}
-	record, contents, err := p.readReleaseRecord(ctx, architecture, artifact)
+	record, contents, err := p.readReleaseRecord(architecture, artifact)
 	if err != nil {
 		return indexedArtifact{}, err
 	}
@@ -140,8 +140,7 @@ func (p *Publisher) releaseIndexEntry(ctx context.Context, architecture string, 
 	return indexedArtifact{release: entry, record: record, paths: []string{artifact.ISOPath, artifact.RecordPath}}, nil
 }
 
-func (p *Publisher) readReleaseRecord(ctx context.Context, architecture string, artifact ReleaseArtifact) (Record, []byte, error) {
-	_ = ctx
+func (p *Publisher) readReleaseRecord(architecture string, artifact ReleaseArtifact) (Record, []byte, error) {
 	contents, err := os.ReadFile(artifact.RecordPath)
 	if err != nil {
 		return Record{}, nil, err

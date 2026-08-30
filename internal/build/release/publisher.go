@@ -14,7 +14,7 @@ import (
 
 const Repository = "ghcr.io/levitateos/soda-os"
 
-type PublicationOptions struct {
+type RecordOptions struct {
 	ArchivePath       string
 	ISOPath           string
 	OutputDir         string
@@ -56,7 +56,7 @@ func NewPublisher(root string, spec config.DistroSpec, runner process.Runner) (*
 	return &Publisher{spec: spec, isoValidator: installer.NewBuilder(root, spec, runner)}, nil
 }
 
-func (p *Publisher) CreateRecord(ctx context.Context, options PublicationOptions) (Result, error) {
+func (p *Publisher) CreateRecord(ctx context.Context, options RecordOptions) (Result, error) {
 	img, cleanup, err := imageFromOCIArchive(options.ArchivePath, p.spec.Platform.Architecture.OCI)
 	if err != nil {
 		return Result{}, err
