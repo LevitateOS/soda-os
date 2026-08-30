@@ -6,7 +6,7 @@ usage() {
 Usage: tests/acceptance/libvirt.sh COMMAND MODEL
 
 Commands:
-  launch staging   Define and start the persistent Cockpit-managed staging VM
+  launch staging   Define the persistent, owner-started Cockpit staging VM
   launch test      Define and start the unattended acceptance VM
   wait test        Wait for the unattended VM and prove key-based SSH/Cockpit
   address MODEL    Print the current libvirt DHCP address
@@ -208,9 +208,11 @@ launch_domain() {
 		set -- "$@" --disk "path=$seed,device=cdrom,readonly=on,bus=sata"
 	fi
 	if [ "$model" = staging ]; then
-		set -- "$@" --autostart
+		"$@" --print-xml >"$acceptance_dir/domain.xml"
+		virsh_system define "$acceptance_dir/domain.xml" >/dev/null
+	else
+		"$@"
 	fi
-	"$@"
 	virsh_system dumpxml "$domain" >"$acceptance_dir/domain.xml"
 	virsh_system dominfo "$domain" >"$acceptance_dir/domain-info.txt"
 }
@@ -251,7 +253,11 @@ launch() {
 	launch_domain "$model" "$domain" "$disk" "$seed"
 	printf '%s\n' "$domain" >"$acceptance_dir/domain-name.txt"
 	printf '%s\n' "$disk" >"$acceptance_dir/disk-path.txt"
-	printf 'libvirt domain %s started; manage it through Cockpit\n' "$domain"
+	if [ "$model" = staging ]; then
+		printf 'libvirt domain %s defined and left shut off; start it through Cockpit\n' "$domain"
+	else
+		printf 'libvirt domain %s started for automated testing\n' "$domain"
+	fi
 }
 
 address() {

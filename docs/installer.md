@@ -50,8 +50,9 @@ surrounding navy and cyan visual treatment uses the same established palette in
 the Anaconda stylesheet.
 
 The x86-64 staging harness keeps two separate system-libvirt domains. The
-persistent `soda-staging` domain uses this stock graphical flow and remains
-visible to the owner through Cockpit. The disposable `soda-acceptance` domain
+persistent `soda-staging` domain uses this stock graphical flow, remains shut
+off with autostart disabled until the owner starts it through Cockpit, and stays
+under owner control. The disposable `soda-acceptance` domain
 attaches a separate, generated `OEMDRV` Kickstart ISO for unattended testing.
 That overlay owns only test credentials and installation answers; it does not
 modify the qualified Soda installer ISO or define an alternate product install

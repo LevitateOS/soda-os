@@ -40,9 +40,10 @@ state stay under ignored artifact paths.
    SSH, direct commands, Git-over-SSH, and SFTP use the selected workspace.
 
 For x86-64 staging, use `tests/acceptance/libvirt.sh launch staging`. It defines
-the persistent `soda-staging` system-libvirt domain, which remains visible and
-controllable in Cockpit while the owner completes the stock graphical installer.
-This is the human-operated staging appliance.
+the persistent `soda-staging` system-libvirt domain and leaves it shut off with
+autostart disabled. It remains visible and controllable in Cockpit, and only the
+owner starts it to complete the stock graphical installer. This is the
+human-operated staging appliance.
 
 Use `tests/acceptance/libvirt.sh launch test` for repeatable qualification. It
 defines a separate `soda-acceptance` domain and attaches a per-run `OEMDRV`
