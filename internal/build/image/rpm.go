@@ -142,6 +142,7 @@ func (b *Builder) stageRPMSources(build, sources string) error {
 		{filepath.Join(build, "sodad"), filepath.Join(sources, "sodad")},
 		{filepath.Join(build, "sodactl"), filepath.Join(sources, "sodactl")},
 		{filepath.Join(build, "soda-ssh"), filepath.Join(sources, "soda-ssh")},
+		{filepath.Join(build, "soda-tailnet"), filepath.Join(sources, "soda-tailnet")},
 		{filepath.Join(build, "soda-cockpit"), filepath.Join(sources, "soda-cockpit")},
 		{filepath.Join(build, "soda-authd"), filepath.Join(sources, "soda-authd")},
 		{filepath.Join(build, "forgejo"), filepath.Join(sources, "forgejo")},

@@ -93,6 +93,7 @@ func TestConsoleWelcomeRPMContract(t *testing.T) {
 	require.NoError(t, err)
 	require.Contains(t, string(staging), `b.path("packaging/rpm/runtime/sources/console/soda-console-welcome"), filepath.Join(sources, "soda-console-welcome")`)
 	require.Contains(t, string(staging), `{"soda-tailnet", "./cmd/soda-tailnet"}`)
+	require.Contains(t, string(staging), `{filepath.Join(build, "soda-tailnet"), filepath.Join(sources, "soda-tailnet")}`)
 	require.Contains(t, string(staging), `b.path("packaging/rpm/runtime/sources/profile.d/soda-console-welcome.sh"), filepath.Join(sources, "soda-console-welcome.sh")`)
 	require.NotContains(t, strings.TrimSpace(string(runtimeSpec)), "%post")
 }
