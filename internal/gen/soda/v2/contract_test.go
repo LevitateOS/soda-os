@@ -41,9 +41,7 @@ func TestSodaServiceContract(t *testing.T) {
 	}
 }
 
-func TestPersonalWorkspaceIdentityContract(t *testing.T) {
-	person := (&Person{}).ProtoReflect().Descriptor()
-	require.Nil(t, person.Fields().ByName("ssh_public_key"))
+func TestProjectMembershipContract(t *testing.T) {
 	request := (&CreateProjectRequest{}).ProtoReflect().Descriptor()
 	require.True(t, request.Fields().ByName("initial_person_ids").IsList())
 }

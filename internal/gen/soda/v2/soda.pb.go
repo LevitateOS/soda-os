@@ -1494,7 +1494,7 @@ type CreatePersonRequest struct {
 	DisplayName   string                 `protobuf:"bytes,2,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
 	Email         string                 `protobuf:"bytes,3,opt,name=email,proto3" json:"email,omitempty"`
 	Role          Role                   `protobuf:"varint,4,opt,name=role,proto3,enum=soda.v2.Role" json:"role,omitempty"`
-	Password      string                 `protobuf:"bytes,6,opt,name=password,proto3" json:"password,omitempty"`
+	Password      string                 `protobuf:"bytes,5,opt,name=password,proto3" json:"password,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3170,8 +3170,8 @@ type OSDeployment struct {
 	Version        string                 `protobuf:"bytes,2,opt,name=version,proto3" json:"version,omitempty"`
 	Digest         string                 `protobuf:"bytes,3,opt,name=digest,proto3" json:"digest,omitempty"`
 	Architecture   string                 `protobuf:"bytes,4,opt,name=architecture,proto3" json:"architecture,omitempty"`
-	Incompatible   bool                   `protobuf:"varint,6,opt,name=incompatible,proto3" json:"incompatible,omitempty"`
-	DownloadOnly   bool                   `protobuf:"varint,7,opt,name=download_only,json=downloadOnly,proto3" json:"download_only,omitempty"`
+	Incompatible   bool                   `protobuf:"varint,5,opt,name=incompatible,proto3" json:"incompatible,omitempty"`
+	DownloadOnly   bool                   `protobuf:"varint,6,opt,name=download_only,json=downloadOnly,proto3" json:"download_only,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
@@ -3740,13 +3740,13 @@ var File_soda_v2_soda_proto protoreflect.FileDescriptor
 
 const file_soda_v2_soda_proto_rawDesc = "" +
 	"\n" +
-	"\x12soda/v2/soda.proto\x12\asoda.v2\x1a\x1fgoogle/protobuf/timestamp.proto\"\xa6\x01\n" +
+	"\x12soda/v2/soda.proto\x12\asoda.v2\x1a\x1fgoogle/protobuf/timestamp.proto\"\x90\x01\n" +
 	"\x06Person\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1a\n" +
 	"\busername\x18\x02 \x01(\tR\busername\x12!\n" +
 	"\fdisplay_name\x18\x03 \x01(\tR\vdisplayName\x12\x14\n" +
 	"\x05email\x18\x04 \x01(\tR\x05email\x12!\n" +
-	"\x04role\x18\x05 \x01(\x0e2\r.soda.v2.RoleR\x04roleJ\x04\b\x06\x10\aR\x0essh_public_key\"\xfb\x01\n" +
+	"\x04role\x18\x05 \x01(\x0e2\r.soda.v2.RoleR\x04role\"\xfb\x01\n" +
 	"\fSshDeviceKey\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1b\n" +
 	"\tperson_id\x18\x02 \x01(\tR\bpersonId\x12\x14\n" +
@@ -3823,7 +3823,7 @@ const file_soda_v2_soda_proto_rawDesc = "" +
 	"\n" +
 	"one_minute\x18\x01 \x01(\x01R\toneMinute\x12!\n" +
 	"\ffive_minutes\x18\x02 \x01(\x01R\vfiveMinutes\x12'\n" +
-	"\x0ffifteen_minutes\x18\x03 \x01(\x01R\x0efifteenMinutes\"\xaa\x05\n" +
+	"\x0ffifteen_minutes\x18\x03 \x01(\x01R\x0efifteenMinutes\"\x82\x05\n" +
 	"\n" +
 	"HostStatus\x129\n" +
 	"\n" +
@@ -3843,25 +3843,25 @@ const file_soda_v2_soda_proto_rawDesc = "" +
 	" \x01(\x04R\x10memoryTotalBytes\x124\n" +
 	"\x16memory_available_bytes\x18\v \x01(\x04R\x14memoryAvailableBytes\x12;\n" +
 	"\vfilesystems\x18\f \x03(\v2\x19.soda.v2.FilesystemStatusR\vfilesystemsB\x0e\n" +
-	"\f_cpu_percentJ\x04\b\r\x10\x0eJ\x04\b\x0e\x10\x0fR\fssh_observerR\fgit_observer\"\x0f\n" +
+	"\f_cpu_percent\"\x0f\n" +
 	"\rHealthRequest\"\\\n" +
 	"\x0eHealthResponse\x12\x16\n" +
 	"\x06status\x18\x01 \x01(\tR\x06status\x12\x18\n" +
 	"\aservice\x18\x02 \x01(\tR\aservice\x12\x18\n" +
-	"\aversion\x18\x03 \x01(\tR\aversion\"\xbf\x01\n" +
+	"\aversion\x18\x03 \x01(\tR\aversion\"\xa9\x01\n" +
 	"\x13CreatePersonRequest\x12\x1a\n" +
 	"\busername\x18\x01 \x01(\tR\busername\x12!\n" +
 	"\fdisplay_name\x18\x02 \x01(\tR\vdisplayName\x12\x14\n" +
 	"\x05email\x18\x03 \x01(\tR\x05email\x12!\n" +
 	"\x04role\x18\x04 \x01(\x0e2\r.soda.v2.RoleR\x04role\x12\x1a\n" +
-	"\bpassword\x18\x06 \x01(\tR\bpasswordJ\x04\b\x05\x10\x06R\x0essh_public_key\"?\n" +
+	"\bpassword\x18\x05 \x01(\tR\bpassword\"?\n" +
 	"\x14CreatePersonResponse\x12'\n" +
-	"\x06person\x18\x01 \x01(\v2\x0f.soda.v2.PersonR\x06person\"\xa3\x01\n" +
+	"\x06person\x18\x01 \x01(\v2\x0f.soda.v2.PersonR\x06person\"\x8d\x01\n" +
 	"\x13ImportPersonRequest\x12\x1a\n" +
 	"\busername\x18\x01 \x01(\tR\busername\x12!\n" +
 	"\fdisplay_name\x18\x02 \x01(\tR\vdisplayName\x12\x14\n" +
 	"\x05email\x18\x03 \x01(\tR\x05email\x12!\n" +
-	"\x04role\x18\x04 \x01(\x0e2\r.soda.v2.RoleR\x04roleJ\x04\b\x05\x10\x06R\x0essh_public_key\"?\n" +
+	"\x04role\x18\x04 \x01(\x0e2\r.soda.v2.RoleR\x04role\"?\n" +
 	"\x14ImportPersonResponse\x12'\n" +
 	"\x06person\x18\x01 \x01(\v2\x0f.soda.v2.PersonR\x06person\"\x13\n" +
 	"\x11ListPeopleRequest\"=\n" +
@@ -3950,14 +3950,14 @@ const file_soda_v2_soda_proto_rawDesc = "" +
 	"\x04jobs\x18\x01 \x03(\v2\x18.soda.v2.ProvisioningJobR\x04jobs\"\x16\n" +
 	"\x14GetHostStatusRequest\"@\n" +
 	"\x15GetHostStatusResponse\x12'\n" +
-	"\x04host\x18\x01 \x01(\v2\x13.soda.v2.HostStatusR\x04host\"\xe7\x01\n" +
+	"\x04host\x18\x01 \x01(\v2\x13.soda.v2.HostStatusR\x04host\"\xd6\x01\n" +
 	"\fOSDeployment\x12'\n" +
 	"\x0fimage_reference\x18\x01 \x01(\tR\x0eimageReference\x12\x18\n" +
 	"\aversion\x18\x02 \x01(\tR\aversion\x12\x16\n" +
 	"\x06digest\x18\x03 \x01(\tR\x06digest\x12\"\n" +
 	"\farchitecture\x18\x04 \x01(\tR\farchitecture\x12\"\n" +
-	"\fincompatible\x18\x06 \x01(\bR\fincompatible\x12#\n" +
-	"\rdownload_only\x18\a \x01(\bR\fdownloadOnlyJ\x04\b\x05\x10\x06R\tsignature\"\x9b\x01\n" +
+	"\fincompatible\x18\x05 \x01(\bR\fincompatible\x12#\n" +
+	"\rdownload_only\x18\x06 \x01(\bR\fdownloadOnly\"\x9b\x01\n" +
 	"\x0eOSUpdateStatus\x12-\n" +
 	"\x06booted\x18\x01 \x01(\v2\x15.soda.v2.OSDeploymentR\x06booted\x122\n" +
 	"\x06staged\x18\x02 \x01(\v2\x15.soda.v2.OSDeploymentH\x00R\x06staged\x88\x01\x01\x12\x1b\n" +

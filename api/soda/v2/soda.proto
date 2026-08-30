@@ -68,9 +68,6 @@ enum RuntimeState {
 }
 
 message Person {
-  reserved 6;
-  reserved "ssh_public_key";
-
   string id = 1;
   string username = 2;
   string display_name = 3;
@@ -173,9 +170,6 @@ message LoadAverage {
 }
 
 message HostStatus {
-  reserved 13, 14;
-  reserved "ssh_observer", "git_observer";
-
   google.protobuf.Timestamp sampled_at = 1;
   RuntimeState overall = 2;
   repeated ServiceStatus services = 3;
@@ -199,14 +193,11 @@ message HealthResponse {
 }
 
 message CreatePersonRequest {
-  reserved 5;
-  reserved "ssh_public_key";
-
   string username = 1;
   string display_name = 2;
   string email = 3;
   Role role = 4;
-  string password = 6;
+  string password = 5;
 }
 
 message CreatePersonResponse {
@@ -214,9 +205,6 @@ message CreatePersonResponse {
 }
 
 message ImportPersonRequest {
-  reserved 5;
-  reserved "ssh_public_key";
-
   string username = 1;
   string display_name = 2;
   string email = 3;
@@ -359,14 +347,12 @@ message GetHostStatusResponse {
 }
 
 message OSDeployment {
-	reserved 5;
-	reserved "signature";
   string image_reference = 1;
   string version = 2;
   string digest = 3;
   string architecture = 4;
-  bool incompatible = 6;
-  bool download_only = 7;
+  bool incompatible = 5;
+  bool download_only = 6;
 }
 
 message OSUpdateStatus {
