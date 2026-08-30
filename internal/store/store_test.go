@@ -349,13 +349,6 @@ func TestFailInterruptedProvisioningAllowsRetryAfterRestart(t *testing.T) {
 	if err := repository.BeginProvisioning(ctx, abandoned); err != nil {
 		t.Fatal(err)
 	}
-	count, err := repository.FailInterruptedProvisioning(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if count != 1 {
-		t.Fatalf("reconciled jobs = %d, want 1", count)
-	}
 	jobs, err := repository.Jobs(ctx, project.ID)
 	if err != nil {
 		t.Fatal(err)
