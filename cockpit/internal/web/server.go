@@ -75,14 +75,15 @@ type pageIdentity struct {
 
 func (view pageIdentity) Admin() bool { return view.User.Role == daemonclient.RoleAdmin }
 
-func New(ports Ports, authenticator auth.Authenticator, address string) (*Server, error) {
+func New(ports Ports, authenticator auth.Authenticator, address, forgejoURL string) (*Server, error) {
 	templates, err := template.New("root").Funcs(template.FuncMap{
-		"bytes":    humanBytes,
-		"duration": humanDuration,
-		"keyType":  sshKeyType,
-		"remote":   projectRemote,
-		"time":     humanTime,
-		"version":  func() string { return version.Version },
+		"bytes":      humanBytes,
+		"duration":   humanDuration,
+		"forgejoURL": func() string { return forgejoURL },
+		"keyType":    sshKeyType,
+		"remote":     projectRemote,
+		"time":       humanTime,
+		"version":    func() string { return version.Version },
 	}).ParseFS(content, "templates/*.html")
 	if err != nil {
 		return nil, err

@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"os"
 
@@ -44,7 +45,11 @@ func main() {
 		log.Fatal(err)
 	}
 	defer api.Close()
-	app, err := web.New(web.Ports{Accounts: api, Projects: api, Host: api, Updates: api}, auth.NewClient(pamSocket), identity.Address)
+	forgejoURL := ""
+	if endpoint, endpointErr := tailnet.New(tailnet.Options{}).Endpoint(context.Background()); endpointErr == nil {
+		forgejoURL = fmt.Sprintf("http://%s:3000", endpoint.Identity)
+	}
+	app, err := web.New(web.Ports{Accounts: api, Projects: api, Host: api, Updates: api}, auth.NewClient(pamSocket), identity.Address, forgejoURL)
 	if err != nil {
 		log.Fatal(err)
 	}

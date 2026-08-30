@@ -22,6 +22,7 @@
       <nav aria-label="Primary">
         <a href="/projects">Projects</a>
         <a href="/profiles">Development environments</a>
+        {{if forgejoURL}}<a href="{{forgejoURL}}">Built-in Git</a>{{end}}
         {{if .Admin}}<a href="/team">Team</a><a href="/os-update">OS update</a>{{end}}
         <a href="/account">My account</a>
         <form method="post" action="/logout"><button type="submit">Sign out {{.User.Username}}</button></form>

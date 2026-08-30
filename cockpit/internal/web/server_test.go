@@ -197,7 +197,7 @@ func TestConnectFragmentRendersPersonalizedSSHConfiguration(t *testing.T) {
 		accounts: fakeAccounts{people: []daemonclient.Person{alice}, keys: []daemonclient.SSHDeviceKey{key}},
 		projects: fakeProjects{members: []daemonclient.Person{alice}, projects: []daemonclient.Project{project}, worktrees: []daemonclient.Worktree{workspace}, jobs: []daemonclient.ProvisioningJob{{ID: "job-1", ProjectID: project.ID, State: "ready"}}},
 	}
-	app := testServerWithAddress(t, api, &changingAuth{}, "atlas.example.ts.net")
+	app := testServerWithURLs(t, api, &changingAuth{}, "atlas.example.ts.net", "")
 	token, err := app.sessions.create(alice)
 	if err != nil {
 		t.Fatal(err)
@@ -218,27 +218,45 @@ func TestConnectFragmentRendersPersonalizedSSHConfiguration(t *testing.T) {
 func TestAdminHomeRendersApplianceAddress(t *testing.T) {
 	admin := daemonclient.Person{ID: "admin-1", Username: "admin", DisplayName: "Admin", Role: daemonclient.RoleAdmin}
 	api := &fakePorts{accounts: fakeAccounts{people: []daemonclient.Person{admin}}}
-	app := testServerWithAddress(t, api, &changingAuth{}, "atlas.example.ts.net")
+	app := testServerWithURLs(t, api, &changingAuth{}, "atlas.example.ts.net", "http://atlas.example.ts.net:3000")
 	token, err := app.sessions.create(admin)
 	if err != nil {
 		t.Fatal(err)
 	}
 	page := request(app, http.MethodGet, "/", "", &http.Cookie{Name: sessionCookie, Value: token})
-	if page.Code != http.StatusOK || !strings.Contains(page.Body.String(), `https://atlas.example.ts.net:9090`) || strings.Contains(page.Body.String(), `atlas.local`) {
+	if page.Code != http.StatusOK || !strings.Contains(page.Body.String(), `https://atlas.example.ts.net:9090`) || !strings.Contains(page.Body.String(), `href="http://atlas.example.ts.net:3000"`) || strings.Contains(page.Body.String(), `atlas.local`) {
+		t.Fatalf("home page = %d %q", page.Code, page.Body.String())
+	}
+}
+
+func TestDashboardHidesBuiltInGitWhenForgejoURLIsUnavailable(t *testing.T) {
+	admin := daemonclient.Person{ID: "admin-1", Username: "admin", DisplayName: "Admin", Role: daemonclient.RoleAdmin}
+	api := &fakePorts{accounts: fakeAccounts{people: []daemonclient.Person{admin}}}
+	app := testServerWithURLs(t, api, &changingAuth{}, "atlas.local", "")
+	token, err := app.sessions.create(admin)
+	if err != nil {
+		t.Fatal(err)
+	}
+	page := request(app, http.MethodGet, "/", "", &http.Cookie{Name: sessionCookie, Value: token})
+	if page.Code != http.StatusOK || strings.Contains(page.Body.String(), `>Built-in Git<`) {
 		t.Fatalf("home page = %d %q", page.Code, page.Body.String())
 	}
 }
 
 func testServer(t *testing.T, ports *fakePorts, authenticator auth.Authenticator) *Server {
-	return testServerWithAddress(t, ports, authenticator, "soda.example.ts.net")
+	return testServerWithURLs(t, ports, authenticator, "soda.example.ts.net", "")
 }
 
 func testServerWithAddress(t *testing.T, ports *fakePorts, authenticator auth.Authenticator, address string) *Server {
+	return testServerWithURLs(t, ports, authenticator, address, "")
+}
+
+func testServerWithURLs(t *testing.T, ports *fakePorts, authenticator auth.Authenticator, address, forgejoURL string) *Server {
 	t.Helper()
 	if ports.projects.members == nil {
 		ports.projects.members = ports.accounts.people
 	}
-	app, err := New(Ports{Accounts: &ports.accounts, Projects: &ports.projects, Host: &ports.host, Updates: &ports.updates}, authenticator, address)
+	app, err := New(Ports{Accounts: &ports.accounts, Projects: &ports.projects, Host: &ports.host, Updates: &ports.updates}, authenticator, address, forgejoURL)
 	if err != nil {
 		t.Fatal(err)
 	}
