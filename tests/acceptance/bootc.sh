@@ -38,6 +38,9 @@ Optional environment:
   SODA_ACCEPTANCE_SSH_PORT=2222
   SODA_ACCEPTANCE_COCKPIT_PORT=9090
   SODA_ACCEPTANCE_VNC=127.0.0.1:1  Loopback VNC endpoint for x86-64 graphical install
+  SODA_ACCEPTANCE_LIBVIRT_DOMAIN=<system-libvirt domain managed through Cockpit>
+  SODA_ACCEPTANCE_LIBVIRT_URI=qemu:///system
+  SODA_ACCEPTANCE_ADMIN_PASSWORD_FILE=<test-only administrator password file>
   SODA_ACCEPTANCE_DISK=$SODA_ACCEPTANCE_DIR/soda-system.qcow2
   SODA_ACCEPTANCE_DISK_SIZE=40G
   SODA_ACCEPTANCE_RELEASE_INDEX_URL=<optional GitHub release index URL>
@@ -119,6 +122,14 @@ workspace_ssh() {
 }
 
 qmp() {
+	libvirt_domain=${SODA_ACCEPTANCE_LIBVIRT_DOMAIN:-}
+	if [ -n "$libvirt_domain" ]; then
+		need sudo
+		need virsh
+		sudo -n virsh -c "${SODA_ACCEPTANCE_LIBVIRT_URI:-qemu:///system}" \
+			qemu-monitor-command "$libvirt_domain" "$1"
+		return
+	fi
 	qmp_socket=$(qmp_path)
 	[ -S "$qmp_socket" ] || die "QMP socket $qmp_socket is unavailable"
 	if command -v socat >/dev/null 2>&1; then
@@ -280,13 +291,19 @@ capture() {
 		sha256:????????????????????????????????????????????????????????????????) ;;
 		*) die "SODA_ACCEPTANCE_IMAGE_DIGEST must be an exact sha256 digest" ;;
 	esac
-	privileged=".local/state/soda-acceptance/$name-privileged.json"
-	admin_ssh "test -r \"\$HOME/$privileged\"" || die "missing operator evidence: $privileged"
 	privileged_tmp=$acceptance_dir/."$name-privileged.$$.json"
 	trap 'rm -f "$privileged_tmp"' 0 1 2 15
-	scp -q -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
-		-o "UserKnownHostsFile=$(known_hosts_path)" -i "${SODA_ACCEPTANCE_ADMIN_KEY}" -P "$ssh_port" \
-		"$admin@$host:$privileged" "$privileged_tmp"
+	password_file=${SODA_ACCEPTANCE_ADMIN_PASSWORD_FILE:-}
+	if [ -n "$password_file" ]; then
+		need_file "$password_file"
+		admin_ssh "sudo -S -p '' bootc status --format=json" <"$password_file" >"$privileged_tmp"
+	else
+		privileged=".local/state/soda-acceptance/$name-privileged.json"
+		admin_ssh "test -r \"\$HOME/$privileged\"" || die "missing operator evidence: $privileged"
+		scp -q -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
+			-o "UserKnownHostsFile=$(known_hosts_path)" -i "${SODA_ACCEPTANCE_ADMIN_KEY}" -P "$ssh_port" \
+			"$admin@$host:$privileged" "$privileged_tmp"
+	fi
 	booted_digest=$(jq -r '.status.booted.image.imageDigest // empty' "$privileged_tmp")
 	[ "$booted_digest" = "$image_digest" ] || die "booted digest $booted_digest does not match expected $image_digest"
 	checkpoint=$acceptance_dir/$name
@@ -295,6 +312,10 @@ capture() {
 	date -u +%Y-%m-%dT%H:%M:%SZ >"$checkpoint/captured-at.txt"
 	mv "$privileged_tmp" "$checkpoint/privileged.json"
 	trap - 0 1 2 15
+	if [ -n "$password_file" ]; then
+		admin_ssh "sudo -S -p '' python3 -c 'import sqlite3; print(sqlite3.connect(\"/var/lib/soda/soda.db\").execute(\"PRAGMA user_version\").fetchone()[0])'" \
+			<"$password_file" >"$checkpoint/state-schema.txt"
+	fi
 	qmp '{"execute":"query-status"}' >"$checkpoint/qmp-status.json"
 	admin_ssh '
 		echo "[identity]"; id
@@ -307,7 +328,7 @@ capture() {
 		done
 		echo "[failed-units]"; systemctl --failed --no-legend --plain || true
 		echo "[built-in-git]"
-		rpm -q soda-forgejo
+		rpm -q soda-release soda-runtime soda-cockpit soda-forgejo
 		forgejo --version
 		getent passwd git
 		test -s /etc/forgejo/app.ini && echo configuration=present
@@ -319,7 +340,9 @@ capture() {
 			printf "%s=" "$unit"; systemctl is-enabled "$unit" 2>/dev/null || true
 		done
 		echo "[mounts]"
-		findmnt /var/lib/soda /srv/soda/projects /opt/soda/toolchains 2>/dev/null || true
+		for target in /var/lib/soda /srv/soda/projects /opt/soda/toolchains; do
+			findmnt "$target" 2>/dev/null || true
+		done
 		echo "[host-keys]"
 		sha256sum /etc/ssh/ssh_host_*_key.pub 2>/dev/null || true
 		echo "[console]"
@@ -352,6 +375,14 @@ workload() {
 
 stop_vm() {
 	require_dir
+	libvirt_domain=${SODA_ACCEPTANCE_LIBVIRT_DOMAIN:-}
+	if [ -n "$libvirt_domain" ]; then
+		need sudo
+		need virsh
+		sudo -n virsh -c "${SODA_ACCEPTANCE_LIBVIRT_URI:-qemu:///system}" shutdown "$libvirt_domain" |
+			tee "$acceptance_dir/libvirt-shutdown.txt"
+		return
+	fi
 	qmp '{"execute":"system_powerdown"}' | tee "$acceptance_dir/qmp-powerdown.json"
 }
 

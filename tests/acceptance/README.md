@@ -38,6 +38,21 @@ state stay under ignored artifact paths.
    “Connect an existing Git repository”, add the displayed bootstrap person's
    public key to the external Git account, continue setup, and prove personal-UID
    SSH, direct commands, Git-over-SSH, and SFTP use the selected workspace.
+
+For x86-64 staging, use `tests/acceptance/libvirt.sh launch staging`. It defines
+the persistent `soda-staging` system-libvirt domain, which remains visible and
+controllable in Cockpit while the owner completes the stock graphical installer.
+This is the human-operated staging appliance.
+
+Use `tests/acceptance/libvirt.sh launch test` for repeatable qualification. It
+defines a separate `soda-acceptance` domain and attaches a per-run `OEMDRV`
+Kickstart ISO containing test-only identity, password, SSH-key, storage, and
+reboot inputs. The qualified Soda installer ISO remains unchanged. Credentials
+stay in the ignored acceptance evidence directory, and the runner can use them
+for SSH, Cockpit authentication, privileged bootc evidence, restart, and reboot
+checks without owner intervention. The bootstrap key is written to Soda's
+authoritative per-person authorized-key path; qualification must then register
+that same key through the normal account flow before testing other people.
 8. Publish a distinct runtime digest. While a direct SSH workload stays
    active, require `sodactl os update check` and `stage` to leave the running
    deployment and services unchanged. Require an ordinary reboot before

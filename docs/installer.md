@@ -48,6 +48,14 @@ storage, networking, hostname, and the first administrator. Its sidebar and
 product-mark PNGs are generated from the approved Soda v3 SVG masters; the
 surrounding navy and cyan visual treatment uses the same established palette in
 the Anaconda stylesheet.
+
+The x86-64 staging harness keeps two separate system-libvirt domains. The
+persistent `soda-staging` domain uses this stock graphical flow and remains
+visible to the owner through Cockpit. The disposable `soda-acceptance` domain
+attaches a separate, generated `OEMDRV` Kickstart ISO for unattended testing.
+That overlay owns only test credentials and installation answers; it does not
+modify the qualified Soda installer ISO or define an alternate product install
+contract.
 The Fedora 44 installer environment runs SELinux in permissive mode because its
 live overlay cannot be relabeled; this boot option does not change the installed
 Soda image, which retains enforcing SELinux.
