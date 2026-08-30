@@ -145,7 +145,15 @@ func (s *Service) ensureProjectPrerequisites(ctx context.Context, project domain
 }
 
 func (s *Service) ensureProjectRepository(ctx context.Context, project domain.Project) error {
-	if err := s.host.EnsureRepository(ctx, project); err != nil {
+	var bootstrap domain.Person
+	var err error
+	if project.BootstrapPersonID != "" {
+		bootstrap, err = s.store.Person(ctx, project.BootstrapPersonID)
+		if err != nil {
+			return err
+		}
+	}
+	if err := s.host.EnsureRepository(ctx, project, bootstrap); err != nil {
 		return err
 	}
 	return s.ensureBuiltInGitProject(ctx, project)
@@ -226,65 +234,37 @@ func (s *Service) requireProjectReady(ctx context.Context, projectID string) err
 }
 
 func (s *Service) reconcilePersonAccess(ctx context.Context, personID string) error {
-	projects, err := s.store.ProjectsForPerson(ctx, personID)
+	person, err := s.store.Person(ctx, personID)
 	if err != nil {
 		return err
 	}
-	for _, project := range projects {
-		if err = s.reconcileProjectAccess(ctx, project.ID); err != nil {
+	keys, err := s.store.SSHDeviceKeys(ctx, personID)
+	if err != nil {
+		return err
+	}
+	return s.host.ReconcileAuthorizedKeys(ctx, person, keys)
+}
+
+func (s *Service) reconcileProjectAccess(ctx context.Context, projectID string) error {
+	people, err := s.store.Collaborators(ctx, projectID)
+	if err != nil {
+		return err
+	}
+	for _, person := range people {
+		if err = s.reconcilePersonAccess(ctx, person.ID); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (s *Service) reconcileProjectAccess(ctx context.Context, projectID string) error {
-	project, err := s.store.Project(ctx, projectID)
-	if err != nil {
-		return err
-	}
-	people, err := s.store.Collaborators(ctx, projectID)
-	if err != nil {
-		return err
-	}
-	access := make([]domain.ProjectAccess, 0, len(people))
-	for _, person := range people {
-		value, included, accessErr := s.projectAccessForPerson(ctx, projectID, person)
-		if accessErr != nil {
-			return accessErr
-		}
-		if included {
-			access = append(access, value)
-		}
-	}
-	return s.host.ReconcileAuthorizedKeys(ctx, project, access)
-}
-
-func (s *Service) projectAccessForPerson(ctx context.Context, projectID string, person domain.Person) (domain.ProjectAccess, bool, error) {
-	trees, err := s.store.WorktreesForPerson(ctx, projectID, person.ID)
-	if err != nil {
-		return domain.ProjectAccess{}, false, err
-	}
-	if len(trees) == 0 {
-		return domain.ProjectAccess{}, false, nil
-	}
-	if len(trees) != 1 {
-		return domain.ProjectAccess{}, false, fmt.Errorf("person %s has multiple personal workspaces", person.Username)
-	}
-	keys, err := s.store.SSHDeviceKeys(ctx, person.ID)
-	if err != nil {
-		return domain.ProjectAccess{}, false, err
-	}
-	return domain.ProjectAccess{Person: person, Worktree: trees[0], Keys: keys}, true, nil
-}
-
 func (s *Service) ReconcileAllAuthorizedKeys(ctx context.Context) error {
-	projects, err := s.store.Projects(ctx)
+	people, err := s.store.People(ctx)
 	if err != nil {
 		return err
 	}
-	for _, project := range projects {
-		if err = s.reconcileProjectAccess(ctx, project.ID); err != nil {
+	for _, person := range people {
+		if err = s.reconcilePersonAccess(ctx, person.ID); err != nil {
 			return err
 		}
 	}

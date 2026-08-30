@@ -22,7 +22,6 @@ const (
 type Options struct {
 	Actor           string
 	Project         string
-	Worktree        string
 	Home            string
 	ProjectsRoot    string
 	OriginalCommand string
@@ -80,10 +79,16 @@ func BuildInvocation(options Options) (Invocation, error) {
 	if err := validateActor(options.Actor); err != nil {
 		return Invocation{}, err
 	}
+	if options.Project == "" {
+		return buildPersonalInvocation(options)
+	}
 	if err := validateActor(options.Project); err != nil {
 		return Invocation{}, errors.New("invalid Soda project")
 	}
+	return buildProjectInvocation(options)
+}
 
+func buildProjectInvocation(options Options) (Invocation, error) {
 	layout, err := resolveSessionLayout(options)
 	if err != nil {
 		return Invocation{}, err
@@ -123,6 +128,31 @@ func BuildInvocation(options Options) (Invocation, error) {
 	return Invocation{Path: path, Argv: argv, Env: environment, Dir: layout.worktree, Banner: banner}, nil
 }
 
+func buildPersonalInvocation(options Options) (Invocation, error) {
+	home, err := canonicalDirectory(options.Home, "home")
+	if err != nil {
+		return Invocation{}, err
+	}
+	path, argv, err := sessionCommand(options.OriginalCommand, options.Shell)
+	if err != nil {
+		return Invocation{}, err
+	}
+	environment := mergeEnvironment(options.Environment, map[string]string{
+		"HOME":            home,
+		"PWD":             home,
+		"SODA_ACTOR":      options.Actor,
+		"XDG_CACHE_HOME":  filepath.Join(home, ".cache"),
+		"XDG_CONFIG_HOME": filepath.Join(home, ".config"),
+		"XDG_DATA_HOME":   filepath.Join(home, ".local", "share"),
+		"XDG_STATE_HOME":  filepath.Join(home, ".local", "state"),
+	})
+	banner := ""
+	if options.OriginalCommand == "" && environmentValue(options.Environment, "SSH_TTY") != "" {
+		banner = fmt.Sprintf("Soda OS\nPerson: %s\n\n", options.Actor)
+	}
+	return Invocation{Path: path, Argv: argv, Env: environment, Dir: home, Banner: banner}, nil
+}
+
 func resolveSessionLayout(options Options) (sessionLayout, error) {
 	projectsRoot := options.ProjectsRoot
 	if projectsRoot == "" {
@@ -132,26 +162,23 @@ func resolveSessionLayout(options Options) (sessionLayout, error) {
 	if err != nil {
 		return sessionLayout{}, err
 	}
-	worktree, err := canonicalDirectory(options.Worktree, "worktree")
-	if err != nil || !containedBy(root, worktree) {
-		if err != nil {
-			return sessionLayout{}, err
-		}
-		return sessionLayout{}, errors.New("worktree is outside the Soda projects root")
-	}
 	projectRoot, err := canonicalDirectory(filepath.Join(root, options.Project), "project root")
 	if err != nil {
 		return sessionLayout{}, err
 	}
-	if worktree != filepath.Join(projectRoot, "worktrees", options.Actor) {
-		return sessionLayout{}, errors.New("worktree does not match the Soda actor and project")
+	if !containedBy(root, projectRoot) {
+		return sessionLayout{}, errors.New("invalid Soda project")
 	}
-	home, err := canonicalDirectory(options.Home, "session home")
+	worktree, err := canonicalDirectory(filepath.Join(projectRoot, "worktrees", options.Actor), "worktree")
 	if err != nil {
-		return sessionLayout{}, err
+		return sessionLayout{}, errors.New("Soda project membership is unavailable")
 	}
-	if home != filepath.Join(projectRoot, ".soda", "people", options.Actor, "home") {
-		return sessionLayout{}, errors.New("session home does not match the Soda actor and project")
+	home, err := canonicalDirectory(filepath.Join(projectRoot, ".soda", "people", options.Actor, "home"), "session home")
+	if err != nil {
+		return sessionLayout{}, errors.New("Soda project membership is unavailable")
+	}
+	if !containedBy(projectRoot, worktree) || !containedBy(projectRoot, home) {
+		return sessionLayout{}, errors.New("Soda project membership is unavailable")
 	}
 	return sessionLayout{projectRoot: projectRoot, worktree: worktree, home: home}, nil
 }

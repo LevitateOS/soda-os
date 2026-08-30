@@ -24,7 +24,8 @@ Additional launch install environment:
   SODA_ACCEPTANCE_ISO              Exact-digest Soda installer ISO
 
 Additional workload environment:
-  SODA_ACCEPTANCE_WORKSPACE_TARGET Forced-command SSH target, for example soda-p-demo
+  SODA_ACCEPTANCE_WORKSPACE_TARGET Soda person's Linux username, for example vince
+  SODA_ACCEPTANCE_PROJECT          Project slug selected through SODA_PROJECT
   SODA_ACCEPTANCE_WORKSPACE_KEY    Registered Soda device private key
 
 Optional environment:
@@ -99,12 +100,15 @@ admin_ssh() {
 
 workspace_ssh() {
 	workspace_target=${SODA_ACCEPTANCE_WORKSPACE_TARGET:-}
+	workspace_project=${SODA_ACCEPTANCE_PROJECT:-}
 	workspace_key=${SODA_ACCEPTANCE_WORKSPACE_KEY:-}
 	[ -n "$workspace_target" ] || die "SODA_ACCEPTANCE_WORKSPACE_TARGET is required"
+	[ -n "$workspace_project" ] || die "SODA_ACCEPTANCE_PROJECT is required"
 	[ -n "$workspace_key" ] || die "SODA_ACCEPTANCE_WORKSPACE_KEY is required"
 	need_file "$workspace_key"
 	need_file "$(known_hosts_path)"
 	ssh -T -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
+		-o "SetEnv=SODA_PROJECT=$workspace_project" \
 		-o "UserKnownHostsFile=$(known_hosts_path)" -i "$workspace_key" -p "$ssh_port" \
 		"$workspace_target@$host" "$@"
 }

@@ -16,6 +16,7 @@ install -m 0755 %{_sourcedir}/sodactl %{buildroot}%{_bindir}/sodactl
 install -m 0755 %{_sourcedir}/soda-tailnet %{buildroot}%{_bindir}/soda-tailnet
 install -m 0755 %{_sourcedir}/soda-console-welcome %{buildroot}%{_libexecdir}/soda/soda-console-welcome
 install -m 0644 %{_sourcedir}/sodad.service %{buildroot}%{_unitdir}/sodad.service
+install -m 0644 %{_sourcedir}/soda-installer-import.service %{buildroot}%{_unitdir}/soda-installer-import.service
 install -m 0644 %{_sourcedir}/soda-state-directories.service %{buildroot}%{_unitdir}/soda-state-directories.service
 install -m 0644 %{_sourcedir}/var-srv-soda-projects.mount %{buildroot}%{_unitdir}/var-srv-soda-projects.mount
 install -m 0644 %{_sourcedir}/opt-soda-toolchains.mount %{buildroot}%{_unitdir}/opt-soda-toolchains.mount
@@ -35,6 +36,7 @@ install -m 0644 %{_sourcedir}/soda-console-welcome.sh %{buildroot}%{_sysconfdir}
 %{_bindir}/soda-tailnet
 %{_libexecdir}/soda/soda-console-welcome
 %{_unitdir}/sodad.service
+%{_unitdir}/soda-installer-import.service
 %{_unitdir}/soda-state-directories.service
 %{_unitdir}/var-srv-soda-projects.mount
 %{_unitdir}/opt-soda-toolchains.mount

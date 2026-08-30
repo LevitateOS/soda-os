@@ -36,29 +36,36 @@ type workspaceEvents struct {
 	attempts         int
 	failAt           int
 	baseRefs         []string
+	repositoryPeople []domain.Person
+	repositoryErr    error
 }
 
 type accessEvents struct {
-	reconciliations [][]domain.ProjectAccess
+	reconciliations []accessReconciliation
 	err             error
 }
 
-func (h *fakeHost) CreatePerson(context.Context, domain.Person, string) (host.Cleanup, error) {
+type accessReconciliation struct {
+	person domain.Person
+	keys   []domain.SSHDeviceKey
+}
+
+func (h *fakeHost) CreatePerson(_ context.Context, person domain.Person, _ string) (domain.GitIdentity, host.Cleanup, error) {
 	h.mu.Lock()
 	h.people.created++
 	h.mu.Unlock()
-	return func(context.Context) error {
+	return domain.GitIdentity{PersonID: person.ID, PublicKey: "ssh-ed25519 AAAA " + person.Username, Fingerprint: "SHA256:" + person.ID}, func(context.Context) error {
 		h.mu.Lock()
 		defer h.mu.Unlock()
 		h.people.cleanups++
 		return nil
 	}, nil
 }
-func (h *fakeHost) ImportPerson(context.Context, domain.Person) (host.Cleanup, error) {
+func (h *fakeHost) ImportPerson(_ context.Context, person domain.Person) (domain.GitIdentity, host.Cleanup, error) {
 	h.mu.Lock()
 	h.people.imported++
 	h.mu.Unlock()
-	return func(context.Context) error {
+	return domain.GitIdentity{PersonID: person.ID, PublicKey: "ssh-ed25519 AAAA " + person.Username, Fingerprint: "SHA256:" + person.ID}, func(context.Context) error {
 		h.mu.Lock()
 		defer h.mu.Unlock()
 		h.people.cleanups++
@@ -76,7 +83,12 @@ func (h *fakeHost) CreateProject(_ context.Context, value domain.Project) (host.
 		return nil
 	}, nil
 }
-func (*fakeHost) EnsureRepository(context.Context, domain.Project) error        { return nil }
+func (h *fakeHost) EnsureRepository(_ context.Context, _ domain.Project, person domain.Person) error {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.workspaces.repositoryPeople = append(h.workspaces.repositoryPeople, person)
+	return h.workspaces.repositoryErr
+}
 func (*fakeHost) DefaultBranch(context.Context, domain.Project) (string, error) { return "trunk", nil }
 func (h *fakeHost) CreateWorktree(_ context.Context, _ domain.Project, _ domain.Person, value domain.Worktree, baseRef string) (host.Cleanup, error) {
 	h.mu.Lock()
@@ -95,11 +107,11 @@ func (h *fakeHost) CreateWorktree(_ context.Context, _ domain.Project, _ domain.
 		return nil
 	}, nil
 }
-func (h *fakeHost) ReconcileAuthorizedKeys(_ context.Context, _ domain.Project, access []domain.ProjectAccess) error {
+func (h *fakeHost) ReconcileAuthorizedKeys(_ context.Context, person domain.Person, keys []domain.SSHDeviceKey) error {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	copyOfAccess := append([]domain.ProjectAccess(nil), access...)
-	h.access.reconciliations = append(h.access.reconciliations, copyOfAccess)
+	copyOfKeys := append([]domain.SSHDeviceKey(nil), keys...)
+	h.access.reconciliations = append(h.access.reconciliations, accessReconciliation{person: person, keys: copyOfKeys})
 	return h.access.err
 }
 func (h *fakeHost) WriteProjectEnvironment(context.Context, domain.Project, string) error {

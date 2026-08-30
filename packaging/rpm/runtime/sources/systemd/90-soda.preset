@@ -1,5 +1,6 @@
 enable sshd.service
 enable sodad.service
+enable soda-installer-import.service
 enable forgejo.service
 enable soda-authd.service
 enable soda-cockpit.service

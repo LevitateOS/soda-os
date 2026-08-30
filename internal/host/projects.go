@@ -38,15 +38,12 @@ func (s *System) projectCleanup(project domain.Project, root string) Cleanup {
 		if err := os.RemoveAll(root); err != nil {
 			cleanupErrors = append(cleanupErrors, err)
 		}
-		if err := os.Remove(s.authorizedKeysPath(project)); err != nil && !errors.Is(err, os.ErrNotExist) {
-			cleanupErrors = append(cleanupErrors, err)
-		}
 		return errors.Join(cleanupErrors...)
 	}
 }
 
 func (s *System) createProjectAccount(ctx context.Context, project domain.Project, root string) error {
-	_, err := s.Runner.Run(ctx, "useradd", []string{"--system", "--create-home", "--home-dir", root, "--shell", "/bin/bash", project.UnixUser}, nil, "")
+	_, err := s.Runner.Run(ctx, "useradd", []string{"--system", "--user-group", "--create-home", "--home-dir", root, "--shell", "/bin/bash", project.UnixUser}, nil, "")
 	return err
 }
 
@@ -58,39 +55,49 @@ func (s *System) initializeProjectRepository(ctx context.Context, project domain
 }
 
 func (s *System) finalizeProjectResources(ctx context.Context, project domain.Project, root string) error {
-	keyFile := s.authorizedKeysPath(project)
-	if _, err := s.Runner.Run(ctx, "chown", []string{"root:root", s.AuthorizedKeysRoot, keyFile}, nil, ""); err != nil {
-		return err
-	}
 	if _, err := s.Runner.Run(ctx, "restorecon", []string{"-R", root}, nil, ""); err != nil {
-		return err
-	}
-	if _, err := s.Runner.Run(ctx, "restorecon", []string{"-R", s.AuthorizedKeysRoot}, nil, ""); err != nil {
 		return err
 	}
 	return s.chown(ctx, project, root)
 }
 
-func (s *System) EnsureRepository(ctx context.Context, project domain.Project) error {
+func (s *System) EnsureRepository(ctx context.Context, project domain.Project, bootstrap domain.Person) error {
 	repository := s.repository(project)
 	if info, err := os.Stat(repository); err == nil && info.IsDir() {
-		return nil
+		return s.prepareSharedRepository(ctx, project, repository)
 	}
 	source, ok := project.Source.(domain.GitProjectSource)
 	if !ok {
 		return fmt.Errorf("project %s repository is missing", project.Slug)
 	}
-	key := filepath.Join(s.projectRoot(project), ".ssh", "deploy_key")
+	if bootstrap.ID == "" {
+		return fmt.Errorf("project %s has no bootstrap person", project.Slug)
+	}
+	key := s.gitPrivateKeyPath(bootstrap.Username)
 	environment := map[string]string{"GIT_SSH_COMMAND": fmt.Sprintf("ssh -i %s -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new", key)}
 	if _, err := s.Runner.Run(ctx, "git", []string{"clone", "--bare", source.RemoteURL, repository}, environment, ""); err != nil {
 		_ = os.RemoveAll(repository)
-		return err
+		return errors.New("external repository clone failed; verify that the bootstrap Git account has repository access")
 	}
-	if err := s.chown(ctx, project, repository); err != nil {
+	if err := s.prepareSharedRepository(ctx, project, repository); err != nil {
 		_ = os.RemoveAll(repository)
 		return err
 	}
 	return nil
+}
+
+func (s *System) prepareSharedRepository(ctx context.Context, project domain.Project, repository string) error {
+	if err := s.chown(ctx, project, repository); err != nil {
+		return err
+	}
+	if _, err := s.Runner.Run(ctx, "chmod", []string{"--recursive", "g+rwX", repository}, nil, ""); err != nil {
+		return err
+	}
+	if _, err := s.Runner.Run(ctx, "find", []string{repository, "-type", "d", "-exec", "chmod", "g+s", "{}", "+"}, nil, ""); err != nil {
+		return err
+	}
+	_, err := s.Runner.Run(ctx, "git", []string{"--git-dir", repository, "config", "core.sharedRepository", "group"}, nil, "")
+	return err
 }
 
 func (s *System) DefaultBranch(ctx context.Context, project domain.Project) (string, error) {

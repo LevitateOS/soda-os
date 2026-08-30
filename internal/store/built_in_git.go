@@ -30,6 +30,18 @@ func (s *Store) BuiltInGitKey(ctx context.Context, keyID string) (domain.BuiltIn
 	return domain.BuiltInGitKey{SSHDeviceKeyID: row.SSHDeviceKeyID, PersonID: row.PersonID, KeyID: row.KeyID}, nil
 }
 
+func (s *Store) SaveBuiltInGitIdentity(ctx context.Context, value domain.BuiltInGitIdentity) error {
+	return classify(s.db.WithContext(ctx).Create(&BuiltInGitIdentity{PersonID: value.PersonID, KeyID: value.KeyID}).Error)
+}
+
+func (s *Store) BuiltInGitIdentity(ctx context.Context, personID string) (domain.BuiltInGitIdentity, error) {
+	var row BuiltInGitIdentity
+	if err := s.db.WithContext(ctx).First(&row, "person_id = ?", personID).Error; err != nil {
+		return domain.BuiltInGitIdentity{}, classify(err)
+	}
+	return domain.BuiltInGitIdentity{PersonID: row.PersonID, KeyID: row.KeyID}, nil
+}
+
 func (s *Store) SaveBuiltInGitRepository(ctx context.Context, value domain.BuiltInGitRepository) error {
 	return classify(s.db.WithContext(ctx).Create(&BuiltInGitRepository{ProjectID: value.ProjectID, RepositoryID: value.RepositoryID, DeployKeyID: value.DeployKeyID, WebURL: value.WebURL, SSHURL: value.SSHURL}).Error)
 }

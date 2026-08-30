@@ -95,7 +95,7 @@ func (b *Builder) Check(_ context.Context) error {
 }
 
 func validateImageSpec(spec config.DistroSpec) error {
-	if spec.Identity.Architecture != spec.Platform.Architecture.Name || spec.Base.Reference != spec.Platform.Base.Reference || spec.Base.Platform != spec.Platform.Architecture.Platform || spec.Image.Registry != sodaRegistry || spec.Image.StateSchema != 3 || spec.Build.SourceDateEpoch < 0 {
+	if spec.Identity.Architecture != spec.Platform.Architecture.Name || spec.Base.Reference != spec.Platform.Base.Reference || spec.Base.Platform != spec.Platform.Architecture.Platform || spec.Image.Registry != sodaRegistry || spec.Image.StateSchema != 4 || spec.Build.SourceDateEpoch < 0 {
 		return errors.New("Soda image specification differs from the selected architecture contract")
 	}
 	return nil

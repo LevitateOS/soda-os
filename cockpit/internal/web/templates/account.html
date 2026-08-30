@@ -9,6 +9,13 @@
     <div><dt>Role</dt><dd>{{.User.Role}}</dd></div>
   </dl>
 </section>
+<section class="panel">
+  <h2>Soda Git key</h2>
+  <p>Soda uses this public key when Git runs as your account. Add it to your account on any external Git service you use. The private key remains on this Soda server.</p>
+  <p><strong>Fingerprint</strong> <code>{{.GitIdentity.Fingerprint}}</code></p>
+  <pre id="soda-git-public-key">{{.GitIdentity.PublicKey}}</pre>
+  <button type="button" onclick="navigator.clipboard.writeText(document.getElementById('soda-git-public-key').textContent)">Copy public key</button>
+</section>
 {{template "ssh-keys" .}}
 {{template "password-change" .}}
 {{template "footer" .}}{{end}}
@@ -16,7 +23,7 @@
 {{define "ssh-keys"}}
 <section id="ssh-keys" class="panel" aria-live="polite">
   <h2>SSH devices</h2>
-  <p>Each device gets its own named public key. Soda never stores your private key.</p>
+  <p>Each device gets its own named public key for signing in to Soda. Its private key remains on that device.</p>
   {{if .Message}}<p class="success" role="status">{{.Message}}</p>{{end}}
   {{if .Error}}<p class="error" role="alert">{{.Error}}</p>{{end}}
   {{if .DeviceKeys}}

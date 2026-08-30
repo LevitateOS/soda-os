@@ -29,6 +29,9 @@ func (s *Service) CreateProject(ctx context.Context, request *sodav2.CreateProje
 	if err = s.store.CreateProjectWithMemberships(ctx, project, personIDs); err != nil {
 		return nil, rpcError(s.compensate(ctx, err, cleanup, "project", project.Slug))
 	}
+	if _, external := project.Source.(domain.GitProjectSource); external {
+		return &sodav2.CreateProjectResponse{Project: projectProto(project)}, nil
+	}
 	if _, err = s.startProvisioning(project.ID); err != nil {
 		cleanupErr := s.store.DeleteFreshProject(context.WithoutCancel(ctx), project.ID)
 		if cleanupErr != nil {
@@ -66,7 +69,31 @@ func (s *Service) projectRequest(ctx context.Context, request *sodav2.CreateProj
 	if err != nil {
 		return domain.Project{}, nil, err
 	}
-	return domain.Project{ID: uuid.NewString(), Slug: request.GetSlug(), Name: request.GetName(), UnixUser: "soda-p-" + request.GetSlug(), Profile: profile, Source: source}, personIDs, nil
+	bootstrap, err := s.bootstrapPerson(ctx, source, request.GetBootstrapPersonId(), personIDs)
+	if err != nil {
+		return domain.Project{}, nil, err
+	}
+	return domain.Project{ID: uuid.NewString(), Slug: request.GetSlug(), Name: request.GetName(), UnixUser: "soda-p-" + request.GetSlug(), Profile: profile, Source: source, BootstrapPersonID: bootstrap}, personIDs, nil
+}
+
+func (s *Service) bootstrapPerson(ctx context.Context, source domain.ProjectSource, requested string, personIDs []string) (string, error) {
+	if _, external := source.(domain.GitProjectSource); !external {
+		if requested != "" {
+			return "", invalid("bootstrap person is only valid for an external repository")
+		}
+		return "", nil
+	}
+	bootstrap, err := parseID(requested, "bootstrap person")
+	if err != nil {
+		return "", err
+	}
+	for _, personID := range personIDs {
+		if personID == bootstrap {
+			_, err = s.store.GitIdentity(ctx, bootstrap)
+			return bootstrap, err
+		}
+	}
+	return "", invalid("bootstrap person must be an initial project member")
 }
 
 func (s *Service) ListProjects(ctx context.Context, _ *sodav2.ListProjectsRequest) (*sodav2.ListProjectsResponse, error) {
@@ -237,6 +264,9 @@ func (s *Service) GetDeployKey(ctx context.Context, request *sodav2.GetDeployKey
 	project, err := s.store.Project(ctx, id)
 	if err != nil {
 		return nil, rpcError(err)
+	}
+	if _, builtIn := project.Source.(domain.EmptyProjectSource); !builtIn {
+		return nil, rpcError(store.ErrNotFound)
 	}
 	key, err := s.host.DeployPublicKey(ctx, project)
 	if err != nil {

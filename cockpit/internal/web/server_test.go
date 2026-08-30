@@ -110,6 +110,23 @@ func TestMyAccountManagesOnlyCurrentUsersSSHDevices(t *testing.T) {
 	}
 }
 
+func TestMyAccountDistinguishesDeviceAndOutboundGitKeys(t *testing.T) {
+	alice := daemonclient.Person{ID: "person-1", Username: "alice", DisplayName: "Alice", Email: "alice@example.test", Role: daemonclient.RoleDeveloper}
+	identity := daemonclient.GitIdentity{PersonID: alice.ID, PublicKey: "ssh-ed25519 BBBB soda-git-alice", Fingerprint: "SHA256:git-alice"}
+	api := &fakePorts{accounts: fakeAccounts{people: []daemonclient.Person{alice}, identities: map[string]daemonclient.GitIdentity{alice.ID: identity}}}
+	app := testServer(t, api, &changingAuth{})
+	token, err := app.sessions.create(alice)
+	if err != nil {
+		t.Fatal(err)
+	}
+	page := request(app, http.MethodGet, "/account", "", &http.Cookie{Name: sessionCookie, Value: token})
+	for _, expected := range []string{"Soda Git key", identity.PublicKey, identity.Fingerprint, "Copy public key", "SSH devices", "signing in to Soda"} {
+		if page.Code != http.StatusOK || !strings.Contains(page.Body.String(), expected) {
+			t.Fatalf("account page missing %q: %d %q", expected, page.Code, page.Body.String())
+		}
+	}
+}
+
 func TestProjectCreationForwardsInitialTeamAndHasNoWorktreeCreationRoute(t *testing.T) {
 	admin := daemonclient.Person{ID: "admin-1", Username: "admin", DisplayName: "Admin", Role: daemonclient.RoleAdmin}
 	bob := daemonclient.Person{ID: "person-2", Username: "bob", DisplayName: "Bob", Role: daemonclient.RoleDeveloper}
@@ -156,11 +173,43 @@ func TestProjectCreationOffersBuiltInAndExternalGit(t *testing.T) {
 	if !ok || source.RemoteURL != "ssh://git@example.test/team/external.git" {
 		t.Fatalf("external source = %#v", api.projects.created.Source)
 	}
+	if api.projects.created.BootstrapPersonID != admin.ID {
+		t.Fatalf("external bootstrap person = %q", api.projects.created.BootstrapPersonID)
+	}
 
 	missing := url.Values{"slug": {"missing"}, "name": {"Missing"}, "profile": {"go"}, "repository_source": {"external"}, "member_ids": {admin.ID}}.Encode()
 	response = request(app, http.MethodPost, "/projects", missing, cookie)
 	if response.Code != http.StatusBadRequest {
 		t.Fatalf("missing external address status = %d", response.Code)
+	}
+}
+
+func TestExternalProjectWaitsWithBootstrapPublicKeyAndContinueAction(t *testing.T) {
+	admin := daemonclient.Person{ID: "admin-1", Username: "admin", DisplayName: "Admin", Role: daemonclient.RoleAdmin}
+	identity := daemonclient.GitIdentity{PersonID: admin.ID, PublicKey: "ssh-ed25519 BBBB admin-git", Fingerprint: "SHA256:admin-git"}
+	project := daemonclient.Project{
+		ID: "project-1", Slug: "external", Name: "External", UnixUser: "soda-p-external", Profile: "go",
+		Source: daemonclient.GitProjectSource{RemoteURL: "git@example.test:team/external.git"}, BootstrapPersonID: admin.ID,
+	}
+	api := &fakePorts{
+		accounts: fakeAccounts{people: []daemonclient.Person{admin}, identities: map[string]daemonclient.GitIdentity{admin.ID: identity}},
+		projects: fakeProjects{projects: []daemonclient.Project{project}, members: []daemonclient.Person{admin}},
+	}
+	app := testServer(t, api, &changingAuth{})
+	token, err := app.sessions.create(admin)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cookie := &http.Cookie{Name: sessionCookie, Value: token}
+	page := request(app, http.MethodGet, "/projects/project-1", "", cookie)
+	for _, expected := range []string{"Waiting for repository access", identity.PublicKey, identity.Fingerprint, "grant that account repository access", "Continue project setup"} {
+		if page.Code != http.StatusOK || !strings.Contains(page.Body.String(), expected) {
+			t.Fatalf("waiting project missing %q: %d %q", expected, page.Code, page.Body.String())
+		}
+	}
+	continued := request(app, http.MethodPost, "/projects/project-1/provisioning", "", cookie)
+	if continued.Code != http.StatusSeeOther || !api.projects.retried {
+		t.Fatalf("continue action = %d retried=%t", continued.Code, api.projects.retried)
 	}
 }
 
@@ -204,7 +253,7 @@ func TestConnectFragmentRendersPersonalizedSSHConfiguration(t *testing.T) {
 	}
 	cookie := &http.Cookie{Name: sessionCookie, Value: token}
 	fragment := request(app, http.MethodGet, "/projects/project-1/connect?key_id=key-1", "", cookie)
-	for _, expected := range []string{`Host soda-storefront`, `HostName atlas.example.ts.net`, `User soda-p-storefront`, `IdentityFile &#34;~/.ssh/key with space&#34;`, workspace.Path, `ssh soda-storefront`, `soda-p-storefront@atlas.example.ts.net`} {
+	for _, expected := range []string{`Host soda-storefront`, `HostName atlas.example.ts.net`, `User alice`, `SetEnv SODA_PROJECT=storefront`, `IdentityFile &#34;~/.ssh/key with space&#34;`, workspace.Path, `ssh soda-storefront`, `alice@atlas.example.ts.net`} {
 		if fragment.Code != http.StatusOK || !strings.Contains(fragment.Body.String(), expected) {
 			t.Fatalf("connect fragment missing %q: %d %q", expected, fragment.Code, fragment.Body.String())
 		}

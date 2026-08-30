@@ -20,9 +20,10 @@ type loginView struct {
 
 type accountView struct {
 	pageIdentity
-	DeviceKeys []daemonclient.SSHDeviceKey
-	Message    string
-	Error      string
+	DeviceKeys  []daemonclient.SSHDeviceKey
+	GitIdentity daemonclient.GitIdentity
+	Message     string
+	Error       string
 }
 
 type peopleView struct {
@@ -168,7 +169,12 @@ func (s *Server) account(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "load SSH devices", http.StatusBadGateway)
 		return
 	}
-	s.render(w, http.StatusOK, "account.html", accountView{pageIdentity: pageIdentity{Title: "My account · Soda OS", User: user}, DeviceKeys: keys})
+	identity, err := s.accounts.GitIdentity(r.Context(), user.ID)
+	if err != nil {
+		http.Error(w, "load Git identity", http.StatusBadGateway)
+		return
+	}
+	s.render(w, http.StatusOK, "account.html", accountView{pageIdentity: pageIdentity{Title: "My account · Soda OS", User: user}, DeviceKeys: keys, GitIdentity: identity})
 }
 
 func (s *Server) createSSHDeviceKey(w http.ResponseWriter, r *http.Request) {

@@ -7,7 +7,7 @@ inventories, RPMs, credentials, logs, databases, and ephemeral registry
 state stay under ignored artifact paths.
 
 1. Run `just check`; require each selected sibling's exact Fedora bootc digest,
-   OCI platform, Soda registry name, state schema 3, source-date epoch, and
+   OCI platform, Soda registry name, state schema 4, source-date epoch, and
    package lock.
 2. Run `just rpm ARCH`; require exactly the selected platform's locked
    `soda-release`, `soda-runtime`, `soda-cockpit`, and `soda-forgejo` RPM inputs plus their
@@ -28,14 +28,16 @@ state stay under ignored artifact paths.
    both sibling artifacts and one release index in a single GitHub Release.
 7. On the selected platform's UEFI, complete the stock interactive Anaconda
    fresh-install flow.
-   Require `bootc status` to report the ISO's exact digest, persistent schema-3
-   Soda state, PAM users, Cockpit certificates, SSH host/device keys, direct
+   Require `bootc status` to report the ISO's exact digest, persistent schema-4
+   Soda state, PAM users, Cockpit certificates, SSH host/device and outbound Git
+   keys, direct
    project SSH, repositories, worktrees, toolchains, and logs after restart and
    reboot. Create one project through “Create a new repository on this Soda
    server” and prove that its Built-in Git repository accepts the project deploy
-   key and the Soda members' registered SSH keys. Create a second project through
-   “Connect an existing Git repository” and prove the original external-remote
-   behavior remains intact.
+   key and each Soda member's generated Git key. Create a second project through
+   “Connect an existing Git repository”, add the displayed bootstrap person's
+   public key to the external Git account, continue setup, and prove personal-UID
+   SSH, direct commands, Git-over-SSH, and SFTP use the selected workspace.
 8. Publish a distinct runtime digest. While a direct SSH workload stays
    active, require `sodactl os update check` and `stage` to leave the running
    deployment and services unchanged. Require an ordinary reboot before

@@ -1,0 +1,12 @@
+[Unit]
+Description=Register the installer-created Soda administrator
+ConditionPathExists=/var/lib/soda/installer-admin.json
+Requires=sodad.service
+After=sodad.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/sodactl people import-installer --file /var/lib/soda/installer-admin.json
+
+[Install]
+WantedBy=multi-user.target

@@ -51,7 +51,7 @@ func ensureSchema(db *gorm.DB) error {
 
 func initializeSchema(db *gorm.DB, beforeVersion func(*gorm.DB) error) error {
 	err := db.Transaction(func(tx *gorm.DB) error {
-		if err := tx.AutoMigrate(&Person{}, &SSHDeviceKey{}, &Project{}, &Membership{}, &Worktree{}, &ToolchainInstallation{}, &ProjectToolchainResolution{}, &ProvisioningJob{}, &BuiltInGitUser{}, &BuiltInGitKey{}, &BuiltInGitRepository{}); err != nil {
+		if err := tx.AutoMigrate(&Person{}, &GitIdentity{}, &SSHDeviceKey{}, &Project{}, &Membership{}, &Worktree{}, &ToolchainInstallation{}, &ProjectToolchainResolution{}, &ProvisioningJob{}, &BuiltInGitUser{}, &BuiltInGitKey{}, &BuiltInGitIdentity{}, &BuiltInGitRepository{}); err != nil {
 			return fmt.Errorf("create Soda schema: %w", err)
 		}
 		if beforeVersion != nil {

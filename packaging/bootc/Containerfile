@@ -14,7 +14,7 @@ LABEL org.opencontainers.image.title="Soda OS" \
       org.opencontainers.image.revision="${SODA_SOURCE_REVISION}" \
       org.opencontainers.image.created="${SODA_CREATED}" \
       org.opencontainers.image.base.name="${FEDORA_BASE_REFERENCE}" \
-      org.sodaos.state-schema="3" \
+      org.sodaos.state-schema="4" \
       org.sodaos.source-date-epoch="${SOURCE_DATE_EPOCH}"
 
 COPY .artifacts/rpms/soda-release-*.rpm /var/tmp/soda-rpms/
@@ -42,8 +42,8 @@ RUN dnf -y --setopt=install_weak_deps=False --enablerepo=updates-testing install
     && test "$(getent group soda-api | cut -d: -f3)" = 976 \
     && test "$(id -u soda-cockpit)" = 976 \
     && install -d -m 0755 /opt/soda/toolchains \
-    && systemctl preset sshd.service sodad.service soda-authd.service soda-cockpit.service forgejo.service avahi-daemon.service tailscaled.service var-srv-soda-projects.mount opt-soda-toolchains.mount \
-    && systemctl enable sshd.service sodad.service soda-authd.service soda-cockpit.service forgejo.service avahi-daemon.service tailscaled.service var-srv-soda-projects.mount opt-soda-toolchains.mount \
+    && systemctl preset sshd.service sodad.service soda-installer-import.service soda-authd.service soda-cockpit.service forgejo.service avahi-daemon.service tailscaled.service var-srv-soda-projects.mount opt-soda-toolchains.mount \
+    && systemctl enable sshd.service sodad.service soda-installer-import.service soda-authd.service soda-cockpit.service forgejo.service avahi-daemon.service tailscaled.service var-srv-soda-projects.mount opt-soda-toolchains.mount \
     && getent passwd git \
     && systemctl mask bootc-fetch-apply-updates.timer \
     && cp -f /usr/lib/soda/os-release /etc/os-release \

@@ -8,7 +8,7 @@ hostname = "soda"
 
 [image]
 registry = "ghcr.io/levitateos/soda-os"
-state_schema = 3
+state_schema = 4
 
 [distribution]
 github_repository = "LevitateOS/soda-os"

@@ -39,24 +39,15 @@ func (s *Server) createProject(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid project", http.StatusBadRequest)
 		return
 	}
-	var source daemonclient.ProjectSource
-	switch r.FormValue("repository_source") {
-	case "built_in":
-		source = daemonclient.EmptyProjectSource{}
-	case "external":
-		remote := strings.TrimSpace(r.FormValue("remote_url"))
-		if remote == "" {
-			s.renderProjectCreateError(w, r, "Existing repository address is required.")
-			return
-		}
-		source = daemonclient.GitProjectSource{RemoteURL: remote}
-	default:
-		s.renderProjectCreateError(w, r, "Choose a repository source.")
+	source, message := projectSource(r)
+	if message != "" {
+		s.renderProjectCreateError(w, r, message)
 		return
 	}
-	members := append([]string(nil), r.Form["member_ids"]...)
+	user := currentUser(r)
+	members, bootstrap := initialProjectPeople(source, user.ID, r.Form["member_ids"])
 	project, err := s.projectAPI.CreateProject(r.Context(), daemonclient.CreateProjectRequest{
-		Slug: r.FormValue("slug"), Name: r.FormValue("name"), Profile: r.FormValue("profile"), Source: source, InitialPersonIDs: members,
+		Slug: r.FormValue("slug"), Name: r.FormValue("name"), Profile: r.FormValue("profile"), Source: source, InitialPersonIDs: members, BootstrapPersonID: bootstrap,
 	})
 	if err != nil {
 		if isHTMX(r) {
@@ -68,6 +59,34 @@ func (s *Server) createProject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	redirect(w, r, "/projects/"+project.ID)
+}
+
+func projectSource(r *http.Request) (daemonclient.ProjectSource, string) {
+	switch r.FormValue("repository_source") {
+	case "built_in":
+		return daemonclient.EmptyProjectSource{}, ""
+	case "external":
+		remote := strings.TrimSpace(r.FormValue("remote_url"))
+		if remote == "" {
+			return nil, "Existing repository address is required."
+		}
+		return daemonclient.GitProjectSource{RemoteURL: remote}, ""
+	default:
+		return nil, "Choose a repository source."
+	}
+}
+
+func initialProjectPeople(source daemonclient.ProjectSource, creatorID string, requested []string) ([]string, string) {
+	members := append([]string(nil), requested...)
+	if _, external := source.(daemonclient.GitProjectSource); !external {
+		return members, ""
+	}
+	for _, personID := range members {
+		if personID == creatorID {
+			return members, creatorID
+		}
+	}
+	return append(members, creatorID), creatorID
 }
 
 func (s *Server) renderProjectCreateError(w http.ResponseWriter, r *http.Request, message string) {
@@ -90,46 +109,66 @@ func (s *Server) project(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "forbidden", http.StatusForbidden)
 		return
 	}
-	worktrees, err := s.projectAPI.Worktrees(r.Context(), project.ID)
+	data, worktrees, err := s.projectPageData(r.Context(), user, project)
 	if err != nil {
-		http.Error(w, "load worktrees", http.StatusBadGateway)
+		http.Error(w, "load project details", http.StatusBadGateway)
 		return
 	}
-	jobs, installation, err := s.provisioningState(r.Context(), project.ID)
-	if err != nil {
-		http.Error(w, "load provisioning", http.StatusBadGateway)
+	s.addConnectionKeys(r.Context(), &data.Connection, worktrees)
+	if err = s.addProjectRepositoryData(r.Context(), user, &data); err != nil {
+		http.Error(w, "load repository identity", http.StatusBadGateway)
 		return
 	}
-	people, err := s.accounts.People(r.Context())
+	s.render(w, http.StatusOK, "project.html", data)
+}
+
+func (s *Server) projectPageData(ctx context.Context, user daemonclient.Person, project daemonclient.Project) (projectView, []daemonclient.Worktree, error) {
+	worktrees, err := s.projectAPI.Worktrees(ctx, project.ID)
 	if err != nil {
-		http.Error(w, "load people", http.StatusBadGateway)
-		return
+		return projectView{}, nil, err
 	}
-	members, err := s.projectAPI.Members(r.Context(), project.ID)
+	jobs, installation, err := s.provisioningState(ctx, project.ID)
 	if err != nil {
-		http.Error(w, "load project members", http.StatusBadGateway)
-		return
+		return projectView{}, nil, err
 	}
-	state, class := projectState(jobs)
-	projectState := projectStateView{Label: state, Class: class, Ready: class == "ready", Active: provisioningActive(jobs)}
+	people, err := s.accounts.People(ctx)
+	if err != nil {
+		return projectView{}, nil, err
+	}
+	members, err := s.projectAPI.Members(ctx, project.ID)
+	if err != nil {
+		return projectView{}, nil, err
+	}
+	state, class := projectState(project, jobs)
+	viewState := projectStateView{Label: state, Class: class, Ready: class == "ready", Active: provisioningActive(jobs)}
 	data := projectView{
 		pageIdentity:  pageIdentity{Title: "Project · Soda OS", User: user},
 		Project:       project,
-		State:         projectState,
-		Provisioning:  provisioningView{Project: project, Admin: user.Role == daemonclient.RoleAdmin, State: projectState, Jobs: jobs, Toolchain: installation},
-		Collaboration: collaborationView{Project: project, User: user, Admin: user.Role == daemonclient.RoleAdmin, Members: memberWorkspaceViews(members, worktrees), Available: peopleWithoutMembers(people, members), Ready: projectState.Ready},
-		Connection:    connectView{Project: project, User: user, State: projectState},
+		State:         viewState,
+		Provisioning:  provisioningView{Project: project, Admin: user.Role == daemonclient.RoleAdmin, State: viewState, Jobs: jobs, Toolchain: installation},
+		Collaboration: collaborationView{Project: project, User: user, Admin: user.Role == daemonclient.RoleAdmin, Members: memberWorkspaceViews(members, worktrees), Available: peopleWithoutMembers(people, members), Ready: viewState.Ready},
+		Connection:    connectView{Project: project, User: user, State: viewState},
 	}
-	s.addConnectionKeys(r.Context(), &data.Connection, worktrees)
-	if user.Role == daemonclient.RoleAdmin {
-		key, err := s.projectAPI.DeployKey(r.Context(), project.ID)
+	return data, worktrees, nil
+}
+
+func (s *Server) addProjectRepositoryData(ctx context.Context, user daemonclient.Person, data *projectView) error {
+	if data.State.Class == "waiting" {
+		identity, err := s.accounts.GitIdentity(ctx, data.Project.BootstrapPersonID)
 		if err != nil {
-			http.Error(w, "load deploy key", http.StatusBadGateway)
-			return
+			return err
 		}
-		data.DeployKey = key
+		data.Provisioning.RepositoryIdentity = &identity
 	}
-	s.render(w, http.StatusOK, "project.html", data)
+	if user.Role != daemonclient.RoleAdmin {
+		return nil
+	}
+	if _, builtIn := data.Project.Source.(daemonclient.EmptyProjectSource); !builtIn {
+		return nil
+	}
+	key, err := s.projectAPI.DeployKey(ctx, data.Project.ID)
+	data.DeployKey = key
+	return err
 }
 
 func (s *Server) connectFragment(w http.ResponseWriter, r *http.Request) {
@@ -199,7 +238,7 @@ func (s *Server) loadConnectData(ctx context.Context, data *connectView, selecte
 	if err != nil {
 		return err
 	}
-	state, class := projectState(jobs)
+	state, class := projectState(data.Project, jobs)
 	data.State = projectStateView{Label: state, Class: class, Ready: class == "ready"}
 	return populateConnectData(data, worktrees, keys, selectedKeyID, s.address)
 }
@@ -220,8 +259,8 @@ func populateConnectData(data *connectView, worktrees []daemonclient.Worktree, k
 	}
 	data.SelectedKey = key
 	if data.State.Ready && data.Workspace != nil && data.SelectedKey != nil {
-		data.SSHConfig = personalizedSSHConfig(data.Project, *data.SelectedKey, address)
-		data.SSHCommand = personalizedSSHCommand(data.Project, *data.SelectedKey, address)
+		data.SSHConfig = personalizedSSHConfig(data.Project, data.User, *data.SelectedKey, address)
+		data.SSHCommand = personalizedSSHCommand(data.Project, data.User, *data.SelectedKey, address)
 	}
 	return nil
 }
@@ -272,7 +311,7 @@ func (s *Server) collaborationData(w http.ResponseWriter, r *http.Request) (coll
 	data := collaborationView{Project: project, User: user, Admin: user.Role == daemonclient.RoleAdmin, Members: memberWorkspaceViews(members, worktrees), Available: peopleWithoutMembers(people, members)}
 	jobs, _, setupErr := s.provisioningState(r.Context(), project.ID)
 	if setupErr == nil {
-		_, stateClass := projectState(jobs)
+		_, stateClass := projectState(project, jobs)
 		data.Ready = stateClass == "ready"
 	}
 	return data, true
@@ -294,8 +333,17 @@ func (s *Server) provisioning(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "load provisioning", http.StatusBadGateway)
 		return
 	}
-	state, class := projectState(jobs)
-	s.render(w, http.StatusOK, "provisioning", provisioningView{Project: project, Admin: user.Role == daemonclient.RoleAdmin, State: projectStateView{Label: state, Class: class, Active: provisioningActive(jobs)}, Jobs: jobs, Toolchain: installation})
+	state, class := projectState(project, jobs)
+	data := provisioningView{Project: project, Admin: user.Role == daemonclient.RoleAdmin, State: projectStateView{Label: state, Class: class, Active: provisioningActive(jobs)}, Jobs: jobs, Toolchain: installation}
+	if class == "waiting" {
+		identity, identityErr := s.accounts.GitIdentity(r.Context(), project.BootstrapPersonID)
+		if identityErr != nil {
+			http.Error(w, "load repository identity", http.StatusBadGateway)
+			return
+		}
+		data.RepositoryIdentity = &identity
+	}
+	s.render(w, http.StatusOK, "provisioning", data)
 }
 
 func (s *Server) addCollaborator(w http.ResponseWriter, r *http.Request) {
@@ -348,7 +396,7 @@ func (s *Server) retryProvisioning(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			jobs, installation, _ := s.provisioningState(r.Context(), projectID)
-			state, class := projectState(jobs)
+			state, class := projectState(project, jobs)
 			s.render(w, http.StatusUnprocessableEntity, "provisioning", provisioningView{Project: project, Admin: user.Role == daemonclient.RoleAdmin, State: projectStateView{Label: state, Class: class, Active: provisioningActive(jobs)}, Jobs: jobs, Toolchain: installation, Error: err.Error()})
 			return
 		}

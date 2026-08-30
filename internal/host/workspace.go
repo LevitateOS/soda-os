@@ -11,32 +11,41 @@ import (
 )
 
 func (s *System) CreateWorktree(ctx context.Context, project domain.Project, person domain.Person, tree domain.Worktree, baseRef string) (Cleanup, error) {
-	if err := os.MkdirAll(filepath.Dir(tree.Path), 0o755); err != nil {
+	if _, err := s.Runner.Run(ctx, "usermod", []string{"--append", "--groups", project.UnixUser, person.Username}, nil, ""); err != nil {
 		return nil, err
 	}
-	if err := s.chown(ctx, project, filepath.Dir(tree.Path)); err != nil {
-		return nil, err
+	membershipCleanup := func(cleanupContext context.Context) error {
+		_, err := s.Runner.Run(cleanupContext, "gpasswd", []string{"--delete", person.Username, project.UnixUser}, nil, "")
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(tree.Path), 0o755); err != nil {
+		return nil, failWithCleanup(ctx, err, membershipCleanup)
 	}
 	gitCleanup, err := s.createGitWorktree(ctx, project, person, tree, baseRef)
 	if err != nil {
-		return nil, err
+		return nil, failWithCleanup(ctx, err, membershipCleanup)
 	}
-	cleanupSteps := []Cleanup{gitCleanup}
+	cleanupSteps := []Cleanup{membershipCleanup, gitCleanup}
 	homeCleanup, err := s.createSessionHome(ctx, project, person, tree)
 	if err != nil {
 		return nil, failWithCleanups(ctx, err, cleanupSteps)
 	}
 	cleanupSteps = append(cleanupSteps, homeCleanup)
-	for _, path := range []string{s.repository(project), tree.Path} {
-		if err := s.chown(ctx, project, path); err != nil {
-			return nil, failWithCleanups(ctx, err, cleanupSteps)
-		}
+	if err := s.prepareSharedRepository(ctx, project, s.repository(project)); err != nil {
+		return nil, failWithCleanups(ctx, err, cleanupSteps)
+	}
+	if err := s.chownPerson(ctx, project, person, tree.Path); err != nil {
+		return nil, failWithCleanups(ctx, err, cleanupSteps)
+	}
+	if err := os.Chmod(tree.Path, 0o700); err != nil {
+		return nil, failWithCleanups(ctx, err, cleanupSteps)
 	}
 	return combineCleanups(cleanupSteps), nil
 }
 
 func (s *System) createGitWorktree(ctx context.Context, project domain.Project, person domain.Person, tree domain.Worktree, baseRef string) (Cleanup, error) {
 	repository := s.repository(project)
+	sshCommand := fmt.Sprintf("ssh -i %s -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new", s.gitPrivateKeyPath(person.Username))
 	commands := [][]string{{"--git-dir", repository, "worktree", "add", "-b", tree.Branch, tree.Path, baseRef}, {"--git-dir", repository, "config", "extensions.worktreeConfig", "true"}, {"-C", tree.Path, "config", "--worktree", "core.bare", "false"}, {"-C", tree.Path, "config", "--worktree", "user.name", person.DisplayName}, {"-C", tree.Path, "config", "--worktree", "user.email", person.Email}}
 	var cleanup Cleanup
 	for index, args := range commands {
@@ -49,6 +58,9 @@ func (s *System) createGitWorktree(ctx context.Context, project domain.Project, 
 		if index == 0 {
 			cleanup = s.gitWorktreeCleanup(repository, tree)
 		}
+	}
+	if _, err := s.Runner.Run(ctx, "git", []string{"-C", tree.Path, "config", "--worktree", "core.sshCommand", sshCommand}, nil, ""); err != nil {
+		return nil, failWithCleanup(ctx, errors.New("configure personal workspace Git key"), cleanup)
 	}
 	return cleanup, nil
 }
@@ -86,7 +98,11 @@ func (s *System) createSessionHome(ctx context.Context, project domain.Project, 
 		_ = os.RemoveAll(personRoot)
 		return nil, err
 	}
-	if err := s.chown(ctx, project, peopleRoot); err != nil {
+	if err := s.chownPerson(ctx, project, person, personRoot); err != nil {
+		_ = os.RemoveAll(personRoot)
+		return nil, err
+	}
+	if err := os.Chmod(personRoot, 0o700); err != nil {
 		_ = os.RemoveAll(personRoot)
 		return nil, err
 	}

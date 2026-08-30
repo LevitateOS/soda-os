@@ -12,6 +12,7 @@ service SodaService {
   rpc CreatePerson(CreatePersonRequest) returns (CreatePersonResponse);
   rpc ImportPerson(ImportPersonRequest) returns (ImportPersonResponse);
   rpc ListPeople(ListPeopleRequest) returns (ListPeopleResponse);
+  rpc GetGitIdentity(GetGitIdentityRequest) returns (GetGitIdentityResponse);
   rpc CreateSshDeviceKey(CreateSshDeviceKeyRequest) returns (CreateSshDeviceKeyResponse);
   rpc ListSshDeviceKeys(ListSshDeviceKeysRequest) returns (ListSshDeviceKeysResponse);
   rpc RevokeSshDeviceKey(RevokeSshDeviceKeyRequest) returns (RevokeSshDeviceKeyResponse);
@@ -85,6 +86,12 @@ message SshDeviceKey {
   google.protobuf.Timestamp created_at = 7;
 }
 
+message GitIdentity {
+  string person_id = 1;
+  string public_key = 2;
+  string fingerprint = 3;
+}
+
 message EmptyProjectSource {}
 
 message GitProjectSource {
@@ -105,6 +112,7 @@ message Project {
   string unix_user = 4;
   ToolchainProfile profile = 5;
   ProjectSource source = 6;
+  string bootstrap_person_id = 7;
 }
 
 message Membership {
@@ -221,6 +229,14 @@ message ListPeopleResponse {
   repeated Person people = 1;
 }
 
+message GetGitIdentityRequest {
+  string person_id = 1;
+}
+
+message GetGitIdentityResponse {
+  GitIdentity identity = 1;
+}
+
 message CreateSshDeviceKeyRequest {
   string person_id = 1;
   string label = 2;
@@ -255,6 +271,7 @@ message CreateProjectRequest {
   ToolchainProfile profile = 3;
   ProjectSource source = 4;
   repeated string initial_person_ids = 5;
+  string bootstrap_person_id = 6;
 }
 
 message CreateProjectResponse {

@@ -37,6 +37,10 @@ func TestCreatesEmptyProjectAndAttributedWorktree(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = worktreeCleanup(context.Background()) })
 	assertWorktreeIdentity(t, tree, person)
+	info, err := os.Stat(tree.Path)
+	if err != nil || info.Mode().Perm() != 0o700 {
+		t.Fatalf("personal worktree mode = %v, %v", info, err)
+	}
 	workspace, err := os.Readlink(filepath.Join(root, "demo", ".soda", "people", "alice", "home", "workspace"))
 	if err != nil || workspace != tree.Path {
 		t.Fatalf("workspace link = %q, %v", workspace, err)
@@ -45,7 +49,10 @@ func TestCreatesEmptyProjectAndAttributedWorktree(t *testing.T) {
 
 func assertWorktreeIdentity(t *testing.T, tree domain.Worktree, person domain.Person) {
 	t.Helper()
-	for key, want := range map[string]string{"user.name": person.DisplayName, "user.email": person.Email, "core.bare": "false"} {
+	for key, want := range map[string]string{
+		"user.name": person.DisplayName, "user.email": person.Email, "core.bare": "false",
+		"core.sshCommand": "ssh -i /home/alice/.ssh/soda_git_ed25519 -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new",
+	} {
 		output, err := exec.Command("git", "-C", tree.Path, "config", "--worktree", "--get", key).Output()
 		if err != nil {
 			t.Fatal(err)
@@ -69,26 +76,27 @@ func TestGitCloneRetryResolvesNonMainDefaultBranch(t *testing.T) {
 	system.Runner = managedTestRunner{}
 	system.AuthorizedKeysRoot = filepath.Join(t.TempDir(), "authorized_keys")
 	project := domain.Project{ID: uuid.NewString(), Slug: "demo", Name: "Demo", UnixUser: "soda-p-demo", Profile: domain.ToolchainGo, Source: domain.GitProjectSource{RemoteURL: remote}}
+	bootstrap := domain.Person{ID: uuid.NewString(), Username: "alice"}
 	cleanup, err := system.CreateProject(ctx, project)
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = cleanup(context.Background()) })
-	if err = system.EnsureRepository(ctx, project); err == nil {
+	if err = system.EnsureRepository(ctx, project, bootstrap); err == nil {
 		t.Fatal("missing private remote unexpectedly cloned")
 	}
 	if _, err := os.Stat(filepath.Join(root, project.Slug, "repository.git")); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("failed clone was not removed: %v", err)
 	}
 	initializeTestRemote(t, ctx, system, remote)
-	if err = system.EnsureRepository(ctx, project); err != nil {
+	if err = system.EnsureRepository(ctx, project, bootstrap); err != nil {
 		t.Fatalf("clone retry failed: %v", err)
 	}
 	branch, err := system.DefaultBranch(ctx, project)
 	if err != nil || branch != "trunk" {
 		t.Fatalf("default branch = %q, %v", branch, err)
 	}
-	if err = system.EnsureRepository(ctx, project); err != nil {
+	if err = system.EnsureRepository(ctx, project, bootstrap); err != nil {
 		t.Fatalf("successful repository was not idempotent: %v", err)
 	}
 }
@@ -113,9 +121,10 @@ func initializeTestRemote(t *testing.T, ctx context.Context, system *System, rem
 }
 
 type recordedCall struct {
-	name  string
-	args  []string
-	input string
+	name        string
+	args        []string
+	environment map[string]string
+	input       string
 }
 
 type managedTestRunner struct{ ExecRunner }
@@ -129,7 +138,7 @@ func (managedTestRunner) Run(ctx context.Context, name string, args []string, en
 			}
 		}
 		return "", nil
-	case "userdel", "chown", "restorecon":
+	case "userdel", "usermod", "gpasswd", "chown", "restorecon":
 		return "", nil
 	default:
 		return ExecRunner{}.Run(ctx, name, args, environment, input)
@@ -141,11 +150,14 @@ type recordingRunner struct {
 	failName string
 }
 
-func (r *recordingRunner) Run(_ context.Context, name string, args []string, _ map[string]string, input string) (string, error) {
-	r.calls = append(r.calls, recordedCall{name: name, args: append([]string(nil), args...), input: input})
+func (r *recordingRunner) Run(ctx context.Context, name string, args []string, environment map[string]string, input string) (string, error) {
+	r.calls = append(r.calls, recordedCall{name: name, args: append([]string(nil), args...), environment: environment, input: input})
 	if name == r.failName {
 		r.failName = ""
 		return "", errors.New("injected " + name + " failure")
+	}
+	if name == "ssh-keygen" {
+		return ExecRunner{}.Run(ctx, name, args, environment, input)
 	}
 	return "", nil
 }
@@ -153,10 +165,11 @@ func (r *recordingRunner) Run(_ context.Context, name string, args []string, _ m
 func TestCreatePersonUsesRelaxedSixCharacterPasswordPolicy(t *testing.T) {
 	runner := &recordingRunner{}
 	system := New(t.TempDir())
+	system.PeopleRoot = t.TempDir()
 	system.Runner = runner
 	person := domain.Person{Username: "alice", Role: domain.RoleDeveloper}
 	for _, password := range []string{"simple", "with spaces", "colon:allowed"} {
-		cleanup, err := system.CreatePerson(context.Background(), person, password)
+		_, cleanup, err := system.CreatePerson(context.Background(), person, password)
 		if err != nil {
 			t.Fatalf("password %q: %v", password, err)
 		}
@@ -166,7 +179,7 @@ func TestCreatePersonUsesRelaxedSixCharacterPasswordPolicy(t *testing.T) {
 	}
 	before := len(runner.calls)
 	for _, password := range []string{"short", "bad\npassword"} {
-		if _, err := system.CreatePerson(context.Background(), person, password); err == nil {
+		if _, _, err := system.CreatePerson(context.Background(), person, password); err == nil {
 			t.Fatalf("invalid password %q accepted", password)
 		}
 	}
@@ -176,105 +189,52 @@ func TestCreatePersonUsesRelaxedSixCharacterPasswordPolicy(t *testing.T) {
 	}
 }
 
-func TestPersonAccountsDoNotUseSodaRoleGroups(t *testing.T) {
+func TestPersonAccountsUsePersonalShellAndSodaPeopleGroup(t *testing.T) {
 	runner := &recordingRunner{}
 	system := New(t.TempDir())
+	system.PeopleRoot = t.TempDir()
 	system.Runner = runner
 	person := domain.Person{Username: "alice", Role: domain.RoleAdmin}
-	if _, err := system.CreatePerson(context.Background(), person, "simple"); err != nil {
+	if _, _, err := system.CreatePerson(context.Background(), person, "simple"); err != nil {
 		t.Fatal(err)
 	}
-	if !hasCall(runner.calls, "useradd", "--create-home", "--shell", "/sbin/nologin", "alice") {
+	if !hasCall(runner.calls, "useradd", "--create-home", "--shell", "/bin/bash", "alice") {
 		t.Fatalf("person useradd call = %#v", runner.calls)
 	}
-	for _, name := range []string{"groupadd", "usermod", "gpasswd"} {
-		if hasCall(runner.calls, name) {
-			t.Fatalf("unexpected role-group command %q: %#v", name, runner.calls)
-		}
+	if !hasCall(runner.calls, "usermod", "--append", "--groups", "soda-people", "alice") {
+		t.Fatalf("person was not added to soda-people: %#v", runner.calls)
 	}
 }
 
-func TestImportPersonOnlyVerifiesLinuxAccount(t *testing.T) {
-	runner := &recordingRunner{}
-	system := New(t.TempDir())
-	system.Runner = runner
-	if _, err := system.ImportPerson(context.Background(), domain.Person{Username: "alice", Role: domain.RoleDeveloper}); err != nil {
-		t.Fatal(err)
-	}
-	if len(runner.calls) != 1 || !hasCall(runner.calls, "getent", "passwd", "alice") {
-		t.Fatalf("import calls = %#v", runner.calls)
-	}
-}
-
-func TestProjectAuthorizedKeysRemainRootOwnedOutsideProjectHome(t *testing.T) {
+func TestPersonAuthorizedKeysRemainRootOwnedOutsidePersonalHome(t *testing.T) {
 	root := t.TempDir()
 	runner := &recordingRunner{}
 	system := New(root)
 	system.Runner = runner
 	system.AuthorizedKeysRoot = filepath.Join(t.TempDir(), "authorized_keys")
-	project := domain.Project{Slug: "demo", UnixUser: "soda-p-demo", Source: domain.GitProjectSource{RemoteURL: "https://example.test/demo.git"}}
-	if err := os.MkdirAll(filepath.Join(root, project.Slug), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	cleanup, err := system.CreateProject(context.Background(), project)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = cleanup(context.Background()) })
-	keyFile := filepath.Join(system.AuthorizedKeysRoot, project.UnixUser)
-	info, err := os.Stat(keyFile)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if info.Mode().Perm() != 0o644 {
-		t.Fatalf("authorized key mode = %o", info.Mode().Perm())
-	}
-	if _, err = os.Stat(filepath.Join(root, project.Slug, ".ssh", "authorized_keys")); !errors.Is(err, os.ErrNotExist) {
-		t.Fatalf("project-owned authorized_keys exists: %v", err)
-	}
-	if !hasCall(runner.calls, "chown", "root:root", system.AuthorizedKeysRoot, keyFile) {
-		t.Fatalf("missing root ownership call: %#v", runner.calls)
-	}
-	if hasCall(runner.calls, "chown", "--recursive", project.UnixUser+":"+project.UnixUser, keyFile) {
-		t.Fatalf("project owns authorized_keys: %#v", runner.calls)
-	}
 	person := domain.Person{ID: uuid.NewString(), Username: "alice"}
-	tree := domain.Worktree{PersonID: person.ID, Path: "/srv/soda/projects/demo/worktrees/alice"}
 	keys := []domain.SSHDeviceKey{
 		{ID: uuid.NewString(), PersonID: person.ID, Label: "Workstation", PublicKey: "ssh-ed25519 AQ==", Fingerprint: "SHA256:z"},
 		{ID: uuid.NewString(), PersonID: person.ID, Label: "Laptop", PublicKey: "ssh-ed25519 AAAA", Fingerprint: "SHA256:a"},
 	}
-	fixture := authorizedKeysFixture{root: root, system: system, runner: runner, project: project, person: person, tree: tree, keys: keys, keyFile: keyFile}
-	fixture.assertRootOwnedContents(t)
-}
-
-type authorizedKeysFixture struct {
-	root    string
-	system  *System
-	runner  *recordingRunner
-	project domain.Project
-	person  domain.Person
-	tree    domain.Worktree
-	keys    []domain.SSHDeviceKey
-	keyFile string
-}
-
-func (fixture authorizedKeysFixture) assertRootOwnedContents(t *testing.T) {
-	t.Helper()
-	if err := fixture.system.ReconcileAuthorizedKeys(context.Background(), fixture.project, []domain.ProjectAccess{{Person: fixture.person, Worktree: fixture.tree, Keys: fixture.keys}}); err != nil {
+	if err := system.ReconcileAuthorizedKeys(context.Background(), person, keys); err != nil {
 		t.Fatal(err)
 	}
-	if !hasCall(fixture.runner.calls, "chown", "root:root", fixture.keyFile) {
-		t.Fatalf("authorized key rewrite was not restored to root ownership: %#v", fixture.runner.calls)
+	keyFile := filepath.Join(system.AuthorizedKeysRoot, person.Username)
+	info, err := os.Stat(keyFile)
+	if err != nil || info.Mode().Perm() != 0o644 {
+		t.Fatalf("authorized key mode = %v, %v", info, err)
 	}
-	contents, err := os.ReadFile(fixture.keyFile)
-	wantFirst := "command=\"/usr/libexec/soda/soda-ssh --actor alice --project demo --worktree /srv/soda/projects/demo/worktrees/alice --home " + filepath.Join(fixture.root, "demo", ".soda", "people", "alice", "home") + "\" ssh-ed25519 AAAA"
-	if err != nil || !strings.HasPrefix(string(contents), wantFirst) || strings.Contains(string(contents), " laptop") {
+	if !hasCall(runner.calls, "chown", "root:root", keyFile) {
+		t.Fatalf("authorized key rewrite was not restored to root ownership: %#v", runner.calls)
+	}
+	contents, err := os.ReadFile(keyFile)
+	if err != nil || string(contents) != "ssh-ed25519 AAAA\nssh-ed25519 AQ==\n" || strings.Contains(string(contents), "command=") {
 		t.Fatalf("authorized key contents = %q, %v", contents, err)
 	}
 }
 
-func TestCreateSessionHomeMakesPeopleRootTraversableByProjectAccount(t *testing.T) {
+func TestCreateSessionHomeIsPrivateToPerson(t *testing.T) {
 	root := t.TempDir()
 	runner := &recordingRunner{}
 	system := New(root)
@@ -290,9 +250,13 @@ func TestCreateSessionHomeMakesPeopleRootTraversableByProjectAccount(t *testing.
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = cleanup(context.Background()) })
-	peopleRoot := filepath.Join(root, "demo", ".soda", "people")
-	if !hasCall(runner.calls, "chown", "--recursive", project.UnixUser+":"+project.UnixUser, peopleRoot) {
-		t.Fatalf("people root not assigned to project account: %#v", runner.calls)
+	personRoot := filepath.Join(root, "demo", ".soda", "people", "alice")
+	info, statErr := os.Stat(personRoot)
+	if statErr != nil || info.Mode().Perm() != 0o700 {
+		t.Fatalf("person root mode = %v, %v", info, statErr)
+	}
+	if !hasCall(runner.calls, "chown", "--recursive", "alice:"+project.UnixUser, personRoot) {
+		t.Fatalf("person root ownership call = %#v", runner.calls)
 	}
 }
 
@@ -301,7 +265,7 @@ func TestCreatePersonCleansPartialUserAfterChpasswdFailure(t *testing.T) {
 	system := New(t.TempDir())
 	system.Runner = runner
 	person := domain.Person{Username: "alice", Role: domain.RoleDeveloper}
-	if _, err := system.CreatePerson(context.Background(), person, "simple"); err == nil {
+	if _, _, err := system.CreatePerson(context.Background(), person, "simple"); err == nil {
 		t.Fatal("expected chpasswd failure")
 	}
 	if !hasCall(runner.calls, "userdel", "--remove", person.Username) {

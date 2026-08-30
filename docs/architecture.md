@@ -17,10 +17,11 @@ that socket. The helper has no network listener and performs only PAM
 authentication and password changes.
 
 The daemon is the sole writer for Soda's SQLite state and system project
-resources. It is not exposed over TCP. Project service accounts own project
-repositories and processes. A registered device-key fingerprint identifies the
-person, while the SSH project account selects the project. The gateway enters
-that person's personal workspace while retaining the project Unix UID.
+resources. It is not exposed over TCP. Project service accounts own shared bare
+repositories and unattended built-in repository setup. SSH authenticates a
+person's Linux account with a registered device key; an optional untrusted
+`SODA_PROJECT` selector chooses a project, and the gateway validates membership
+before entering that person's private workspace under their own Unix UID.
 
 Forgejo provides Soda's bundled Git repositories. Soda remains the source of
 truth for people, roles, memberships, SSH device keys, and projects; the daemon
@@ -37,28 +38,31 @@ reconciliation, and a later successful restart retries it.
 
 - A person is a normal Linux account plus Soda metadata and an `admin` or
   `developer` application role. These roles do not create parallel Linux role
-  groups. Each person can register multiple named public SSH device keys; Soda
-  stores no private keys.
-- A project is a locked `soda-p-<slug>` service account whose home is
+  groups. Every person belongs to `soda-people`, can register multiple named
+  public SSH device keys for inbound access, and receives one server-generated
+  Ed25519 key for outbound Git. Soda persists only that Git key's public key and
+  fingerprint; its protected private key remains in the person's home.
+- A project has a `soda-p-<slug>` service account whose home is
   `/srv/soda/projects/<slug>`.
 - A membership connects a person to a project and owns exactly one personal
   workspace at `/srv/soda/projects/<slug>/worktrees/<username>`.
-- Project SSH uses the project account name, while the forced-command gateway
-  identifies the human from the authorized key and enters that person's
-  workspace under the shared project UID.
+- Project SSH uses the person's username and sends `SODA_PROJECT=<slug>`. The
+  forced-command gateway derives the person from the authenticated Unix account,
+  validates the selector and membership, and enters the person's workspace.
 - Each project member receives an isolated session home under
   `/srv/soda/projects/<slug>/.soda/people/<username>/home`, including separate
   XDG directories and a `~/workspace` link to the checkout.
 
-People therefore remain the authentication and attribution boundary, while the
-project account remains the filesystem and process ownership boundary. Two
-people collaborate without sharing credentials and without giving their normal
-Linux accounts ownership of project files.
+People are the authentication, attribution, workspace, and process ownership
+boundary. The project service account and its primary group own the shared bare
+repository; members join that group, while personal worktrees and session homes
+remain inaccessible to other members.
 
 ## Runtime state
 
-`sodad` exposes gRPC only through `/run/soda/sodad.sock`. Schema version 3
-stores people, SSH device keys, projects, memberships, worktrees, toolchain
+`sodad` exposes gRPC only through `/run/soda/sodad.sock`. Schema version 4
+stores people, their public Git identities, SSH device keys, projects including
+an external repository's bootstrap person, memberships, worktrees, toolchain
 installations and resolutions, provisioning jobs, and built-in Git mappings in
 `/var/lib/soda/soda.db`. It intentionally requires a fresh database. Cockpit
 certificates also live in `/var/lib/soda/certs`.
@@ -66,8 +70,8 @@ certificates also live in `/var/lib/soda/certs`.
 Mutable project repositories and toolchain caches physically live at
 `/var/lib/soda/projects` and `/var/lib/soda/toolchains`. Image-owned systemd
 bind mounts retain the stable session paths `/srv/soda/projects` and
-`/opt/soda/toolchains`; the forced SSH gateway and project account homes keep
-using those visible paths. `tmpfiles.d` creates the state and mount-point
+`/opt/soda/toolchains`; the forced SSH gateway and project resources keep using
+those visible paths. `tmpfiles.d` creates the state and mount-point
 directories at boot rather than shipping mutable Soda state in the image.
 Soda service logs are written below `/var/log/soda`.
 
@@ -86,7 +90,7 @@ the same non-disruptive staging, explicit reboot activation, rollback
 visibility, persistent-state policy, and equivalent acceptance gates.
 
 Soda-created Linux users and their PAM passwords remain system account state;
-SSH host keys remain under `/etc/ssh`; and per-project forced-command key files
+SSH host keys remain under `/etc/ssh`; and per-person authorized-key files
 remain root-owned under `/etc/soda/authorized_keys`. Those paths, the SQLite
 database, certificates, logs, projects, and toolchains are persistent host
 state, not container state.
@@ -106,4 +110,6 @@ There are no project or person deletion or update endpoints, browser IDE, web
 terminal, containers, profile switching, or Internet-facing management API.
 Trusted-LAN deployment does not remove individual PAM authentication or SSH
 attribution. A host administrator remains an ordinary Linux account until an
-operator explicitly imports it into Soda.
+operator explicitly imports it into Soda. External Git uses SSH URLs only; Soda
+does not store HTTPS credentials, broker provider tokens, or export private Git
+keys.

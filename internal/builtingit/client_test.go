@@ -17,6 +17,7 @@ import (
 type apiFixture struct {
 	t                *testing.T
 	userPayload      map[string]any
+	keyPayloads      []map[string]any
 	collaborator     bool
 	deletedBootstrap bool
 }
@@ -28,6 +29,9 @@ func (f *apiFixture) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		_ = json.NewDecoder(r.Body).Decode(&f.userPayload)
 		writeJSON(w, http.StatusCreated, map[string]any{"id": 12})
 	case "POST /api/v1/admin/users/alice/keys":
+		var payload map[string]any
+		_ = json.NewDecoder(r.Body).Decode(&payload)
+		f.keyPayloads = append(f.keyPayloads, payload)
 		writeJSON(w, http.StatusCreated, map[string]any{"id": 23})
 	case "GET /api/v1/orgs/soda":
 		writeJSON(w, http.StatusOK, map[string]any{"id": 1})
@@ -108,6 +112,13 @@ func TestClientUsesPAMUsersAndCreatesRepositoryWithSodaAccess(t *testing.T) {
 	key, err := client.EnsureKey(context.Background(), person, domain.SSHDeviceKey{ID: "key-1", PublicKey: "ssh-ed25519 AAAA alice"})
 	require.NoError(t, err)
 	require.Equal(t, int64(23), key.ID)
+	gitIdentity, err := client.EnsureGitIdentity(context.Background(), person, domain.GitIdentity{PersonID: person.ID, PublicKey: "ssh-ed25519 BBBB alice-git", Fingerprint: "SHA256:git"})
+	require.NoError(t, err)
+	require.Equal(t, int64(23), gitIdentity.ID)
+	require.Equal(t, []map[string]any{
+		{"title": "soda-key-1", "key": "ssh-ed25519 AAAA alice"},
+		{"title": "soda-git-identity", "key": "ssh-ed25519 BBBB alice-git"},
+	}, fixture.keyPayloads)
 	repository, err := client.EnsureRepository(context.Background(), domain.Project{ID: "project-1", Slug: "demo", Name: "Demo"}, []domain.Person{person}, "ssh-ed25519 AAAA deploy")
 	require.NoError(t, err)
 	require.Equal(t, int64(34), repository.ID)

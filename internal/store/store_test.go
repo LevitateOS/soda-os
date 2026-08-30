@@ -15,7 +15,7 @@ import (
 	"gorm.io/gorm/logger"
 )
 
-func TestOpenCreatesSchemaVersionThreeAndEnforcesConstraints(t *testing.T) {
+func TestOpenCreatesSchemaVersionFourAndEnforcesConstraints(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "soda.db")
 	repository, err := Open(path)
 	if err != nil {
@@ -202,7 +202,7 @@ func TestMembershipWorktreeJobsAndToolchainResolution(t *testing.T) {
 	repository := testRepository(t)
 	ctx := context.Background()
 	person := domain.Person{ID: uuid.NewString(), Username: "alice", DisplayName: "Alice", Email: "alice@example.test", Role: domain.RoleDeveloper}
-	project := domain.Project{ID: uuid.NewString(), Slug: "demo", Name: "Demo", UnixUser: "soda-p-demo", Profile: domain.ToolchainGo, Source: domain.GitProjectSource{RemoteURL: "git@example.com:team/demo.git"}}
+	project := domain.Project{ID: uuid.NewString(), Slug: "demo", Name: "Demo", UnixUser: "soda-p-demo", Profile: domain.ToolchainGo, Source: domain.GitProjectSource{RemoteURL: "git@example.com:team/demo.git"}, BootstrapPersonID: person.ID}
 	if err := repository.CreatePerson(ctx, person); err != nil {
 		t.Fatal(err)
 	}

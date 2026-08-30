@@ -16,6 +16,7 @@ func TestSodaServiceContract(t *testing.T) {
 		"CreatePerson",
 		"ImportPerson",
 		"ListPeople",
+		"GetGitIdentity",
 		"CreateSshDeviceKey",
 		"ListSshDeviceKeys",
 		"RevokeSshDeviceKey",

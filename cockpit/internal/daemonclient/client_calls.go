@@ -45,6 +45,13 @@ func (c *Client) SSHDeviceKeys(ctx context.Context, personID string) ([]SSHDevic
 	}
 	return items, nil
 }
+func (c *Client) GitIdentity(ctx context.Context, personID string) (GitIdentity, error) {
+	response, err := c.service.GetGitIdentity(ctx, &sodav2.GetGitIdentityRequest{PersonId: personID})
+	if err != nil {
+		return GitIdentity{}, rpcError(err)
+	}
+	return gitIdentity(response.GetIdentity()), nil
+}
 func (c *Client) CreateSSHDeviceKey(ctx context.Context, personID, label, publicKey, identityFileHint string) error {
 	_, err := c.service.CreateSshDeviceKey(ctx, &sodav2.CreateSshDeviceKeyRequest{PersonId: personID, Label: label, PublicKey: publicKey, IdentityFileHint: identityFileHint})
 	return rpcError(err)
@@ -54,7 +61,7 @@ func (c *Client) RevokeSSHDeviceKey(ctx context.Context, personID, keyID string)
 	return rpcError(err)
 }
 func (c *Client) CreateProject(ctx context.Context, request CreateProjectRequest) (Project, error) {
-	response, err := c.service.CreateProject(ctx, &sodav2.CreateProjectRequest{Slug: request.Slug, Name: request.Name, Profile: profileToProto(request.Profile), Source: sourceToProto(request.Source), InitialPersonIds: request.InitialPersonIDs})
+	response, err := c.service.CreateProject(ctx, &sodav2.CreateProjectRequest{Slug: request.Slug, Name: request.Name, Profile: profileToProto(request.Profile), Source: sourceToProto(request.Source), InitialPersonIds: request.InitialPersonIDs, BootstrapPersonId: request.BootstrapPersonID})
 	if err != nil {
 		return Project{}, rpcError(err)
 	}

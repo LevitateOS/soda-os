@@ -15,12 +15,13 @@ type GitProjectSource struct {
 func (GitProjectSource) isProjectSource() {}
 
 type Project struct {
-	ID       string
-	Slug     string
-	Name     string
-	UnixUser string
-	Profile  ToolchainProfile
-	Source   ProjectSource
+	ID                string
+	Slug              string
+	Name              string
+	UnixUser          string
+	Profile           ToolchainProfile
+	Source            ProjectSource
+	BootstrapPersonID string
 }
 
 type Membership struct {
@@ -35,12 +36,6 @@ type Worktree struct {
 	Name      string
 	Branch    string
 	Path      string
-}
-
-type ProjectAccess struct {
-	Person   Person
-	Worktree Worktree
-	Keys     []SSHDeviceKey
 }
 
 type DeployKey struct {

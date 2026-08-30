@@ -42,6 +42,22 @@ func (s *Service) ensureBuiltInGitKey(ctx context.Context, person domain.Person,
 	return s.store.SaveBuiltInGitKey(ctx, domain.BuiltInGitKey{SSHDeviceKeyID: key.ID, PersonID: person.ID, KeyID: remote.ID})
 }
 
+func (s *Service) ensureBuiltInGitIdentity(ctx context.Context, person domain.Person, identity domain.GitIdentity) error {
+	if s.builtInGit == nil {
+		return nil
+	}
+	if _, err := s.store.BuiltInGitIdentity(ctx, person.ID); err == nil {
+		return nil
+	} else if !errors.Is(err, store.ErrNotFound) {
+		return err
+	}
+	remote, err := s.builtInGit.EnsureGitIdentity(ctx, person, identity)
+	if err != nil {
+		return err
+	}
+	return s.store.SaveBuiltInGitIdentity(ctx, domain.BuiltInGitIdentity{PersonID: person.ID, KeyID: remote.ID})
+}
+
 func (s *Service) ensureBuiltInGitProject(ctx context.Context, project domain.Project) error {
 	if s.builtInGit == nil {
 		return nil
@@ -81,6 +97,13 @@ func (s *Service) ensureBuiltInGitMembers(ctx context.Context, members []domain.
 
 func (s *Service) reconcileBuiltInGitPerson(ctx context.Context, person domain.Person, kind builtingit.PersonKind) error {
 	if err := s.ensureBuiltInGitPerson(ctx, person, kind); err != nil {
+		return err
+	}
+	identity, err := s.store.GitIdentity(ctx, person.ID)
+	if err != nil {
+		return err
+	}
+	if err = s.ensureBuiltInGitIdentity(ctx, person, identity); err != nil {
 		return err
 	}
 	keys, err := s.store.SSHDeviceKeys(ctx, person.ID)

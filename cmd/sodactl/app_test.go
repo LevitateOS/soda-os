@@ -5,6 +5,7 @@ import (
 	"context"
 	"io"
 	"net"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -179,8 +180,10 @@ func TestCommandsUseGRPCAndWriteSnakeCaseJSON(t *testing.T) {
 			require.NotNil(t, request.Source.GetEmpty())
 			require.Equal(t, []string{"person-1", "person-2"}, request.InitialPersonIds)
 		}},
-		{"projects create git", []string{"projects", "create", "--slug", "demo", "--name", "Demo", "--profile", "rust", "--git", "ssh://git@example/demo.git", "--member", "person-1"}, func(t *testing.T, got any) {
-			require.Equal(t, "ssh://git@example/demo.git", got.(*sodav2.CreateProjectRequest).Source.GetGit().RemoteUrl)
+		{"projects create git", []string{"projects", "create", "--slug", "demo", "--name", "Demo", "--profile", "rust", "--git", "ssh://git@example/demo.git", "--bootstrap-person", "person-1", "--member", "person-1"}, func(t *testing.T, got any) {
+			request := got.(*sodav2.CreateProjectRequest)
+			require.Equal(t, "ssh://git@example/demo.git", request.Source.GetGit().RemoteUrl)
+			require.Equal(t, "person-1", request.BootstrapPersonId)
 		}},
 		{"members add", []string{"projects", "members", "add", "--project", "project", "--person", "person"}, func(t *testing.T, got any) { require.IsType(t, &sodav2.AddCollaboratorRequest{}, got) }},
 		{"members list", []string{"projects", "members", "list", "--project", "project"}, func(t *testing.T, got any) { require.IsType(t, &sodav2.ListCollaboratorsRequest{}, got) }},
@@ -241,6 +244,33 @@ func TestPersonAddRequiresPasswordBeforeCallingDaemon(t *testing.T) {
 	require.Zero(t, dials)
 }
 
+func TestInstallerPersonImportDeletesHandoffOnlyAfterSuccess(t *testing.T) {
+	handoff := filepath.Join(t.TempDir(), "installer-admin.json")
+	write := func() {
+		require.NoError(t, os.WriteFile(handoff, []byte(`{"username":"alice","name":"Alice Example","email":"alice@example.test"}`), 0o600))
+	}
+	write()
+	server := &recordingServer{}
+	app, _ := testApp(t, server)
+	_, err := execute(t, app, "people", "import-installer", "--file", handoff)
+	require.NoError(t, err)
+	request := server.got.(*sodav2.ImportPersonRequest)
+	require.Equal(t, "alice", request.Username)
+	require.Equal(t, "Alice Example", request.DisplayName)
+	require.Equal(t, "alice@example.test", request.Email)
+	require.Equal(t, sodav2.Role_ROLE_ADMIN, request.Role)
+	_, err = os.Stat(handoff)
+	require.ErrorIs(t, err, os.ErrNotExist)
+
+	write()
+	server = &recordingServer{err: status.Error(codes.Unavailable, "not ready")}
+	app, _ = testApp(t, server)
+	_, err = execute(t, app, "people", "import-installer", "--file", handoff)
+	require.Error(t, err)
+	_, statErr := os.Stat(handoff)
+	require.NoError(t, statErr)
+}
+
 func TestCanonicalGRPCErrors(t *testing.T) {
 	t.Run("user actionable messages remain visible", func(t *testing.T) {
 		server := &recordingServer{err: status.Error(codes.NotFound, "project missing")}
@@ -274,6 +304,10 @@ func TestLocalValidationFailureNeverDials(t *testing.T) {
 	_, err = execute(t, app, "projects", "create", "--slug", "demo", "--name", "Demo", "--profile", "go")
 	require.ErrorContains(t, err, "required flag(s) \"member\" not set")
 	require.Zero(t, dials)
+
+	_, err = execute(t, app, "projects", "create", "--slug", "demo", "--name", "Demo", "--profile", "go", "--git", "git@example.test:demo.git", "--member", "person-1")
+	require.EqualError(t, err, "--bootstrap-person is required with --git")
+	require.Zero(t, dials)
 }
 
 func TestMissingSocketReturnsUnavailableWithinDeadline(t *testing.T) {
@@ -297,7 +331,7 @@ func TestJSONShapes(t *testing.T) {
 		{"person is unwrapped", []string{"people", "add", "--username", "vince", "--display-name", "Vince", "--email", "vince@soda.local", "--role", "admin"}, `{"id":"person-1","username":"vince","display_name":"Vince","email":"vince@soda.local","role":"admin"}`},
 		{"imported person is unwrapped", []string{"people", "import", "--username", "vince", "--display-name", "Vince", "--email", "vince@soda.local"}, `{"id":"person-1","username":"vince","display_name":"Vince","email":"vince@soda.local","role":"developer"}`},
 		{"projects list is array", []string{"projects", "list"}, `[{"id":"project-1","slug":"demo","name":"Demo","unix_user":"soda-p-demo","profile":"go","source":{"kind":"empty"}}]`},
-		{"project is unwrapped", []string{"projects", "create", "--slug", "demo", "--name", "Demo", "--profile", "rust", "--git", "ssh://git@example/demo.git", "--member", "person-1"}, `{"id":"project-1","slug":"demo","name":"Demo","unix_user":"soda-p-demo","profile":"rust","source":{"kind":"git","remote_url":"ssh://git@example/demo.git"}}`},
+		{"project is unwrapped", []string{"projects", "create", "--slug", "demo", "--name", "Demo", "--profile", "rust", "--git", "ssh://git@example/demo.git", "--bootstrap-person", "person-1", "--member", "person-1"}, `{"id":"project-1","slug":"demo","name":"Demo","unix_user":"soda-p-demo","profile":"rust","source":{"kind":"git","remote_url":"ssh://git@example/demo.git"}}`},
 		{"member add returns workspace", []string{"projects", "members", "add", "--project", "project", "--person", "person"}, `{"id":"worktree-1","project_id":"project","person_id":"person","name":"feature","branch":"people/vince","path":"/srv/soda/projects/demo/worktrees/vince"}`},
 		{"members list is array", []string{"projects", "members", "list", "--project", "project"}, `[{"person":{"id":"person-1","username":"vince","display_name":"","email":"","role":"admin"},"membership":{"project_id":"project","person_id":"person-1"},"workspaces":[{"id":"worktree-1","project_id":"project","person_id":"person","name":"feature","branch":"people/vince","path":"/srv/soda/projects/demo/worktrees/vince"}]}]`},
 		{"workspaces list is array", []string{"projects", "workspaces", "list", "--project", "project"}, `[{"id":"worktree-1","project_id":"project","person_id":"person","name":"feature","branch":"people/vince","path":"/srv/soda/projects/demo/worktrees/vince"}]`},

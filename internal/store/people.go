@@ -10,18 +10,43 @@ import (
 )
 
 func (s *Store) CreatePerson(ctx context.Context, value domain.Person) error {
-	return classify(s.db.WithContext(ctx).Create(&Person{ID: value.ID, Username: value.Username, DisplayName: value.DisplayName, Email: value.Email, Role: string(value.Role)}).Error)
+	return s.CreatePersonWithGitIdentity(ctx, value, domain.GitIdentity{})
+}
+
+func (s *Store) CreatePersonWithGitIdentity(ctx context.Context, value domain.Person, identity domain.GitIdentity) error {
+	return classify(s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(&Person{ID: value.ID, Username: value.Username, DisplayName: value.DisplayName, Email: value.Email, Role: string(value.Role)}).Error; err != nil {
+			return err
+		}
+		if identity.PersonID == "" {
+			return nil
+		}
+		return tx.Create(&GitIdentity{PersonID: identity.PersonID, PublicKey: identity.PublicKey, Fingerprint: identity.Fingerprint}).Error
+	}))
 }
 
 func (s *Store) DeleteFreshPerson(ctx context.Context, id string) error {
-	result := s.db.WithContext(ctx).Where("id = ?", id).Delete(&Person{})
-	if result.Error != nil {
-		return classify(result.Error)
+	return classify(s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("person_id = ?", id).Delete(&GitIdentity{}).Error; err != nil {
+			return err
+		}
+		result := tx.Where("id = ?", id).Delete(&Person{})
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected != 1 {
+			return ErrNotFound
+		}
+		return nil
+	}))
+}
+
+func (s *Store) GitIdentity(ctx context.Context, personID string) (domain.GitIdentity, error) {
+	var row GitIdentity
+	if err := s.db.WithContext(ctx).First(&row, "person_id = ?", personID).Error; err != nil {
+		return domain.GitIdentity{}, classify(err)
 	}
-	if result.RowsAffected != 1 {
-		return ErrNotFound
-	}
-	return nil
+	return domain.GitIdentity{PersonID: row.PersonID, PublicKey: row.PublicKey, Fingerprint: row.Fingerprint}, nil
 }
 
 func (s *Store) People(ctx context.Context) ([]domain.Person, error) {

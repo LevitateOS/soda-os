@@ -36,7 +36,7 @@ func TestActorValidation(t *testing.T) {
 	}
 }
 
-func TestWorktreeContainment(t *testing.T) {
+func TestProjectMembershipRequiresPersonalWorktree(t *testing.T) {
 	t.Parallel()
 	fixture := newFixture(t)
 
@@ -44,57 +44,61 @@ func TestWorktreeContainment(t *testing.T) {
 		t.Fatalf("valid worktree was rejected: %v", err)
 	}
 
-	outside := filepath.Join(t.TempDir(), "outside")
-	mustMkdir(t, filepath.Join(outside, ".git"))
-	options := fixture.options()
-	options.Worktree = outside
-	if _, err := BuildInvocation(options); err == nil || !strings.Contains(err.Error(), "outside") {
-		t.Fatalf("outside worktree error = %v", err)
-	}
-
 	if err := os.RemoveAll(filepath.Join(fixture.worktree, ".git")); err != nil {
 		t.Fatal(err)
 	}
-	options = fixture.options()
+	options := fixture.options()
 	if _, err := BuildInvocation(options); err == nil || !strings.Contains(err.Error(), "not a Git") {
 		t.Fatalf("non-Git worktree error = %v", err)
 	}
 }
 
-func TestCanonicalContainmentResolvesSymlinks(t *testing.T) {
+func TestCanonicalContainmentAllowsWorkspaceSymlinkInsideProject(t *testing.T) {
 	t.Parallel()
 	fixture := newFixture(t)
 
-	insideLink := filepath.Join(fixture.root, "inside-link")
-	if err := os.Symlink(fixture.worktree, insideLink); err != nil {
+	inside := filepath.Join(fixture.project, "inside")
+	mustMkdir(t, filepath.Join(inside, ".git"))
+	if err := os.RemoveAll(fixture.worktree); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(inside, fixture.worktree); err != nil {
 		t.Fatal(err)
 	}
 	options := fixture.options()
-	options.Worktree = insideLink
 	invocation, err := BuildInvocation(options)
 	if err != nil {
 		t.Fatalf("inside symlink was rejected: %v", err)
 	}
-	if invocation.Dir != fixture.worktree {
-		t.Fatalf("canonical worktree = %q, want %q", invocation.Dir, fixture.worktree)
+	if invocation.Dir != mustCanonical(t, inside) {
+		t.Fatalf("canonical worktree = %q, want %q", invocation.Dir, inside)
 	}
+}
 
+func TestCanonicalContainmentRejectsWorkspaceSymlinkOutsideProject(t *testing.T) {
+	t.Parallel()
+	fixture := newFixture(t)
 	outside := filepath.Join(t.TempDir(), "outside")
 	mustMkdir(t, filepath.Join(outside, ".git"))
-	escapeLink := filepath.Join(fixture.root, "escape-link")
-	if err := os.Symlink(outside, escapeLink); err != nil {
+	if err := os.RemoveAll(fixture.worktree); err != nil {
 		t.Fatal(err)
 	}
-	options.Worktree = escapeLink
-	if _, err := BuildInvocation(options); err == nil || !strings.Contains(err.Error(), "outside") {
-		t.Fatalf("escaping symlink error = %v", err)
+	if err := os.Symlink(outside, fixture.worktree); err != nil {
+		t.Fatal(err)
 	}
+	if _, err := BuildInvocation(fixture.options()); err == nil || !strings.Contains(err.Error(), "membership") {
+		t.Fatalf("escaping workspace error = %v", err)
+	}
+}
 
+func TestCanonicalContainmentAllowsProjectsRootSymlink(t *testing.T) {
+	t.Parallel()
 	rootLink := filepath.Join(t.TempDir(), "projects-link")
-	if err := os.Symlink(fixture.root, rootLink); err != nil {
+	linkedFixture := newFixture(t)
+	if err := os.Symlink(linkedFixture.root, rootLink); err != nil {
 		t.Fatal(err)
 	}
-	options = fixture.options()
+	options := linkedFixture.options()
 	options.ProjectsRoot = rootLink
 	if _, err := BuildInvocation(options); err != nil {
 		t.Fatalf("canonical root symlink was rejected: %v", err)
@@ -297,7 +301,6 @@ func (fixture fixture) options() Options {
 	return Options{
 		Actor:        "alice-2",
 		Project:      "example",
-		Worktree:     fixture.worktree,
 		Home:         fixture.home,
 		ProjectsRoot: fixture.root,
 		Environment:  []string{"PATH=/usr/bin"},

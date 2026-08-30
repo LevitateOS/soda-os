@@ -12,6 +12,9 @@ func sshDeviceKey(value *sodav2.SshDeviceKey) SSHDeviceKey {
 	}
 	return result
 }
+func gitIdentity(value *sodav2.GitIdentity) GitIdentity {
+	return GitIdentity{PersonID: value.GetPersonId(), PublicKey: value.GetPublicKey(), Fingerprint: value.GetFingerprint()}
+}
 func people(values []*sodav2.Person) []Person {
 	items := make([]Person, 0, len(values))
 	for _, value := range values {
@@ -20,7 +23,7 @@ func people(values []*sodav2.Person) []Person {
 	return items
 }
 func project(value *sodav2.Project) Project {
-	return Project{ID: value.GetId(), Slug: value.GetSlug(), Name: value.GetName(), UnixUser: value.GetUnixUser(), Profile: profileFromProto(value.GetProfile()), Source: sourceFromProto(value.GetSource())}
+	return Project{ID: value.GetId(), Slug: value.GetSlug(), Name: value.GetName(), UnixUser: value.GetUnixUser(), Profile: profileFromProto(value.GetProfile()), Source: sourceFromProto(value.GetSource()), BootstrapPersonID: value.GetBootstrapPersonId()}
 }
 func projects(values []*sodav2.Project) []Project {
 	items := make([]Project, 0, len(values))

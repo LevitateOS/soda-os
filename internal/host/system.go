@@ -22,13 +22,13 @@ const DefaultAuthorizedKeysRoot = "/etc/soda/authorized_keys"
 type Cleanup func(context.Context) error
 
 type Operations interface {
-	CreatePerson(context.Context, domain.Person, string) (Cleanup, error)
-	ImportPerson(context.Context, domain.Person) (Cleanup, error)
+	CreatePerson(context.Context, domain.Person, string) (domain.GitIdentity, Cleanup, error)
+	ImportPerson(context.Context, domain.Person) (domain.GitIdentity, Cleanup, error)
 	CreateProject(context.Context, domain.Project) (Cleanup, error)
-	EnsureRepository(context.Context, domain.Project) error
+	EnsureRepository(context.Context, domain.Project, domain.Person) error
 	DefaultBranch(context.Context, domain.Project) (string, error)
 	CreateWorktree(context.Context, domain.Project, domain.Person, domain.Worktree, string) (Cleanup, error)
-	ReconcileAuthorizedKeys(context.Context, domain.Project, []domain.ProjectAccess) error
+	ReconcileAuthorizedKeys(context.Context, domain.Person, []domain.SSHDeviceKey) error
 	WriteProjectEnvironment(context.Context, domain.Project, string) error
 	DeployPublicKey(context.Context, domain.Project) (string, error)
 	ConnectBuiltInRepository(context.Context, domain.Project, string) error
@@ -64,13 +64,18 @@ func (ExecRunner) Run(ctx context.Context, name string, args []string, environme
 
 type System struct {
 	ProjectsRoot       string
+	PeopleRoot         string
 	Runner             Runner
 	AuthorizedKeysRoot string
 	authorizedKeysMu   sync.Mutex
 }
 
 func New(projectsRoot string) *System {
-	return &System{ProjectsRoot: projectsRoot, Runner: ExecRunner{}, AuthorizedKeysRoot: DefaultAuthorizedKeysRoot}
+	return &System{ProjectsRoot: projectsRoot, PeopleRoot: "/home", Runner: ExecRunner{}, AuthorizedKeysRoot: DefaultAuthorizedKeysRoot}
+}
+
+func (s *System) gitPrivateKeyPath(username string) string {
+	return filepath.Join(s.PeopleRoot, username, ".ssh", "soda_git_ed25519")
 }
 
 func (s *System) projectRoot(project domain.Project) string {
@@ -81,12 +86,17 @@ func (s *System) repository(project domain.Project) string {
 	return filepath.Join(s.projectRoot(project), "repository.git")
 }
 
-func (s *System) authorizedKeysPath(project domain.Project) string {
-	return filepath.Join(s.AuthorizedKeysRoot, project.UnixUser)
+func (s *System) authorizedKeysPath(username string) string {
+	return filepath.Join(s.AuthorizedKeysRoot, username)
 }
 
 func (s *System) chown(ctx context.Context, project domain.Project, path string) error {
 	_, err := s.Runner.Run(ctx, "chown", []string{"--recursive", project.UnixUser + ":" + project.UnixUser, path}, nil, "")
+	return err
+}
+
+func (s *System) chownPerson(ctx context.Context, project domain.Project, person domain.Person, path string) error {
+	_, err := s.Runner.Run(ctx, "chown", []string{"--recursive", person.Username + ":" + project.UnixUser, path}, nil, "")
 	return err
 }
 

@@ -30,6 +30,12 @@ type Person struct {
 	Role        Role
 }
 
+type GitIdentity struct {
+	PersonID    string
+	PublicKey   string
+	Fingerprint string
+}
+
 type SSHDeviceKey struct {
 	ID               string
 	PersonID         string

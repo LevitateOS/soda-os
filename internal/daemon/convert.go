@@ -9,6 +9,9 @@ import (
 func personProto(v domain.Person) *sodav2.Person {
 	return &sodav2.Person{Id: v.ID, Username: v.Username, DisplayName: v.DisplayName, Email: v.Email, Role: roleProto(v.Role)}
 }
+func gitIdentityProto(v domain.GitIdentity) *sodav2.GitIdentity {
+	return &sodav2.GitIdentity{PersonId: v.PersonID, PublicKey: v.PublicKey, Fingerprint: v.Fingerprint}
+}
 func sshDeviceKeyProto(v domain.SSHDeviceKey) *sodav2.SshDeviceKey {
 	return &sodav2.SshDeviceKey{Id: v.ID, PersonId: v.PersonID, Label: v.Label, PublicKey: v.PublicKey, Fingerprint: v.Fingerprint, IdentityFileHint: v.IdentityFileHint, CreatedAt: timestamppb.New(v.CreatedAt)}
 }
@@ -87,7 +90,7 @@ func sourceProto(v domain.ProjectSource) *sodav2.ProjectSource {
 	}
 }
 func projectProto(v domain.Project) *sodav2.Project {
-	return &sodav2.Project{Id: v.ID, Slug: v.Slug, Name: v.Name, UnixUser: v.UnixUser, Profile: profileProto(v.Profile), Source: sourceProto(v.Source)}
+	return &sodav2.Project{Id: v.ID, Slug: v.Slug, Name: v.Name, UnixUser: v.UnixUser, Profile: profileProto(v.Profile), Source: sourceProto(v.Source), BootstrapPersonId: v.BootstrapPersonID}
 }
 func membershipProto(v domain.Membership) *sodav2.Membership {
 	return &sodav2.Membership{ProjectId: v.ProjectID, PersonId: v.PersonID}

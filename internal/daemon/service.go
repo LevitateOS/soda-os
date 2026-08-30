@@ -35,6 +35,7 @@ type OSUpdater interface {
 type BuiltInGit interface {
 	EnsurePerson(context.Context, domain.Person, builtingit.PersonKind) (builtingit.User, error)
 	EnsureKey(context.Context, domain.Person, domain.SSHDeviceKey) (builtingit.Key, error)
+	EnsureGitIdentity(context.Context, domain.Person, domain.GitIdentity) (builtingit.Key, error)
 	DeleteKey(context.Context, string, int64) error
 	EnsureRepository(context.Context, domain.Project, []domain.Person, string) (builtingit.Repository, error)
 }

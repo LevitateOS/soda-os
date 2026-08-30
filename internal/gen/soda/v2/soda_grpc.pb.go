@@ -23,6 +23,7 @@ const (
 	SodaService_CreatePerson_FullMethodName          = "/soda.v2.SodaService/CreatePerson"
 	SodaService_ImportPerson_FullMethodName          = "/soda.v2.SodaService/ImportPerson"
 	SodaService_ListPeople_FullMethodName            = "/soda.v2.SodaService/ListPeople"
+	SodaService_GetGitIdentity_FullMethodName        = "/soda.v2.SodaService/GetGitIdentity"
 	SodaService_CreateSshDeviceKey_FullMethodName    = "/soda.v2.SodaService/CreateSshDeviceKey"
 	SodaService_ListSshDeviceKeys_FullMethodName     = "/soda.v2.SodaService/ListSshDeviceKeys"
 	SodaService_RevokeSshDeviceKey_FullMethodName    = "/soda.v2.SodaService/RevokeSshDeviceKey"
@@ -51,6 +52,7 @@ type SodaServiceClient interface {
 	CreatePerson(ctx context.Context, in *CreatePersonRequest, opts ...grpc.CallOption) (*CreatePersonResponse, error)
 	ImportPerson(ctx context.Context, in *ImportPersonRequest, opts ...grpc.CallOption) (*ImportPersonResponse, error)
 	ListPeople(ctx context.Context, in *ListPeopleRequest, opts ...grpc.CallOption) (*ListPeopleResponse, error)
+	GetGitIdentity(ctx context.Context, in *GetGitIdentityRequest, opts ...grpc.CallOption) (*GetGitIdentityResponse, error)
 	CreateSshDeviceKey(ctx context.Context, in *CreateSshDeviceKeyRequest, opts ...grpc.CallOption) (*CreateSshDeviceKeyResponse, error)
 	ListSshDeviceKeys(ctx context.Context, in *ListSshDeviceKeysRequest, opts ...grpc.CallOption) (*ListSshDeviceKeysResponse, error)
 	RevokeSshDeviceKey(ctx context.Context, in *RevokeSshDeviceKeyRequest, opts ...grpc.CallOption) (*RevokeSshDeviceKeyResponse, error)
@@ -113,6 +115,16 @@ func (c *sodaServiceClient) ListPeople(ctx context.Context, in *ListPeopleReques
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ListPeopleResponse)
 	err := c.cc.Invoke(ctx, SodaService_ListPeople_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *sodaServiceClient) GetGitIdentity(ctx context.Context, in *GetGitIdentityRequest, opts ...grpc.CallOption) (*GetGitIdentityResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetGitIdentityResponse)
+	err := c.cc.Invoke(ctx, SodaService_GetGitIdentity_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -307,6 +319,7 @@ type SodaServiceServer interface {
 	CreatePerson(context.Context, *CreatePersonRequest) (*CreatePersonResponse, error)
 	ImportPerson(context.Context, *ImportPersonRequest) (*ImportPersonResponse, error)
 	ListPeople(context.Context, *ListPeopleRequest) (*ListPeopleResponse, error)
+	GetGitIdentity(context.Context, *GetGitIdentityRequest) (*GetGitIdentityResponse, error)
 	CreateSshDeviceKey(context.Context, *CreateSshDeviceKeyRequest) (*CreateSshDeviceKeyResponse, error)
 	ListSshDeviceKeys(context.Context, *ListSshDeviceKeysRequest) (*ListSshDeviceKeysResponse, error)
 	RevokeSshDeviceKey(context.Context, *RevokeSshDeviceKeyRequest) (*RevokeSshDeviceKeyResponse, error)
@@ -346,6 +359,9 @@ func (UnimplementedSodaServiceServer) ImportPerson(context.Context, *ImportPerso
 }
 func (UnimplementedSodaServiceServer) ListPeople(context.Context, *ListPeopleRequest) (*ListPeopleResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListPeople not implemented")
+}
+func (UnimplementedSodaServiceServer) GetGitIdentity(context.Context, *GetGitIdentityRequest) (*GetGitIdentityResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetGitIdentity not implemented")
 }
 func (UnimplementedSodaServiceServer) CreateSshDeviceKey(context.Context, *CreateSshDeviceKeyRequest) (*CreateSshDeviceKeyResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method CreateSshDeviceKey not implemented")
@@ -490,6 +506,24 @@ func _SodaService_ListPeople_Handler(srv interface{}, ctx context.Context, dec f
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(SodaServiceServer).ListPeople(ctx, req.(*ListPeopleRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _SodaService_GetGitIdentity_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetGitIdentityRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SodaServiceServer).GetGitIdentity(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SodaService_GetGitIdentity_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SodaServiceServer).GetGitIdentity(ctx, req.(*GetGitIdentityRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -840,6 +874,10 @@ var SodaService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListPeople",
 			Handler:    _SodaService_ListPeople_Handler,
+		},
+		{
+			MethodName: "GetGitIdentity",
+			Handler:    _SodaService_GetGitIdentity_Handler,
 		},
 		{
 			MethodName: "CreateSshDeviceKey",

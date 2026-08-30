@@ -17,8 +17,16 @@ type fakePorts struct {
 type fakeAccounts struct {
 	people       []daemonclient.Person
 	keys         []daemonclient.SSHDeviceKey
+	identities   map[string]daemonclient.GitIdentity
 	created      *daemonclient.CreatePersonRequest
 	keyPersonIDs []string
+}
+
+func (f *fakeAccounts) GitIdentity(_ context.Context, personID string) (daemonclient.GitIdentity, error) {
+	if identity, ok := f.identities[personID]; ok {
+		return identity, nil
+	}
+	return daemonclient.GitIdentity{PersonID: personID, PublicKey: "ssh-ed25519 AAAA soda-git", Fingerprint: "SHA256:git"}, nil
 }
 
 func (f *fakeAccounts) People(context.Context) ([]daemonclient.Person, error) { return f.people, nil }

@@ -21,6 +21,7 @@ const (
 
 type Person = domain.Person
 type SSHDeviceKey = domain.SSHDeviceKey
+type GitIdentity = domain.GitIdentity
 type ProjectSource = domain.ProjectSource
 type EmptyProjectSource = domain.EmptyProjectSource
 type GitProjectSource = domain.GitProjectSource
@@ -50,11 +51,12 @@ type CreatePersonRequest struct {
 	Password    string
 }
 type CreateProjectRequest struct {
-	Slug             string
-	Name             string
-	Profile          string
-	Source           ProjectSource
-	InitialPersonIDs []string
+	Slug              string
+	Name              string
+	Profile           string
+	Source            ProjectSource
+	InitialPersonIDs  []string
+	BootstrapPersonID string
 }
 
 type AddCollaboratorCommand struct {

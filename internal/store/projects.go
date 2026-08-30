@@ -14,7 +14,11 @@ func (s *Store) CreateProjectWithMemberships(ctx context.Context, value domain.P
 		return err
 	}
 	return classify(s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := tx.Create(&Project{ID: value.ID, Slug: value.Slug, Name: value.Name, UnixUser: value.UnixUser, Profile: string(value.Profile), SourceKind: kind, SourceRemoteURL: remote}).Error; err != nil {
+		var bootstrap *string
+		if value.BootstrapPersonID != "" {
+			bootstrap = &value.BootstrapPersonID
+		}
+		if err := tx.Create(&Project{ID: value.ID, Slug: value.Slug, Name: value.Name, UnixUser: value.UnixUser, Profile: string(value.Profile), SourceKind: kind, SourceRemoteURL: remote, BootstrapPersonID: bootstrap}).Error; err != nil {
 			return err
 		}
 		for _, personID := range personIDs {
@@ -207,7 +211,11 @@ func projectDomain(r Project) (domain.Project, error) {
 	default:
 		return domain.Project{}, fmt.Errorf("project %s has unknown source %q", r.ID, r.SourceKind)
 	}
-	return domain.Project{ID: r.ID, Slug: r.Slug, Name: r.Name, UnixUser: r.UnixUser, Profile: domain.ToolchainProfile(r.Profile), Source: source}, nil
+	bootstrap := ""
+	if r.BootstrapPersonID != nil {
+		bootstrap = *r.BootstrapPersonID
+	}
+	return domain.Project{ID: r.ID, Slug: r.Slug, Name: r.Name, UnixUser: r.UnixUser, Profile: domain.ToolchainProfile(r.Profile), Source: source, BootstrapPersonID: bootstrap}, nil
 }
 func worktreeRow(v domain.Worktree) *Worktree {
 	return &Worktree{ID: v.ID, ProjectID: v.ProjectID, PersonID: v.PersonID, Name: v.Name, Branch: v.Branch, Path: v.Path}

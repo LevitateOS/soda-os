@@ -1,14 +1,14 @@
 {{define "project.html"}}{{template "header" .}}
 <div class="page-heading"><div><h1>{{.Project.Name}}</h1><p class="muted">{{.Project.Slug}}</p></div><span class="state state-{{.State.Class}}">{{.State.Label}}</span></div>
 <dl class="summary">
-  <div><dt>Project account</dt><dd><code>{{.Project.UnixUser}}</code></dd></div>
+  <div><dt>Project service account</dt><dd><code>{{.Project.UnixUser}}</code></dd></div>
   <div><dt>Development environment</dt><dd>{{.Project.Profile}}</dd></div>
   <div><dt>Repository</dt><dd>{{with remote .Project}}<code>{{.}}</code>{{else}}Built-in Git on this Soda server{{end}}</dd></div>
 </dl>
 {{template "connect" .Connection}}
 {{template "provisioning" .Provisioning}}
 {{template "collaboration" .Collaboration}}
-{{if .Admin}}<section class="panel"><h2>Repository access</h2><p>For a private SSH remote, add this deploy key at the Git host and retry project setup.</p><pre>{{.DeployKey}}</pre></section>{{end}}
+{{if .DeployKey}}<section class="panel"><h2>Built-in repository access</h2><p>Soda uses this project deploy key for its internal Forgejo repository.</p><pre>{{.DeployKey}}</pre></section>{{end}}
 {{template "footer" .}}{{end}}
 
 {{define "connect"}}
@@ -60,6 +60,13 @@
   <h2>Project setup</h2>
   {{if .Error}}<p class="error" role="alert">{{.Error}}</p>{{end}}
   <p><span class="state state-{{.State.Class}}">{{.State.Label}}</span></p>
+  {{if .RepositoryIdentity}}
+  <p>Add this public key to the Git account that can access <code>{{remote .Project}}</code>, grant that account repository access, then continue.</p>
+  <p><strong>Fingerprint</strong> <code>{{.RepositoryIdentity.Fingerprint}}</code></p>
+  <pre id="repository-git-public-key">{{.RepositoryIdentity.PublicKey}}</pre>
+  <button type="button" onclick="navigator.clipboard.writeText(document.getElementById('repository-git-public-key').textContent)">Copy public key</button>
+  {{if .Admin}}<form method="post" action="/projects/{{.Project.ID}}/provisioning" hx-post="/projects/{{.Project.ID}}/provisioning" hx-target="#provisioning" hx-swap="outerHTML" hx-status:422="swap:outerHTML" hx-disable="button"><button type="submit">Continue project setup</button></form>{{end}}
+  {{end}}
   <h3>Development environment</h3>
   {{if .Toolchain}}<p><strong>{{.Toolchain.Profile}} {{.Toolchain.Version}}</strong> · <code>{{.Toolchain.Path}}</code></p>{{else}}<p>The development environment is not ready yet.</p>{{end}}
   {{if .Jobs}}<h3>Setup history</h3><ul>{{range .Jobs}}<li>{{.State}}{{if .Error}} · <span class="error">{{.Error}}</span>{{end}}</li>{{end}}</ul>{{end}}

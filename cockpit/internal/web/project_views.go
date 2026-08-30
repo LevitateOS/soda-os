@@ -26,12 +26,13 @@ type projectStateView struct {
 }
 
 type provisioningView struct {
-	Project   daemonclient.Project
-	Admin     bool
-	State     projectStateView
-	Jobs      []daemonclient.ProvisioningJob
-	Toolchain *daemonclient.ToolchainInstallation
-	Error     string
+	Project            daemonclient.Project
+	Admin              bool
+	State              projectStateView
+	Jobs               []daemonclient.ProvisioningJob
+	Toolchain          *daemonclient.ToolchainInstallation
+	RepositoryIdentity *daemonclient.GitIdentity
+	Error              string
 }
 
 type collaborationView struct {
@@ -111,8 +112,11 @@ func provisioningActive(jobs []daemonclient.ProvisioningJob) bool {
 	return false
 }
 
-func projectState(jobs []daemonclient.ProvisioningJob) (string, string) {
+func projectState(project daemonclient.Project, jobs []daemonclient.ProvisioningJob) (string, string) {
 	if len(jobs) == 0 {
+		if _, external := project.Source.(daemonclient.GitProjectSource); external {
+			return "Waiting for repository access", "waiting"
+		}
 		return "Preparing", "preparing"
 	}
 	switch jobs[0].State {
@@ -132,7 +136,7 @@ func (s *Server) projectCards(ctx context.Context, projects []daemonclient.Proje
 		if loadErr != nil {
 			return nil, loadErr
 		}
-		state, stateClass := projectState(jobs)
+		state, stateClass := projectState(project, jobs)
 		cards = append(cards, projectCardView{Project: project, State: state, StateClass: stateClass})
 	}
 	return cards, nil

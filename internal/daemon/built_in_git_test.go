@@ -56,9 +56,8 @@ func TestReconcileAllAccessKeepsSodaAvailableWhenBuiltInGitFails(t *testing.T) {
 func TestReconcileAllAccessStillRequiresAuthorizedKeyReconciliation(t *testing.T) {
 	repository, err := store.Open(filepath.Join(t.TempDir(), "soda.db"))
 	require.NoError(t, err)
-	require.NoError(t, repository.CreateProjectWithMemberships(context.Background(), domain.Project{
-		ID: "project-1", Slug: "demo", Name: "Demo", UnixUser: "soda-p-demo", Profile: domain.ToolchainGo, Source: domain.EmptyProjectSource{},
-	}, nil))
+	person := domain.Person{ID: "person-1", Username: "alice", DisplayName: "Alice", Email: "alice@example.test", Role: domain.RoleAdmin}
+	require.NoError(t, repository.CreatePersonWithGitIdentity(context.Background(), person, domain.GitIdentity{PersonID: person.ID, PublicKey: "ssh-ed25519 AAAA alice", Fingerprint: "SHA256:alice"}))
 	want := errors.New("authorized keys unavailable")
 	service := New(Options{Store: repository, Host: &fakeHost{access: accessEvents{err: want}}, Toolchains: fakeInstaller{}, BuiltInGit: &fakeBuiltInGit{}})
 	defer service.Close()
@@ -68,6 +67,10 @@ func TestReconcileAllAccessStillRequiresAuthorizedKeyReconciliation(t *testing.T
 
 func (*fakeBuiltInGit) EnsureKey(context.Context, domain.Person, domain.SSHDeviceKey) (builtingit.Key, error) {
 	return builtingit.Key{ID: 20}, nil
+}
+
+func (f *fakeBuiltInGit) EnsureGitIdentity(context.Context, domain.Person, domain.GitIdentity) (builtingit.Key, error) {
+	return builtingit.Key{ID: int64(20 + len(f.people))}, nil
 }
 
 func (f *fakeBuiltInGit) DeleteKey(_ context.Context, _ string, keyID int64) error {
@@ -106,7 +109,7 @@ func TestBuiltInGitUsesTheExistingProjectAndMembershipFlow(t *testing.T) {
 	_, err = repository.BuiltInGitRepository(context.Background(), project.ID)
 	require.NoError(t, err)
 
-	external := domain.Project{ID: "project-2", Slug: "external", Name: "External", UnixUser: "soda-p-external", Profile: domain.ToolchainGo, Source: domain.GitProjectSource{RemoteURL: "ssh://git@example.test/external.git"}}
+	external := domain.Project{ID: "project-2", Slug: "external", Name: "External", UnixUser: "soda-p-external", Profile: domain.ToolchainGo, Source: domain.GitProjectSource{RemoteURL: "ssh://git@example.test/external.git"}, BootstrapPersonID: personResponse.Person.Id}
 	require.NoError(t, repository.CreateProjectWithMemberships(context.Background(), external, []string{personResponse.Person.Id}))
 	require.NoError(t, service.ensureBuiltInGitProject(context.Background(), external))
 	require.Len(t, git.projects, 1)
@@ -117,8 +120,8 @@ func TestBuiltInGitMirrorsSodaRolesAndBootstrapsAnAdministratorFirst(t *testing.
 	require.NoError(t, err)
 	developer := domain.Person{ID: "person-developer", Username: "alice", DisplayName: "Alice", Email: "alice@example.test", Role: domain.RoleDeveloper}
 	administrator := domain.Person{ID: "person-admin", Username: "zoe", DisplayName: "Zoe", Email: "zoe@example.test", Role: domain.RoleAdmin}
-	require.NoError(t, repository.CreatePerson(context.Background(), developer))
-	require.NoError(t, repository.CreatePerson(context.Background(), administrator))
+	require.NoError(t, repository.CreatePersonWithGitIdentity(context.Background(), developer, domain.GitIdentity{PersonID: developer.ID, PublicKey: "ssh-ed25519 AAAA alice", Fingerprint: "SHA256:alice"}))
+	require.NoError(t, repository.CreatePersonWithGitIdentity(context.Background(), administrator, domain.GitIdentity{PersonID: administrator.ID, PublicKey: "ssh-ed25519 AAAA zoe", Fingerprint: "SHA256:zoe"}))
 	git := &fakeBuiltInGit{}
 	service := New(Options{Store: repository, Host: &fakeHost{}, Toolchains: fakeInstaller{}, BuiltInGit: git, ProjectsRoot: filepath.Join(t.TempDir(), "projects")})
 	defer service.Close()

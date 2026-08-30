@@ -66,7 +66,7 @@ access.
 ## Persistent host state
 
 Bootc owns the image base. Soda keeps mutable state under `/var/lib/soda` so it
-survives replacement of the image: SQLite schema 3 state, Cockpit certificates,
+survives replacement of the image: SQLite schema 4 state, Cockpit certificates,
 projects, and toolchains. Image-owned mount units retain the existing visible
 paths `/srv/soda/projects` and `/opt/soda/toolchains`; direct SSH workspaces and
 the forced-command gateway therefore keep their established paths. `tmpfiles.d`

@@ -9,12 +9,8 @@ import (
 func TestValidateGitRemoteURLAcceptsCredentialSafeRemotes(t *testing.T) {
 	t.Parallel()
 	for _, remote := range []string{
-		"https://example.com/team/project.git",
-		"http://example.com/team/project.git",
 		"ssh://git@example.com/team/project.git",
-		"ssh://example.com/team/project.git",
 		"git@example.com:team/project.git",
-		"example.com:team/project.git",
 		"git@[2001:db8::1]:team/project.git",
 	} {
 		remote := remote
@@ -28,6 +24,8 @@ func TestValidateGitRemoteURLAcceptsCredentialSafeRemotes(t *testing.T) {
 func TestValidateGitRemoteURLRejectsEmbeddedCredentials(t *testing.T) {
 	t.Parallel()
 	for _, remote := range []string{
+		"https://example.com/team/project.git",
+		"http://example.com/team/project.git",
 		"https://user@example.com/team/project.git",
 		"https://user:password@example.com/team/project.git",
 		"http://token@example.com/team/project.git",
@@ -42,6 +40,12 @@ func TestValidateGitRemoteURLRejectsEmbeddedCredentials(t *testing.T) {
 	}
 }
 
+func TestValidateGitRemoteURLDirectsHTTPSUsersToSSH(t *testing.T) {
+	t.Parallel()
+	err := ValidateGitRemoteURL("https://example.com/team/project.git")
+	require.EqualError(t, err, "use the repository's SSH URL; HTTP and HTTPS Git remotes are not supported")
+}
+
 func TestValidateGitRemoteURLRejectsUnsupportedOrMalformedRemotes(t *testing.T) {
 	t.Parallel()
 	for _, remote := range []string{
@@ -49,6 +53,8 @@ func TestValidateGitRemoteURLRejectsUnsupportedOrMalformedRemotes(t *testing.T) 
 		"team/project.git",
 		"file:///srv/git/project.git",
 		"ftp://example.com/team/project.git",
+		"ssh://example.com/team/project.git",
+		"example.com:team/project.git",
 		"ssh://@example.com/team/project.git",
 		"git@example.com:",
 		"git @example.com:team/project.git",

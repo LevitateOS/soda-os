@@ -40,6 +40,7 @@ type accountPort interface {
 	People(context.Context) ([]daemonclient.Person, error)
 	CreatePerson(context.Context, daemonclient.CreatePersonRequest) error
 	SSHDeviceKeys(context.Context, string) ([]daemonclient.SSHDeviceKey, error)
+	GitIdentity(context.Context, string) (daemonclient.GitIdentity, error)
 	CreateSSHDeviceKey(context.Context, string, string, string, string) error
 	RevokeSSHDeviceKey(context.Context, string, string) error
 }

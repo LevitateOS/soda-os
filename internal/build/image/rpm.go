@@ -147,6 +147,7 @@ func (b *Builder) stageRPMSources(build, sources string) error {
 		{filepath.Join(build, "soda-authd"), filepath.Join(sources, "soda-authd")},
 		{filepath.Join(build, "forgejo"), filepath.Join(sources, "forgejo")},
 		{b.path("packaging/rpm/runtime/sources/systemd/sodad.service"), filepath.Join(sources, "sodad.service")},
+		{b.path("packaging/rpm/runtime/sources/systemd/soda-installer-import.service"), filepath.Join(sources, "soda-installer-import.service")},
 		{b.path("packaging/rpm/runtime/sources/systemd/soda-state-directories.service"), filepath.Join(sources, "soda-state-directories.service")},
 		{b.path("packaging/rpm/runtime/sources/systemd/var-srv-soda-projects.mount"), filepath.Join(sources, "var-srv-soda-projects.mount")},
 		{b.path("packaging/rpm/runtime/sources/systemd/opt-soda-toolchains.mount"), filepath.Join(sources, "opt-soda-toolchains.mount")},

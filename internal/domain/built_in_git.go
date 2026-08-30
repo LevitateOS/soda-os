@@ -11,6 +11,11 @@ type BuiltInGitKey struct {
 	KeyID          int64
 }
 
+type BuiltInGitIdentity struct {
+	PersonID string
+	KeyID    int64
+}
+
 type BuiltInGitRepository struct {
 	ProjectID    string
 	RepositoryID int64

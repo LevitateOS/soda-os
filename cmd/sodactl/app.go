@@ -86,7 +86,7 @@ func (a *app) peopleCommand(socket *string) *cobra.Command {
 			})
 		},
 	})
-	people.AddCommand(a.addPersonCommand(socket), a.importPersonCommand(socket))
+	people.AddCommand(a.addPersonCommand(socket), a.importPersonCommand(socket), a.importInstallerPersonCommand(socket))
 	return people
 }
 
@@ -129,6 +129,35 @@ func (a *app) importPersonCommand(socket *string) *cobra.Command {
 	return command
 }
 
+func (a *app) importInstallerPersonCommand(socket *string) *cobra.Command {
+	var path string
+	command := &cobra.Command{Use: "import-installer", RunE: func(cmd *cobra.Command, _ []string) error {
+		contents, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		var handoff struct {
+			Username string `json:"username"`
+			Name     string `json:"name"`
+			Email    string `json:"email"`
+		}
+		if err = json.Unmarshal(contents, &handoff); err != nil {
+			return fmt.Errorf("decode installer person: %w", err)
+		}
+		err = a.call(cmd, *socket, func(ctx context.Context, client sodav2.SodaServiceClient) (any, error) {
+			response, callErr := client.ImportPerson(ctx, &sodav2.ImportPersonRequest{Username: handoff.Username, DisplayName: handoff.Name, Email: handoff.Email, Role: sodav2.Role_ROLE_ADMIN})
+			return personJSON(response.GetPerson()), callErr
+		})
+		if err != nil {
+			return err
+		}
+		return os.Remove(path)
+	}}
+	command.Flags().StringVar(&path, "file", "", "installer person handoff file")
+	_ = command.MarkFlagRequired("file")
+	return command
+}
+
 type personInput struct{ username, displayName, email, role string }
 
 func (input *personInput) bind(command *cobra.Command) {
@@ -157,7 +186,7 @@ func (a *app) projectListCommand(socket *string) *cobra.Command {
 }
 
 func (a *app) projectCreateCommand(socket *string) *cobra.Command {
-	var slug, name, profile, remoteURL string
+	var slug, name, profile, remoteURL, bootstrapPersonID string
 	var memberIDs []string
 	command := &cobra.Command{Use: "create", RunE: func(cmd *cobra.Command, _ []string) error {
 		parsedProfile, err := profileValue(profile)
@@ -166,10 +195,13 @@ func (a *app) projectCreateCommand(socket *string) *cobra.Command {
 		}
 		source := &sodav2.ProjectSource{Source: &sodav2.ProjectSource_Empty{Empty: &sodav2.EmptyProjectSource{}}}
 		if remoteURL != "" {
+			if bootstrapPersonID == "" {
+				return errors.New("--bootstrap-person is required with --git")
+			}
 			source = &sodav2.ProjectSource{Source: &sodav2.ProjectSource_Git{Git: &sodav2.GitProjectSource{RemoteUrl: remoteURL}}}
 		}
 		return a.call(cmd, *socket, func(ctx context.Context, client sodav2.SodaServiceClient) (any, error) {
-			response, callErr := client.CreateProject(ctx, &sodav2.CreateProjectRequest{Slug: slug, Name: name, Profile: parsedProfile, Source: source, InitialPersonIds: memberIDs})
+			response, callErr := client.CreateProject(ctx, &sodav2.CreateProjectRequest{Slug: slug, Name: name, Profile: parsedProfile, Source: source, InitialPersonIds: memberIDs, BootstrapPersonId: bootstrapPersonID})
 			return projectJSON(response.GetProject()), callErr
 		})
 	}}
@@ -177,6 +209,7 @@ func (a *app) projectCreateCommand(socket *string) *cobra.Command {
 	command.Flags().StringVar(&name, "name", "", "project display name")
 	command.Flags().StringVar(&profile, "profile", "", "profile: web, python, rust, or go")
 	command.Flags().StringVar(&remoteURL, "git", "", "Git remote URL")
+	command.Flags().StringVar(&bootstrapPersonID, "bootstrap-person", "", "person ID used for the initial external clone")
 	command.Flags().StringSliceVar(&memberIDs, "member", nil, "initial person ID (repeatable)")
 	_ = command.MarkFlagRequired("slug")
 	_ = command.MarkFlagRequired("name")

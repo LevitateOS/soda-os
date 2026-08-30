@@ -53,7 +53,7 @@ th, td { border-bottom: 1px solid #8885; padding: .6rem; text-align: left; verti
 .status-grid li { align-items: baseline; display: flex; justify-content: space-between; }
 .state { font-weight: 700; text-transform: capitalize; }
 .state-ready, .state-clean { color: #087d55; }
-.state-degraded, .state-dirty, .state-preparing { color: #ad6500; }
+.state-degraded, .state-dirty, .state-preparing, .state-waiting { color: #ad6500; }
 .state-unavailable, .state-failed { color: #c33; }
 .htmx-request { opacity: .65; }
 button:disabled { cursor: wait; }

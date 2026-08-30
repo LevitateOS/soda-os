@@ -14,6 +14,7 @@ import (
 	sodav2 "github.com/LevitateOS/soda-os/internal/gen/soda/v2"
 	"github.com/LevitateOS/soda-os/internal/store"
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"gorm.io/gorm"
@@ -151,6 +152,79 @@ func TestProvisioningDeadlineMarksFailedAndAllowsManualRetry(t *testing.T) {
 		t.Fatalf("manual retry after timeout: %v", err)
 	}
 	waitForJobState(t, repository, project.ID, domain.JobFailed)
+}
+
+func TestExternalProjectWaitsForAccessAndRetriesWithBootstrapPerson(t *testing.T) {
+	repository := testStore(t)
+	hostSystem := &fakeHost{}
+	service := New(Options{Store: repository, Host: hostSystem, Toolchains: fakeInstaller{}, ProjectsRoot: t.TempDir()})
+	defer service.Close()
+	personResponse, err := service.CreatePerson(context.Background(), &sodav2.CreatePersonRequest{
+		Username: "alice", DisplayName: "Alice", Email: "alice@example.test",
+		Role: sodav2.Role_ROLE_ADMIN, Password: "simple",
+	})
+	require.NoError(t, err)
+	personID := personResponse.Person.Id
+	response, err := service.CreateProject(context.Background(), &sodav2.CreateProjectRequest{
+		Slug: "external", Name: "External", Profile: sodav2.ToolchainProfile_TOOLCHAIN_PROFILE_GO,
+		Source:           &sodav2.ProjectSource{Source: &sodav2.ProjectSource_Git{Git: &sodav2.GitProjectSource{RemoteUrl: "git@example.test:team/external.git"}}},
+		InitialPersonIds: []string{personID}, BootstrapPersonId: personID,
+	})
+	require.NoError(t, err)
+	projectID := response.Project.Id
+	jobs, err := repository.Jobs(context.Background(), projectID)
+	require.NoError(t, err)
+	require.Empty(t, jobs)
+	project, err := repository.Project(context.Background(), projectID)
+	require.NoError(t, err)
+	require.Equal(t, personID, project.BootstrapPersonID)
+	require.Len(t, hostSystem.workspaces.projects, 1)
+	require.Empty(t, hostSystem.workspaces.worktrees)
+
+	hostSystem.workspaces.repositoryErr = errors.New("repository access denied")
+	_, err = service.StartProvisioning(context.Background(), &sodav2.StartProvisioningRequest{ProjectId: projectID})
+	require.NoError(t, err)
+	waitForJobState(t, repository, projectID, domain.JobFailed)
+	hostSystem.mu.Lock()
+	hostSystem.workspaces.repositoryErr = nil
+	hostSystem.mu.Unlock()
+	_, err = service.StartProvisioning(context.Background(), &sodav2.StartProvisioningRequest{ProjectId: projectID})
+	require.NoError(t, err)
+	waitForJobState(t, repository, projectID, domain.JobReady)
+
+	hostSystem.mu.Lock()
+	defer hostSystem.mu.Unlock()
+	require.Len(t, hostSystem.workspaces.repositoryPeople, 2)
+	for _, bootstrap := range hostSystem.workspaces.repositoryPeople {
+		require.Equal(t, personID, bootstrap.ID)
+		require.Equal(t, "alice", bootstrap.Username)
+	}
+}
+
+func TestExternalProjectRequiresInitialMemberWithGitIdentity(t *testing.T) {
+	repository := testStore(t)
+	service := New(Options{Store: repository, Host: &fakeHost{}, Toolchains: fakeInstaller{}, ProjectsRoot: t.TempDir()})
+	defer service.Close()
+	alice := persistedPerson(t, repository, "alice")
+	bob := persistedPerson(t, repository, "bob")
+	source := &sodav2.ProjectSource{Source: &sodav2.ProjectSource_Git{Git: &sodav2.GitProjectSource{RemoteUrl: "ssh://git@example.test/team/demo.git"}}}
+	base := &sodav2.CreateProjectRequest{Slug: "demo", Name: "Demo", Profile: sodav2.ToolchainProfile_TOOLCHAIN_PROFILE_GO, Source: source, InitialPersonIds: []string{alice.ID}}
+
+	if _, err := service.CreateProject(context.Background(), base); status.Code(err) != codes.InvalidArgument {
+		t.Fatalf("missing bootstrap status = %s: %v", status.Code(err), err)
+	}
+	base.BootstrapPersonId = bob.ID
+	if _, err := service.CreateProject(context.Background(), base); status.Code(err) != codes.InvalidArgument {
+		t.Fatalf("non-member bootstrap status = %s: %v", status.Code(err), err)
+	}
+	base.BootstrapPersonId = alice.ID
+	if _, err := service.CreateProject(context.Background(), base); status.Code(err) != codes.NotFound {
+		t.Fatalf("missing Git identity status = %s: %v", status.Code(err), err)
+	}
+	base.Source = &sodav2.ProjectSource{Source: &sodav2.ProjectSource_Empty{Empty: &sodav2.EmptyProjectSource{}}}
+	if _, err := service.CreateProject(context.Background(), base); status.Code(err) != codes.InvalidArgument {
+		t.Fatalf("built-in bootstrap status = %s: %v", status.Code(err), err)
+	}
 }
 
 func injectCreateFailure(t *testing.T, repository *store.Store, model string) {

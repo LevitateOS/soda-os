@@ -58,6 +58,31 @@ func TestDuplicatePreflightsDoNotExecuteHostMutations(t *testing.T) {
 	assertDuplicatePreflightsHostState(t, hostSystem)
 }
 
+func TestCreatePersonPersistsPublicGitIdentityForRetrieval(t *testing.T) {
+	repository := testStore(t)
+	service := New(Options{Store: repository, Host: &fakeHost{}, Toolchains: fakeInstaller{}, ProjectsRoot: t.TempDir()})
+	defer service.Close()
+	created, err := service.CreatePerson(context.Background(), &sodav2.CreatePersonRequest{
+		Username: "alice", DisplayName: "Alice", Email: "alice@example.test",
+		Role: sodav2.Role_ROLE_DEVELOPER, Password: "simple",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	response, err := service.GetGitIdentity(context.Background(), &sodav2.GetGitIdentityRequest{PersonId: created.Person.Id})
+	if err != nil {
+		t.Fatal(err)
+	}
+	identity := response.GetIdentity()
+	if identity.GetPersonId() != created.Person.Id || identity.GetPublicKey() == "" || identity.GetFingerprint() == "" {
+		t.Fatalf("Git identity = %#v", identity)
+	}
+	descriptor := identity.ProtoReflect().Descriptor()
+	if descriptor.Fields().ByName("private_key") != nil || descriptor.Fields().ByName("private_key_path") != nil {
+		t.Fatalf("private Git key field exposed in API: %s", descriptor.FullName())
+	}
+}
+
 func assertDuplicatePreflightsHostState(t *testing.T, hostSystem *fakeHost) {
 	t.Helper()
 	hostSystem.mu.Lock()
@@ -258,7 +283,7 @@ func TestSSHDeviceCreationReconcilesProjectAccess(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(hostSystem.access.reconciliations) != 1 || len(hostSystem.access.reconciliations[0]) != 1 || len(hostSystem.access.reconciliations[0][0].Keys) != 1 {
+	if len(hostSystem.access.reconciliations) != 1 || len(hostSystem.access.reconciliations[0].keys) != 1 {
 		t.Fatalf("create reconciliation = %#v", hostSystem.access.reconciliations)
 	}
 }
@@ -314,15 +339,15 @@ func TestStartupReconciliationRepairsProjectAccessFromStoredState(t *testing.T) 
 	if err := service.ReconcileAllAuthorizedKeys(ctx); err != nil {
 		t.Fatal(err)
 	}
-	if len(hostSystem.access.reconciliations) != 1 || len(hostSystem.access.reconciliations[0]) != 1 {
+	if len(hostSystem.access.reconciliations) != 1 {
 		t.Fatalf("startup reconciliation = %#v", hostSystem.access.reconciliations)
 	}
-	access := hostSystem.access.reconciliations[0][0]
-	if len(access.Keys) != 1 {
+	access := hostSystem.access.reconciliations[0]
+	if len(access.keys) != 1 {
 		t.Fatalf("startup access keys = %#v", access)
 	}
-	got := [3]string{access.Person.ID, access.Worktree.ID, access.Keys[0].ID}
-	want := [3]string{person.ID, workspace.ID, key.ID}
+	got := [2]string{access.person.ID, access.keys[0].ID}
+	want := [2]string{person.ID, key.ID}
 	if got != want {
 		t.Fatalf("startup access = %#v, want %v", access, want)
 	}

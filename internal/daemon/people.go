@@ -36,11 +36,11 @@ func (s *Service) CreatePerson(ctx context.Context, request *sodav2.CreatePerson
 		return nil, rpcError(err)
 	}
 	person := domain.Person{ID: uuid.NewString(), Username: request.GetUsername(), DisplayName: request.GetDisplayName(), Email: request.GetEmail(), Role: role}
-	cleanup, err := s.host.CreatePerson(ctx, person, request.GetPassword())
+	identity, cleanup, err := s.host.CreatePerson(ctx, person, request.GetPassword())
 	if err != nil {
 		return nil, rpcError(err)
 	}
-	if err = s.persistPerson(ctx, person, cleanup); err != nil {
+	if err = s.persistPerson(ctx, person, identity, cleanup); err != nil {
 		return nil, rpcError(err)
 	}
 	return &sodav2.CreatePersonResponse{Person: personProto(person)}, nil
@@ -57,11 +57,11 @@ func (s *Service) ImportPerson(ctx context.Context, request *sodav2.ImportPerson
 		return nil, rpcError(err)
 	}
 	person := domain.Person{ID: uuid.NewString(), Username: request.GetUsername(), DisplayName: request.GetDisplayName(), Email: request.GetEmail(), Role: role}
-	cleanup, err := s.host.ImportPerson(ctx, person)
+	identity, cleanup, err := s.host.ImportPerson(ctx, person)
 	if err != nil {
 		return nil, rpcError(err)
 	}
-	if err = s.persistPerson(ctx, person, cleanup); err != nil {
+	if err = s.persistPerson(ctx, person, identity, cleanup); err != nil {
 		return nil, rpcError(err)
 	}
 	return &sodav2.ImportPersonResponse{Person: personProto(person)}, nil
@@ -74,18 +74,30 @@ func builtInGitPersonKind(person domain.Person) builtingit.PersonKind {
 	return builtingit.PersonMember
 }
 
-func (s *Service) persistPerson(ctx context.Context, person domain.Person, cleanup host.Cleanup) error {
-	if err := s.store.CreatePerson(ctx, person); err != nil {
+func (s *Service) persistPerson(ctx context.Context, person domain.Person, identity domain.GitIdentity, cleanup host.Cleanup) error {
+	if err := s.store.CreatePersonWithGitIdentity(ctx, person, identity); err != nil {
 		return s.compensate(ctx, err, cleanup, "person", person.Username)
 	}
 	if err := s.ensureBuiltInGitPerson(ctx, person, builtInGitPersonKind(person)); err != nil {
-		deleteErr := s.store.DeleteFreshPerson(context.WithoutCancel(ctx), person.ID)
-		if deleteErr == nil {
-			deleteErr = s.runCleanup(ctx, cleanup)
-		}
-		return errors.Join(err, deleteErr)
+		s.logger.Warn("Built-in Git person reconciliation deferred", "person", person.Username, "error", err)
+		return nil
+	}
+	if err := s.ensureBuiltInGitIdentity(ctx, person, identity); err != nil {
+		s.logger.Warn("Built-in Git identity reconciliation deferred", "person", person.Username, "error", err)
 	}
 	return nil
+}
+
+func (s *Service) GetGitIdentity(ctx context.Context, request *sodav2.GetGitIdentityRequest) (*sodav2.GetGitIdentityResponse, error) {
+	personID, err := parseID(request.GetPersonId(), "person")
+	if err != nil {
+		return nil, rpcError(err)
+	}
+	identity, err := s.store.GitIdentity(ctx, personID)
+	if err != nil {
+		return nil, rpcError(err)
+	}
+	return &sodav2.GetGitIdentityResponse{Identity: gitIdentityProto(identity)}, nil
 }
 func (s *Service) ListPeople(ctx context.Context, _ *sodav2.ListPeopleRequest) (*sodav2.ListPeopleResponse, error) {
 	values, err := s.store.People(ctx)

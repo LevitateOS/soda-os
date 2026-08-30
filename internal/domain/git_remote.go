@@ -32,14 +32,11 @@ func validateGitURL(parsed *url.URL) error {
 		return fmt.Errorf("Git remote URL must include a host")
 	}
 	scheme := strings.ToLower(parsed.Scheme)
-	if scheme != "http" && scheme != "https" && scheme != "ssh" {
-		return fmt.Errorf("unsupported Git remote URL scheme %q", parsed.Scheme)
+	if scheme != "ssh" {
+		return fmt.Errorf("use the repository's SSH URL; HTTP and HTTPS Git remotes are not supported")
 	}
 	if parsed.User == nil {
-		return nil
-	}
-	if scheme == "http" || scheme == "https" {
-		return fmt.Errorf("HTTP Git remote URL must not contain user information")
+		return fmt.Errorf("SSH Git remote URL must include a user")
 	}
 	if parsed.User.Username() == "" {
 		return fmt.Errorf("SSH Git remote URL contains empty user information")
@@ -66,10 +63,7 @@ func isSCPLikeRemote(remote string) bool {
 		return false
 	}
 	_, hostPath, hasUser := strings.Cut(remote, "@")
-	if !hasUser {
-		hostPath = remote
-	}
-	if hasUser && !validSCPUsername(remote, hostPath) {
+	if !hasUser || !validSCPUsername(remote, hostPath) {
 		return false
 	}
 	return validSCPHostPath(hostPath)

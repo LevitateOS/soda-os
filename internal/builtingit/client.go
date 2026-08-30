@@ -76,12 +76,19 @@ func (c *Client) EnsurePerson(ctx context.Context, person domain.Person, kind Pe
 }
 
 func (c *Client) EnsureKey(ctx context.Context, person domain.Person, key domain.SSHDeviceKey) (Key, error) {
+	return c.ensurePublicKey(ctx, person, "soda-"+key.ID, key.PublicKey)
+}
+
+func (c *Client) EnsureGitIdentity(ctx context.Context, person domain.Person, identity domain.GitIdentity) (Key, error) {
+	return c.ensurePublicKey(ctx, person, "soda-git-identity", identity.PublicKey)
+}
+
+func (c *Client) ensurePublicKey(ctx context.Context, person domain.Person, title, publicKey string) (Key, error) {
 	token, err := c.token()
 	if err != nil {
 		return Key{}, err
 	}
-	title := "soda-" + key.ID
-	payload := map[string]any{"title": title, "key": key.PublicKey}
+	payload := map[string]any{"title": title, "key": publicKey}
 	var created struct {
 		ID int64 `json:"id"`
 	}
