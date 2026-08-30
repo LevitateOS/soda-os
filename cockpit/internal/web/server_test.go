@@ -218,13 +218,13 @@ func TestConnectFragmentRendersPersonalizedSSHConfiguration(t *testing.T) {
 func TestAdminHomeRendersApplianceAddress(t *testing.T) {
 	admin := daemonclient.Person{ID: "admin-1", Username: "admin", DisplayName: "Admin", Role: daemonclient.RoleAdmin}
 	api := &fakePorts{accounts: fakeAccounts{people: []daemonclient.Person{admin}}}
-	app := testServerWithURLs(t, api, &changingAuth{}, "atlas.example.ts.net", "http://atlas.example.ts.net:3000")
+	app := testServerWithURLs(t, api, &changingAuth{}, "atlas.example.ts.net", "http://atlas.example.ts.net:30000")
 	token, err := app.sessions.create(admin)
 	if err != nil {
 		t.Fatal(err)
 	}
 	page := request(app, http.MethodGet, "/", "", &http.Cookie{Name: sessionCookie, Value: token})
-	if page.Code != http.StatusOK || !strings.Contains(page.Body.String(), `https://atlas.example.ts.net:9090`) || !strings.Contains(page.Body.String(), `href="http://atlas.example.ts.net:3000"`) || strings.Contains(page.Body.String(), `atlas.local`) {
+	if page.Code != http.StatusOK || !strings.Contains(page.Body.String(), `https://atlas.example.ts.net:9090`) || !strings.Contains(page.Body.String(), `href="http://atlas.example.ts.net:30000"`) || strings.Contains(page.Body.String(), `atlas.local`) {
 		t.Fatalf("home page = %d %q", page.Code, page.Body.String())
 	}
 }

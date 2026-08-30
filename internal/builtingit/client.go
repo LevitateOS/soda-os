@@ -20,7 +20,7 @@ import (
 )
 
 const (
-	DefaultURL       = "http://127.0.0.1:3000"
+	DefaultURL       = "http://127.0.0.1:30000"
 	DefaultTokenPath = "/var/lib/soda/built-in-git-token"
 	DefaultConfig    = "/etc/forgejo/app.ini"
 	organization     = "soda"

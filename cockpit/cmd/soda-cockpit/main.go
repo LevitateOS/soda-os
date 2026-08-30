@@ -47,7 +47,7 @@ func main() {
 	defer api.Close()
 	forgejoURL := ""
 	if endpoint, endpointErr := tailnet.New(tailnet.Options{}).Endpoint(context.Background()); endpointErr == nil {
-		forgejoURL = fmt.Sprintf("http://%s:3000", endpoint.Identity)
+		forgejoURL = fmt.Sprintf("http://%s:30000", endpoint.Identity)
 	}
 	app, err := web.New(web.Ports{Accounts: api, Projects: api, Host: api, Updates: api}, auth.NewClient(pamSocket), identity.Address, forgejoURL)
 	if err != nil {

@@ -144,7 +144,7 @@ func TestBuiltInGitMappingsBelongToSodaSourcesOfTruth(t *testing.T) {
 	if err := repository.CreateProjectWithMemberships(ctx, project, []string{person.ID}); err != nil {
 		t.Fatal(err)
 	}
-	mapping := domain.BuiltInGitRepository{ProjectID: project.ID, RepositoryID: 20, DeployKeyID: 30, WebURL: "http://127.0.0.1:3000/soda/demo", SSHURL: "git@localhost:soda/demo.git"}
+	mapping := domain.BuiltInGitRepository{ProjectID: project.ID, RepositoryID: 20, DeployKeyID: 30, WebURL: "http://127.0.0.1:30000/soda/demo", SSHURL: "git@localhost:soda/demo.git"}
 	if err := repository.SaveBuiltInGitRepository(ctx, mapping); err != nil {
 		t.Fatal(err)
 	}

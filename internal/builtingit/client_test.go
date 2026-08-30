@@ -68,6 +68,11 @@ func (f *bootstrapFixture) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func TestNewUsesManagedForgejoEndpoint(t *testing.T) {
+	client := New()
+	require.Equal(t, "http://127.0.0.1:30000", client.BaseURL)
+}
+
 func bootstrapRunner(t *testing.T) func(context.Context, string, ...string) (string, error) {
 	return func(_ context.Context, _ string, args ...string) (string, error) {
 		joined := strings.Join(args, " ")

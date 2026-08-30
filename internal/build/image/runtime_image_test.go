@@ -105,6 +105,7 @@ func TestForgejoPackagingContract(t *testing.T) {
 	configuration, err := os.ReadFile(filepath.Join(forgejoRoot, "sources", "app.ini.tmpl"))
 	require.NoError(t, err)
 	require.Contains(t, string(configuration), "HTTP_ADDR = 127.0.0.1")
+	require.Contains(t, string(configuration), "HTTP_PORT = 30000")
 	require.Contains(t, string(configuration), "START_SSH_SERVER = false")
 	require.Contains(t, string(configuration), "DISABLE_REGISTRATION = true")
 	require.Contains(t, string(configuration), "ENABLED = false")
@@ -142,8 +143,8 @@ func TestForgejoTailnetPackagingContract(t *testing.T) {
 	initialization, err := os.ReadFile(filepath.Join(forgejoRoot, "sources", "forgejo-init"))
 	require.NoError(t, err)
 	for _, expected := range []string{
-		"/usr/libexec/soda/forgejo-tailnet", "address=127.0.0.1", "root_url=http://127.0.0.1:3000/",
-		"HTTP_ADDR = ${address}", "DOMAIN = ${identity}", "root_url=http://${identity}:3000/", "ROOT_URL = ${root_url}",
+		"/usr/libexec/soda/forgejo-tailnet", "address=127.0.0.1", "port=30000", "root_url=http://127.0.0.1:${port}/",
+		"HTTP_ADDR = ${address}", "HTTP_PORT = ${port}", "DOMAIN = ${identity}", "root_url=http://${identity}:${port}/", "ROOT_URL = ${root_url}",
 	} {
 		require.Contains(t, string(initialization), expected)
 	}

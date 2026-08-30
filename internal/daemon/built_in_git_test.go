@@ -43,7 +43,7 @@ func (f *fakeBuiltInGit) DeleteKey(_ context.Context, _ string, keyID int64) err
 func (f *fakeBuiltInGit) EnsureRepository(_ context.Context, project domain.Project, members []domain.Person, _ string) (builtingit.Repository, error) {
 	f.projects = append(f.projects, project)
 	f.members = append(f.members, append([]domain.Person(nil), members...))
-	return builtingit.Repository{ID: 30, DeployKeyID: 40, WebURL: "http://127.0.0.1:3000/soda/demo", SSHURL: "git@localhost:soda/demo.git"}, nil
+	return builtingit.Repository{ID: 30, DeployKeyID: 40, WebURL: "http://127.0.0.1:30000/soda/demo", SSHURL: "git@localhost:soda/demo.git"}, nil
 }
 
 func TestBuiltInGitUsesTheExistingProjectAndMembershipFlow(t *testing.T) {
