@@ -12,8 +12,10 @@ machinery, or architecture that only its authors can understand.
 
 ## Durable product contract
 
-- Soda OS is cloud-first, while on-premises deployment remains supported. Do
-  not assume physical-console or same-LAN access.
+- Soda OS is cloud-first, while on-premises deployment remains supported. In
+  both environments, assume trusted same-LAN access through Tailscale; do not
+  design browser, Forgejo, SSH, or other product paths for public-Internet
+  exposure. Physical-console access is not required.
 - The business or technical owner selecting the team's development
   infrastructure is the primary product decision-maker. Daily users are
   developers connecting from lightweight clients to a powerful shared Soda OS
@@ -22,9 +24,10 @@ machinery, or architecture that only its authors can understand.
   operations features must work in an interactive SSH shell unless inherently
   local; non-interactive SSH, automation, SCP/SFTP, and forced commands remain
   machine-safe.
-- The public browser UI is the Soda OS dashboard. The public isolation term is
-  project environment, not sandbox; stronger sandboxing remains undecided and
-  must not be promised or implemented without a later product decision.
+- The authenticated browser UI is the Soda OS dashboard. The public isolation
+  term is project environment, not sandbox; stronger sandboxing remains
+  undecided and must not be promised or implemented without a later product
+  decision.
 - Launch requires a bundled internal Git service alongside external Git
   repositories. Project creation offers “Create a new repository on this Soda
   server” and “Connect an existing Git repository”; both continue through the
@@ -116,8 +119,9 @@ their contracts or implementation.
 
 The authenticated happy path is the current MVP operating model. Do not add
 Internet-scale, enterprise, attacker-first, or multi-path machinery without a
-concrete requirement. Do not assume that a human has same-LAN or local-console
-access, or that the current MVP deployment model must remain permanent.
+concrete requirement. Assume trusted same-LAN access through Tailscale; do not
+require local-console access, or assume that the current MVP deployment model
+must remain permanent.
 
 ## Current source ownership
 
