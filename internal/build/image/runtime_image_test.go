@@ -22,7 +22,7 @@ func TestRuntimeImageBootcContainerContract(t *testing.T) {
 		"systemctl mask bootc-fetch-apply-updates.timer", "cp -f /usr/lib/soda/os-release /etc/os-release",
 		"cp -f /usr/lib/soda/os-release /usr/lib/os-release", "cp -f /usr/lib/soda/issue /etc/issue",
 		"cp -f /usr/lib/soda/issue /etc/issue.net", "cp -f /usr/lib/soda/system-release /etc/system-release",
-		"cp -f /usr/lib/soda/system-release /etc/redhat-release", "semanage fcontext -a -t var_lib_t '/var/lib/soda(/.*)?'",
+		"rm -f /etc/redhat-release", "semanage fcontext -a -t var_lib_t '/var/lib/soda(/.*)?'",
 		"semanage fcontext -a -e /home /var/lib/soda/projects", "semanage fcontext -a -e /opt /var/lib/soda/toolchains",
 		"semanage fcontext -a -e /home /var/srv/soda/projects", "semanage fcontext -a -e /opt /opt/soda/toolchains",
 		"semanage fcontext -a -t var_log_t '/var/log/soda(/.*)?'", "semanage fcontext -a -t ssh_home_t '/etc/soda/authorized_keys(/.*)?'",
@@ -37,6 +37,7 @@ func TestRuntimeImageBootcContainerContract(t *testing.T) {
 	} {
 		require.Contains(t, containerfile, expected)
 	}
+	require.NotContains(t, containerfile, "cp -f /usr/lib/soda/system-release /etc/redhat-release")
 	require.NotContains(t, containerfile, "bootc-fetch-apply-updates.service")
 }
 

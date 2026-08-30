@@ -51,7 +51,7 @@ RUN dnf -y --setopt=install_weak_deps=False --enablerepo=updates-testing install
     && cp -f /usr/lib/soda/issue /etc/issue \
     && cp -f /usr/lib/soda/issue /etc/issue.net \
     && cp -f /usr/lib/soda/system-release /etc/system-release \
-    && cp -f /usr/lib/soda/system-release /etc/redhat-release \
+    && rm -f /etc/redhat-release \
     && semanage fcontext -a -t var_lib_t '/var/lib/soda(/.*)?' \
     && semanage fcontext -a -e /home /var/lib/soda/projects \
     && semanage fcontext -a -e /opt /var/lib/soda/toolchains \
