@@ -6,7 +6,7 @@ usage() {
 Usage: tests/acceptance/unattended.sh prepare
 
 Prepare a raw-QEMU Soda acceptance installation with test-only credentials.
-This command creates no libvirt domain. After it succeeds:
+After it succeeds:
 
   . "$SODA_ACCEPTANCE_DIR/runner.env"
   tests/acceptance/bootc.sh launch install
