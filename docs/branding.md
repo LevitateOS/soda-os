@@ -2,8 +2,7 @@
 
 Soda OS uses the approved terminal-and-bubbles symbol and lowercase `soda os`
 wordmark. The source-of-truth artwork is SVG under `assets/branding/source`.
-`assets/branding/soda-os-logo-concept-v3.png` is the approved visual reference;
-the earlier concept PNGs are retained only as historical exploration.
+`assets/branding/soda-os-logo-concept-v3.png` is the approved visual reference.
 Tracked PNGs under `assets/branding` and copies in Cockpit
 consumers are deterministic derivatives; do not edit them by hand.
 
@@ -20,19 +19,16 @@ The symbol's white, navy, and black counterparts are reduced one-colour line
 marks for flat, high-contrast backgrounds. They retain the outer circle,
 terminal prompt, command line, and three bubbles while omitting the liquid wave
 that cannot remain distinct in one colour. Use each only where it contrasts
-clearly with the background. `soda-symbol-monochrome.svg` is byte-identical to
-the black variant and retained as the earlier compatibility filename.
+clearly with the background.
 
 There is intentionally no stacked lockup: no shipped Soda OS surface needs one
 and the horizontal mark remains more legible at the available Cockpit widths.
-`soda-symbol-small.svg` is the approved master symbol for 16,
-24, and 32 px icons and favicons; it retains the same geometry as larger uses.
+The approved `soda-symbol.svg` master produces every icon and favicon size.
 
 Keep clear space equal to one bubble diameter around every mark. Do not use the
-horizontal wordmark below 114 px wide or the standard symbol below 32 px. The
-small symbol is the only approved mark below 32 px. Do not recolour, outline,
-stretch, rotate, add effects, or place the full-colour mark on cyan or busy
-backgrounds. Customer-facing branding must say Soda OS only.
+horizontal wordmark below 114 px wide. Do not recolour, outline, stretch,
+rotate, add effects, or place the full-colour mark on cyan or busy backgrounds.
+Customer-facing branding must say Soda OS only.
 
 ## Outputs and regeneration
 

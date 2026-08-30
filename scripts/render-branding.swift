@@ -15,16 +15,16 @@ guard FileManager.default.fileExists(atPath: root.appendingPathComponent("go.mod
 }
 
 let assets = [
-    Asset(source: "assets/branding/source/soda-symbol-small.svg", output: "assets/branding/icons/hicolor/16x16/apps/soda-os.png", width: 16, height: 16),
-    Asset(source: "assets/branding/source/soda-symbol-small.svg", output: "assets/branding/icons/hicolor/24x24/apps/soda-os.png", width: 24, height: 24),
-    Asset(source: "assets/branding/source/soda-symbol-small.svg", output: "assets/branding/icons/hicolor/32x32/apps/soda-os.png", width: 32, height: 32),
+    Asset(source: "assets/branding/source/soda-symbol.svg", output: "assets/branding/icons/hicolor/16x16/apps/soda-os.png", width: 16, height: 16),
+    Asset(source: "assets/branding/source/soda-symbol.svg", output: "assets/branding/icons/hicolor/24x24/apps/soda-os.png", width: 24, height: 24),
+    Asset(source: "assets/branding/source/soda-symbol.svg", output: "assets/branding/icons/hicolor/32x32/apps/soda-os.png", width: 32, height: 32),
     Asset(source: "assets/branding/source/soda-symbol.svg", output: "assets/branding/icons/hicolor/48x48/apps/soda-os.png", width: 48, height: 48),
     Asset(source: "assets/branding/source/soda-symbol.svg", output: "assets/branding/icons/hicolor/64x64/apps/soda-os.png", width: 64, height: 64),
     Asset(source: "assets/branding/source/soda-symbol.svg", output: "assets/branding/icons/hicolor/128x128/apps/soda-os.png", width: 128, height: 128),
     Asset(source: "assets/branding/source/soda-symbol.svg", output: "assets/branding/icons/hicolor/256x256/apps/soda-os.png", width: 256, height: 256),
     Asset(source: "assets/branding/source/soda-symbol.svg", output: "assets/branding/icons/hicolor/512x512/apps/soda-os.png", width: 512, height: 512),
-    Asset(source: "assets/branding/source/soda-symbol-small.svg", output: "assets/branding/web/favicon-16.png", width: 16, height: 16),
-    Asset(source: "assets/branding/source/soda-symbol-small.svg", output: "assets/branding/web/favicon-32.png", width: 32, height: 32),
+    Asset(source: "assets/branding/source/soda-symbol.svg", output: "assets/branding/web/favicon-16.png", width: 16, height: 16),
+    Asset(source: "assets/branding/source/soda-symbol.svg", output: "assets/branding/web/favicon-32.png", width: 32, height: 32),
     Asset(source: "assets/branding/source/soda-symbol.svg", output: "assets/branding/web/apple-touch-icon.png", width: 180, height: 180),
 ]
 
@@ -70,7 +70,7 @@ do {
     for (source, output) in [
         ("assets/branding/source/soda-logo-horizontal.svg", "cockpit/internal/web/static/soda-logo.svg"),
         ("assets/branding/source/soda-logo-horizontal-dark.svg", "cockpit/internal/web/static/soda-logo-dark.svg"),
-        ("assets/branding/source/soda-symbol-small.svg", "cockpit/internal/web/static/favicon.svg"),
+        ("assets/branding/source/soda-symbol.svg", "cockpit/internal/web/static/favicon.svg"),
         ("assets/branding/web/favicon-32.png", "cockpit/internal/web/static/favicon-32.png"),
         ("assets/branding/web/apple-touch-icon.png", "cockpit/internal/web/static/apple-touch-icon.png"),
     ] {
