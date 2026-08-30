@@ -368,6 +368,7 @@ platform = "linux/arm64"
 		Installer:    config.PlatformInstaller{PackageLock: packageLock, ISOConfig: isoConfig},
 	}
 	builder := NewBuilder(root, config.DistroSpec{Identity: config.IdentitySpec{Architecture: "aarch64", Hostname: "soda", Version: "0.2.0"}, Base: config.BaseSpec{Reference: platform.Base.Reference, Platform: platform.Architecture.Platform}, Platform: platform}, runner)
+	builder.hostArchitecture = "arm64"
 	_, err := builder.Build(context.Background(), options)
 	require.ErrorContains(t, err, "image-builder did not create")
 	require.FileExists(t, archive)
@@ -385,6 +386,18 @@ platform = "linux/arm64"
 	require.NotContains(t, strings.Join(commands, "\n"), "--bootc-installer-payload-ref "+exactReference)
 	require.NotContains(t, strings.Join(commands, "\n"), root+"/.artifacts/installer/containers-storage:/var/lib/containers/storage")
 	require.Contains(t, strings.Join(commands, "\n"), volumeName+":/var/lib/containers/storage")
+}
+
+func TestBuildRejectsMismatchedHostBeforeValidatingInputs(t *testing.T) {
+	runner := &recordingRunner{}
+	builder := &Builder{
+		Spec:             config.DistroSpec{Platform: config.PlatformSpec{Architecture: config.PlatformArchitecture{Name: "aarch64"}}},
+		hostArchitecture: "amd64",
+		runner:           runner,
+	}
+	_, err := builder.Build(context.Background(), Options{})
+	require.EqualError(t, err, "Soda aarch64 artifact operations require a native arm64 host; running on amd64")
+	require.Empty(t, runner.Commands)
 }
 
 func writeTestOCIArchiveAt(t *testing.T, archive string) (string, string) {

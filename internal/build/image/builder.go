@@ -10,6 +10,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
@@ -36,9 +37,10 @@ type lockedPackage struct {
 }
 
 type Builder struct {
-	Root   string
-	Spec   config.DistroSpec
-	runner process.Runner
+	Root             string
+	Spec             config.DistroSpec
+	hostArchitecture string
+	runner           process.Runner
 }
 
 func NewBuilderFromWorkingDirectory(specPath, architecture string, runner process.Runner) (*Builder, error) {
@@ -64,7 +66,15 @@ func NewBuilder(root, specPath, architecture string, runner process.Runner) (*Bu
 	if runner == nil {
 		runner = process.OSRunner{}
 	}
-	return &Builder{Root: canonicalRoot, Spec: spec, runner: runner}, nil
+	return &Builder{Root: canonicalRoot, Spec: spec, hostArchitecture: runtime.GOARCH, runner: runner}, nil
+}
+
+func (b *Builder) requireNativeHost() error {
+	hostArchitecture := b.hostArchitecture
+	if hostArchitecture == "" {
+		hostArchitecture = runtime.GOARCH
+	}
+	return config.RequireNativeHostArchitecture(b.Spec.Platform.Architecture.Name, hostArchitecture)
 }
 
 func (b *Builder) artifactPath(parts ...string) string {

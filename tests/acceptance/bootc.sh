@@ -69,6 +69,11 @@ require_dir() {
 		aarch64|x86_64) ;;
 		*) die "SODA_ACCEPTANCE_ARCHITECTURE must be aarch64 or x86_64" ;;
 	esac
+	host_architecture=$(uname -m)
+	case "$architecture:$host_architecture" in
+		aarch64:aarch64|aarch64:arm64|x86_64:x86_64|x86_64:amd64) ;;
+		*) die "Soda $architecture artifact operations require matching native hardware; running on $host_architecture" ;;
+	esac
 	[ -n "$acceptance_dir" ] || die "SODA_ACCEPTANCE_DIR is required"
 	mkdir -p "$acceptance_dir"
 	acceptance_dir=$(CDPATH= cd -- "$acceptance_dir" && pwd)

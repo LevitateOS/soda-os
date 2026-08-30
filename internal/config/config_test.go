@@ -32,3 +32,23 @@ func TestLoadDistroRejectsUnknownSchema(t *testing.T) {
 	_, err := LoadDistro(filepath.Join("testdata", "unsupported-soda.toml"), "aarch64")
 	require.EqualError(t, err, "unsupported distro schema version 3; expected 2")
 }
+
+func TestRequireNativeHostArchitecture(t *testing.T) {
+	for _, test := range []struct {
+		name, target, host, message string
+	}{
+		{name: "AArch64 host accepts AArch64 artifacts", target: "aarch64", host: "arm64"},
+		{name: "x86-64 host accepts x86-64 artifacts", target: "x86_64", host: "amd64"},
+		{name: "x86-64 host rejects AArch64 artifacts", target: "aarch64", host: "amd64", message: "Soda aarch64 artifact operations require a native arm64 host; running on amd64"},
+		{name: "AArch64 host rejects x86-64 artifacts", target: "x86_64", host: "arm64", message: "Soda x86_64 artifact operations require a native amd64 host; running on arm64"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			err := RequireNativeHostArchitecture(test.target, test.host)
+			if test.message == "" {
+				require.NoError(t, err)
+				return
+			}
+			require.EqualError(t, err, test.message)
+		})
+	}
+}

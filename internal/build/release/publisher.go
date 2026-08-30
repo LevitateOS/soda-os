@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 
 	"github.com/LevitateOS/soda-os/internal/build/installer"
 	"github.com/LevitateOS/soda-os/internal/config"
@@ -45,18 +46,30 @@ type isoValidator interface {
 }
 
 type Publisher struct {
-	spec         config.DistroSpec
-	isoValidator isoValidator
+	spec             config.DistroSpec
+	hostArchitecture string
+	isoValidator     isoValidator
 }
 
 func NewPublisher(root string, spec config.DistroSpec, runner process.Runner) (*Publisher, error) {
 	if spec.Image.Registry != Repository {
 		return nil, fmt.Errorf("release repository must be %s", Repository)
 	}
-	return &Publisher{spec: spec, isoValidator: installer.NewBuilder(root, spec, runner)}, nil
+	return &Publisher{spec: spec, hostArchitecture: runtime.GOARCH, isoValidator: installer.NewBuilder(root, spec, runner)}, nil
+}
+
+func (p *Publisher) requireNativeHost() error {
+	hostArchitecture := p.hostArchitecture
+	if hostArchitecture == "" {
+		hostArchitecture = runtime.GOARCH
+	}
+	return config.RequireNativeHostArchitecture(p.spec.Platform.Architecture.Name, hostArchitecture)
 }
 
 func (p *Publisher) CreateRecord(ctx context.Context, options RecordOptions) (Result, error) {
+	if err := p.requireNativeHost(); err != nil {
+		return Result{}, err
+	}
 	img, cleanup, err := imageFromOCIArchive(options.ArchivePath, p.spec.Platform.Architecture.OCI)
 	if err != nil {
 		return Result{}, err

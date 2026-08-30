@@ -166,11 +166,23 @@ func TestArtifactBuildsRejectDirtyWorktreeBeforeDocker(t *testing.T) {
 			}}
 			builder, err := NewBuilder(root, "distro/soda.toml", "aarch64", runner)
 			require.NoError(t, err)
+			builder.hostArchitecture = "arm64"
 			require.ErrorContains(t, build(context.Background(), builder), "release artifact builds require a clean Git worktree")
 			require.Len(t, runner.Commands, 1)
 			require.Equal(t, "git status --porcelain=v1 --untracked-files=all", runner.Commands[0].String())
 		})
 	}
+}
+
+func TestArtifactBuildsRejectMismatchedHostBeforeCheckingInputs(t *testing.T) {
+	runner := &recordingRunner{}
+	builder := &Builder{
+		Spec:             config.DistroSpec{Platform: config.PlatformSpec{Architecture: config.PlatformArchitecture{Name: "aarch64"}}},
+		hostArchitecture: "amd64",
+		runner:           runner,
+	}
+	require.EqualError(t, builder.BuildRPMs(context.Background()), "Soda aarch64 artifact operations require a native arm64 host; running on amd64")
+	require.Empty(t, runner.Commands)
 }
 
 func TestLockedInstallInputsRequireExactLocalRPMFiles(t *testing.T) {

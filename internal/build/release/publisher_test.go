@@ -21,7 +21,7 @@ const testRevision = "2b6b23e356ded84d4ef7fee52b242ae4855793ca"
 func TestCreateRecordUsesLocalArchiveDigest(t *testing.T) {
 	img := matchingTestImage(t)
 	archive := writeOCIArchive(t, img)
-	publisher := &Publisher{spec: testSpec()}
+	publisher := &Publisher{spec: testSpec(), hostArchitecture: "arm64"}
 	output := t.TempDir()
 
 	result, err := publisher.CreateRecord(context.Background(), RecordOptions{ArchivePath: archive, OutputDir: output})
@@ -46,7 +46,7 @@ func TestCreateRecordBindsInspectedISO(t *testing.T) {
 	iso := filepath.Join(t.TempDir(), "SodaOS.iso")
 	require.NoError(t, os.WriteFile(iso, []byte("installer bytes"), 0o644))
 	validator := &fakeISOValidator{}
-	publisher := &Publisher{spec: testSpec(), isoValidator: validator}
+	publisher := &Publisher{spec: testSpec(), hostArchitecture: "arm64", isoValidator: validator}
 
 	result, err := publisher.CreateRecord(context.Background(), RecordOptions{ArchivePath: writeOCIArchive(t, matchingTestImage(t)), ISOPath: iso, OutputDir: t.TempDir()})
 	require.NoError(t, err)
@@ -56,6 +56,12 @@ func TestCreateRecordBindsInspectedISO(t *testing.T) {
 	var record Record
 	require.NoError(t, json.Unmarshal(contents, &record))
 	require.Equal(t, sha256Hex([]byte("installer bytes")), record.ISOChecksum)
+}
+
+func TestCreateRecordRejectsMismatchedHostBeforeInspectingArtifacts(t *testing.T) {
+	publisher := &Publisher{spec: testSpec(), hostArchitecture: "amd64"}
+	_, err := publisher.CreateRecord(context.Background(), RecordOptions{})
+	require.EqualError(t, err, "Soda aarch64 artifact operations require a native arm64 host; running on amd64")
 }
 
 func TestInspectRejectsRPMInventorySidecarMismatch(t *testing.T) {

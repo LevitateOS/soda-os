@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"slices"
 	"strings"
 
@@ -48,6 +49,9 @@ type Options struct {
 }
 
 func (b *Builder) ValidateISO(ctx context.Context, isoPath, reference, installerArchive, toolLockPath string) (string, error) {
+	if err := b.requireNativeHost(); err != nil {
+		return "", err
+	}
 	if !exactImagePattern.MatchString(reference) {
 		return "", errors.New("installer payload must be an exact ghcr.io/levitateos/soda-os@sha256 reference")
 	}
@@ -97,19 +101,31 @@ func (b *Builder) inspectISOArtifact(ctx context.Context, isoPath, reference, in
 }
 
 type Builder struct {
-	Root   string
-	Spec   config.DistroSpec
-	runner process.Runner
+	Root             string
+	Spec             config.DistroSpec
+	hostArchitecture string
+	runner           process.Runner
 }
 
 func NewBuilder(root string, spec config.DistroSpec, runner process.Runner) *Builder {
 	if runner == nil {
 		runner = process.OSRunner{}
 	}
-	return &Builder{Root: root, Spec: spec, runner: runner}
+	return &Builder{Root: root, Spec: spec, hostArchitecture: runtime.GOARCH, runner: runner}
+}
+
+func (b *Builder) requireNativeHost() error {
+	hostArchitecture := b.hostArchitecture
+	if hostArchitecture == "" {
+		hostArchitecture = runtime.GOARCH
+	}
+	return config.RequireNativeHostArchitecture(b.Spec.Platform.Architecture.Name, hostArchitecture)
 }
 
 func (b *Builder) Build(ctx context.Context, options Options) (string, error) {
+	if err := b.requireNativeHost(); err != nil {
+		return "", err
+	}
 	lock, err := b.validate(options)
 	if err != nil {
 		return "", err

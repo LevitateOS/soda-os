@@ -137,6 +137,17 @@ var architectureContract = map[string]struct{ oci, artifact, installer string }{
 	"x86_64":  {oci: "amd64", artifact: "x86_64", installer: "x86_64"},
 }
 
+func RequireNativeHostArchitecture(architecture, hostArchitecture string) error {
+	expected, ok := architectureContract[architecture]
+	if !ok {
+		return fmt.Errorf("unsupported Soda architecture %q", architecture)
+	}
+	if hostArchitecture != expected.oci {
+		return fmt.Errorf("Soda %s artifact operations require a native %s host; running on %s", architecture, expected.oci, hostArchitecture)
+	}
+	return nil
+}
+
 func validatePlatformSpec(spec PlatformSpec, requested string) error {
 	expected := architectureContract[requested]
 	if spec.SchemaVersion != 1 || !validPlatformArchitecture(spec.Architecture, requested, expected) ||

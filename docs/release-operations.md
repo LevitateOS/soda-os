@@ -4,10 +4,17 @@ Local development produces platform-specific OCI archives and installer ISOs
 without publishing or signing them. Architecture selection is explicit and
 `aarch64` and `x86_64` are equal sibling targets.
 
+Each architecture's artifact work runs on matching native hardware: run
+`aarch64` RPM, OCI, ISO, record, installation, and artifact-validation work on
+an AArch64 host, and run the corresponding `x86_64` work on an x86-64 host.
+`soda-image` rejects a mismatched selected architecture before resolving
+artifact inputs or invoking Docker. `just check` remains a cross-architecture
+source and contract check and may run on either host.
+
 ## Build a local installer
 
 ```sh
-ARCH=x86_64 # or aarch64
+ARCH=x86_64 # run this only on an x86-64 host; use aarch64 only on an AArch64 host
 just check
 just oci "$ARCH"
 just iso "$ARCH" ".artifacts/images/soda-os-0.3.1-${ARCH}.oci.tar"

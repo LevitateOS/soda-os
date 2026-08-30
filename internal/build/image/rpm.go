@@ -15,6 +15,9 @@ import (
 )
 
 func (b *Builder) BuildRPMs(ctx context.Context) error {
+	if err := b.requireNativeHost(); err != nil {
+		return err
+	}
 	if err := b.Check(ctx); err != nil {
 		return err
 	}
