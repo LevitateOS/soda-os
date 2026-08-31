@@ -8,7 +8,7 @@ clients connect over Tailscale and SSH to a more powerful development machine.
 Linux, OpenSSH, Cockpit, Git, Forgejo, and bootc should own their existing
 responsibilities.
 
-Soda owns the branded installable composition, a curated image-resident
+Soda owns the branded installable composition, a broad curated image-resident
 development toolset, a minimal catalog of offered projects, and the narrow
 workflow that creates one derived Linux workspace account per human-project
 pair. Each workspace account owns its private home, complete Git clone,
@@ -17,12 +17,13 @@ those accounts directly through ordinary OpenSSH; repository access and
 collaboration remain native to bundled Forgejo or the external Git host.
 
 Stock Cockpit provides host administration and authentication. One focused
-Soda Projects page lets any human add, edit, remove, or set up a catalogued
-project. It may invoke one short synchronous privileged operation for derived
-workspace-account lifecycle, but Soda retains no general project control plane,
-daemon, database, RPC API, credential store, job engine, or reconciliation
-system. Podman is available as an optional development tool and is not the
-isolation mechanism.
+Soda Projects page lets any primary human add, edit, remove, or set up a
+catalogued project and gives administrators the supported cascading human
+deletion action. It may invoke one short synchronous privileged operation for
+the accepted catalog and workspace lifecycle, but Soda retains no general
+project control plane, daemon, database, RPC API, credential store, job engine,
+or reconciliation system. Podman is available as an optional development tool
+and is not the isolation mechanism.
 
 The current runtime grew beyond that boundary and is undergoing an
 [architectural reset](docs/architecture-reset.md). The existing implementation
@@ -86,22 +87,33 @@ the machine in Tailscale through one bounded first-boot invocation. No Soda
 bootstrap state survives installation.
 
 Every primary human Linux account is a Cockpit identity and may become a native
-Forgejo PAM user. Derived workspace accounts are Linux-only development
-identities and never become Forgejo users.
+Forgejo PAM user. Primary usernames remain stable while derived workspaces
+exist. Derived workspace accounts are identified through Linux-native state,
+are Linux-only development identities, and never become Forgejo users.
 
-Any human may publish, edit, or destructively remove a minimal catalog entry.
-For a catalogued project, **Set up for me** performs one ordinary interactive
-Git operation as the human, creates the derived workspace account, leaves a
-complete checkout below that account's `$HOME/Projects`, and copies the human
-account's currently authorized public SSH keys once. Soda does not retain the
-Git credential or synchronize later SSH-key changes. Removing a project
-deletes its derived workspace accounts, homes, checkouts, and explicitly
-Soda-created local paths, but not the canonical repository.
+Any primary human may publish, edit, or destructively remove a catalog entry
+containing exactly an immutable `id`, mutable `display_name`, and credential-
+free mutable `canonical_url`. For a catalogued project, successful **Set up for
+me** uses native user-authenticated Git or repository-host behavior, creates the
+derived workspace account, and leaves a complete checkout below that account's
+`$HOME/Projects/<repository>`. Setup requires a public key in the primary
+account's standard `~/.ssh/authorized_keys`, copies those keys once, and retains
+no Git credential or workflow state. A no-URL project begins as a native empty
+Forgejo repository.
+
+Removing a project deletes its derived workspace accounts, homes, checkouts,
+and explicitly Soda-created paths before removing the catalog entry; it never
+deletes the canonical repository. Supported human deletion is an
+administrator-only Projects action that removes derived workspaces and deletes
+the primary account last. Generic Cockpit or command-line account deletion is
+out-of-band and non-cascading.
 
 Projects choose non-conflicting host ports themselves. They may use Podman or
 other ordinary tools when useful; Soda does not allocate ports or manage
 network namespaces. Linux administrators operate deployments through native
-`bootc` commands, and the automatic update timer remains disabled.
+`bootc` commands. Supported fallback to an earlier image must preserve current
+Linux account state; direct `bootc rollback` is not claimed until verified.
+The automatic update timer remains disabled.
 
 The code still contains the pre-reset runtime while the linked ownership issues
 remove it vertically. The documents labelled pre-reset describe that current

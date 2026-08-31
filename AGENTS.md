@@ -26,15 +26,20 @@ machinery, or architecture that only its authors can understand.
   non-interactive SSH, automation, SCP, and SFTP retain normal OpenSSH behavior.
 - The browser administration surface is stock Cockpit with Soda branding and
   one Soda Projects package. The package reuses Cockpit authentication and
-  sessions and may invoke one narrow synchronous catalog-and-workspace operation;
-  it does not add another web server, authentication layer, daemon, database,
-  generic backend, or generic privileged bridge.
+  sessions and may invoke one narrow synchronous catalog-and-workspace operation.
+  It also provides the administrator-only Soda-aware human deletion path;
+  generic Cockpit or command-line account deletion is non-cascading. The
+  package does not add another web server, authentication layer, daemon,
+  database, generic backend, or generic privileged bridge.
 - Launch requires bundled Forgejo alongside support for external Git hosts.
   Repository lifecycle, access, and collaboration stay native to the
   authoritative Git host. Soda retains only a minimal appliance-wide project
-  catalog and the human-project-to-workspace-account convention. A successful
-  **Set up for me** operation leaves a complete clone beneath the derived
-  workspace account's `$HOME/Projects/<repository>`.
+  catalog with immutable `id`, mutable `display_name`, and credential-free
+  `canonical_url` fields, plus the human-project-to-workspace-account
+  convention. A successful **Set up for me** operation leaves a complete clone
+  beneath the derived workspace account's `$HOME/Projects/<repository>` without
+  retaining Git credentials or workflow state. A no-URL project begins as a
+  native empty Forgejo repository.
 - Workspace isolation means separate Linux homes, checkouts, user-local
   dependencies, process ownership, and project-local data. Projects select
   non-conflicting host ports themselves. Podman is an optional installed tool,
@@ -43,8 +48,11 @@ machinery, or architecture that only its authors can understand.
   developer tools on both supported architectures. Soda has no runtime
   toolchain manager or persistent toolchain state.
 - Linux administrators use native `bootc` commands for explicit update checks,
-  staging, activation, and rollback. The automatic update timer is disabled;
-  Soda has no runtime update service or shadow deployment state.
+  staging, activation, and supported fallback. Fallback to an earlier image
+  must preserve current Linux account, password, group, and administrator
+  state; direct `bootc rollback` is not supported unless verified against that
+  invariant. The automatic update timer is disabled, and Soda has no runtime
+  update service or shadow deployment state.
 - AArch64 and x86-64 are equal sibling architectures. Neither is a default,
   fallback, experimental, or second-class target.
 
@@ -122,27 +130,38 @@ smallest Soda-specific project workflow. The target behavior is:
 
 - one primary Linux account per human and one derived Linux workspace account
   per human-project pair, with Linux authoritative for every account and home;
+- stable primary usernames and a Linux-native distinction between primary and
+  workspace accounts, without a Soda identity database or rename
+  reconciliation;
 - the installer-created initial Forgejo administrator and Forgejo PAM login for
   later primary human accounts, without workspace-account Forgejo identities
   or ongoing role synchronization;
 - stock Cockpit with Soda branding and one focused Soda Projects page;
-- a minimal declarative catalog of offered projects, editable by every human
-  user, without repository-membership or capability state;
-- synchronous workspace setup that uses ordinary interactive Git
-  authentication without retaining credentials, creates the derived account,
-  leaves a complete clone, and copies the human account's current public SSH
-  keys once;
+- a minimal declarative catalog containing exactly immutable `id`, mutable
+  `display_name`, and credential-free mutable `canonical_url`, editable by
+  every primary human without repository-membership or capability state;
+- synchronous workspace setup whose accepted outcome is a derived account and
+  complete clone produced through native user-authenticated Git or repository-
+  host behavior without retained credentials; setup requires a key in the
+  primary account's standard `~/.ssh/authorized_keys` before mutation and
+  copies those public keys once;
+- native empty Forgejo repositories for no-URL projects, without generated
+  initial content or an assumed push-to-create mechanism;
 - direct ordinary OpenSSH login, commands, SFTP, and process attribution as the
   derived workspace UID, without forced commands or synthetic homes;
 - repository lifecycle and access through bundled Forgejo or the external
   authoritative Git host;
 - synchronous destructive project removal that deletes the catalog entry and
   derived workspace accounts, homes, and explicitly Soda-created local paths,
-  but never the canonical Git repository;
+  with the catalog entry removed last and never the canonical Git repository;
+- administrator-only Soda-aware human deletion that removes derived local
+  workspaces and the primary account last, without deleting Forgejo accounts or
+  repositories and without a watcher for out-of-band Linux deletion;
 - a broad curated image-resident development toolset, without a runtime Soda
   toolchain manager;
-- administrator-controlled native `bootc` operations, without a Soda update
-  service; and
+- administrator-controlled native `bootc` operations and an account-preserving
+  supported fallback, without claiming direct `bootc rollback` before it is
+  verified and without a Soda update service; and
 - immutable-image construction, installation, inspection, and signed releases.
 
 Pre-reset databases, copied people and repository records, memberships, shared
