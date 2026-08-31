@@ -69,17 +69,30 @@ its Linux password, and install its SSH public key. A minimal first-boot systemd
 oneshot passes the enrollment credential to `tailscale up` from a temporary
 file, removes that file after the enrollment attempt, and disables itself.
 
-The same installation creates a same-named Forgejo account with Forgejo
-site-administrator status through Forgejo's native administrative interface.
-Issue #37 owns the narrow remaining choice of how the installer supplies the
-Forgejo-local email and initial or generated password. The Linux password and
-Forgejo credential remain owned by their respective systems.
+The same installation creates the only proactive Forgejo user: a same-named
+Forgejo-local site administrator through Forgejo's native administrative
+interface. The selected outcome gives it the same initial password as the Linux
+account. The installer may reuse that password only through an existing bounded
+handoff that leaves no Soda-owned credential state or retained plaintext. If
+the current installer cannot provide that direct handoff, password equality is
+reconsidered rather than expanded into Soda credential machinery.
 
-The shared username and initial administrator flag are seeded once. Later
-Linux and Forgejo account, credential, and role changes are independent. Soda
-does not retain an identity mapping or reconcile later differences. If the
-Forgejo account is renamed or removed, Soda reports it as unmatched rather than
-repairing or recreating it.
+Forgejo's native PAM source delegates later authentication to the shipped
+`soda-forgejo` PAM policy. Any Linux account accepted by that policy can log in
+with its Linux username and password; Forgejo creates its own ordinary native
+user record on first successful login. Linux account creation performs no
+Forgejo operation, and later `wheel` membership has no Forgejo effect.
+
+Soda may set the PAM source's email domain to the fixed packaging convention
+`localhost`, allowing Forgejo to initialize `<username>@localhost`. The setting
+is not an installer input or upstream requirement. Soda does not collect,
+persist, or manage per-user Forgejo email addresses.
+
+The initial Forgejo-local administrator and same-named Linux account become
+independent immediately after installation. Later account, password, role,
+rename, disable, and deletion changes are not synchronized. Disabling a PAM
+user's Linux account blocks later PAM authentication but does not claim to
+revoke Forgejo sessions, tokens, SSH keys, or repository permissions.
 
 After installation, the administrator connects through the Tailnet with
 OpenSSH and authenticates to stock Cockpit with the ordinary Linux username and
