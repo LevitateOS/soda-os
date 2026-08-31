@@ -284,17 +284,30 @@ project account.
 Linux administrator status is authoritative. A Linux administrator is a Soda
 administrator without registration, import, or a parallel Soda role.
 
-Linux and repository-host identities remain distinct. The review must decide
-how a Linux account is correlated with a bundled Forgejo account without
-creating a parallel Soda person database. An identical-username contract,
-Forgejo authentication configuration, explicit account selection, or a minimal
-irreducible mapping are candidates, not decisions.
+### Linux and bundled Forgejo account creation
 
-The privilege path is also open. Linux `wheel` membership does not inherently
-make that person a Forgejo site administrator. Project onboarding must not
-require a parallel Soda administrator role or an unnecessarily powerful,
-long-lived Forgejo credential. Until reviewed, no new authority for ordinary
-users to provision projects or change local membership is implied.
+The first human created during Soda installation is an ordinary Linux account
+with explicit `wheel` membership. The installation also creates a same-named
+Forgejo account with Forgejo site-administrator status through Forgejo's native
+administrative interface.
+
+The supported Soda human-user creation operation similarly creates an ordinary
+Linux account and a same-named Forgejo account. If the Linux account is in
+`wheel` at creation time, the Forgejo account is initially created as a site
+administrator. This copies one initial administrator flag, not equivalent
+privilege sets.
+
+This is one-time account creation, not continuing synchronization. After
+creation, Linux owns the Linux account and its group membership, while Forgejo
+owns the Forgejo account, credentials, profile, and administrator role. Later
+changes in either system are not projected into the other. Direct `useradd` and
+later Linux group changes do not trigger Forgejo operations.
+
+Soda does not maintain a person database, identity mapping table, role mirror,
+watcher, reconciliation process, or anti-drift mechanism. Automatic correlation
+uses the identical username only while it remains equal. If the Forgejo account
+is later renamed or removed, Soda reports it as unmatched rather than repairing,
+renaming, or recreating it.
 
 ### Minimal project descriptor
 
@@ -489,6 +502,13 @@ manufacturing implementation authority.
 - External provider administration is outside the initial Soda contract.
 - One Linux user represents one human.
 - Linux administrator status is authoritative for Soda administration.
+- The supported Soda human-user creation operation creates a same-named Linux
+  and bundled Forgejo account without a Soda person or identity mapping record.
+- Linux `wheel` membership seeds only the Forgejo account's initial
+  site-administrator flag; later Linux and Forgejo role changes remain
+  independent.
+- A renamed or removed Forgejo account is reported as unmatched and is not
+  repaired or reconciled by Soda.
 - Each local collaborator receives an independently writable, person-owned
   checkout.
 - Personal workspaces and private homes default to owner-only.
@@ -513,10 +533,11 @@ manufacturing implementation authority.
 
 ## Decisions still open
 
-- Creation or selection of the initial Forgejo administrator.
-- Correlation of Linux and bundled Forgejo identities without a Soda person
-  database.
-- The privilege path from a Linux administrator to required Forgejo operations.
+- The supported user-creation behavior when a same-named Forgejo account
+  already exists.
+- How the supported operation supplies the Forgejo-local email, initial or
+  generated password, and mandatory-password-change setting through Forgejo's
+  native account-creation interface.
 - Whether ordinary users may create projects or manage collaborators.
 - The exact workspace root and descriptor location.
 - Whether project Unix groups are universal, optional, or unnecessary.
@@ -572,16 +593,24 @@ criteria and the criteria for each supported repository mode.
 
 ### Bundled Forgejo scenario
 
-1. Existing Forgejo accounts and repositories can be selected without being
+1. Installation creates a same-named Forgejo site administrator for the first
+   Linux `wheel` user without a Soda person, role, or identity mapping record.
+2. The supported Soda human-user creation operation creates a same-named
+   Forgejo account and seeds its initial site-administrator flag from Linux
+   `wheel` membership at creation time.
+3. Later Linux and Forgejo account or role changes remain independent; a
+   renamed or removed Forgejo account is reported as unmatched and is not
+   repaired or reconciled.
+4. Existing Forgejo accounts and repositories can be selected without being
    imported into a Soda user or repository database.
-2. Soda grants and revokes supported repository access through the reviewed
+5. Soda grants and revokes supported repository access through the reviewed
    Forgejo integration and reports the resulting Forgejo-native authorization
    state.
-3. Alice and Bob can push distinct branches and collaborate through Forgejo's
+6. Alice and Bob can push distinct branches and collaborate through Forgejo's
    review mechanism.
-4. Re-running a partially completed provisioning or revocation operation is
+7. Re-running a partially completed provisioning or revocation operation is
    safe and reports the observed Linux and Forgejo state separately.
-5. A supported direct change in Forgejo-native authorization or repository
+8. A supported direct change in Forgejo-native authorization or repository
    state is reflected by Soda without import into a shadow repository model.
 
 ### External canonical repository scenario

@@ -54,7 +54,8 @@ the Anaconda stylesheet.
 This is the accepted target for the first supported path. The current installer
 does not yet prove the complete behavior described below.
 
-The first supported installation path requires four values:
+The Linux administrator and Tailnet portion of the first supported installation
+path requires four values:
 
 ```text
 administrator username
@@ -67,6 +68,18 @@ Anaconda and Kickstart create the ordinary Linux account, add it to `wheel`, set
 its Linux password, and install its SSH public key. A minimal first-boot systemd
 oneshot passes the enrollment credential to `tailscale up` from a temporary
 file, removes that file after the enrollment attempt, and disables itself.
+
+The same installation creates a same-named Forgejo account with Forgejo
+site-administrator status through Forgejo's native administrative interface.
+Issue #37 owns the narrow remaining choice of how the installer supplies the
+Forgejo-local email and initial or generated password. The Linux password and
+Forgejo credential remain owned by their respective systems.
+
+The shared username and initial administrator flag are seeded once. Later
+Linux and Forgejo account, credential, and role changes are independent. Soda
+does not retain an identity mapping or reconcile later differences. If the
+Forgejo account is renamed or removed, Soda reports it as unmatched rather than
+repairing or recreating it.
 
 After installation, the administrator connects through the Tailnet with
 OpenSSH and authenticates to stock Cockpit with the ordinary Linux username and
