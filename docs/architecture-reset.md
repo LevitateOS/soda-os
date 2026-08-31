@@ -69,35 +69,6 @@ publication, installation, and validation execute on matching native hardware.
 This policy may be changed only through an explicit review; it is not implied
 by product parity alone.
 
-### Initial appliance bootstrap
-
-A fresh installation has no Linux administrator, trusted SSH key, supported
-Cockpit credential, or Tailnet identity. Soda therefore requires a one-time
-bootstrap transition before its normal Tailnet-only administration path is
-available.
-
-The preferred direction is per-machine installation-time provisioning.
-Bootstrap input establishes the first administrator's ordinary Linux account,
-OpenSSH authentication, selected Cockpit/PAM authentication, and Tailscale
-enrollment. A bounded installation or first-boot operation may perform that
-transition and supply bootstrap network configuration where the documented
-default is insufficient.
-
-After completion, Linux owns the administrator account and credentials,
-OpenSSH owns remote login, Cockpit uses its supported authentication boundary,
-and Tailscale owns node identity and private reachability.
-
-Soda does not retain a bootstrap user database, public onboarding endpoint,
-reusable enrollment credential, durable workflow state, or long-running
-bootstrap service. Temporary bootstrap secrets must not remain in the reusable
-image, installed filesystem, retained installer material, logs, or process
-arguments. Physical-console onboarding is an optional recovery path, not a
-requirement of the normal installation flow.
-
-The current installation-facing contract and unresolved operational choices
-are documented in [Initial appliance bootstrap](installation/bootstrap.md) and
-reviewed in [#40](https://github.com/LevitateOS/soda-os/issues/40).
-
 ## Why the current architecture violates the contract
 
 The repository exhibits a repeatable snowball pattern. This describes the
@@ -487,9 +458,6 @@ manufacturing implementation authority.
   generation, inspection, signing, publication, installation, and validation
   execute on matching native hardware unless that release-integrity policy is
   explicitly reviewed and changed.
-- Initial remote manageability is established through a one-time per-machine
-  bootstrap; Soda does not expose temporary public SSH, Cockpit, or custom
-  onboarding endpoints.
 - Bundled Forgejo remains available, while external canonical repositories
   remain supported without being mirrored into Forgejo automatically.
 - Repository authority follows the canonical host.
@@ -520,15 +488,8 @@ manufacturing implementation authority.
 
 ## Decisions still open
 
-- The transport for per-machine bootstrap input across bare-metal,
-  virtualized, and cloud installations.
-- The initial Cockpit/PAM authentication method.
-- Whether the Tailscale node is user-associated or carries a Soda server tag.
-- The supported pre-Tailnet network configuration.
-- Whether Tailnet enrollment executes during installation or through a bounded
-  first-boot unit.
-- Failure, retry, replacement-credential, and recovery behavior after partial
-  bootstrap.
+- Initial owner creation and Tailnet enrollment before SSH and Cockpit are
+  reachable.
 - Creation or selection of the initial Forgejo administrator.
 - Correlation of Linux and bundled Forgejo identities without a Soda person
   database.
@@ -561,33 +522,23 @@ criteria and the criteria for each supported repository mode.
 
 ### Common criteria
 
-1. A per-machine bootstrap input can establish the first Linux administrator,
-   OpenSSH authentication, the selected Cockpit/PAM authentication, and durable
-   Tailnet enrollment without publicly exposing Soda services.
-2. An authorized client can complete an OpenSSH login and reach and
-   authenticate to stock Cockpit through Tailscale.
-3. Completed bootstrap leaves no raw enrollment credential in the reusable
-   image, installed filesystem, retained installer material, logs, or process
-   arguments and leaves no public onboarding listener, Soda user database,
-   durable bootstrap workflow state, or long-running bootstrap service.
-4. Partial bootstrap reports the observed Linux and Tailscale state and can be
-   safely re-run with a replacement enrollment credential without creating a
-   second administrator account.
-5. Existing Linux accounts can be selected without importing them into a Soda
+1. A fresh image can establish its first administrator and join a Tailnet
+   without publicly exposing Soda services.
+2. Existing Linux accounts can be selected without importing them into a Soda
    user database.
-6. Alice and Bob connect through OpenSSH as their own Linux users.
-7. Each receives an independently writable, person-owned checkout for the same
+3. Alice and Bob connect through OpenSSH as their own Linux users.
+4. Each receives an independently writable, person-owned checkout for the same
    project.
-8. Under the selected permission policy, neither can write the other's checkout
+5. Under the selected permission policy, neither can write the other's checkout
    or access the other's private home, credentials, or active agent socket.
-9. A supported direct change in authoritative Linux state—including a Linux
+6. A supported direct change in authoritative Linux state—including a Linux
    change made through Cockpit—is reflected by Soda without import into shadow
    state.
-10. A normal bootc image update preserves Linux users, homes, repositories,
+7. A normal bootc image update preserves Linux users, homes, repositories,
    workspaces, Tailscale identity, and other retained machine-specific state.
-11. The same product-level acceptance scenarios pass on x86-64 and AArch64,
+8. The same product-level acceptance scenarios pass on x86-64 and AArch64,
    subject only to explicitly documented architecture-specific limitations.
-12. For each architecture, architecture-specific release stages execute on
+9. For each architecture, architecture-specific release stages execute on
    matching native hardware. Any cross-architecture release coordination
    consumes already verified native outputs and does not substitute for native
    execution.
@@ -626,14 +577,13 @@ criteria and the criteria for each supported repository mode.
 
 Resolve the ownership reviews in dependency order:
 
-1. [#40: initial administrator and Tailnet bootstrap](https://github.com/LevitateOS/soda-os/issues/40)
-2. [#33: Linux identity and administrator authority](https://github.com/LevitateOS/soda-os/issues/33)
-3. [#35: local project and workspace model](https://github.com/LevitateOS/soda-os/issues/35)
-4. [#37: canonical repository-host authority and identity correlation](https://github.com/LevitateOS/soda-os/issues/37)
-5. [#36: OpenSSH workflow after identity and workspace paths are known](https://github.com/LevitateOS/soda-os/issues/36)
-6. [#32: Cockpit composition and privilege path](https://github.com/LevitateOS/soda-os/issues/32), followed by [#34: retained telemetry outcomes](https://github.com/LevitateOS/soda-os/issues/34)
-7. [#24: retained toolchain behavior](https://github.com/LevitateOS/soda-os/issues/24) and [#38: retained update policy](https://github.com/LevitateOS/soda-os/issues/38)
-8. [#39: retained runtime state and process boundaries](https://github.com/LevitateOS/soda-os/issues/39) as the capstone after the preceding reviews remove or justify its inputs
+1. [#33: Linux identity and administrator authority](https://github.com/LevitateOS/soda-os/issues/33)
+2. [#35: local project and workspace model](https://github.com/LevitateOS/soda-os/issues/35)
+3. [#37: canonical repository-host authority and identity correlation](https://github.com/LevitateOS/soda-os/issues/37)
+4. [#36: OpenSSH workflow after identity and workspace paths are known](https://github.com/LevitateOS/soda-os/issues/36)
+5. [#32: Cockpit composition and privilege path](https://github.com/LevitateOS/soda-os/issues/32), followed by [#34: retained telemetry outcomes](https://github.com/LevitateOS/soda-os/issues/34)
+6. [#24: retained toolchain behavior](https://github.com/LevitateOS/soda-os/issues/24) and [#38: retained update policy](https://github.com/LevitateOS/soda-os/issues/38)
+7. [#39: retained runtime state and process boundaries](https://github.com/LevitateOS/soda-os/issues/39) as the capstone after the preceding reviews remove or justify its inputs
 
 Issue #35 owns whether a descriptor exists, its location and lifecycle, the
 workspace root, optional Unix groups, workspace visibility, filesystem
