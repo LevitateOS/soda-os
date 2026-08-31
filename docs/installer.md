@@ -1,5 +1,13 @@
 # Soda bootc runtime image and installer
 
+> [!IMPORTANT]
+> This document describes the pre-reset image and installer implementation
+> currently present in the repository. It is implementation evidence, not the
+> target runtime ownership model. See the
+> [architectural reset](architecture-reset.md) and
+> [issue #40](https://github.com/LevitateOS/soda-os/issues/40) for the governing
+> direction.
+
 `distro/soda.toml` is the shared schema-version-2 runtime image contract.
 `distro/platforms/aarch64.toml` and `distro/platforms/x86_64.toml` are equal
 sibling platform contracts. Each pins its Fedora 44 bootc manifest, OCI

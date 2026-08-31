@@ -3,9 +3,9 @@
 ## Purpose
 
 Soda OS aims to be an understandable, human-owned operating system for remote
-development. It should provide a direct path from installing a machine to
-creating projects, admitting collaborators, and entering attributed personal
-workspaces through SSH and Cockpit.
+development. It should provide a direct path from installing a machine to using
+ordinary Linux accounts, bundled Forgejo or an external Git host, personal Git
+clones under `$HOME/Projects`, OpenSSH, and stock Cockpit.
 
 Prefer a small, coherent product over accumulated flexibility, speculative
 machinery, or architecture that only its authors can understand.
@@ -24,14 +24,19 @@ machinery, or architecture that only its authors can understand.
   operations features must work in an interactive SSH shell unless inherently
   local; non-interactive SSH, automation, SCP/SFTP, and forced commands remain
   machine-safe.
-- The authenticated browser UI is the Soda OS dashboard. The public isolation
-  term is project environment, not sandbox; stronger sandboxing remains
-  undecided and must not be promised or implemented without a later product
-  decision.
-- Launch requires a bundled internal Git service alongside external Git
-  repositories. Project creation offers “Create a new repository on this Soda
-  server” and “Connect an existing Git repository”; both continue through the
-  same project-environment, team, and personal-workspace flow.
+- The browser administration surface is stock Cockpit with Soda branding. Soda
+  does not add custom Cockpit pages, authentication, backend services, or a
+  privileged bridge.
+- Launch requires bundled Forgejo alongside support for external Git hosts.
+  Repository lifecycle and access stay native to the authoritative Git host.
+  Each Linux user manages ordinary independent clones beneath
+  `$HOME/Projects/<repository>`; Soda has no project control plane.
+- The image ships a broad reviewed collection of language runtimes and
+  developer tools on both supported architectures. Soda has no runtime
+  toolchain manager or persistent toolchain state.
+- Linux administrators use native `bootc` commands for explicit update checks,
+  staging, activation, and rollback. The automatic update timer is disabled;
+  Soda has no runtime update service or shadow deployment state.
 - AArch64 and x86-64 are equal sibling architectures. Neither is a default,
   fallback, experimental, or second-class target.
 
@@ -103,25 +108,33 @@ the product rather than replace one form of complexity with another.
 
 ## Product behavior
 
-Preserve established authenticated product behavior unless the requested change
-explicitly revises it. This currently includes:
+The architecture reset explicitly replaces pre-reset project, workspace,
+dashboard, toolchain, and update control-plane behavior. The target behavior is:
 
-- persistent people, projects, memberships, and attributed workspaces;
-- authenticated Cockpit account and project management;
-- SSH shells, direct commands, SFTP, and per-person session state;
-- device-key attribution and project access projection;
-- provisioning, retry, rollback, and reconciliation;
-- immutable-image construction, installation, inspection, and signed releases;
-- explicit administrator-controlled OS update staging and activation.
+- native Linux accounts and administrator authority;
+- the installer-created initial Forgejo administrator and Forgejo PAM login for
+  later Linux users, without ongoing role synchronization;
+- stock Cockpit with Soda branding;
+- ordinary OpenSSH login, commands, SFTP, and per-user process attribution,
+  without a forced project-selection command or synthetic session home;
+- repository lifecycle and access through bundled Forgejo or the external
+  authoritative Git host;
+- user-managed Git clones at `$HOME/Projects/<repository>`;
+- a broad curated image-resident development toolset, without a runtime Soda
+  toolchain manager;
+- administrator-controlled native `bootc` operations, without a Soda update
+  service; and
+- immutable-image construction, installation, inspection, and signed releases.
 
-This list describes existing capabilities, not a prohibition against evolving
-their contracts or implementation.
+Pre-reset databases, people and project records, memberships, worktree
+provisioning, device-key projection, custom dashboard pages, jobs, retries,
+rollback, reconciliation, toolchain profiles, and translated update state are
+implementation evidence and deletion targets, not preservation contracts.
 
-The authenticated happy path is the current MVP operating model. Do not add
-Internet-scale, enterprise, attacker-first, or multi-path machinery without a
-concrete requirement. Assume trusted same-LAN access through Tailscale; do not
-require local-console access, or assume that the current MVP deployment model
-must remain permanent.
+Do not add Internet-scale, enterprise, attacker-first, or multi-path machinery
+without a concrete requirement. Assume trusted same-LAN access through
+Tailscale; do not require local-console access, or assume that the current MVP
+deployment model must remain permanent.
 
 ## Current source ownership
 

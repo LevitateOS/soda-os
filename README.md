@@ -6,8 +6,10 @@ Soda OS is an opinionated Fedora bootc remote-development appliance for trusted
 private networks, with equal AArch64 and x86-64 sibling support. Lightweight
 clients connect over Tailscale and SSH to a more powerful development machine.
 Linux, OpenSSH, Cockpit, Git, Forgejo, and bootc should own their existing
-responsibilities; Soda owns the branded, installable composition and the
-smallest workflow that joins them.
+responsibilities. Soda owns the branded installable composition, the
+`$HOME/Projects` convention, a curated image-resident development toolset, and
+the smallest installation-time composition required to make the machine
+reachable and usable.
 
 The current runtime grew beyond that boundary and is undergoing an
 [architectural reset](docs/architecture-reset.md). The existing implementation
