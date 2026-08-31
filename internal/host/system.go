@@ -71,7 +71,12 @@ type System struct {
 }
 
 func New(projectsRoot string) *System {
-	return &System{ProjectsRoot: projectsRoot, PeopleRoot: "/home", Runner: ExecRunner{}, AuthorizedKeysRoot: DefaultAuthorizedKeysRoot}
+	return &System{
+		ProjectsRoot:       projectsRoot,
+		PeopleRoot:         "/home",
+		Runner:             ExecRunner{},
+		AuthorizedKeysRoot: DefaultAuthorizedKeysRoot,
+	}
 }
 
 func (s *System) gitPrivateKeyPath(username string) string {

@@ -115,7 +115,13 @@ func (s *Store) DeleteSSHDeviceKey(ctx context.Context, personID, keyID string) 
 	return removed, classify(err)
 }
 func personDomain(r Person) domain.Person {
-	return domain.Person{ID: r.ID, Username: r.Username, DisplayName: r.DisplayName, Email: r.Email, Role: domain.Role(r.Role)}
+	return domain.Person{
+		ID:          r.ID,
+		Username:    r.Username,
+		DisplayName: r.DisplayName,
+		Email:       r.Email,
+		Role:        domain.Role(r.Role),
+	}
 }
 
 func sshDeviceKeyRow(v domain.SSHDeviceKey) *SSHDeviceKey {
@@ -123,9 +129,25 @@ func sshDeviceKeyRow(v domain.SSHDeviceKey) *SSHDeviceKey {
 	if createdAt.IsZero() {
 		createdAt = time.Now().UTC()
 	}
-	return &SSHDeviceKey{ID: v.ID, PersonID: v.PersonID, Label: v.Label, PublicKey: v.PublicKey, Fingerprint: v.Fingerprint, IdentityFileHint: v.IdentityFileHint, CreatedAt: createdAt.UnixNano()}
+	return &SSHDeviceKey{
+		ID:               v.ID,
+		PersonID:         v.PersonID,
+		Label:            v.Label,
+		PublicKey:        v.PublicKey,
+		Fingerprint:      v.Fingerprint,
+		IdentityFileHint: v.IdentityFileHint,
+		CreatedAt:        createdAt.UnixNano(),
+	}
 }
 
 func sshDeviceKeyDomain(r SSHDeviceKey) domain.SSHDeviceKey {
-	return domain.SSHDeviceKey{ID: r.ID, PersonID: r.PersonID, Label: r.Label, PublicKey: r.PublicKey, Fingerprint: r.Fingerprint, IdentityFileHint: r.IdentityFileHint, CreatedAt: time.Unix(0, r.CreatedAt)}
+	return domain.SSHDeviceKey{
+		ID:               r.ID,
+		PersonID:         r.PersonID,
+		Label:            r.Label,
+		PublicKey:        r.PublicKey,
+		Fingerprint:      r.Fingerprint,
+		IdentityFileHint: r.IdentityFileHint,
+		CreatedAt:        time.Unix(0, r.CreatedAt),
+	}
 }

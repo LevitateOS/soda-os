@@ -159,10 +159,13 @@ func (s *Service) reconcileBuiltInGitProjects(ctx context.Context) error {
 	return nil
 }
 
+// TODO this is the result of unneccessary abstractions, which we should remove if possible,
+// but i'm not sure of the implications of removing it.
 func (s *Service) ReconcileAllAccess(ctx context.Context) error {
 	if err := s.ReconcileAllAuthorizedKeys(ctx); err != nil {
 		return err
 	}
+
 	if err := s.ReconcileAllBuiltInGit(ctx); err != nil {
 		s.logger.Warn("Built-in Git reconciliation failed; local and external project access remains available", "error", err)
 	}

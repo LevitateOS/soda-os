@@ -234,6 +234,7 @@ func (s *Service) requireProjectReady(ctx context.Context, projectID string) err
 }
 
 func (s *Service) reconcilePersonAccess(ctx context.Context, personID string) error {
+	// get the person (again) (second time from s.ReconcileAllAuthorizedKeys)
 	person, err := s.store.Person(ctx, personID)
 	if err != nil {
 		return err
@@ -259,11 +260,15 @@ func (s *Service) reconcileProjectAccess(ctx context.Context, projectID string) 
 }
 
 func (s *Service) ReconcileAllAuthorizedKeys(ctx context.Context) error {
+	// get all people
 	people, err := s.store.People(ctx)
 	if err != nil {
 		return err
 	}
+	// then reconcile each person's authorized keys
+	// i don't know why this is needed.
 	for _, person := range people {
+		// for some reason only give the person's ID and not the whole person object?
 		if err = s.reconcilePersonAccess(ctx, person.ID); err != nil {
 			return err
 		}
