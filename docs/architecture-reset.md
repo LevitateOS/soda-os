@@ -337,7 +337,8 @@ same working directory. A target layout may resemble:
 ```
 
 Each checkout is independently writable and owned by the corresponding human.
-Changes are exchanged through Git and reviewed through the canonical host.
+Changes are exchanged through Git and reviewed through the canonical host where
+that host provides a review mechanism.
 
 Git worktrees remain useful within one person's clone when that person or their
 agents need several concurrent branches. A Git common directory shared for
@@ -378,8 +379,9 @@ the UID credential boundary would be nominal rather than real.
 
 Normal bootc image replacement must preserve authoritative machine-specific
 state, including Linux accounts, user homes, project workspaces, Forgejo
-repositories and configuration, Tailscale machine identity, and other retained
-mutable product data. That state is not owned by the replaceable image layer.
+repositories and machine-specific mutable Forgejo state, Tailscale machine
+identity, and other retained mutable product data. That state is not owned by
+the replaceable image layer.
 
 Pre-release Soda schemas, mirrors, and internal APIs receive no compatibility
 machinery unless explicitly required. Removing obsolete Soda metadata must not
@@ -412,8 +414,8 @@ The intended install-to-development path is:
    collaborator.
 9. Show ready-to-use SSH connection guidance for Codex, Claude, Zed, VS Code,
    and normal OpenSSH clients.
-10. Let Git and the canonical host own branch sharing, review, issues, and
-    releases.
+10. Let Git and the canonical host own branch sharing and any review, issue, or
+    release facilities the host provides.
 
 The exact bootstrap path for steps 2 and 3 and the privilege required for steps
 5 through 8 remain under review. The workflow defines the user outcome without
@@ -425,7 +427,8 @@ manufacturing implementation authority.
 
 - Soda owns less durable state and fewer synchronization boundaries.
 - Administrators can use standard recovery and inspection paths.
-- Direct upstream changes become visible without a manual Soda import step.
+- Supported, inspectable changes in authoritative systems become visible
+  without a manual Soda import step.
 - Components can be removed or replaced without migrating shadow state.
 - Product tests can focus on user outcomes across real authoritative systems.
 
@@ -451,6 +454,10 @@ manufacturing implementation authority.
   tools provide administration.
 - AArch64 and x86-64 carry the same released features and product-level
   acceptance expectations unless a reviewed limitation says otherwise.
+- Architecture-specific preparation, dependency resolution, build, artifact
+  generation, inspection, signing, publication, installation, and validation
+  execute on matching native hardware unless that release-integrity policy is
+  explicitly reviewed and changed.
 - Bundled Forgejo remains available, while external canonical repositories
   remain supported without being mirrored into Forgejo automatically.
 - Repository authority follows the canonical host.
@@ -524,13 +531,17 @@ criteria and the criteria for each supported repository mode.
    project.
 5. Under the selected permission policy, neither can write the other's checkout
    or access the other's private home, credentials, or active agent socket.
-6. A supported direct change in authoritative Linux or Forgejo
-   state—including a Linux change made through Cockpit—is reflected by Soda
-   without import into shadow state.
+6. A supported direct change in authoritative Linux state—including a Linux
+   change made through Cockpit—is reflected by Soda without import into shadow
+   state.
 7. A normal bootc image update preserves Linux users, homes, repositories,
    workspaces, Tailscale identity, and other retained machine-specific state.
 8. The same product-level acceptance scenarios pass on x86-64 and AArch64,
    subject only to explicitly documented architecture-specific limitations.
+9. For each architecture, architecture-specific release stages execute on
+   matching native hardware. Any cross-architecture release coordination
+   consumes already verified native outputs and does not substitute for native
+   execution.
 
 ### Bundled Forgejo scenario
 
@@ -543,6 +554,8 @@ criteria and the criteria for each supported repository mode.
    review mechanism.
 4. Re-running a partially completed provisioning or revocation operation is
    safe and reports the observed Linux and Forgejo state separately.
+5. A supported direct change in Forgejo-native authorization or repository
+   state is reflected by Soda without import into a shadow repository model.
 
 ### External canonical repository scenario
 
