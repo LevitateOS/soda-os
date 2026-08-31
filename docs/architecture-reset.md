@@ -1,11 +1,14 @@
 # Soda OS architectural reset
 
 **Status:** Accepted product direction and governing architectural constraints;
-open implementation decisions remain assigned to the linked reviews.
+open product-policy and implementation decisions remain assigned to the linked
+reviews.
 
 **Recorded:** 2026-08-31
 
-**Implementation reviewed:** `7f2c60b`
+**Implementation snapshot reviewed:** `7f2c60b`
+
+**Initial architecture record:** `e992e22`
 
 ## Decision
 
@@ -46,8 +49,8 @@ Soda OS standardizes this way of working:
 7. Use the canonical Git host for repository authorization, branch exchange,
    review, issues, and releases where that host provides them.
 
-The client retains the human interface and, in the preferred forwarding model,
-private authentication keys. Compilation, indexing, tests, agents, and
+The client retains the human interface. In the agent-forwarding model, it also
+retains private authentication keys. Compilation, indexing, tests, agents, and
 development processes run on the Soda machine. A protected server-side
 per-person Git key remains an open alternative for clients that cannot forward
 an agent reliably.
@@ -58,8 +61,13 @@ not replace Linux login, process attribution, or Git-host authorization.
 
 AArch64 and x86-64 are equal sibling product targets: every released feature
 and product-level acceptance scenario must support both unless an
-architecture-specific limitation is explicitly documented and reviewed. Each
-architecture's artifact work remains on matching native hardware.
+architecture-specific limitation is explicitly documented and reviewed.
+
+As a current release-integrity policy, architecture-specific input preparation,
+dependency resolution, builds, artifact generation, inspection, signing,
+publication, installation, and validation execute on matching native hardware.
+This policy may be changed only through an explicit review; it is not implied
+by product parity alone.
 
 ## Why the current architecture violates the contract
 
@@ -132,13 +140,16 @@ interfaces are not directly exposed to the public Internet.
 
 ### Repository authority follows the canonical host
 
-A project has one canonical repository host.
+A Soda project designates one canonical collaboration repository and host. Git
+checkouts may have additional remotes, but Soda does not treat those remotes as
+authoritative for project authorization or collaboration status.
 
 For a Forgejo-hosted project, Forgejo owns repository authorization, users and
 keys in its application domain, teams or repository collaborators, review,
 issues, and releases. Soda uses Forgejo's native authorization model without
 requiring a one-to-one structural mirror between a Unix group and a Forgejo
-team.
+team. Through a reviewed Forgejo integration, Soda may inspect native
+authorization and coordinate explicitly supported grants and revocations.
 
 For a project whose canonical repository remains on GitHub, GitLab, another
 Forgejo instance, or another external Git service, that service owns those
@@ -155,28 +166,49 @@ use the person's credentials, attempt the required clone, fetch, or push, report
 which operation succeeds, and direct the administrator to manage authorization
 through the external provider.
 
+Capability results are operation-specific and depend on the credentials
+available to the person's current session. Untested or unavailable capability
+information is `unknown`, not denied. Soda does not create undisclosed remote
+state to probe capability: push capability is learned from a user-requested
+push, while any non-mutating capability check must be explicitly selected and
+must report only what it exercised.
+
 ### Local and repository access are separate grants
 
 Local filesystem authorization and repository-host authorization protect
 different resources. Their overlap does not create a third authoritative Soda
 membership.
 
-A project collaborator is a transient product view derived from applicable
-local access and the observable repository capability provided by the canonical
-host. For Forgejo-hosted projects, Soda may inspect native Forgejo
-authorization. For externally hosted projects, authorization remains externally
-administered, and Soda reports only the Git capabilities it can verify using
-the person's credentials.
+A project collaborator is a transient, faceted product view. Soda presents
+local workspace access, shared-local-resource access, and each observable
+repository capability separately. Untested or unavailable capability
+information is `unknown`, not denied.
+
+For Forgejo-hosted projects, Soda may inspect native Forgejo authorization. For
+externally hosted projects, authorization remains externally administered, and
+Soda reports only the Git capabilities verified through operations using the
+person's credentials.
 
 Soda does not persist cached collaborator lists, copied repository permissions,
 or a durable provisioning status merely to present this view.
 
 ### Cross-system workflows are derived and re-runnable
 
-Provisioning applies independently inspectable, idempotent operations to each
-authoritative owner. Cross-system changes are not normally atomic. Partial
-completion must identify the state of each owner and allow the operation to be
-safely re-run.
+For each authoritative system that Soda is explicitly designed and authorized
+to modify, provisioning applies independently inspectable, idempotent
+operations. Cross-system changes are not normally atomic. Partial completion
+must identify the observed state of each applicable owner and allow the
+operation to be safely re-run.
+
+For a bundled Forgejo project, Soda may coordinate supported Linux and Forgejo
+operations through reviewed integrations. For an external canonical
+repository, Soda modifies only supported local state and observes the result of
+credential-backed Git operations; authorization changes remain external.
+
+Soda may mutate authoritative systems only through explicitly supported
+boundaries. For unsupported external repository hosts, Soda observes
+credential-backed Git capabilities without claiming membership knowledge or
+provider-administration authority.
 
 Soda does not add a transaction log, rollback engine, or reconciliation daemon
 merely to simulate an atomic transaction across Linux and a repository host.
@@ -247,9 +279,7 @@ users to provision projects or change local membership is implied.
 The association between a local workspace hierarchy and its canonical
 repository may be an irreducible Soda-owned fact when it cannot be derived
 unambiguously. A small declarative project descriptor is permitted for that
-association.
-
-It may contain only facts such as:
+association and may contain irreducible association facts such as:
 
 ```text
 project identifier
@@ -260,6 +290,10 @@ repository hosting mode
 optional Forgejo repository identifier
 workspace visibility policy
 ```
+
+Repository URLs and upstream identifiers in the descriptor are references, not
+copied assertions about current repository-host state, and must be validated
+when used. Repository URLs stored by Soda must not contain credentials.
 
 It must not contain cached collaborator lists, repository permissions,
 provisioning status, copied upstream accounts, or operational state already
@@ -276,19 +310,18 @@ If a project has no shared local resource and collaboration occurs entirely
 through the canonical Git host, a per-project Unix group may not be necessary.
 Whether groups are universal or optional remains under review in #35.
 
-The default permission policy is:
+The permission-policy invariants are:
 
-```text
-project root:        root-owned, project-group traversable when a group exists
-personal workspace: owner-writable, owner-readable
-cross-user reading: explicit project opt-in
-private home:        owner-only
-```
+- the project hierarchy is administrator-controlled;
+- each person can access their own workspace;
+- other ordinary users cannot access that workspace by default; and
+- explicitly shared local resources use a reviewed group or ACL boundary.
 
-Owner-only workspaces prevent peers from reading uncommitted environment files,
-agent logs, generated credentials, test data, and other material that never
-reaches Git. A project may deliberately enable cross-user reading, but it is not
-the universal default.
+Issue #35 selects the concrete ownership modes, permissions, and ACLs. The
+default protects uncommitted environment files, agent logs, generated
+credentials, test data, and other material that never reaches Git. A project
+may deliberately enable cross-user reading, but it is not the universal
+default.
 
 ### One person-owned checkout per person and project
 
@@ -367,13 +400,14 @@ The intended install-to-development path is:
 3. Open standard Cockpit through the Tailnet.
 4. Create a Linux account or select an existing account.
 5. Select the repository mode: new bundled Forgejo repository, existing
-   Forgejo repository, external canonical repository, or explicit import into
-   Forgejo.
+   bundled Forgejo repository, external canonical repository, or explicit
+   import into Forgejo.
 6. Establish the local project-resource boundary only where a local shared
    resource requires it.
-7. Grant repository access through the canonical host's native authorization
-   model. For an external host, authorization remains externally administered
-   and Soda reports only observable Git capabilities.
+7. For bundled Forgejo, grant repository access through its native
+   authorization model. For an external canonical host, authorization remains
+   externally administered and Soda reports only Git capabilities observed
+   through the person's credential-backed operations.
 8. Create one independently writable, person-owned checkout for each local
    collaborator.
 9. Show ready-to-use SSH connection guidance for Codex, Claude, Zed, VS Code,
@@ -403,8 +437,9 @@ manufacturing implementation authority.
   synthetic transaction result.
 - Upstream behavior and supported interfaces constrain Soda.
 - Some convenient custom pages and workflows will disappear.
-- Existing implementation-focused tests, schemas, and APIs will be deleted
-  rather than preserved.
+- Obsolete implementation-focused tests, schemas, and APIs may be deleted
+  rather than preserved for compatibility when their underlying behavior is no
+  longer part of the product contract.
 
 ## Decisions already made
 
@@ -428,7 +463,9 @@ manufacturing implementation authority.
 - Human Git credentials are isolated per Linux user and never shared through a
   project account or project directory.
 - Local filesystem access and repository-host access are separate grants.
-- A project collaborator is a transient view, not a stored Soda domain entity.
+- A project collaborator is a transient, faceted view, not a stored Soda domain
+  entity; untested or unavailable repository capabilities are `unknown`, not
+  denied.
 - Cross-system operations expose partial completion and support safe
   re-execution rather than simulated distributed transactions.
 - Transient aggregation and presentation models are allowed; persistent shadow
@@ -473,27 +510,55 @@ capabilities, not from the shape of the current code.
 
 ## Product-level acceptance criteria
 
-The reset is complete only when the resulting product demonstrates at least:
+The reset is complete only when the resulting product demonstrates the common
+criteria and the criteria for each supported repository mode.
+
+### Common criteria
 
 1. A fresh image can establish its first administrator and join a Tailnet
    without publicly exposing Soda services.
-2. Existing Linux accounts and bundled Forgejo accounts can be selected without
-   importing them into a Soda user database.
+2. Existing Linux accounts can be selected without importing them into a Soda
+   user database.
 3. Alice and Bob connect through OpenSSH as their own Linux users.
-4. Both access the same project repository through its canonical host.
-5. Each receives an independently writable, person-owned checkout.
-6. Under the selected permission policy, neither can write the other's checkout
+4. Each receives an independently writable, person-owned checkout for the same
+   project.
+5. Under the selected permission policy, neither can write the other's checkout
    or access the other's private home, credentials, or active agent socket.
-7. Both can push distinct branches and collaborate through the canonical
-   host's review mechanism.
-8. A directly supported change in Linux, Cockpit, Forgejo, or an external
-   canonical host is visible to Soda without a manual import into shadow state.
-9. Re-running a partially completed provisioning or revocation operation is
-   safe and reports the observed state of each authoritative system.
-10. A normal bootc image update preserves Linux users, homes, repositories,
-    workspaces, Tailscale identity, and other retained machine-specific state.
-11. The same product-level acceptance suite passes on x86-64 and AArch64,
-    subject only to explicitly documented architecture-specific limitations.
+6. A supported direct change in authoritative Linux or Forgejo
+   state—including a Linux change made through Cockpit—is reflected by Soda
+   without import into shadow state.
+7. A normal bootc image update preserves Linux users, homes, repositories,
+   workspaces, Tailscale identity, and other retained machine-specific state.
+8. The same product-level acceptance scenarios pass on x86-64 and AArch64,
+   subject only to explicitly documented architecture-specific limitations.
+
+### Bundled Forgejo scenario
+
+1. Existing Forgejo accounts and repositories can be selected without being
+   imported into a Soda user or repository database.
+2. Soda grants and revokes supported repository access through the reviewed
+   Forgejo integration and reports the resulting Forgejo-native authorization
+   state.
+3. Alice and Bob can push distinct branches and collaborate through Forgejo's
+   review mechanism.
+4. Re-running a partially completed provisioning or revocation operation is
+   safe and reports the observed Linux and Forgejo state separately.
+
+### External canonical repository scenario
+
+1. Soda designates the external repository as canonical and creates or removes
+   only the applicable local workspaces and shared-local-resource access.
+2. For a requested clone, fetch, or push, Soda uses the person's available
+   credentials and reports the exercised capability as successful, denied,
+   failed for another reason, or `unknown` when untested or unavailable.
+3. Soda does not infer external membership, grant or revoke provider access, or
+   promise access to the provider's review mechanism.
+4. Soda does not perform an undisclosed push or create other remote state to
+   test capability; any non-mutating check is explicit and reports only what it
+   exercised.
+5. Re-running a partially completed local provisioning or revocation operation
+   is safe and reports local results separately from observed Git capabilities;
+   provider authorization remains externally administered.
 
 ## Review order and outputs
 
@@ -507,10 +572,13 @@ Resolve the ownership reviews in dependency order:
 6. [#24: retained toolchain behavior](https://github.com/LevitateOS/soda-os/issues/24) and [#38: retained update policy](https://github.com/LevitateOS/soda-os/issues/38)
 7. [#39: retained runtime state and process boundaries](https://github.com/LevitateOS/soda-os/issues/39) as the capstone after the preceding reviews remove or justify its inputs
 
-Issue #35 owns local descriptors, filesystem resources, Unix groups, workspace
-layout, and checkout lifecycle. Issue #37 owns canonical-host modes, Git-host
-authorization, repository identity correlation, and collaboration. Neither
-issue may create a third Soda membership to simplify its half of the boundary.
+Issue #35 owns whether a descriptor exists, its location and lifecycle, the
+workspace root, optional Unix groups, workspace visibility, filesystem
+resources, and checkout lifecycle. Issue #37 owns canonical repository
+references, repository-host mode semantics, optional Forgejo repository
+identifiers, repository identity validation, Git-host authorization, and
+collaboration. Neither issue may create a third Soda membership to simplify its
+half of the boundary.
 
 Issue #32 establishes the administration surface before #34 decides which
 Soda-specific telemetry outcomes, if any, remain. Issue #39 is not evaluated
