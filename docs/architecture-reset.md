@@ -69,6 +69,28 @@ publication, installation, and validation execute on matching native hardware.
 This policy may be changed only through an explicit review; it is not implied
 by product parity alone.
 
+### Initial installation provisioning
+
+A fresh Soda machine is provisioned by Anaconda and Kickstart with its first
+ordinary Linux administrator, that administrator's password and SSH public key,
+and a one-use Tailscale enrollment credential. A minimal first-boot systemd
+oneshot invokes Tailscale with the credential from a temporary file, removes
+that file after the enrollment attempt, and disables itself.
+
+The first supported path requires only an administrator username,
+administrator password, administrator SSH public key, and one-use Tailscale
+auth key. Soda owns the installer configuration, the small first-boot Tailscale
+invocation, and acceptance evidence. Linux owns the account and password,
+OpenSSH owns the authorized key and remote session, Cockpit authenticates the
+ordinary Linux account through PAM, and Tailscale owns node enrollment and
+private reachability.
+
+After installation, no Soda bootstrap account, credential store, API, public
+onboarding endpoint, durable workflow state, retry or reconciliation machinery,
+or long-running bootstrap service remains. If initial Tailscale enrollment
+fails, the first release relies on local recovery or corrected inputs and
+reinstallation rather than a Soda recovery subsystem.
+
 ## Why the current architecture violates the contract
 
 The repository exhibits a repeatable snowball pattern. This describes the
@@ -458,6 +480,9 @@ manufacturing implementation authority.
   generation, inspection, signing, publication, installation, and validation
   execute on matching native hardware unless that release-integrity policy is
   explicitly reviewed and changed.
+- Initial installation uses Anaconda, Kickstart, ordinary Linux credentials,
+  OpenSSH, and a one-use Tailscale key; no Soda bootstrap subsystem survives
+  installation.
 - Bundled Forgejo remains available, while external canonical repositories
   remain supported without being mirrored into Forgejo automatically.
 - Repository authority follows the canonical host.
@@ -488,8 +513,6 @@ manufacturing implementation authority.
 
 ## Decisions still open
 
-- Initial owner creation and Tailnet enrollment before SSH and Cockpit are
-  reachable.
 - Creation or selection of the initial Forgejo administrator.
 - Correlation of Linux and bundled Forgejo identities without a Soda person
   database.
@@ -522,23 +545,27 @@ criteria and the criteria for each supported repository mode.
 
 ### Common criteria
 
-1. A fresh image can establish its first administrator and join a Tailnet
-   without publicly exposing Soda services.
-2. Existing Linux accounts can be selected without importing them into a Soda
+1. A fresh image accepts an administrator username, password, SSH public key,
+   and one-use Tailscale key; Anaconda and Kickstart create the ordinary Linux
+   administrator and a minimal first-boot oneshot enrolls Tailscale.
+2. After installation, the owner can use OpenSSH and authenticate to stock
+   Cockpit through the Tailnet, neither service is publicly exposed, and no
+   temporary enrollment credential or Soda bootstrap subsystem remains.
+3. Existing Linux accounts can be selected without importing them into a Soda
    user database.
-3. Alice and Bob connect through OpenSSH as their own Linux users.
-4. Each receives an independently writable, person-owned checkout for the same
+4. Alice and Bob connect through OpenSSH as their own Linux users.
+5. Each receives an independently writable, person-owned checkout for the same
    project.
-5. Under the selected permission policy, neither can write the other's checkout
+6. Under the selected permission policy, neither can write the other's checkout
    or access the other's private home, credentials, or active agent socket.
-6. A supported direct change in authoritative Linux state—including a Linux
+7. A supported direct change in authoritative Linux state—including a Linux
    change made through Cockpit—is reflected by Soda without import into shadow
    state.
-7. A normal bootc image update preserves Linux users, homes, repositories,
+8. A normal bootc image update preserves Linux users, homes, repositories,
    workspaces, Tailscale identity, and other retained machine-specific state.
-8. The same product-level acceptance scenarios pass on x86-64 and AArch64,
+9. The same product-level acceptance scenarios pass on x86-64 and AArch64,
    subject only to explicitly documented architecture-specific limitations.
-9. For each architecture, architecture-specific release stages execute on
+10. For each architecture, architecture-specific release stages execute on
    matching native hardware. Any cross-architecture release coordination
    consumes already verified native outputs and does not substitute for native
    execution.
@@ -577,13 +604,14 @@ criteria and the criteria for each supported repository mode.
 
 Resolve the ownership reviews in dependency order:
 
-1. [#33: Linux identity and administrator authority](https://github.com/LevitateOS/soda-os/issues/33)
-2. [#35: local project and workspace model](https://github.com/LevitateOS/soda-os/issues/35)
-3. [#37: canonical repository-host authority and identity correlation](https://github.com/LevitateOS/soda-os/issues/37)
-4. [#36: OpenSSH workflow after identity and workspace paths are known](https://github.com/LevitateOS/soda-os/issues/36)
-5. [#32: Cockpit composition and privilege path](https://github.com/LevitateOS/soda-os/issues/32), followed by [#34: retained telemetry outcomes](https://github.com/LevitateOS/soda-os/issues/34)
-6. [#24: retained toolchain behavior](https://github.com/LevitateOS/soda-os/issues/24) and [#38: retained update policy](https://github.com/LevitateOS/soda-os/issues/38)
-7. [#39: retained runtime state and process boundaries](https://github.com/LevitateOS/soda-os/issues/39) as the capstone after the preceding reviews remove or justify its inputs
+1. [#40: installer-native initial administrator and Tailnet provisioning](https://github.com/LevitateOS/soda-os/issues/40)
+2. [#33: Linux identity and administrator authority](https://github.com/LevitateOS/soda-os/issues/33)
+3. [#35: local project and workspace model](https://github.com/LevitateOS/soda-os/issues/35)
+4. [#37: canonical repository-host authority and identity correlation](https://github.com/LevitateOS/soda-os/issues/37)
+5. [#36: OpenSSH workflow after identity and workspace paths are known](https://github.com/LevitateOS/soda-os/issues/36)
+6. [#32: Cockpit composition and privilege path](https://github.com/LevitateOS/soda-os/issues/32), followed by [#34: retained telemetry outcomes](https://github.com/LevitateOS/soda-os/issues/34)
+7. [#24: retained toolchain behavior](https://github.com/LevitateOS/soda-os/issues/24) and [#38: retained update policy](https://github.com/LevitateOS/soda-os/issues/38)
+8. [#39: retained runtime state and process boundaries](https://github.com/LevitateOS/soda-os/issues/39) as the capstone after the preceding reviews remove or justify its inputs
 
 Issue #35 owns whether a descriptor exists, its location and lifecycle, the
 workspace root, optional Unix groups, workspace visibility, filesystem

@@ -49,6 +49,38 @@ product-mark PNGs are generated from the approved Soda v3 SVG masters; the
 surrounding navy and cyan visual treatment uses the same established palette in
 the Anaconda stylesheet.
 
+## Accepted initial provisioning outcome
+
+This is the accepted target for the first supported path. The current installer
+does not yet prove the complete behavior described below.
+
+The first supported installation path requires four values:
+
+```text
+administrator username
+administrator password
+administrator SSH public key
+one-use Tailscale auth key
+```
+
+Anaconda and Kickstart create the ordinary Linux account, add it to `wheel`, set
+its Linux password, and install its SSH public key. A minimal first-boot systemd
+oneshot passes the enrollment credential to `tailscale up` from a temporary
+file, removes that file after the enrollment attempt, and disables itself.
+
+After installation, the administrator connects through the Tailnet with
+OpenSSH and authenticates to stock Cockpit with the ordinary Linux username and
+password through PAM. Soda retains no bootstrap database, API, custom
+authentication, public onboarding endpoint, bundle format, durable workflow,
+retry or reconciliation state, separate bootstrap user, or runtime bootstrap
+status.
+
+The first version does not implement in-place recovery orchestration. If
+Tailscale enrollment fails, the operator uses available local recovery or
+corrects the installer inputs and reinstalls. Acceptance testing proves private
+OpenSSH and Cockpit reachability and the absence of retained enrollment
+material; it does not create runtime verification state.
+
 The Fedora 44 installer environment runs SELinux in permissive mode because its
 live overlay cannot be relabeled; this boot option does not change the installed
 Soda image, which retains enforcing SELinux.
