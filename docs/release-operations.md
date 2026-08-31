@@ -1,5 +1,14 @@
 # Soda OS artifact operations
 
+> [!IMPORTANT]
+> This document describes the pre-reset artifact and publication implementation
+> currently present in the repository. Its Soda runtime release index, state
+> schema, and updater are deletion targets, not the target update contract. See
+> the [architectural reset](architecture-reset.md),
+> [issue #38](https://github.com/LevitateOS/soda-os/issues/38), and
+> [issue #23](https://github.com/LevitateOS/soda-os/issues/23) for the governing
+> native-bootc and publication direction.
+
 Local development produces platform-specific OCI archives and installer ISOs
 without publishing or signing them. Architecture selection is explicit and
 `aarch64` and `x86_64` are equal sibling targets.

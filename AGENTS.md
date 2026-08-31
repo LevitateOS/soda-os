@@ -4,8 +4,9 @@
 
 Soda OS aims to be an understandable, human-owned operating system for remote
 development. It should provide a direct path from installing a machine to using
-ordinary Linux accounts, bundled Forgejo or an external Git host, personal Git
-clones under `$HOME/Projects`, OpenSSH, and stock Cockpit.
+one primary Linux account per human, one derived Linux workspace account per
+human-project pair, bundled Forgejo or an external Git host, ordinary Git,
+OpenSSH, and stock Cockpit with one focused Soda Projects page.
 
 Prefer a small, coherent product over accumulated flexibility, speculative
 machinery, or architecture that only its authors can understand.
@@ -20,17 +21,24 @@ machinery, or architecture that only its authors can understand.
   infrastructure is the primary product decision-maker. Daily users are
   developers connecting from lightweight clients to a powerful shared Soda OS
   development server.
-- Remote development and administration are SSH-first. Human discovery and
-  operations features must work in an interactive SSH shell unless inherently
-  local; non-interactive SSH, automation, SCP/SFTP, and forced commands remain
-  machine-safe.
-- The browser administration surface is stock Cockpit with Soda branding. Soda
-  does not add custom Cockpit pages, authentication, backend services, or a
-  privileged bridge.
+- Remote development and administration are SSH-first. A human connects
+  directly through ordinary OpenSSH to their derived workspace account;
+  non-interactive SSH, automation, SCP, and SFTP retain normal OpenSSH behavior.
+- The browser administration surface is stock Cockpit with Soda branding and
+  one Soda Projects package. The package reuses Cockpit authentication and
+  sessions and may invoke one narrow synchronous catalog-and-workspace operation;
+  it does not add another web server, authentication layer, daemon, database,
+  generic backend, or generic privileged bridge.
 - Launch requires bundled Forgejo alongside support for external Git hosts.
-  Repository lifecycle and access stay native to the authoritative Git host.
-  Each Linux user manages ordinary independent clones beneath
-  `$HOME/Projects/<repository>`; Soda has no project control plane.
+  Repository lifecycle, access, and collaboration stay native to the
+  authoritative Git host. Soda retains only a minimal appliance-wide project
+  catalog and the human-project-to-workspace-account convention. A successful
+  **Set up for me** operation leaves a complete clone beneath the derived
+  workspace account's `$HOME/Projects/<repository>`.
+- Workspace isolation means separate Linux homes, checkouts, user-local
+  dependencies, process ownership, and project-local data. Projects select
+  non-conflicting host ports themselves. Podman is an optional installed tool,
+  not Soda's isolation mechanism or a Soda-managed subsystem.
 - The image ships a broad reviewed collection of language runtimes and
   developer tools on both supported architectures. Soda has no runtime
   toolchain manager or persistent toolchain state.
@@ -109,27 +117,41 @@ the product rather than replace one form of complexity with another.
 ## Product behavior
 
 The architecture reset explicitly replaces pre-reset project, workspace,
-dashboard, toolchain, and update control-plane behavior. The target behavior is:
+dashboard, toolchain, and update control-plane behavior while retaining the
+smallest Soda-specific project workflow. The target behavior is:
 
-- native Linux accounts and administrator authority;
+- one primary Linux account per human and one derived Linux workspace account
+  per human-project pair, with Linux authoritative for every account and home;
 - the installer-created initial Forgejo administrator and Forgejo PAM login for
-  later Linux users, without ongoing role synchronization;
-- stock Cockpit with Soda branding;
-- ordinary OpenSSH login, commands, SFTP, and per-user process attribution,
-  without a forced project-selection command or synthetic session home;
+  later primary human accounts, without workspace-account Forgejo identities
+  or ongoing role synchronization;
+- stock Cockpit with Soda branding and one focused Soda Projects page;
+- a minimal declarative catalog of offered projects, editable by every human
+  user, without repository-membership or capability state;
+- synchronous workspace setup that uses ordinary interactive Git
+  authentication without retaining credentials, creates the derived account,
+  leaves a complete clone, and copies the human account's current public SSH
+  keys once;
+- direct ordinary OpenSSH login, commands, SFTP, and process attribution as the
+  derived workspace UID, without forced commands or synthetic homes;
 - repository lifecycle and access through bundled Forgejo or the external
   authoritative Git host;
-- user-managed Git clones at `$HOME/Projects/<repository>`;
+- synchronous destructive project removal that deletes the catalog entry and
+  derived workspace accounts, homes, and explicitly Soda-created local paths,
+  but never the canonical Git repository;
 - a broad curated image-resident development toolset, without a runtime Soda
   toolchain manager;
 - administrator-controlled native `bootc` operations, without a Soda update
   service; and
 - immutable-image construction, installation, inspection, and signed releases.
 
-Pre-reset databases, people and project records, memberships, worktree
-provisioning, device-key projection, custom dashboard pages, jobs, retries,
-rollback, reconciliation, toolchain profiles, and translated update state are
-implementation evidence and deletion targets, not preservation contracts.
+Pre-reset databases, copied people and repository records, memberships, shared
+project accounts, shared worktrees, device-key projection, standalone dashboard
+services, jobs, retries, rollback, reconciliation, toolchain profiles, and
+translated update state are implementation evidence and deletion targets, not
+preservation contracts. The minimal catalog, derived workspace-account
+convention, Projects page, and narrow synchronous helper are retained outcomes;
+they must not be expanded into a generic project control plane.
 
 Do not add Internet-scale, enterprise, attacker-first, or multi-path machinery
 without a concrete requirement. Assume trusted same-LAN access through

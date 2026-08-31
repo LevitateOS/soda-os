@@ -6,10 +6,23 @@ Soda OS is an opinionated Fedora bootc remote-development appliance for trusted
 private networks, with equal AArch64 and x86-64 sibling support. Lightweight
 clients connect over Tailscale and SSH to a more powerful development machine.
 Linux, OpenSSH, Cockpit, Git, Forgejo, and bootc should own their existing
-responsibilities. Soda owns the branded installable composition, the
-`$HOME/Projects` convention, a curated image-resident development toolset, and
-the smallest installation-time composition required to make the machine
-reachable and usable.
+responsibilities.
+
+Soda owns the branded installable composition, a curated image-resident
+development toolset, a minimal catalog of offered projects, and the narrow
+workflow that creates one derived Linux workspace account per human-project
+pair. Each workspace account owns its private home, complete Git clone,
+user-local dependencies, project data, and development processes. Humans enter
+those accounts directly through ordinary OpenSSH; repository access and
+collaboration remain native to bundled Forgejo or the external Git host.
+
+Stock Cockpit provides host administration and authentication. One focused
+Soda Projects page lets any human add, edit, remove, or set up a catalogued
+project. It may invoke one short synchronous privileged operation for derived
+workspace-account lifecycle, but Soda retains no general project control plane,
+daemon, database, RPC API, credential store, job engine, or reconciliation
+system. Podman is available as an optional development tool and is not the
+isolation mechanism.
 
 The current runtime grew beyond that boundary and is undergoing an
 [architectural reset](docs/architecture-reset.md). The existing implementation
@@ -64,45 +77,35 @@ artifacts, but it does not participate in local OCI or ISO construction. See the
 commands and [runtime image and installer contract](docs/installer.md) for the
 artifact boundary.
 
-Initial installation is a fresh platform-matched bootc installation from the
-generated AArch64 or x86-64 ISO. The stock interactive Anaconda flow selects
-storage, networking, hostname, and the first Linux administrator. A mandatory
-Soda Account spoke collects that person's email while the stock User Creation
-screen remains authoritative for full name, username, password, and
-administrator selection. First boot imports that account into Soda.
+## Target operating model
 
-Mutable Soda state is preserved outside the image. The database, certificates,
-projects, and toolchains physically live below `/var/lib/soda`; systemd bind
-mounts retain the SSH-visible `/srv/soda/projects` and
-`/opt/soda/toolchains` paths. Linux users and PAM passwords, SSH host keys,
-`/etc/soda/authorized_keys`, and Soda logs remain host state.
+Installation uses Anaconda and Kickstart to create the first primary human
+Linux administrator, install that human's SSH public key, create the initial
+same-named Forgejo administrator through Forgejo's native interface, and enroll
+the machine in Tailscale through one bounded first-boot invocation. No Soda
+bootstrap state survives installation.
 
-An administrator controls OS updates explicitly:
+Every primary human Linux account is a Cockpit identity and may become a native
+Forgejo PAM user. Derived workspace accounts are Linux-only development
+identities and never become Forgejo users.
 
-```sh
-sudo sodactl os update status
-sudo sodactl os update check
-sudo sodactl os update stage
-sudo sodactl os update activate --confirm-reboot
-```
+Any human may publish, edit, or destructively remove a minimal catalog entry.
+For a catalogued project, **Set up for me** performs one ordinary interactive
+Git operation as the human, creates the derived workspace account, leaves a
+complete checkout below that account's `$HOME/Projects`, and copies the human
+account's currently authorized public SSH keys once. Soda does not retain the
+Git credential or synchronize later SSH-key changes. Removing a project
+deletes its derived workspace accounts, homes, checkouts, and explicitly
+Soda-created local paths, but not the canonical repository.
 
-Checking resolves the installed sibling's release-index entry once, validates
-its exact digest, platform, and image metadata, and records only that digest.
-Staging downloads that exact digest without changing the running
-deployment. Activation is the separate, explicit maintenance-reboot action.
-Soda neither polls, downloads, activates, nor reboots automatically.
+Projects choose non-conflicting host ports themselves. They may use Podman or
+other ordinary tools when useful; Soda does not allocate ports or manage
+network namespaces. Linux administrators operate deployments through native
+`bootc` commands, and the automatic update timer remains disabled.
 
-Enroll the appliance with `sudo tailscale up`, then run `soda-tailnet` to print
-its canonical MagicDNS identity and dashboard URL. Run
-`sudo systemctl restart soda-cockpit forgejo` after first enrollment so they
-load that Tailnet identity. The certificate is self-signed in this scaffold,
-so the first browser visit requires an explicit trust exception. Sign in with
-the imported Linux account, open **My Account**, and register each client
-device's public SSH key. The same page shows the person's server-generated
-public Git key for external Git hosts. Project aliases log in as that person and
-send the selected project slug, so commands, Git, and SFTP run under the
-person's Linux UID. External repositories accept SSH remotes only and wait for
-the creator to add the displayed public key before setup continues.
+The code still contains the pre-reset runtime while the linked ownership issues
+remove it vertically. The documents labelled pre-reset describe that current
+implementation as evidence, not as the target product contract.
 
 See the [architectural reset](docs/architecture-reset.md), the
 [current pre-reset architecture](docs/architecture.md), the

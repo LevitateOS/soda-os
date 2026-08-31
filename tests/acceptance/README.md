@@ -1,5 +1,14 @@
 # Bootc runtime image, installer, and update release gate
 
+> [!IMPORTANT]
+> This document records the pre-reset acceptance workflow currently present in
+> the repository. Its Soda database, project/worktree, forced-SSH, toolchain,
+> release-index, and update-control-plane assertions are implementation evidence,
+> not preservation requirements. See the
+> [architectural reset](../../docs/architecture-reset.md) and
+> [issue #25](https://github.com/LevitateOS/soda-os/issues/25) for the target
+> product-level acceptance outcomes.
+
 This scenario covers Soda OS 0.4.0 on Fedora 44 bootc for the equal AArch64 and
 x86-64 sibling architectures. Run it independently for each architecture;
 evidence from one does not satisfy the other's gate. Generated images, package

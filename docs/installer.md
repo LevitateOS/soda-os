@@ -86,10 +86,13 @@ the current installer cannot provide that direct handoff, password equality is
 reconsidered rather than expanded into Soda credential machinery.
 
 Forgejo's native PAM source delegates later authentication to the shipped
-`soda-forgejo` PAM policy. Any Linux account accepted by that policy can log in
-with its Linux username and password; Forgejo creates its own ordinary native
-user record on first successful login. Linux account creation performs no
-Forgejo operation, and later `wheel` membership has no Forgejo effect.
+`soda-forgejo` PAM policy. Any primary human Linux account accepted by that
+policy can log in with its Linux username and password; Forgejo creates its own
+ordinary native user record on first successful login. Linux account creation
+performs no Forgejo operation, and later `wheel` membership has no Forgejo
+effect. Derived workspace accounts are Linux-only development identities that
+use their installed authorized public keys for direct OpenSSH access; the PAM
+policy must reject them so that they never become Forgejo users.
 
 Soda may set the PAM source's email domain to the fixed packaging convention
 `localhost`, allowing Forgejo to initialize `<username>@localhost`. The setting

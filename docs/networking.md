@@ -1,5 +1,14 @@
 # Managed listeners
 
+> [!IMPORTANT]
+> This document records the listeners of the pre-reset implementation currently
+> present in the repository. It is implementation evidence, not the target
+> ownership model. Under the accepted
+> [architectural reset](architecture-reset.md), derived workspace accounts share
+> the host network, projects select non-conflicting ports themselves, Podman is
+> optional, and Soda provides no port allocator, proxy, network-namespace
+> manager, or container control plane.
+
 Soda and project processes share the host network namespace. Soda keeps its
 managed reservations small so ordinary development servers can keep their
 usual localhost and forwarded workflows. These are current implementation

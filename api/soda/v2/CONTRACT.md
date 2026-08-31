@@ -1,5 +1,12 @@
 # Soda API v2 contract
 
+> [!IMPORTANT]
+> This is the contract of the pre-reset Soda daemon currently present in the
+> repository. It is implementation evidence, not a target API or compatibility
+> promise. The accepted architecture removes this generic gRPC control plane;
+> see [the architectural reset](../../../docs/architecture-reset.md) and
+> [issue #39](https://github.com/LevitateOS/soda-os/issues/39).
+
 `SodaService` is a private gRPC API served over `/run/soda/sodad.sock`. The
 daemon owns validation and must return canonical gRPC status codes; Cockpit and
 CLI clients translate these codes without exposing raw internal errors.
