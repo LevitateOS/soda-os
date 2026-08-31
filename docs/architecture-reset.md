@@ -141,6 +141,7 @@ The problem is using those mechanisms to support a copied authority.
 | Remote session transport | OpenSSH |
 | Human process and filesystem identity | Linux UID and account |
 | Administrator status | Linux administrator membership, currently `wheel` |
+| Project creation and maintenance authority | The acting user's applicable filesystem and canonical Git-host permissions |
 | Host state and service control | Linux kernel, systemd, PAM, polkit, and standard system interfaces |
 | Host administration interface | Cockpit |
 | Product-specific administration composition | Soda Cockpit package |
@@ -181,6 +182,22 @@ provider administration is outside the initial Soda contract.
 Importing an external repository into bundled Forgejo is a separate explicit
 operation. Once the import is accepted and verified, bundled Forgejo becomes
 the canonical host. Merely cloning an external URL does not change authority.
+
+### Ordinary users may create and maintain projects
+
+Ordinary Linux users may create Soda projects. A project creator, and any other
+person whom the applicable authoritative systems permit to maintain that
+project, may manage its collaborators. This does not grant Linux administrator
+status, Forgejo site administration, or authority over unrelated projects.
+
+Collaborator management remains faceted by authoritative owner. Soda may
+coordinate supported local workspace and shared-resource access and, for
+bundled Forgejo, supported native repository grants and revocations when the
+acting user has the corresponding Forgejo-native authority. For an external
+canonical host, provider-side collaborator administration remains external.
+
+Soda does not persist a parallel project-owner or project-administrator role,
+collaborator list, or copied permission state to authorize these operations.
 
 External repository access is capability-based. Soda normally cannot determine
 authoritative membership or grant access on an arbitrary external host. It can
@@ -469,9 +486,11 @@ The intended install-to-development path is:
 10. Let Git and the canonical host own branch sharing and any review, issue, or
     release facilities the host provides.
 
-The exact bootstrap path for steps 2 and 3 and the privilege required for steps
-5 through 8 remain under review. The workflow defines the user outcome without
-manufacturing implementation authority.
+Steps 5 through 8 do not require Linux administrator status merely because they
+are Soda project operations. Ordinary users may perform them for projects they
+create or are authorized to maintain. The concrete owner-native authorization
+and privileged-operation boundaries remain under review; the workflow defines
+the user outcome without manufacturing implementation authority.
 
 ## Consequences
 
@@ -519,6 +538,12 @@ manufacturing implementation authority.
 - External provider administration is outside the initial Soda contract.
 - One Linux user represents one human.
 - Linux administrator status is authoritative for Soda administration.
+- Ordinary users may create projects and manage collaborators for projects they
+  create or are authorized to maintain, without gaining host administration or
+  authority over unrelated projects.
+- Project maintenance authority is derived from the applicable filesystem and
+  canonical Git-host permissions, not a parallel Soda project-administrator
+  role.
 - Installation creates the only proactive Forgejo user: a same-named
   Forgejo-local site administrator for the first Linux `wheel` user.
 - Any later Linux account accepted by the shipped Forgejo PAM policy may log in;
@@ -554,7 +579,6 @@ manufacturing implementation authority.
 
 ## Decisions still open
 
-- Whether ordinary users may create projects or manage collaborators.
 - The exact workspace root and descriptor location.
 - Whether project Unix groups are universal, optional, or unnecessary.
 - Which local project resources, if any, are shared among collaborators.
@@ -591,18 +615,22 @@ criteria and the criteria for each supported repository mode.
 3. Existing Linux accounts can be selected without importing them into a Soda
    user database.
 4. Alice and Bob connect through OpenSSH as their own Linux users.
-5. Each receives an independently writable, person-owned checkout for the same
+5. An ordinary user can create a project and manage collaborators for a project
+   they create or are authorized to maintain without gaining host
+   administration, authority over an unrelated project, or a durable Soda
+   project-administrator role.
+6. Each receives an independently writable, person-owned checkout for the same
    project.
-6. Under the selected permission policy, neither can write the other's checkout
+7. Under the selected permission policy, neither can write the other's checkout
    or access the other's private home, credentials, or active agent socket.
-7. A supported direct change in authoritative Linux state—including a Linux
+8. A supported direct change in authoritative Linux state—including a Linux
    change made through Cockpit—is reflected by Soda without import into shadow
    state.
-8. A normal bootc image update preserves Linux users, homes, repositories,
+9. A normal bootc image update preserves Linux users, homes, repositories,
    workspaces, Tailscale identity, and other retained machine-specific state.
-9. The same product-level acceptance scenarios pass on x86-64 and AArch64,
+10. The same product-level acceptance scenarios pass on x86-64 and AArch64,
    subject only to explicitly documented architecture-specific limitations.
-10. For each architecture, architecture-specific release stages execute on
+11. For each architecture, architecture-specific release stages execute on
    matching native hardware. Any cross-architecture release coordination
    consumes already verified native outputs and does not substitute for native
    execution.
@@ -629,9 +657,10 @@ criteria and the criteria for each supported repository mode.
    sessions, tokens, SSH keys, or repository authorization.
 7. Existing Forgejo accounts and repositories can be selected without being
    imported into a Soda user or repository database.
-8. Soda grants and revokes supported repository access through the reviewed
-   Forgejo integration and reports the resulting Forgejo-native authorization
-   state.
+8. An ordinary user with Forgejo-native authority for a project can perform its
+   supported repository grants and revocations without Linux administrator
+   status or a parallel Soda project role; Forgejo remains authoritative for
+   both permission and resulting state.
 9. Alice and Bob can push distinct branches and collaborate through Forgejo's
    review mechanism.
 10. Re-running a partially completed provisioning or revocation operation is
