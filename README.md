@@ -2,10 +2,18 @@
 
 ![soda os](assets/branding/source/soda-logo-horizontal.svg)
 
-Soda OS is a Fedora bootc development appliance for trusted local networks,
-with equal AArch64 and x86-64 sibling support. A thin client connects over SSH
-to project-owned development environments and uses a small Go/HTMX cockpit for
-team, project, personal workspace, and development-environment management.
+Soda OS is an opinionated Fedora bootc remote-development appliance for trusted
+private networks, with equal AArch64 and x86-64 sibling support. Lightweight
+clients connect over Tailscale and SSH to a more powerful development machine.
+Linux, OpenSSH, Cockpit, Git, Forgejo, and bootc should own their existing
+responsibilities; Soda owns the branded, installable composition and the
+smallest workflow that joins them.
+
+The current runtime grew beyond that boundary and is undergoing an
+[architectural reset](docs/architecture-reset.md). The existing implementation
+documentation remains useful evidence, but its custom database, daemon, RPC,
+dashboard, reconciliation, telemetry, toolchain, and update layers are not
+presumed to be permanent product requirements.
 
 This repository is independent from LevitateOS. It borrows the separation
 between declarative distro specifications, Go orchestration, explicit
@@ -94,6 +102,8 @@ send the selected project slug, so commands, Git, and SFTP run under the
 person's Linux UID. External repositories accept SSH remotes only and wait for
 the creator to add the displayed public key before setup continues.
 
-See [architecture](docs/architecture.md), the [runtime image and installer
-contract](docs/installer.md), the [managed listener contract](docs/networking.md),
-and the [release and operator runbook](docs/release-operations.md).
+See the [architectural reset](docs/architecture-reset.md), the
+[current pre-reset architecture](docs/architecture.md), the
+[runtime image and installer contract](docs/installer.md), the
+[managed listener contract](docs/networking.md), and the
+[release and operator runbook](docs/release-operations.md).

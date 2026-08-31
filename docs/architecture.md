@@ -1,5 +1,13 @@
 # Architecture
 
+> [!IMPORTANT]
+> This document describes the pre-reset implementation currently present in the
+> repository. It is retained as implementation evidence, not as the target
+> architecture or permanent product contract. See the
+> [architectural reset](architecture-reset.md) for the accepted product direction,
+> target ownership boundaries, multi-user model, open decisions, and review
+> issues.
+
 Soda OS keeps four ownership boundaries:
 
 1. Fedora bootc owns the base operating system and standard administration
