@@ -9,6 +9,10 @@ account-preserving OS fallback remains a blocking verification in issue #38.
 
 **Initial architecture record:** `e992e22`
 
+The [base principles](principles.md) state the product purpose and ownership
+philosophy in human terms. This record defines the exact accepted architecture,
+governing constraints, and issue boundaries.
+
 ## Product contract
 
 Soda OS is an opinionated Fedora bootc appliance for private remote

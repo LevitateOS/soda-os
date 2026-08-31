@@ -25,11 +25,13 @@ project control plane, daemon, database, RPC API, credential store, job engine,
 or reconciliation system. Podman is available as an optional development tool
 and is not the isolation mechanism.
 
-The current runtime grew beyond that boundary and is undergoing an
-[architectural reset](docs/architecture-reset.md). The existing implementation
-documentation remains useful evidence, but its custom database, daemon, RPC,
-dashboard, reconciliation, telemetry, toolchain, and update layers are not
-presumed to be permanent product requirements.
+The [base principles](docs/principles.md) state the product purpose and ownership
+philosophy. The current runtime grew beyond that boundary, and the
+[architectural reset](docs/architecture-reset.md) records the exact accepted
+architecture and issue ownership. Existing implementation documentation remains
+useful evidence, but its custom database, daemon, RPC, dashboard,
+reconciliation, telemetry, toolchain, and update layers are not presumed to be
+permanent product requirements.
 
 This repository is independent from LevitateOS. It borrows the separation
 between declarative distro specifications, Go orchestration, explicit
