@@ -40,8 +40,8 @@ COPY --chmod=0644 packaging/installer/anaconda-shell.conf /usr/lib/systemd/login
 COPY --chmod=0644 packaging/installer/pipewire-allow-root.conf /etc/systemd/user/pipewire.service.d/allowroot.conf
 COPY --chmod=0644 packaging/installer/pipewire-allow-root.conf /etc/systemd/user/pipewire.socket.d/allowroot.conf
 COPY packaging/installer/addons/org_fedoraproject_soda /usr/share/anaconda/addons/org_fedoraproject_soda
-COPY --chmod=0644 packaging/installer/addons/org.fedoraproject.Anaconda.Addons.SodaIdentity.conf /usr/share/anaconda/dbus/confs/org.fedoraproject.Anaconda.Addons.SodaIdentity.conf
-COPY --chmod=0644 packaging/installer/addons/org.fedoraproject.Anaconda.Addons.SodaIdentity.service /usr/share/anaconda/dbus/services/org.fedoraproject.Anaconda.Addons.SodaIdentity.service
+COPY --chmod=0644 packaging/installer/addons/org.fedoraproject.Anaconda.Addons.SodaInstaller.conf /usr/share/anaconda/dbus/confs/org.fedoraproject.Anaconda.Addons.SodaInstaller.conf
+COPY --chmod=0644 packaging/installer/addons/org.fedoraproject.Anaconda.Addons.SodaInstaller.service /usr/share/anaconda/dbus/services/org.fedoraproject.Anaconda.Addons.SodaInstaller.service
 
 RUN kernel="$(find /usr/lib/modules -mindepth 2 -maxdepth 2 -name vmlinuz -printf '%h\n' | sed 's#.*/##')" \
     && test -n "$kernel" \

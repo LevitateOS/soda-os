@@ -1,4 +1,4 @@
 [D-BUS Service]
-Name=org.fedoraproject.Anaconda.Addons.SodaIdentity
+Name=org.fedoraproject.Anaconda.Addons.SodaInstaller
 Exec=/usr/libexec/anaconda/start-module org_fedoraproject_soda.service
 User=root

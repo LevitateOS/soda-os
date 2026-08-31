@@ -2,6 +2,6 @@ from pyanaconda.modules.common import init
 
 init()
 
-from org_fedoraproject_soda.service.identity import SodaIdentity
+from org_fedoraproject_soda.service.installer import SodaInstaller
 
-SodaIdentity().run()
+SodaInstaller().run()

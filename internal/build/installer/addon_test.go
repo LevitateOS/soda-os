@@ -11,43 +11,106 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestSodaIdentityAddonUsesSupportedDiscoveryAndPublicHandoff(t *testing.T) {
+func TestSodaInstallerSpokeUsesNativeAccountsAndFourInputs(t *testing.T) {
 	root := filepath.Join("..", "..", "..")
 	addon := filepath.Join(root, "packaging", "installer", "addons", "org_fedoraproject_soda")
 	required := []string{
-		"__init__.py", "constants.py", "service/__main__.py", "service/identity.py",
+		"__init__.py", "constants.py", "service/__main__.py", "service/installer.py",
 		"service/interface.py", "service/installation.py", "service/kickstart.py",
-		"gui/spokes/identity.py", "gui/spokes/identity.glade",
+		"gui/spokes/installation.py", "gui/spokes/installation.glade",
 	}
 	for _, name := range required {
 		_, err := os.Stat(filepath.Join(addon, name))
 		require.NoErrorf(t, err, "missing Anaconda add-on file %s", name)
 	}
+	for _, obsolete := range []string{
+		"service/identity.py", "gui/spokes/identity.py", "gui/spokes/identity.glade",
+	} {
+		_, err := os.Stat(filepath.Join(addon, obsolete))
+		require.ErrorIs(t, err, os.ErrNotExist)
+	}
 
 	containerfile, err := os.ReadFile(filepath.Join(root, "packaging", "installer", "Containerfile"))
 	require.NoError(t, err)
 	require.Contains(t, string(containerfile), "COPY packaging/installer/addons/org_fedoraproject_soda /usr/share/anaconda/addons/org_fedoraproject_soda")
-	require.Contains(t, string(containerfile), "org.fedoraproject.Anaconda.Addons.SodaIdentity.service")
-	require.Contains(t, string(containerfile), "org.fedoraproject.Anaconda.Addons.SodaIdentity.conf")
+	require.Contains(t, string(containerfile), "org.fedoraproject.Anaconda.Addons.SodaInstaller.service")
+	require.Contains(t, string(containerfile), "org.fedoraproject.Anaconda.Addons.SodaInstaller.conf")
+	require.NotContains(t, string(containerfile), "SodaIdentity")
 
-	spoke, err := os.ReadFile(filepath.Join(addon, "gui", "spokes", "identity.py"))
+	profile, err := os.ReadFile(filepath.Join(root, "packaging", "installer", "branding", "sodaos.conf"))
 	require.NoError(t, err)
-	for _, expected := range []string{"UserSettingsCategory", "get_user_list", "users[0].gecos", "EMAIL.match", "def mandatory", "return True"} {
+	require.Contains(t, string(profile), "can_copy_input_kickstart = False")
+	require.Contains(t, string(profile), "hidden_spokes = UserSpoke PasswordSpoke")
+	require.NotContains(t, string(profile), "org.fedoraproject.Anaconda.Addons.SodaInstaller")
+
+	spoke, err := os.ReadFile(filepath.Join(addon, "gui", "spokes", "installation.py"))
+	require.NoError(t, err)
+	for _, expected := range []string{
+		"GUISpokeInputCheckHandler", "PasswordChecker", "PASSWORD_POLICY_USER",
+		"UsernameCheck", "PasswordEmptyCheck", "PasswordConfirmationCheck",
+		"PasswordValidityCheck", "PasswordASCIICheck", "try_to_go_back",
+		"UserData", "set_admin_priviledges(True)", "SshKeyData", "/usr/bin/ssh-keygen",
+		"user.is_crypted = False", `self.password_entry.set_text("")`,
+	} {
 		require.Contains(t, string(spoke), expected)
 	}
+	require.NotContains(t, string(spoke), "set_text(user.password)")
+	require.NotContains(t, string(spoke), "emailEntry")
+}
 
+func TestSodaInstallerTaskUsesBoundedNativeForgejoAndSecrets(t *testing.T) {
+	root := filepath.Join("..", "..", "..")
+	addon := filepath.Join(root, "packaging", "installer", "addons", "org_fedoraproject_soda")
 	installation, err := os.ReadFile(filepath.Join(addon, "service", "installation.py"))
 	require.NoError(t, err)
-	for _, expected := range []string{`"username": username`, `"name": name`, `"email": email`, `os.chmod(temporary, 0o600)`, `temporary.replace(path)`} {
+	for _, expected := range []string{
+		"get_user_list(self._users)", "has_admin_priviledges", "etc/passwd", "etc/group",
+		".ssh/authorized_keys", "crypt_password", "set_user_list", "os.memfd_create",
+		"fcntl.F_SEAL_WRITE", "/proc/self/fd/", `"/user/sign_up"`,
+		`"email": f"{username}@localhost"`, "DISABLE_REGISTRATION = false",
+		`"/usr/bin/systemd-tmpfiles"`, `"forgejo.conf"`,
+		"TAILSCALE_KEY_PATH", "os.O_EXCL", "os.O_NOFOLLOW", "os.replace",
+		"Anaconda's later SetContextsTask relabels /var/lib",
+	} {
 		require.Contains(t, string(installation), expected)
 	}
-	require.NotContains(t, strings.ToLower(string(installation)), "password")
+	require.NotContains(t, string(installation), "installer-admin.json")
+	require.NotContains(t, string(installation), "--password")
 
-	glade, err := os.Open(filepath.Join(addon, "gui", "spokes", "identity.glade"))
+	service, err := os.ReadFile(filepath.Join(addon, "service", "installer.py"))
 	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, glade.Close()) })
-	var document struct{}
-	require.NoError(t, xml.NewDecoder(glade).Decode(&document))
+	require.Contains(t, string(service), "ProvisionSodaInstallationTask")
+	require.NotContains(t, string(service), "return []")
+
+	iface, err := os.ReadFile(filepath.Join(addon, "service", "interface.py"))
+	require.NoError(t, err)
+	require.Contains(t, string(iface), "SetTailscaleAuthKey")
+	require.NotContains(t, strings.ToLower(string(iface)), "password")
+
+	kickstart, err := os.ReadFile(filepath.Join(addon, "service", "kickstart.py"))
+	require.NoError(t, err)
+	require.Contains(t, string(kickstart), "tailscale_auth_key")
+	require.Contains(t, string(kickstart), `return ""`)
+
+	busPolicy, err := os.ReadFile(filepath.Join(root, "packaging", "installer", "addons", "org.fedoraproject.Anaconda.Addons.SodaInstaller.conf"))
+	require.NoError(t, err)
+	require.Contains(t, string(busPolicy), `<policy user="root">`)
+	require.Contains(t, string(busPolicy), `<deny send_destination="org.fedoraproject.Anaconda.Addons.SodaInstaller"/>`)
+}
+
+func TestSodaInstallerAddonDocumentsAndPythonParse(t *testing.T) {
+	root := filepath.Join("..", "..", "..")
+	addon := filepath.Join(root, "packaging", "installer", "addons", "org_fedoraproject_soda")
+	for _, document := range []string{
+		filepath.Join(addon, "gui", "spokes", "installation.glade"),
+		filepath.Join(root, "packaging", "installer", "addons", "org.fedoraproject.Anaconda.Addons.SodaInstaller.conf"),
+	} {
+		file, err := os.Open(document)
+		require.NoError(t, err)
+		var parsed struct{}
+		require.NoError(t, xml.NewDecoder(file).Decode(&parsed))
+		require.NoError(t, file.Close())
+	}
 
 	var pythonFiles []string
 	require.NoError(t, filepath.WalkDir(addon, func(path string, entry os.DirEntry, walkErr error) error {
@@ -61,20 +124,77 @@ func TestSodaIdentityAddonUsesSupportedDiscoveryAndPublicHandoff(t *testing.T) {
 		output, checkErr := check.CombinedOutput()
 		require.NoErrorf(t, checkErr, "invalid Python in %s:\n%s", path, output)
 	}
+
+	spoke, err := os.ReadFile(filepath.Join(addon, "gui", "spokes", "installation.py"))
+	require.NoError(t, err)
+	require.Contains(t, string(spoke), "for check in (\n            self._username_check,")
+	require.Contains(t, string(spoke), "self.checker.add_check(check)")
 }
 
-func TestInstallerAdminFirstBootHandoffIsConditionedAndPackaged(t *testing.T) {
+func TestTailscaleEnrollmentIsOneAttemptAndAlwaysCleansSecrets(t *testing.T) {
 	root := filepath.Join("..", "..", "..")
-	unit, err := os.ReadFile(filepath.Join(root, "packaging", "rpm", "runtime", "sources", "systemd", "soda-installer-import.service"))
+	unitPath := filepath.Join(root, "packaging", "rpm", "runtime", "sources", "systemd", "soda-tailscale-enroll.service")
+	unit, err := os.ReadFile(unitPath)
 	require.NoError(t, err)
 	for _, expected := range []string{
-		"ConditionPathExists=/var/lib/soda/installer-admin.json",
-		"Requires=sodad.service", "After=sodad.service",
-		"ExecStart=/usr/bin/sodactl people import-installer --file /var/lib/soda/installer-admin.json",
+		"Wants=network-online.target tailscaled.service",
+		"After=network-online.target tailscaled.service",
+		"Type=oneshot", "TimeoutStartSec=2min",
+		"ExecStart=/usr/bin/tailscale up --auth-key=file:/var/lib/soda-install/tailscale-auth-key",
+		"ExecStopPost=-/usr/bin/unlink /var/lib/soda-install/tailscale-auth-key",
+		"ExecStopPost=-/usr/bin/rmdir /var/lib/soda-install",
+		"ExecStopPost=-/usr/bin/systemctl --no-reload --quiet disable soda-tailscale-enroll.service",
 	} {
 		require.Contains(t, string(unit), expected)
 	}
+	for _, forbidden := range []string{"ConditionPathExists", "Restart=", "Requires=", "Environment="} {
+		require.NotContains(t, string(unit), forbidden)
+	}
+
 	preset, err := os.ReadFile(filepath.Join(root, "packaging", "rpm", "runtime", "sources", "systemd", "90-soda.preset"))
 	require.NoError(t, err)
-	require.Contains(t, string(preset), "enable soda-installer-import.service")
+	require.Contains(t, string(preset), "enable soda-tailscale-enroll.service")
+	require.NotContains(t, string(preset), "soda-installer-import.service")
+
+	for _, obsolete := range []string{
+		filepath.Join(root, "packaging", "rpm", "runtime", "sources", "systemd", "soda-installer-import.service"),
+		filepath.Join(root, "packaging", "rpm", "runtime", "sources", "systemd", "tailscaled.service.d", "10-soda-state.conf"),
+	} {
+		_, err := os.Stat(obsolete)
+		require.ErrorIs(t, err, os.ErrNotExist)
+	}
+}
+
+func TestUnattendedInstallerInputsMatchTheFourValueContract(t *testing.T) {
+	root := filepath.Join("..", "..", "..")
+	runner, err := os.ReadFile(filepath.Join(root, "tests", "acceptance", "unattended.sh"))
+	require.NoError(t, err)
+	for _, expected := range []string{
+		"SODA_ACCEPTANCE_TAILSCALE_AUTH_KEY_FILE",
+		`user --name=$admin --groups=wheel --password="$password" --plaintext`,
+		`sshkey --username=$admin "$public_key"`,
+		"tailscale_auth_key=$tailscale_auth_key",
+		"os.lstat(source_name)",
+		"source_stat.st_mode & 0o077",
+		"Tailscale auth key input must remain outside acceptance evidence",
+		`rm -f "$kickstart"`,
+		"trap abort_prepare 1 2 15",
+	} {
+		require.Contains(t, string(runner), expected)
+	}
+	for _, obsolete := range []string{
+		"SODA_ACCEPTANCE_ADMIN_NAME", "SODA_ACCEPTANCE_ADMIN_EMAIL",
+		"name=$admin_name", "email=$admin_email", "/etc/soda/authorized_keys",
+	} {
+		require.NotContains(t, string(runner), obsolete)
+	}
+
+	bootRunner, err := os.ReadFile(filepath.Join(root, "tests", "acceptance", "bootc.sh"))
+	require.NoError(t, err)
+	require.Contains(t, string(bootRunner), "id=soda-oemdrv-device")
+	require.Contains(t, string(bootRunner), `"execute":"blockdev-remove-medium"`)
+	require.Contains(t, string(bootRunner), `rm -f "$installer_input"`)
+	require.Contains(t, string(bootRunner), "installer-input-eject.jsonl")
+	require.Contains(t, string(bootRunner), `"$admin@$guest_host"`)
+	require.Contains(t, string(bootRunner), `https://$guest_host:$guest_cockpit_port/healthz`)
 }

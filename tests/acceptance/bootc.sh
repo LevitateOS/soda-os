@@ -19,6 +19,7 @@ Required environment:
   SODA_ACCEPTANCE_ARCHITECTURE     Sibling architecture: aarch64 or x86_64
   SODA_ACCEPTANCE_ADMIN_KEY        Private SSH key for the Anaconda administrator
   SODA_ACCEPTANCE_IMAGE_DIGEST     Expected sha256:... release digest for capture
+  SODA_ACCEPTANCE_GUEST_HOST       Guest Tailnet IP or MagicDNS name
 
 Additional launch install environment:
   SODA_ACCEPTANCE_ISO              Exact-digest Soda installer ISO
@@ -38,6 +39,8 @@ Optional environment:
   SODA_ACCEPTANCE_HOST=127.0.0.1
   SODA_ACCEPTANCE_SSH_PORT=2222
   SODA_ACCEPTANCE_COCKPIT_PORT=9090
+  SODA_ACCEPTANCE_GUEST_SSH_PORT=22
+  SODA_ACCEPTANCE_GUEST_COCKPIT_PORT=9090
   SODA_ACCEPTANCE_VNC=127.0.0.1:1  Loopback VNC endpoint for x86-64 graphical install
   SODA_ACCEPTANCE_ADMIN_PASSWORD_FILE=<test-only administrator password file>
   SODA_ACCEPTANCE_DISK=$SODA_ACCEPTANCE_DIR/soda-system.qcow2
@@ -71,6 +74,9 @@ admin=${SODA_ACCEPTANCE_ADMIN:-vince}
 host=${SODA_ACCEPTANCE_HOST:-127.0.0.1}
 ssh_port=${SODA_ACCEPTANCE_SSH_PORT:-2222}
 cockpit_port=${SODA_ACCEPTANCE_COCKPIT_PORT:-9090}
+guest_host=${SODA_ACCEPTANCE_GUEST_HOST:-}
+guest_ssh_port=${SODA_ACCEPTANCE_GUEST_SSH_PORT:-22}
+guest_cockpit_port=${SODA_ACCEPTANCE_GUEST_COCKPIT_PORT:-9090}
 
 require_dir() {
 	case "$architecture" in
@@ -95,17 +101,23 @@ qmp_path() {
 	printf '%s/qmp.sock\n' "$acceptance_dir"
 }
 
+require_guest_endpoint() {
+	[ -n "$guest_host" ] || die "SODA_ACCEPTANCE_GUEST_HOST must name the enrolled guest on the Tailnet"
+}
+
 admin_ssh() {
+	require_guest_endpoint
 	admin_key=${SODA_ACCEPTANCE_ADMIN_KEY:-}
 	[ -n "$admin_key" ] || die "SODA_ACCEPTANCE_ADMIN_KEY is required"
 	need_file "$admin_key"
 	need_file "$(known_hosts_path)"
 	ssh -T -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
-		-o "UserKnownHostsFile=$(known_hosts_path)" -i "$admin_key" -p "$ssh_port" \
-		"$admin@$host" "$@"
+		-o "UserKnownHostsFile=$(known_hosts_path)" -i "$admin_key" -p "$guest_ssh_port" \
+		"$admin@$guest_host" "$@"
 }
 
 workspace_ssh() {
+	require_guest_endpoint
 	workspace_target=${SODA_ACCEPTANCE_WORKSPACE_TARGET:-}
 	workspace_project=${SODA_ACCEPTANCE_PROJECT:-}
 	workspace_key=${SODA_ACCEPTANCE_WORKSPACE_KEY:-}
@@ -116,8 +128,8 @@ workspace_ssh() {
 	need_file "$(known_hosts_path)"
 	ssh -T -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
 		-o "SetEnv=SODA_PROJECT=$workspace_project" \
-		-o "UserKnownHostsFile=$(known_hosts_path)" -i "$workspace_key" -p "$ssh_port" \
-		"$workspace_target@$host" "$@"
+		-o "UserKnownHostsFile=$(known_hosts_path)" -i "$workspace_key" -p "$guest_ssh_port" \
+		"$workspace_target@$guest_host" "$@"
 }
 
 qmp() {
@@ -131,6 +143,46 @@ qmp() {
 	else
 		die "QMP requires socat or netcat with Unix-socket support"
 	fi
+}
+
+start_installer_input_ejector() {
+	installer_input=$1
+	qemu_pid=$$
+	(
+		ejected=false
+		eject_tmp=$acceptance_dir/.installer-input-eject.$$.jsonl
+		cleanup_ejector() {
+			rm -f "$installer_input" "$eject_tmp"
+			if [ "$ejected" != true ] && kill -0 "$qemu_pid" 2>/dev/null; then
+				kill -TERM "$qemu_pid" 2>/dev/null || true
+			fi
+		}
+		abort_ejector() {
+			trap - 1 2 15
+			exit 1
+		}
+		trap cleanup_ejector 0
+		trap abort_ejector 1 2 15
+
+		deadline=$(( $(date +%s) + 600 ))
+		until grep -a -E -q 'because of an automated install|explicitly asked for in kickstart' "$acceptance_dir/serial.log" 2>/dev/null; do
+			kill -0 "$qemu_pid" 2>/dev/null || exit 1
+			[ "$(date +%s)" -lt "$deadline" ] || die "Anaconda did not confirm consuming the Kickstart within 600 seconds"
+			sleep 1
+		done
+
+		qmp '{"execute":"blockdev-open-tray","arguments":{"id":"soda-oemdrv-device","force":true}}' >"$eject_tmp"
+		qmp '{"execute":"blockdev-remove-medium","arguments":{"id":"soda-oemdrv-device"}}' >>"$eject_tmp"
+		qmp '{"execute":"query-block"}' >>"$eject_tmp"
+		! grep -q '"error"' "$eject_tmp" || die "QEMU rejected removal of the installer input"
+		jq -e 'select((.return? | type) == "array") | .return[] | select(.device == "soda-oemdrv" and (has("inserted") | not))' "$eject_tmp" >/dev/null ||
+			die "QEMU still exposes the installer input"
+
+		rm -f "$installer_input"
+		mv "$eject_tmp" "$acceptance_dir/installer-input-eject.jsonl"
+		ejected=true
+		trap - 0 1 2 15
+	) &
 }
 
 launch() {
@@ -149,6 +201,7 @@ launch() {
 		need_file "$iso"
 		[ ! -e "$disk" ] || die "refusing to install over existing disk $disk"
 		"$qemu_img" create -f qcow2 "$disk" "${SODA_ACCEPTANCE_DISK_SIZE:-40G}"
+		rm -f "$acceptance_dir/serial.log" "$acceptance_dir/installer-input-eject.jsonl"
 		if [ "$architecture" = aarch64 ]; then
 			installer_args="-drive file=$iso,media=cdrom,if=virtio,format=raw,readonly=on"
 		else
@@ -157,7 +210,8 @@ launch() {
 		kickstart_iso=${SODA_ACCEPTANCE_KICKSTART_ISO:-}
 		if [ -n "$kickstart_iso" ]; then
 			need_file "$kickstart_iso"
-			installer_args="$installer_args -drive file=$kickstart_iso,media=cdrom,format=raw,readonly=on"
+			need jq
+			installer_args="$installer_args -drive if=none,file=$kickstart_iso,format=raw,readonly=on,id=soda-oemdrv -device virtio-scsi-pci,id=soda-oemdrv-scsi -device scsi-cd,drive=soda-oemdrv,id=soda-oemdrv-device"
 		fi
 	else
 		need_file "$disk"
@@ -183,6 +237,7 @@ $qemu -machine virt,accel=hvf -cpu host -smp 4 -m 4096 -bios $firmware
 EOF
 	# Word splitting is intentional for the fixed, locally constructed installer arguments.
 	# shellcheck disable=SC2086
+	[ -z "${kickstart_iso:-}" ] || start_installer_input_ejector "$kickstart_iso"
 	exec "$qemu" -machine virt,accel=hvf -cpu host -smp 4 -m 4096 -bios "$firmware" \
 		-drive "file=$disk,if=virtio,format=qcow2" $installer_args \
 		-device virtio-gpu-pci -display cocoa -device qemu-xhci -device usb-kbd -device usb-tablet \
@@ -229,6 +284,7 @@ $display_command
 EOF
 	# Word splitting is intentional for the fixed, locally constructed installer arguments.
 	# shellcheck disable=SC2086
+	[ -z "${kickstart_iso:-}" ] || start_installer_input_ejector "$kickstart_iso"
 	exec "$qemu" -machine q35,accel=kvm -cpu host -smp 4 -m 4096 \
 		-drive "if=pflash,format=raw,readonly=on,file=$firmware" \
 		-drive "if=pflash,format=raw,file=$vars" \
@@ -241,6 +297,7 @@ EOF
 
 wait_ready() {
 	require_dir
+	require_guest_endpoint
 	need curl
 	need ssh-keyscan
 	need ssh-keygen
@@ -251,7 +308,7 @@ wait_ready() {
 	trap 'rm -f "$known_hosts_tmp"' 0 1 2 15
 	while :; do
 		[ "$(date +%s)" -lt "$deadline" ] || die "installed guest SSH did not become ready within 1200 seconds"
-		ssh-keyscan -T 5 -t ed25519 -p "$ssh_port" "$host" >"$known_hosts_tmp" 2>/dev/null || true
+		ssh-keyscan -T 5 -t ed25519 -p "$guest_ssh_port" "$guest_host" >"$known_hosts_tmp" 2>/dev/null || true
 		if [ -s "$known_hosts_tmp" ]; then
 			mv "$known_hosts_tmp" "$known_hosts"
 			if admin_ssh 'id; cat /proc/sys/kernel/random/boot_id'; then
@@ -262,7 +319,7 @@ wait_ready() {
 	done
 	trap - 0 1 2 15
 	ssh-keygen -lf "$known_hosts" >"$acceptance_dir/ssh-host-key-fingerprint.txt"
-	while ! curl --fail --silent --show-error --insecure "https://$host:$cockpit_port/healthz" >/dev/null 2>&1; do
+	while ! curl --fail --silent --show-error --insecure "https://$guest_host:$guest_cockpit_port/healthz" >/dev/null 2>&1; do
 		[ "$(date +%s)" -lt "$deadline" ] || die "Cockpit did not become ready within 1200 seconds"
 		sleep 2
 	done
@@ -309,8 +366,8 @@ capture() {
 		privileged=".local/state/soda-acceptance/$name-privileged.json"
 		admin_ssh "test -r \"\$HOME/$privileged\"" || die "missing operator evidence: $privileged"
 		scp -q -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
-			-o "UserKnownHostsFile=$(known_hosts_path)" -i "${SODA_ACCEPTANCE_ADMIN_KEY}" -P "$ssh_port" \
-			"$admin@$host:$privileged" "$privileged_tmp"
+			-o "UserKnownHostsFile=$(known_hosts_path)" -i "${SODA_ACCEPTANCE_ADMIN_KEY}" -P "$guest_ssh_port" \
+			"$admin@$guest_host:$privileged" "$privileged_tmp"
 	fi
 	booted_digest=$(jq -r '.status.booted.image.imageDigest // empty' "$privileged_tmp")
 	[ "$booted_digest" = "$image_digest" ] || die "booted digest $booted_digest does not match expected $image_digest"
@@ -357,7 +414,7 @@ capture() {
 		systemctl show getty@tty1.service autovt@tty1.service -p Id -p Names -p MainPID -p NRestarts
 		sysctl kernel.printk
 	' >"$checkpoint/guest.txt" 2>"$checkpoint/guest.stderr"
-	curl --fail --silent --show-error --insecure "https://$host:$cockpit_port/healthz" >"$checkpoint/cockpit-health.txt"
+	curl --fail --silent --show-error --insecure "https://$guest_host:$guest_cockpit_port/healthz" >"$checkpoint/cockpit-health.txt"
 	capture_release_index "$checkpoint"
 
 	for artifact in "${SODA_ACCEPTANCE_RELEASE_RECORD:-}" "${SODA_ACCEPTANCE_ISO:-}"; do

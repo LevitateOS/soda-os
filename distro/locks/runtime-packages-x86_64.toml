@@ -87,6 +87,16 @@ nevra = "make-1:4.4.1-12.fc44.x86_64"
 source = "fedora"
 
 [[package]]
+name = "nftables"
+nevra = "nftables-1:1.1.6-2.fc44.x86_64"
+source = "fedora"
+
+[[package]]
+name = "nftables-services"
+nevra = "nftables-services-1:1.1.6-2.fc44.noarch"
+source = "fedora"
+
+[[package]]
 name = "policycoreutils-python-utils"
 nevra = "policycoreutils-python-utils-0:3.11-2.fc44.noarch"
 source = "fedora"

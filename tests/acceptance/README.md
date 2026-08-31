@@ -52,12 +52,21 @@ For repeatable raw-QEMU qualification, run `tests/acceptance/unattended.sh
 prepare`, load the generated `runner.env`, and use
 `tests/acceptance/bootc.sh launch install`. Raw QEMU attaches a per-run
 `OEMDRV` Kickstart ISO containing test-only identity, password, SSH-key,
-storage, and reboot inputs. The qualified Soda installer ISO remains unchanged.
-Credentials stay in the ignored acceptance evidence directory for automated
-SSH, Cockpit, privileged bootc evidence, restart, and reboot checks. The
-bootstrap key is written to Soda's authoritative per-person authorized-key path;
-qualification must then register that same key through the normal account flow
-before testing other people.
+one-use Tailscale enrollment, storage, and reboot inputs. The qualified Soda
+installer ISO remains unchanged. The runner removes the secret-bearing
+Kickstart source after creating OEMDRV. Once Anaconda reports that it parsed
+the Kickstart, the runner opens the QEMU tray, removes the medium, deletes its
+host file, and records the QMP evidence; neither secret-bearing input remains
+in the evidence directory for the installed guest.
+The administrator's test key and password stay in the ignored acceptance
+evidence directory for automated SSH, Cockpit, privileged bootc evidence,
+restart, and reboot checks. Post-install SSH and Cockpit checks connect directly
+to `SODA_ACCEPTANCE_GUEST_HOST` on the Tailnet (the Kickstart hostname
+`soda-acceptance` by default), not through QEMU's host-forwarded ports. The
+bootstrap key is installed through Anaconda's native `sshkey` input in the
+administrator's standard `~/.ssh/authorized_keys`. The protected Tailscale key
+file supplied to `prepare` must contain a disposable key for that one run and
+remains outside the generated evidence.
 8. Publish a distinct runtime digest. While a direct SSH workload stays
    active, require `sodactl os update check` and `stage` to leave the running
    deployment and services unchanged. Require an ordinary reboot before

@@ -5,7 +5,6 @@ import (
 	"context"
 	"io"
 	"net"
-	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -242,33 +241,6 @@ func TestPersonAddRequiresPasswordBeforeCallingDaemon(t *testing.T) {
 	_, err := execute(t, app, "people", "add", "--username", "vince", "--display-name", "Vince", "--email", "vince@soda.local")
 	require.EqualError(t, err, "SODA_PERSON_PASSWORD is required")
 	require.Zero(t, dials)
-}
-
-func TestInstallerPersonImportDeletesHandoffOnlyAfterSuccess(t *testing.T) {
-	handoff := filepath.Join(t.TempDir(), "installer-admin.json")
-	write := func() {
-		require.NoError(t, os.WriteFile(handoff, []byte(`{"username":"alice","name":"Alice Example","email":"alice@example.test"}`), 0o600))
-	}
-	write()
-	server := &recordingServer{}
-	app, _ := testApp(t, server)
-	_, err := execute(t, app, "people", "import-installer", "--file", handoff)
-	require.NoError(t, err)
-	request := server.got.(*sodav2.ImportPersonRequest)
-	require.Equal(t, "alice", request.Username)
-	require.Equal(t, "Alice Example", request.DisplayName)
-	require.Equal(t, "alice@example.test", request.Email)
-	require.Equal(t, sodav2.Role_ROLE_ADMIN, request.Role)
-	_, err = os.Stat(handoff)
-	require.ErrorIs(t, err, os.ErrNotExist)
-
-	write()
-	server = &recordingServer{err: status.Error(codes.Unavailable, "not ready")}
-	app, _ = testApp(t, server)
-	_, err = execute(t, app, "people", "import-installer", "--file", handoff)
-	require.Error(t, err)
-	_, statErr := os.Stat(handoff)
-	require.NoError(t, statErr)
 }
 
 func TestCanonicalGRPCErrors(t *testing.T) {

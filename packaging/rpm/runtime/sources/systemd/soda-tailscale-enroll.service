@@ -1,0 +1,15 @@
+[Unit]
+Description=Enroll Soda OS in its owner's Tailnet once
+Wants=network-online.target tailscaled.service
+After=network-online.target tailscaled.service
+
+[Service]
+Type=oneshot
+TimeoutStartSec=2min
+ExecStart=/usr/bin/tailscale up --auth-key=file:/var/lib/soda-install/tailscale-auth-key
+ExecStopPost=-/usr/bin/unlink /var/lib/soda-install/tailscale-auth-key
+ExecStopPost=-/usr/bin/rmdir /var/lib/soda-install
+ExecStopPost=-/usr/bin/systemctl --no-reload --quiet disable soda-tailscale-enroll.service
+
+[Install]
+WantedBy=multi-user.target

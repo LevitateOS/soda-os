@@ -86,7 +86,7 @@ func (a *app) peopleCommand(socket *string) *cobra.Command {
 			})
 		},
 	})
-	people.AddCommand(a.addPersonCommand(socket), a.importPersonCommand(socket), a.importInstallerPersonCommand(socket))
+	people.AddCommand(a.addPersonCommand(socket), a.importPersonCommand(socket))
 	return people
 }
 
@@ -126,35 +126,6 @@ func (a *app) importPersonCommand(socket *string) *cobra.Command {
 		})
 	}}
 	input.bind(command)
-	return command
-}
-
-func (a *app) importInstallerPersonCommand(socket *string) *cobra.Command {
-	var path string
-	command := &cobra.Command{Use: "import-installer", RunE: func(cmd *cobra.Command, _ []string) error {
-		contents, err := os.ReadFile(path)
-		if err != nil {
-			return err
-		}
-		var handoff struct {
-			Username string `json:"username"`
-			Name     string `json:"name"`
-			Email    string `json:"email"`
-		}
-		if err = json.Unmarshal(contents, &handoff); err != nil {
-			return fmt.Errorf("decode installer person: %w", err)
-		}
-		err = a.call(cmd, *socket, func(ctx context.Context, client sodav2.SodaServiceClient) (any, error) {
-			response, callErr := client.ImportPerson(ctx, &sodav2.ImportPersonRequest{Username: handoff.Username, DisplayName: handoff.Name, Email: handoff.Email, Role: sodav2.Role_ROLE_ADMIN})
-			return personJSON(response.GetPerson()), callErr
-		})
-		if err != nil {
-			return err
-		}
-		return os.Remove(path)
-	}}
-	command.Flags().StringVar(&path, "file", "", "installer person handoff file")
-	_ = command.MarkFlagRequired("file")
 	return command
 }
 
