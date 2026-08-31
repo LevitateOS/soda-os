@@ -12,3 +12,5 @@ cockpit/node_modules/
 *.key
 *.pem
 *.db
+
+.tailscale_auth_key
