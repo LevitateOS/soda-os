@@ -30,7 +30,8 @@ During `just oci ARCH`, the Go builder:
    `soda-forgejo` with the configured version, source revision, and source date;
 3. installs the exact locked transaction into the pinned Fedora bootc base;
 4. creates the fixed `soda-api` group and `soda-cockpit` service account;
-5. enables SSH, Soda services, Avahi, and the persistent-state bind mounts;
+5. enables SSH, the one-attempt Tailscale enrollment unit, native nftables,
+   Soda services, Avahi, and the persistent-state bind mounts;
 6. masks the automatic bootc update timer while retaining manual bootc
    operations;
 7. records the complete installed RPM inventory and verifies its SHA-256; and
@@ -59,8 +60,9 @@ the Anaconda stylesheet.
 
 ## Accepted initial provisioning outcome
 
-This is the accepted target for the first supported path. The current installer
-does not yet prove the complete behavior described below.
+This section records the issue #40 implementation boundary. Final installed
+Tailnet-to-stock-Cockpit and workspace-account integration evidence remains
+deferred to the dependent reset milestones and issue #25.
 
 The Linux administrator and Tailnet portion of the first supported installation
 path requires four values:
@@ -72,18 +74,32 @@ administrator SSH public key
 one-use Tailscale auth key
 ```
 
-Anaconda and Kickstart create the ordinary Linux account, add it to `wheel`, set
-its Linux password, and install its SSH public key. A minimal first-boot systemd
-oneshot passes the enrollment credential to `tailscale up` from a temporary
-file, removes that file after the enrollment attempt, and disables itself.
+The required Soda Anaconda spoke composes native Anaconda user and SSH-key data:
+Anaconda creates the ordinary Linux account, adds it to `wheel`, sets its Linux
+password, and installs its SSH public key in standard
+`~/.ssh/authorized_keys`. The native Users module holds the password only for
+the bounded installation operation; the Soda task replaces that in-memory
+value with an Anaconda-generated hash before output Kickstart is written.
+
+A minimal first-boot systemd oneshot passes the enrollment credential to
+`tailscale up` from root-owned `/var/lib/soda-install/tailscale-auth-key`,
+removes the file after the single attempt, and disables itself whether the
+attempt succeeds or fails. Tailscale retains its own node identity in its
+upstream state location; Soda no longer relocates that state.
 
 The same installation creates the only proactive Forgejo user: a same-named
-Forgejo-local site administrator through Forgejo's native administrative
-interface. The selected outcome gives it the same initial password as the Linux
-account. The installer may reuse that password only through an existing bounded
-handoff that leaves no Soda-owned credential state or retained plaintext. If
-the current installer cannot provide that direct handoff, password equality is
-reconsidered rather than expanded into Soda credential machinery.
+Forgejo-local site administrator through Forgejo's native first-user signup.
+The task initializes the target's package-owned Forgejo state, starts pinned
+Forgejo on loopback with a sealed in-memory configuration that temporarily
+permits registration, submits the password only in the loopback HTTP body,
+verifies the active administrator, and stops the transient process. Forgejo's
+durable configuration remains registration-disabled. Soda creates no separate
+Forgejo password handoff: the password is never a process argument,
+environment value, log field, or retained Soda or target file. Raw-QEMU
+acceptance necessarily carries installer inputs in a protected, transient
+Kickstart and OEMDRV image; it removes the Kickstart source after image
+creation, then uses QMP to eject the OEMDRV and removes its host file after
+Anaconda reports that it parsed the Kickstart.
 
 Forgejo's native PAM source delegates later authentication to the shipped
 `soda-forgejo` PAM policy. Any primary human Linux account accepted by that
@@ -117,6 +133,11 @@ Tailscale enrollment fails, the operator uses available local recovery or
 corrects the installer inputs and reinstalls. Acceptance testing proves private
 OpenSSH and Cockpit reachability and the absence of retained enrollment
 material; it does not create runtime verification state.
+
+The runtime uses Fedora's native `nftables.service` with one fixed Soda ruleset:
+TCP 22, 9090, and 30000 are accepted on loopback and `tailscale0` and rejected
+on other ingress. The ruleset otherwise keeps an accept policy and does not own
+project-selected ports or unrelated Linux networking.
 
 The Fedora 44 installer environment runs SELinux in permissive mode because its
 live overlay cannot be relabeled; this boot option does not change the installed
