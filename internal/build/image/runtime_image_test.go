@@ -140,6 +140,8 @@ func TestForgejoPackagingContract(t *testing.T) {
 	buildPipeline, err := os.ReadFile("rpm.go")
 	require.NoError(t, err)
 	require.Contains(t, string(buildPipeline), `"EXTRA_GOFLAGS=-buildvcs=false"`)
+	require.Contains(t, string(buildPipeline), `"GOCACHE=/src/.artifacts/build/forgejo-go-cache"`)
+	require.Contains(t, string(buildPipeline), `"GOTMPDIR=/src/.artifacts/build/forgejo-go-tmp"`)
 	require.Contains(t, string(buildPipeline), `TAGS='bindata timetzdata sqlite sqlite_unlock_notify pam' make backend`)
 }
 

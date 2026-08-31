@@ -103,14 +103,20 @@ func (b *Builder) buildForgejo(ctx context.Context) error {
 	script := strings.Join([]string{
 		"set -eu",
 		"rm -rf /src/.artifacts/build/forgejo-source",
-		"mkdir -p /src/.artifacts/build/forgejo-source",
+		"mkdir -p /src/.artifacts/build/forgejo-source /src/.artifacts/build/forgejo-go-cache /src/.artifacts/build/forgejo-go-tmp",
 		"tar -xzf /src/.artifacts/tools/forgejo-src-" + forgejoVersion + ".tar.gz -C /src/.artifacts/build/forgejo-source --strip-components=1",
 		"cd /src/.artifacts/build/forgejo-source",
 		"TAGS='bindata timetzdata sqlite sqlite_unlock_notify pam' make backend",
 		"install -m 0755 gitea /src/.artifacts/build/forgejo",
 		"/src/.artifacts/build/forgejo --version | grep -F ': bindata, timetzdata, sqlite, sqlite_unlock_notify, pam'",
 	}, "\n")
-	return b.docker(ctx, []string{"CGO_ENABLED=1", "EXTRA_GOFLAGS=-buildvcs=false", "SOURCE_DATE_EPOCH=" + fmt.Sprint(b.Spec.Build.SourceDateEpoch)}, "sh", "-c", script)
+	return b.docker(ctx, []string{
+		"CGO_ENABLED=1",
+		"EXTRA_GOFLAGS=-buildvcs=false",
+		"GOCACHE=/src/.artifacts/build/forgejo-go-cache",
+		"GOTMPDIR=/src/.artifacts/build/forgejo-go-tmp",
+		"SOURCE_DATE_EPOCH=" + fmt.Sprint(b.Spec.Build.SourceDateEpoch),
+	}, "sh", "-c", script)
 }
 
 func (b *Builder) buildGoBinaries(ctx context.Context, revision string) error {
