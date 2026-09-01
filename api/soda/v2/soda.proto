@@ -2,57 +2,10 @@ syntax = "proto3";
 
 package soda.v2;
 
-import "google/protobuf/timestamp.proto";
-
 option go_package = "github.com/LevitateOS/soda-os/internal/gen/soda/v2;sodav2";
 
 service SodaService {
   rpc Health(HealthRequest) returns (HealthResponse);
-  rpc GetHostStatus(GetHostStatusRequest) returns (GetHostStatusResponse);
-}
-
-enum RuntimeState {
-  RUNTIME_STATE_UNSPECIFIED = 0;
-  RUNTIME_STATE_READY = 1;
-  RUNTIME_STATE_DEGRADED = 2;
-  RUNTIME_STATE_UNAVAILABLE = 3;
-}
-
-message ServiceStatus {
-  string name = 1;
-  RuntimeState state = 2;
-}
-
-message NetworkInterface {
-  string name = 1;
-  repeated string addresses = 2;
-}
-
-message FilesystemStatus {
-  string path = 1;
-  uint64 total_bytes = 2;
-  uint64 available_bytes = 3;
-}
-
-message LoadAverage {
-  double one_minute = 1;
-  double five_minutes = 2;
-  double fifteen_minutes = 3;
-}
-
-message HostStatus {
-  google.protobuf.Timestamp sampled_at = 1;
-  RuntimeState overall = 2;
-  repeated ServiceStatus services = 3;
-  bool ssh_firewall_ready = 4;
-  bool cockpit_firewall_ready = 5;
-  repeated NetworkInterface interfaces = 6;
-  optional double cpu_percent = 7;
-  LoadAverage load_average = 8;
-  uint64 uptime_seconds = 9;
-  uint64 memory_total_bytes = 10;
-  uint64 memory_available_bytes = 11;
-  repeated FilesystemStatus filesystems = 12;
 }
 
 message HealthRequest {}
@@ -61,10 +14,4 @@ message HealthResponse {
   string status = 1;
   string service = 2;
   string version = 3;
-}
-
-message GetHostStatusRequest {}
-
-message GetHostStatusResponse {
-  HostStatus host = 1;
 }

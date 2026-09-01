@@ -9,7 +9,6 @@ import (
 
 	"github.com/LevitateOS/soda-os/internal/config"
 	"github.com/LevitateOS/soda-os/internal/daemon"
-	"github.com/LevitateOS/soda-os/internal/telemetry"
 )
 
 func main() {
@@ -25,19 +24,12 @@ func run(logger *slog.Logger) error {
 	defer stop()
 
 	socket := env("SODA_SOCKET", config.DefaultDaemonSocket)
-	observer, err := telemetry.NewManager(telemetry.NewSystemHostSampler(nil, nil))
-	if err != nil {
-		return err
-	}
-	service := daemon.New(daemon.Options{
-		Telemetry: daemon.NewTelemetryAdapter(observer),
-	})
+	service := daemon.New()
 	server, err := daemon.ListenUnix(socket, service, logger)
 	if err != nil {
 		return err
 	}
 	defer server.Stop()
-	observer.Run(runContext)
 	serveError := make(chan error, 1)
 	go func() { serveError <- server.Serve() }()
 	logger.Info("sodad listening", slog.String("socket", socket))

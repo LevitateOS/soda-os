@@ -13,7 +13,6 @@ func TestSodaServiceContractContainsOnlyTemporaryRuntimeOperations(t *testing.T)
 
 	wantMethods := []protoreflect.Name{
 		"Health",
-		"GetHostStatus",
 	}
 	require.Equal(t, len(wantMethods), service.Methods().Len())
 	for _, methodName := range wantMethods {

@@ -9,7 +9,6 @@ package sodav2
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
-	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 	reflect "reflect"
 	sync "sync"
 	unsafe "unsafe"
@@ -22,414 +21,6 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-type RuntimeState int32
-
-const (
-	RuntimeState_RUNTIME_STATE_UNSPECIFIED RuntimeState = 0
-	RuntimeState_RUNTIME_STATE_READY       RuntimeState = 1
-	RuntimeState_RUNTIME_STATE_DEGRADED    RuntimeState = 2
-	RuntimeState_RUNTIME_STATE_UNAVAILABLE RuntimeState = 3
-)
-
-// Enum value maps for RuntimeState.
-var (
-	RuntimeState_name = map[int32]string{
-		0: "RUNTIME_STATE_UNSPECIFIED",
-		1: "RUNTIME_STATE_READY",
-		2: "RUNTIME_STATE_DEGRADED",
-		3: "RUNTIME_STATE_UNAVAILABLE",
-	}
-	RuntimeState_value = map[string]int32{
-		"RUNTIME_STATE_UNSPECIFIED": 0,
-		"RUNTIME_STATE_READY":       1,
-		"RUNTIME_STATE_DEGRADED":    2,
-		"RUNTIME_STATE_UNAVAILABLE": 3,
-	}
-)
-
-func (x RuntimeState) Enum() *RuntimeState {
-	p := new(RuntimeState)
-	*p = x
-	return p
-}
-
-func (x RuntimeState) String() string {
-	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
-}
-
-func (RuntimeState) Descriptor() protoreflect.EnumDescriptor {
-	return file_soda_v2_soda_proto_enumTypes[0].Descriptor()
-}
-
-func (RuntimeState) Type() protoreflect.EnumType {
-	return &file_soda_v2_soda_proto_enumTypes[0]
-}
-
-func (x RuntimeState) Number() protoreflect.EnumNumber {
-	return protoreflect.EnumNumber(x)
-}
-
-// Deprecated: Use RuntimeState.Descriptor instead.
-func (RuntimeState) EnumDescriptor() ([]byte, []int) {
-	return file_soda_v2_soda_proto_rawDescGZIP(), []int{0}
-}
-
-type ServiceStatus struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
-	State         RuntimeState           `protobuf:"varint,2,opt,name=state,proto3,enum=soda.v2.RuntimeState" json:"state,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *ServiceStatus) Reset() {
-	*x = ServiceStatus{}
-	mi := &file_soda_v2_soda_proto_msgTypes[0]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *ServiceStatus) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*ServiceStatus) ProtoMessage() {}
-
-func (x *ServiceStatus) ProtoReflect() protoreflect.Message {
-	mi := &file_soda_v2_soda_proto_msgTypes[0]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use ServiceStatus.ProtoReflect.Descriptor instead.
-func (*ServiceStatus) Descriptor() ([]byte, []int) {
-	return file_soda_v2_soda_proto_rawDescGZIP(), []int{0}
-}
-
-func (x *ServiceStatus) GetName() string {
-	if x != nil {
-		return x.Name
-	}
-	return ""
-}
-
-func (x *ServiceStatus) GetState() RuntimeState {
-	if x != nil {
-		return x.State
-	}
-	return RuntimeState_RUNTIME_STATE_UNSPECIFIED
-}
-
-type NetworkInterface struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
-	Addresses     []string               `protobuf:"bytes,2,rep,name=addresses,proto3" json:"addresses,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *NetworkInterface) Reset() {
-	*x = NetworkInterface{}
-	mi := &file_soda_v2_soda_proto_msgTypes[1]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *NetworkInterface) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*NetworkInterface) ProtoMessage() {}
-
-func (x *NetworkInterface) ProtoReflect() protoreflect.Message {
-	mi := &file_soda_v2_soda_proto_msgTypes[1]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use NetworkInterface.ProtoReflect.Descriptor instead.
-func (*NetworkInterface) Descriptor() ([]byte, []int) {
-	return file_soda_v2_soda_proto_rawDescGZIP(), []int{1}
-}
-
-func (x *NetworkInterface) GetName() string {
-	if x != nil {
-		return x.Name
-	}
-	return ""
-}
-
-func (x *NetworkInterface) GetAddresses() []string {
-	if x != nil {
-		return x.Addresses
-	}
-	return nil
-}
-
-type FilesystemStatus struct {
-	state          protoimpl.MessageState `protogen:"open.v1"`
-	Path           string                 `protobuf:"bytes,1,opt,name=path,proto3" json:"path,omitempty"`
-	TotalBytes     uint64                 `protobuf:"varint,2,opt,name=total_bytes,json=totalBytes,proto3" json:"total_bytes,omitempty"`
-	AvailableBytes uint64                 `protobuf:"varint,3,opt,name=available_bytes,json=availableBytes,proto3" json:"available_bytes,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
-}
-
-func (x *FilesystemStatus) Reset() {
-	*x = FilesystemStatus{}
-	mi := &file_soda_v2_soda_proto_msgTypes[2]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *FilesystemStatus) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*FilesystemStatus) ProtoMessage() {}
-
-func (x *FilesystemStatus) ProtoReflect() protoreflect.Message {
-	mi := &file_soda_v2_soda_proto_msgTypes[2]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use FilesystemStatus.ProtoReflect.Descriptor instead.
-func (*FilesystemStatus) Descriptor() ([]byte, []int) {
-	return file_soda_v2_soda_proto_rawDescGZIP(), []int{2}
-}
-
-func (x *FilesystemStatus) GetPath() string {
-	if x != nil {
-		return x.Path
-	}
-	return ""
-}
-
-func (x *FilesystemStatus) GetTotalBytes() uint64 {
-	if x != nil {
-		return x.TotalBytes
-	}
-	return 0
-}
-
-func (x *FilesystemStatus) GetAvailableBytes() uint64 {
-	if x != nil {
-		return x.AvailableBytes
-	}
-	return 0
-}
-
-type LoadAverage struct {
-	state          protoimpl.MessageState `protogen:"open.v1"`
-	OneMinute      float64                `protobuf:"fixed64,1,opt,name=one_minute,json=oneMinute,proto3" json:"one_minute,omitempty"`
-	FiveMinutes    float64                `protobuf:"fixed64,2,opt,name=five_minutes,json=fiveMinutes,proto3" json:"five_minutes,omitempty"`
-	FifteenMinutes float64                `protobuf:"fixed64,3,opt,name=fifteen_minutes,json=fifteenMinutes,proto3" json:"fifteen_minutes,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
-}
-
-func (x *LoadAverage) Reset() {
-	*x = LoadAverage{}
-	mi := &file_soda_v2_soda_proto_msgTypes[3]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *LoadAverage) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*LoadAverage) ProtoMessage() {}
-
-func (x *LoadAverage) ProtoReflect() protoreflect.Message {
-	mi := &file_soda_v2_soda_proto_msgTypes[3]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use LoadAverage.ProtoReflect.Descriptor instead.
-func (*LoadAverage) Descriptor() ([]byte, []int) {
-	return file_soda_v2_soda_proto_rawDescGZIP(), []int{3}
-}
-
-func (x *LoadAverage) GetOneMinute() float64 {
-	if x != nil {
-		return x.OneMinute
-	}
-	return 0
-}
-
-func (x *LoadAverage) GetFiveMinutes() float64 {
-	if x != nil {
-		return x.FiveMinutes
-	}
-	return 0
-}
-
-func (x *LoadAverage) GetFifteenMinutes() float64 {
-	if x != nil {
-		return x.FifteenMinutes
-	}
-	return 0
-}
-
-type HostStatus struct {
-	state                protoimpl.MessageState `protogen:"open.v1"`
-	SampledAt            *timestamppb.Timestamp `protobuf:"bytes,1,opt,name=sampled_at,json=sampledAt,proto3" json:"sampled_at,omitempty"`
-	Overall              RuntimeState           `protobuf:"varint,2,opt,name=overall,proto3,enum=soda.v2.RuntimeState" json:"overall,omitempty"`
-	Services             []*ServiceStatus       `protobuf:"bytes,3,rep,name=services,proto3" json:"services,omitempty"`
-	SshFirewallReady     bool                   `protobuf:"varint,4,opt,name=ssh_firewall_ready,json=sshFirewallReady,proto3" json:"ssh_firewall_ready,omitempty"`
-	CockpitFirewallReady bool                   `protobuf:"varint,5,opt,name=cockpit_firewall_ready,json=cockpitFirewallReady,proto3" json:"cockpit_firewall_ready,omitempty"`
-	Interfaces           []*NetworkInterface    `protobuf:"bytes,6,rep,name=interfaces,proto3" json:"interfaces,omitempty"`
-	CpuPercent           *float64               `protobuf:"fixed64,7,opt,name=cpu_percent,json=cpuPercent,proto3,oneof" json:"cpu_percent,omitempty"`
-	LoadAverage          *LoadAverage           `protobuf:"bytes,8,opt,name=load_average,json=loadAverage,proto3" json:"load_average,omitempty"`
-	UptimeSeconds        uint64                 `protobuf:"varint,9,opt,name=uptime_seconds,json=uptimeSeconds,proto3" json:"uptime_seconds,omitempty"`
-	MemoryTotalBytes     uint64                 `protobuf:"varint,10,opt,name=memory_total_bytes,json=memoryTotalBytes,proto3" json:"memory_total_bytes,omitempty"`
-	MemoryAvailableBytes uint64                 `protobuf:"varint,11,opt,name=memory_available_bytes,json=memoryAvailableBytes,proto3" json:"memory_available_bytes,omitempty"`
-	Filesystems          []*FilesystemStatus    `protobuf:"bytes,12,rep,name=filesystems,proto3" json:"filesystems,omitempty"`
-	unknownFields        protoimpl.UnknownFields
-	sizeCache            protoimpl.SizeCache
-}
-
-func (x *HostStatus) Reset() {
-	*x = HostStatus{}
-	mi := &file_soda_v2_soda_proto_msgTypes[4]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *HostStatus) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*HostStatus) ProtoMessage() {}
-
-func (x *HostStatus) ProtoReflect() protoreflect.Message {
-	mi := &file_soda_v2_soda_proto_msgTypes[4]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use HostStatus.ProtoReflect.Descriptor instead.
-func (*HostStatus) Descriptor() ([]byte, []int) {
-	return file_soda_v2_soda_proto_rawDescGZIP(), []int{4}
-}
-
-func (x *HostStatus) GetSampledAt() *timestamppb.Timestamp {
-	if x != nil {
-		return x.SampledAt
-	}
-	return nil
-}
-
-func (x *HostStatus) GetOverall() RuntimeState {
-	if x != nil {
-		return x.Overall
-	}
-	return RuntimeState_RUNTIME_STATE_UNSPECIFIED
-}
-
-func (x *HostStatus) GetServices() []*ServiceStatus {
-	if x != nil {
-		return x.Services
-	}
-	return nil
-}
-
-func (x *HostStatus) GetSshFirewallReady() bool {
-	if x != nil {
-		return x.SshFirewallReady
-	}
-	return false
-}
-
-func (x *HostStatus) GetCockpitFirewallReady() bool {
-	if x != nil {
-		return x.CockpitFirewallReady
-	}
-	return false
-}
-
-func (x *HostStatus) GetInterfaces() []*NetworkInterface {
-	if x != nil {
-		return x.Interfaces
-	}
-	return nil
-}
-
-func (x *HostStatus) GetCpuPercent() float64 {
-	if x != nil && x.CpuPercent != nil {
-		return *x.CpuPercent
-	}
-	return 0
-}
-
-func (x *HostStatus) GetLoadAverage() *LoadAverage {
-	if x != nil {
-		return x.LoadAverage
-	}
-	return nil
-}
-
-func (x *HostStatus) GetUptimeSeconds() uint64 {
-	if x != nil {
-		return x.UptimeSeconds
-	}
-	return 0
-}
-
-func (x *HostStatus) GetMemoryTotalBytes() uint64 {
-	if x != nil {
-		return x.MemoryTotalBytes
-	}
-	return 0
-}
-
-func (x *HostStatus) GetMemoryAvailableBytes() uint64 {
-	if x != nil {
-		return x.MemoryAvailableBytes
-	}
-	return 0
-}
-
-func (x *HostStatus) GetFilesystems() []*FilesystemStatus {
-	if x != nil {
-		return x.Filesystems
-	}
-	return nil
-}
-
 type HealthRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
@@ -438,7 +29,7 @@ type HealthRequest struct {
 
 func (x *HealthRequest) Reset() {
 	*x = HealthRequest{}
-	mi := &file_soda_v2_soda_proto_msgTypes[5]
+	mi := &file_soda_v2_soda_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -450,7 +41,7 @@ func (x *HealthRequest) String() string {
 func (*HealthRequest) ProtoMessage() {}
 
 func (x *HealthRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_soda_v2_soda_proto_msgTypes[5]
+	mi := &file_soda_v2_soda_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -463,7 +54,7 @@ func (x *HealthRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HealthRequest.ProtoReflect.Descriptor instead.
 func (*HealthRequest) Descriptor() ([]byte, []int) {
-	return file_soda_v2_soda_proto_rawDescGZIP(), []int{5}
+	return file_soda_v2_soda_proto_rawDescGZIP(), []int{0}
 }
 
 type HealthResponse struct {
@@ -477,7 +68,7 @@ type HealthResponse struct {
 
 func (x *HealthResponse) Reset() {
 	*x = HealthResponse{}
-	mi := &file_soda_v2_soda_proto_msgTypes[6]
+	mi := &file_soda_v2_soda_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -489,7 +80,7 @@ func (x *HealthResponse) String() string {
 func (*HealthResponse) ProtoMessage() {}
 
 func (x *HealthResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_soda_v2_soda_proto_msgTypes[6]
+	mi := &file_soda_v2_soda_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -502,7 +93,7 @@ func (x *HealthResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HealthResponse.ProtoReflect.Descriptor instead.
 func (*HealthResponse) Descriptor() ([]byte, []int) {
-	return file_soda_v2_soda_proto_rawDescGZIP(), []int{6}
+	return file_soda_v2_soda_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *HealthResponse) GetStatus() string {
@@ -526,143 +117,18 @@ func (x *HealthResponse) GetVersion() string {
 	return ""
 }
 
-type GetHostStatusRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *GetHostStatusRequest) Reset() {
-	*x = GetHostStatusRequest{}
-	mi := &file_soda_v2_soda_proto_msgTypes[7]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *GetHostStatusRequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*GetHostStatusRequest) ProtoMessage() {}
-
-func (x *GetHostStatusRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_soda_v2_soda_proto_msgTypes[7]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use GetHostStatusRequest.ProtoReflect.Descriptor instead.
-func (*GetHostStatusRequest) Descriptor() ([]byte, []int) {
-	return file_soda_v2_soda_proto_rawDescGZIP(), []int{7}
-}
-
-type GetHostStatusResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Host          *HostStatus            `protobuf:"bytes,1,opt,name=host,proto3" json:"host,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *GetHostStatusResponse) Reset() {
-	*x = GetHostStatusResponse{}
-	mi := &file_soda_v2_soda_proto_msgTypes[8]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *GetHostStatusResponse) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*GetHostStatusResponse) ProtoMessage() {}
-
-func (x *GetHostStatusResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_soda_v2_soda_proto_msgTypes[8]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use GetHostStatusResponse.ProtoReflect.Descriptor instead.
-func (*GetHostStatusResponse) Descriptor() ([]byte, []int) {
-	return file_soda_v2_soda_proto_rawDescGZIP(), []int{8}
-}
-
-func (x *GetHostStatusResponse) GetHost() *HostStatus {
-	if x != nil {
-		return x.Host
-	}
-	return nil
-}
-
 var File_soda_v2_soda_proto protoreflect.FileDescriptor
 
 const file_soda_v2_soda_proto_rawDesc = "" +
 	"\n" +
-	"\x12soda/v2/soda.proto\x12\asoda.v2\x1a\x1fgoogle/protobuf/timestamp.proto\"P\n" +
-	"\rServiceStatus\x12\x12\n" +
-	"\x04name\x18\x01 \x01(\tR\x04name\x12+\n" +
-	"\x05state\x18\x02 \x01(\x0e2\x15.soda.v2.RuntimeStateR\x05state\"D\n" +
-	"\x10NetworkInterface\x12\x12\n" +
-	"\x04name\x18\x01 \x01(\tR\x04name\x12\x1c\n" +
-	"\taddresses\x18\x02 \x03(\tR\taddresses\"p\n" +
-	"\x10FilesystemStatus\x12\x12\n" +
-	"\x04path\x18\x01 \x01(\tR\x04path\x12\x1f\n" +
-	"\vtotal_bytes\x18\x02 \x01(\x04R\n" +
-	"totalBytes\x12'\n" +
-	"\x0favailable_bytes\x18\x03 \x01(\x04R\x0eavailableBytes\"x\n" +
-	"\vLoadAverage\x12\x1d\n" +
-	"\n" +
-	"one_minute\x18\x01 \x01(\x01R\toneMinute\x12!\n" +
-	"\ffive_minutes\x18\x02 \x01(\x01R\vfiveMinutes\x12'\n" +
-	"\x0ffifteen_minutes\x18\x03 \x01(\x01R\x0efifteenMinutes\"\x82\x05\n" +
-	"\n" +
-	"HostStatus\x129\n" +
-	"\n" +
-	"sampled_at\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\tsampledAt\x12/\n" +
-	"\aoverall\x18\x02 \x01(\x0e2\x15.soda.v2.RuntimeStateR\aoverall\x122\n" +
-	"\bservices\x18\x03 \x03(\v2\x16.soda.v2.ServiceStatusR\bservices\x12,\n" +
-	"\x12ssh_firewall_ready\x18\x04 \x01(\bR\x10sshFirewallReady\x124\n" +
-	"\x16cockpit_firewall_ready\x18\x05 \x01(\bR\x14cockpitFirewallReady\x129\n" +
-	"\n" +
-	"interfaces\x18\x06 \x03(\v2\x19.soda.v2.NetworkInterfaceR\n" +
-	"interfaces\x12$\n" +
-	"\vcpu_percent\x18\a \x01(\x01H\x00R\n" +
-	"cpuPercent\x88\x01\x01\x127\n" +
-	"\fload_average\x18\b \x01(\v2\x14.soda.v2.LoadAverageR\vloadAverage\x12%\n" +
-	"\x0euptime_seconds\x18\t \x01(\x04R\ruptimeSeconds\x12,\n" +
-	"\x12memory_total_bytes\x18\n" +
-	" \x01(\x04R\x10memoryTotalBytes\x124\n" +
-	"\x16memory_available_bytes\x18\v \x01(\x04R\x14memoryAvailableBytes\x12;\n" +
-	"\vfilesystems\x18\f \x03(\v2\x19.soda.v2.FilesystemStatusR\vfilesystemsB\x0e\n" +
-	"\f_cpu_percent\"\x0f\n" +
+	"\x12soda/v2/soda.proto\x12\asoda.v2\"\x0f\n" +
 	"\rHealthRequest\"\\\n" +
 	"\x0eHealthResponse\x12\x16\n" +
 	"\x06status\x18\x01 \x01(\tR\x06status\x12\x18\n" +
 	"\aservice\x18\x02 \x01(\tR\aservice\x12\x18\n" +
-	"\aversion\x18\x03 \x01(\tR\aversion\"\x16\n" +
-	"\x14GetHostStatusRequest\"@\n" +
-	"\x15GetHostStatusResponse\x12'\n" +
-	"\x04host\x18\x01 \x01(\v2\x13.soda.v2.HostStatusR\x04host*\x81\x01\n" +
-	"\fRuntimeState\x12\x1d\n" +
-	"\x19RUNTIME_STATE_UNSPECIFIED\x10\x00\x12\x17\n" +
-	"\x13RUNTIME_STATE_READY\x10\x01\x12\x1a\n" +
-	"\x16RUNTIME_STATE_DEGRADED\x10\x02\x12\x1d\n" +
-	"\x19RUNTIME_STATE_UNAVAILABLE\x10\x032\x98\x01\n" +
+	"\aversion\x18\x03 \x01(\tR\aversion2H\n" +
 	"\vSodaService\x129\n" +
-	"\x06Health\x12\x16.soda.v2.HealthRequest\x1a\x17.soda.v2.HealthResponse\x12N\n" +
-	"\rGetHostStatus\x12\x1d.soda.v2.GetHostStatusRequest\x1a\x1e.soda.v2.GetHostStatusResponseB;Z9github.com/LevitateOS/soda-os/internal/gen/soda/v2;sodav2b\x06proto3"
+	"\x06Health\x12\x16.soda.v2.HealthRequest\x1a\x17.soda.v2.HealthResponseB;Z9github.com/LevitateOS/soda-os/internal/gen/soda/v2;sodav2b\x06proto3"
 
 var (
 	file_soda_v2_soda_proto_rawDescOnce sync.Once
@@ -676,39 +142,19 @@ func file_soda_v2_soda_proto_rawDescGZIP() []byte {
 	return file_soda_v2_soda_proto_rawDescData
 }
 
-var file_soda_v2_soda_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_soda_v2_soda_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
+var file_soda_v2_soda_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
 var file_soda_v2_soda_proto_goTypes = []any{
-	(RuntimeState)(0),             // 0: soda.v2.RuntimeState
-	(*ServiceStatus)(nil),         // 1: soda.v2.ServiceStatus
-	(*NetworkInterface)(nil),      // 2: soda.v2.NetworkInterface
-	(*FilesystemStatus)(nil),      // 3: soda.v2.FilesystemStatus
-	(*LoadAverage)(nil),           // 4: soda.v2.LoadAverage
-	(*HostStatus)(nil),            // 5: soda.v2.HostStatus
-	(*HealthRequest)(nil),         // 6: soda.v2.HealthRequest
-	(*HealthResponse)(nil),        // 7: soda.v2.HealthResponse
-	(*GetHostStatusRequest)(nil),  // 8: soda.v2.GetHostStatusRequest
-	(*GetHostStatusResponse)(nil), // 9: soda.v2.GetHostStatusResponse
-	(*timestamppb.Timestamp)(nil), // 10: google.protobuf.Timestamp
+	(*HealthRequest)(nil),  // 0: soda.v2.HealthRequest
+	(*HealthResponse)(nil), // 1: soda.v2.HealthResponse
 }
 var file_soda_v2_soda_proto_depIdxs = []int32{
-	0,  // 0: soda.v2.ServiceStatus.state:type_name -> soda.v2.RuntimeState
-	10, // 1: soda.v2.HostStatus.sampled_at:type_name -> google.protobuf.Timestamp
-	0,  // 2: soda.v2.HostStatus.overall:type_name -> soda.v2.RuntimeState
-	1,  // 3: soda.v2.HostStatus.services:type_name -> soda.v2.ServiceStatus
-	2,  // 4: soda.v2.HostStatus.interfaces:type_name -> soda.v2.NetworkInterface
-	4,  // 5: soda.v2.HostStatus.load_average:type_name -> soda.v2.LoadAverage
-	3,  // 6: soda.v2.HostStatus.filesystems:type_name -> soda.v2.FilesystemStatus
-	5,  // 7: soda.v2.GetHostStatusResponse.host:type_name -> soda.v2.HostStatus
-	6,  // 8: soda.v2.SodaService.Health:input_type -> soda.v2.HealthRequest
-	8,  // 9: soda.v2.SodaService.GetHostStatus:input_type -> soda.v2.GetHostStatusRequest
-	7,  // 10: soda.v2.SodaService.Health:output_type -> soda.v2.HealthResponse
-	9,  // 11: soda.v2.SodaService.GetHostStatus:output_type -> soda.v2.GetHostStatusResponse
-	10, // [10:12] is the sub-list for method output_type
-	8,  // [8:10] is the sub-list for method input_type
-	8,  // [8:8] is the sub-list for extension type_name
-	8,  // [8:8] is the sub-list for extension extendee
-	0,  // [0:8] is the sub-list for field type_name
+	0, // 0: soda.v2.SodaService.Health:input_type -> soda.v2.HealthRequest
+	1, // 1: soda.v2.SodaService.Health:output_type -> soda.v2.HealthResponse
+	1, // [1:2] is the sub-list for method output_type
+	0, // [0:1] is the sub-list for method input_type
+	0, // [0:0] is the sub-list for extension type_name
+	0, // [0:0] is the sub-list for extension extendee
+	0, // [0:0] is the sub-list for field type_name
 }
 
 func init() { file_soda_v2_soda_proto_init() }
@@ -716,20 +162,18 @@ func file_soda_v2_soda_proto_init() {
 	if File_soda_v2_soda_proto != nil {
 		return
 	}
-	file_soda_v2_soda_proto_msgTypes[4].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_soda_v2_soda_proto_rawDesc), len(file_soda_v2_soda_proto_rawDesc)),
-			NumEnums:      1,
-			NumMessages:   9,
+			NumEnums:      0,
+			NumMessages:   2,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
 		GoTypes:           file_soda_v2_soda_proto_goTypes,
 		DependencyIndexes: file_soda_v2_soda_proto_depIdxs,
-		EnumInfos:         file_soda_v2_soda_proto_enumTypes,
 		MessageInfos:      file_soda_v2_soda_proto_msgTypes,
 	}.Build()
 	File_soda_v2_soda_proto = out.File

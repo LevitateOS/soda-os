@@ -7,21 +7,12 @@ import (
 	"github.com/LevitateOS/soda-os/internal/version"
 )
 
-type Telemetry interface {
-	HostStatus(context.Context) (*sodav2.HostStatus, error)
-}
-
 type Service struct {
 	sodav2.UnimplementedSodaServiceServer
-	telemetry Telemetry
 }
 
-type Options struct {
-	Telemetry Telemetry
-}
-
-func New(options Options) *Service {
-	return &Service{telemetry: options.Telemetry}
+func New() *Service {
+	return &Service{}
 }
 
 func (s *Service) Health(_ context.Context, _ *sodav2.HealthRequest) (*sodav2.HealthResponse, error) {

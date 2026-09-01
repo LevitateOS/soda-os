@@ -19,8 +19,7 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	SodaService_Health_FullMethodName        = "/soda.v2.SodaService/Health"
-	SodaService_GetHostStatus_FullMethodName = "/soda.v2.SodaService/GetHostStatus"
+	SodaService_Health_FullMethodName = "/soda.v2.SodaService/Health"
 )
 
 // SodaServiceClient is the client API for SodaService service.
@@ -28,7 +27,6 @@ const (
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type SodaServiceClient interface {
 	Health(ctx context.Context, in *HealthRequest, opts ...grpc.CallOption) (*HealthResponse, error)
-	GetHostStatus(ctx context.Context, in *GetHostStatusRequest, opts ...grpc.CallOption) (*GetHostStatusResponse, error)
 }
 
 type sodaServiceClient struct {
@@ -49,22 +47,11 @@ func (c *sodaServiceClient) Health(ctx context.Context, in *HealthRequest, opts 
 	return out, nil
 }
 
-func (c *sodaServiceClient) GetHostStatus(ctx context.Context, in *GetHostStatusRequest, opts ...grpc.CallOption) (*GetHostStatusResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(GetHostStatusResponse)
-	err := c.cc.Invoke(ctx, SodaService_GetHostStatus_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
 // SodaServiceServer is the server API for SodaService service.
 // All implementations must embed UnimplementedSodaServiceServer
 // for forward compatibility.
 type SodaServiceServer interface {
 	Health(context.Context, *HealthRequest) (*HealthResponse, error)
-	GetHostStatus(context.Context, *GetHostStatusRequest) (*GetHostStatusResponse, error)
 	mustEmbedUnimplementedSodaServiceServer()
 }
 
@@ -77,9 +64,6 @@ type UnimplementedSodaServiceServer struct{}
 
 func (UnimplementedSodaServiceServer) Health(context.Context, *HealthRequest) (*HealthResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method Health not implemented")
-}
-func (UnimplementedSodaServiceServer) GetHostStatus(context.Context, *GetHostStatusRequest) (*GetHostStatusResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method GetHostStatus not implemented")
 }
 func (UnimplementedSodaServiceServer) mustEmbedUnimplementedSodaServiceServer() {}
 func (UnimplementedSodaServiceServer) testEmbeddedByValue()                     {}
@@ -120,24 +104,6 @@ func _SodaService_Health_Handler(srv interface{}, ctx context.Context, dec func(
 	return interceptor(ctx, in, info, handler)
 }
 
-func _SodaService_GetHostStatus_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetHostStatusRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(SodaServiceServer).GetHostStatus(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: SodaService_GetHostStatus_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(SodaServiceServer).GetHostStatus(ctx, req.(*GetHostStatusRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 // SodaService_ServiceDesc is the grpc.ServiceDesc for SodaService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -148,10 +114,6 @@ var SodaService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Health",
 			Handler:    _SodaService_Health_Handler,
-		},
-		{
-			MethodName: "GetHostStatus",
-			Handler:    _SodaService_GetHostStatus_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
