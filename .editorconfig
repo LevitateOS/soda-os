@@ -4,7 +4,11 @@ root = true
 indent_style = space
 indent_size = 2
 
-[*.{json,yaml,yml,toml,proto}]
+[*.{json,jsonc,yaml,yml,toml,proto}]
+indent_style = space
+indent_size = 2
+
+[*.{svg,glade,policy}]
 indent_style = space
 indent_size = 2
 
@@ -17,10 +21,20 @@ indent_style = tab
 indent_size = tab
 tab_width = 8
 
+[{go.mod,go.sum,go.work}]
+indent_style = tab
+indent_size = tab
+tab_width = 8
+
 [*.sh]
 indent_style = tab
 indent_size = tab
-tab_width = 4
+tab_width = 8
+
+[{.githooks/pre-commit,.githooks/pre-push,packaging/rpm/forgejo/sources/forgejo-init,packaging/rpm/runtime/sources/console/soda-console-welcome}]
+indent_style = tab
+indent_size = tab
+tab_width = 8
 
 [*.swift]
 indent_style = space
@@ -37,6 +51,8 @@ indent_size = 4
 [{Makefile,Makefile.*,*.mk}]
 indent_style = tab
 indent_size = tab
+tab_width = 8
 
 [*.md]
 indent_style = space
+indent_size = 4
