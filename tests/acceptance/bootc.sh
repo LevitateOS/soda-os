@@ -569,7 +569,7 @@ echo "[archive-and-data-smoke]"
 	unzip -q archive.zip
 	grep -Fx zip-ok zip-source.txt
 )
-sqlite3 "$work/smoke.db" 'CREATE TABLE smoke(value TEXT); INSERT INTO smoke VALUES ("sqlite-ok");'
+sqlite3 "$work/smoke.db" "CREATE TABLE smoke(value TEXT); INSERT INTO smoke VALUES ('sqlite-ok');"
 test "$(sqlite3 "$work/smoke.db" 'SELECT value FROM smoke;')" = sqlite-ok
 printf '{"status":"jq-ok"}\n' | jq -e '.status == "jq-ok"'
 printf 'needle\n' >"$work/search.txt"
