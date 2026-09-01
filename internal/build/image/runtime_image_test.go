@@ -66,13 +66,16 @@ func TestRuntimeImageBootcBuildContextContract(t *testing.T) {
 	require.Equal(t, []string{
 		"**",
 		"!.artifacts/",
+		".artifacts/*",
 		"!.artifacts/rpms/",
+		".artifacts/rpms/*",
 		"!.artifacts/rpms/soda-release-*.rpm",
 		"!.artifacts/rpms/soda-runtime-*.rpm",
 		"!.artifacts/rpms/soda-projects-*.rpm",
 		"!.artifacts/rpms/soda-forgejo-*.rpm",
 		"!.artifacts/rpms/soda-bun-*.rpm",
 		"!.artifacts/bootc/",
+		".artifacts/bootc/*",
 		"!.artifacts/bootc/fedora-packages.txt",
 		"!.artifacts/bootc/expected-packages.txt",
 	}, packagingNonCommentLines(string(contents)))
