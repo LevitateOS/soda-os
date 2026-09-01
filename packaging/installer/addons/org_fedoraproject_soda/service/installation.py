@@ -21,10 +21,9 @@ TAILSCALE_KEY_PATH = "/var/lib/soda-install/tailscale-auth-key"
 
 
 class ProvisionSodaInstallationTask(Task):
-    def __init__(self, sysroot, physical_root, tailscale_auth_key):
+    def __init__(self, sysroot, tailscale_auth_key):
         super().__init__()
         self._sysroot = Path(sysroot)
-        self._physical_root = Path(physical_root)
         self._tailscale_auth_key = tailscale_auth_key
         self._users = USERS.get_proxy()
 
@@ -34,9 +33,7 @@ class ProvisionSodaInstallationTask(Task):
 
     def run(self):
         passwords_replaced = False
-        persistent_var_mount = None
         try:
-            persistent_var_mount = self._ensure_persistent_bootc_var()
             users = get_user_list(self._users)
             user, password = self._validate_native_input(users)
             self._validate_installed_linux_account(user)
@@ -51,71 +48,6 @@ class ProvisionSodaInstallationTask(Task):
                     self._replace_plaintext_passwords()
             finally:
                 self._tailscale_auth_key = ""
-                if (
-                    persistent_var_mount is not None
-                    and not self._unmount_target_path(persistent_var_mount)
-                ):
-                    raise RuntimeError(
-                        "the persistent bootc variable-data mount could not be removed"
-                    )
-
-    def _resolved_target_var(self):
-        system_root = Path(os.path.realpath(self._sysroot))
-        target_var = Path(os.path.realpath(self._sysroot / "var"))
-        try:
-            relative_target = target_var.relative_to(system_root)
-        except ValueError:
-            raise RuntimeError(
-                "the target variable-data root escapes the installed system"
-            ) from None
-        if relative_target == Path(".") or not target_var.is_dir():
-            raise RuntimeError("the target variable-data root is unavailable")
-        return target_var
-
-    def _ensure_persistent_bootc_var(self):
-        deploy_root = self._physical_root / "ostree/deploy"
-        try:
-            persistent_vars = [
-                entry / "var"
-                for entry in deploy_root.iterdir()
-                if entry.is_dir()
-                and not entry.is_symlink()
-                and (entry / "var").is_dir()
-                and not (entry / "var").is_symlink()
-            ]
-        except OSError:
-            raise RuntimeError("the persistent bootc variable-data root is unavailable") from None
-        if len(persistent_vars) != 1:
-            raise RuntimeError("the persistent bootc variable-data root is ambiguous")
-
-        persistent_var = persistent_vars[0]
-        target_var = self._resolved_target_var()
-        try:
-            if target_var.samefile(persistent_var):
-                return None
-        except OSError:
-            raise RuntimeError("the target variable-data root is unavailable") from None
-
-        result = subprocess.run(
-            ["/usr/bin/mount", "--bind", str(persistent_var), str(target_var)],
-            stdin=subprocess.DEVNULL,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            check=False,
-        )
-        if result.returncode != 0:
-            raise RuntimeError("the persistent bootc variable-data root could not be mounted")
-        try:
-            mounted = target_var.samefile(persistent_var)
-        except OSError:
-            mounted = False
-        if not mounted:
-            if not self._unmount_target_path(target_var):
-                raise RuntimeError(
-                    "the persistent bootc variable-data root could not be verified or removed"
-                )
-            raise RuntimeError("the persistent bootc variable-data root was not mounted")
-        return target_var
 
     def _validate_native_input(self, users):
         if len(users) != 1:
@@ -173,8 +105,7 @@ class ProvisionSodaInstallationTask(Task):
 
     def _label_installed_linux_account(self, username):
         logical_home = self._sysroot / "home" / username
-        persistent_var = self._resolved_target_var()
-        physical_home = persistent_var / "home" / username
+        physical_home = self._sysroot / "var" / "home" / username
         try:
             if not logical_home.samefile(physical_home) or not physical_home.is_dir():
                 raise RuntimeError(
@@ -202,7 +133,7 @@ class ProvisionSodaInstallationTask(Task):
                 "/usr/bin/setfiles",
                 "-F",
                 "-r",
-                str(persistent_var),
+                str(self._sysroot),
                 str(file_contexts),
                 str(physical_home),
             ],
@@ -356,12 +287,8 @@ class ProvisionSodaInstallationTask(Task):
         return True
 
     def _unmount_target_mount(self, relative_target):
-        return self._unmount_target_path(self._sysroot / relative_target)
-
-    @staticmethod
-    def _unmount_target_path(target):
         result = subprocess.run(
-            ["/usr/bin/umount", str(target)],
+            ["/usr/bin/umount", str(self._sysroot / relative_target)],
             stdin=subprocess.DEVNULL,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
@@ -517,9 +444,8 @@ class ProvisionSodaInstallationTask(Task):
                 stream.write(self._tailscale_auth_key.encode("utf-8") + b"\n")
                 stream.flush()
                 os.fsync(stream.fileno())
-            # The persistent target's image-initialized /var/lib supplies the
-            # ordinary var_lib_t parent context. The atomic rename remains this
-            # task's final operation.
+            # Pinned Anaconda's later SetContextsTask relabels /var/lib in the
+            # target. The atomic rename remains this task's final operation.
             os.replace(temporary, destination)
         except Exception:
             try:

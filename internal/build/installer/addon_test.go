@@ -69,28 +69,29 @@ func TestSodaInstallerTaskUsesBoundedNativeForgejoAndSecrets(t *testing.T) {
 	for _, expected := range []string{
 		"get_user_list(self._users)", "has_admin_priviledges", "etc/passwd", "etc/group",
 		".ssh/authorized_keys", "crypt_password", "set_user_list", "os.memfd_create",
-		`self._physical_root / "ostree/deploy"`, `"the persistent bootc variable-data root is ambiguous"`,
-		`os.path.realpath(self._sysroot / "var")`, `target_var.relative_to(system_root)`,
-		`"the target variable-data root escapes the installed system"`,
-		`["/usr/bin/mount", "--bind"`, `self._unmount_target_path(persistent_var_mount)`,
-		`"/usr/bin/setfiles"`, `"-F"`, `"-r"`, `persistent_var / "home" / username`,
+		`["/usr/bin/mount", "--bind"`,
+		`"/usr/bin/setfiles"`, `"-F"`, `"-r"`, `self._sysroot / "var" / "home" / username`,
 		`"targeted"`, `"file_contexts"`, `logical_home.samefile(physical_home)`,
 		"fcntl.F_SEAL_WRITE", "/proc/self/fd/", `"/user/sign_up"`,
 		`"email": f"{username}@localhost"`, "DISABLE_REGISTRATION = false",
 		`"/usr/bin/systemd-tmpfiles"`, `"forgejo.conf"`,
 		"TAILSCALE_KEY_PATH", "os.O_EXCL", "os.O_NOFOLLOW", "os.replace",
-		"image-initialized /var/lib supplies the",
+		"Anaconda's later SetContextsTask relabels /var/lib",
 	} {
 		require.Contains(t, string(installation), expected)
 	}
 	require.NotContains(t, string(installation), "installer-admin.json")
 	require.NotContains(t, string(installation), "--password")
 	require.NotContains(t, string(installation), `"/usr/sbin/restorecon"`)
+	require.NotContains(t, string(installation), `self._physical_root`)
+	require.NotContains(t, string(installation), `ostree/deploy`)
+	require.NotContains(t, string(installation), `persistent bootc variable-data`)
 
 	service, err := os.ReadFile(filepath.Join(addon, "service", "installer.py"))
 	require.NoError(t, err)
 	require.Contains(t, string(service), "ProvisionSodaInstallationTask")
-	require.Contains(t, string(service), "conf.target.physical_root")
+	require.Contains(t, string(service), "conf.target.system_root")
+	require.NotContains(t, string(service), "conf.target.physical_root")
 	require.NotContains(t, string(service), "return []")
 
 	iface, err := os.ReadFile(filepath.Join(addon, "service", "interface.py"))

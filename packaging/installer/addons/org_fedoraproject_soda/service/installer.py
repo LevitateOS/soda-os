@@ -46,7 +46,6 @@ class SodaInstaller(KickstartService):
     def install_with_tasks(self):
         task = ProvisionSodaInstallationTask(
             conf.target.system_root,
-            conf.target.physical_root,
             self._tailscale_auth_key,
         )
         self._tailscale_auth_key = ""
