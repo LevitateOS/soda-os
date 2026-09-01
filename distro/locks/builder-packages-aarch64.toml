@@ -1,7 +1,7 @@
 schema_version = 1
 base_reference = "registry.fedoraproject.org/fedora@sha256:9c8b291e256262b91aac5b3da50ea323760d0a6b449c6d6ad5f01d9550d48d2a"
 platform = "linux/arm64"
-inventory_sha256 = "5918e71f53c952d7205482a1600df14c622a445473a8c898a23690376c2f26d3"
+inventory_sha256 = "55ee9230d7e94dbba9250375061e69b53045f026b9ec608b8f3df0958a801702"
 
 [[package]]
 name = "ca-certificates"
