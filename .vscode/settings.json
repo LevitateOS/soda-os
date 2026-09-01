@@ -1,4 +1,12 @@
 {
+  "go.toolsEnvVars": {
+    "GOOS": "linux"
+  },
+  "gopls": {
+    "env": {
+      "GOOS": "linux"
+    }
+  },
   "[html]": {
     "editor.detectIndentation": false,
     "editor.insertSpaces": true,
