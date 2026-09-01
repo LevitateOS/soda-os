@@ -60,6 +60,24 @@ func TestRuntimeImageBootcContainerContract(t *testing.T) {
 	}
 }
 
+func TestRuntimeImageBootcBuildContextContract(t *testing.T) {
+	contents, err := os.ReadFile(filepath.Join("..", "..", "..", "packaging", "bootc", "Containerfile.dockerignore"))
+	require.NoError(t, err)
+	require.Equal(t, []string{
+		"**",
+		"!.artifacts/",
+		"!.artifacts/rpms/",
+		"!.artifacts/rpms/soda-release-*.rpm",
+		"!.artifacts/rpms/soda-runtime-*.rpm",
+		"!.artifacts/rpms/soda-projects-*.rpm",
+		"!.artifacts/rpms/soda-forgejo-*.rpm",
+		"!.artifacts/rpms/soda-bun-*.rpm",
+		"!.artifacts/bootc/",
+		"!.artifacts/bootc/fedora-packages.txt",
+		"!.artifacts/bootc/expected-packages.txt",
+	}, packagingNonCommentLines(string(contents)))
+}
+
 func TestRuntimeImageStateDirectoriesAndSELinuxContract(t *testing.T) {
 	sysusers, err := os.ReadFile(filepath.Join("..", "..", "..", "packaging", "rpm", "runtime", "sources", "sysusers", "soda.conf"))
 	require.NoError(t, err)
