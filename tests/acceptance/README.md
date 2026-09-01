@@ -30,7 +30,12 @@ On matching-native x86-64 or AArch64 hardware,
 Kickstart input for a disposable installation. It requires a protected file
 containing one disposable Tailscale auth key. The runner removes the Kickstart
 source after creating OEMDRV; after Anaconda confirms parsing it, QMP ejects the
-medium and the host file is removed.
+medium and the host file is removed. The generated Kickstart writes one fixed
+test marker directly to the architecture's serial device after parsing; it
+never writes an installer value. The native VM uses 8 GiB of memory so Fedora's
+RAM-backed installer `/tmp` can hold the immutable payload's transient import
+blobs. On x86-64, QEMU boots the installer media only once so the completed
+disk owns the first reboot.
 
 Load the generated `runner.env` in two terminals. `launch` replaces its shell
 with QEMU and remains in the foreground until the VM stops.

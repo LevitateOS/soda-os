@@ -156,7 +156,10 @@ for Anaconda to create `/home/<administrator>` through the image-owned
 The ISO embeds the local OCI payload under its exact digest in container
 storage. Fedora 44's `bootc` Kickstart command installs from that ISO-local
 `containers-storage:` reference, so installation does not require registry
-access.
+access. The pinned Anaconda payload module receives `TMPDIR=/tmp` because its
+default `/var/tmp` is the small LiveOS overlay; payload import remains
+ephemeral in the installer RAM filesystem instead of consuming installed Soda
+state. The matching-native raw-QEMU harness allocates 8 GiB for this path.
 
 ## Persistent host state
 

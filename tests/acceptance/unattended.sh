@@ -154,6 +154,12 @@ reboot
 %addon org_fedoraproject_soda
 tailscale_auth_key=$tailscale_auth_key
 %end
+
+%pre
+for device in /dev/ttyS0 /dev/ttyAMA0; do
+    test ! -c "\$device" || printf 'soda-acceptance-kickstart-consumed\n' >"\$device"
+done
+%end
 EOF
 	chmod 0600 "$kickstart"
 	xorriso -as mkisofs -quiet -V OEMDRV -o "$kickstart_iso" "$kickstart"

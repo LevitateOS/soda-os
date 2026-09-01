@@ -236,7 +236,7 @@ start_installer_input_ejector() {
 		trap abort_ejector 1 2 15
 
 		deadline=$(( $(date +%s) + 600 ))
-		until grep -a -E -q 'because of an automated install|explicitly asked for in kickstart' "$acceptance_dir/serial.log" 2>/dev/null; do
+		until grep -a -F -q 'soda-acceptance-kickstart-consumed' "$acceptance_dir/serial.log" 2>/dev/null; do
 			kill -0 "$qemu_pid" 2>/dev/null || exit 1
 			[ "$(date +%s)" -lt "$deadline" ] || die "Anaconda did not confirm consuming the Kickstart within 600 seconds"
 			sleep 1
@@ -302,14 +302,14 @@ launch_aarch64() {
 	need "$qemu"
 	need_file "$firmware"
 	cat >"$acceptance_dir/qemu-command.txt" <<EOF
-$qemu -machine virt,accel=hvf -cpu host -smp 4 -m 4096 -bios $firmware
+$qemu -machine virt,accel=hvf -cpu host -smp 4 -m 8192 -bios $firmware
 -drive file=$disk,if=virtio,format=qcow2 $installer_args
 -netdev user,id=net0,hostfwd=tcp:$host:$ssh_port-:22,hostfwd=tcp:$host:$cockpit_port-:9090
 EOF
 	# Word splitting is intentional for the fixed, locally constructed installer arguments.
 	# shellcheck disable=SC2086
 	[ -z "${kickstart_iso:-}" ] || start_installer_input_ejector "$kickstart_iso"
-	exec "$qemu" -machine virt,accel=hvf -cpu host -smp 4 -m 4096 -bios "$firmware" \
+	exec "$qemu" -machine virt,accel=hvf -cpu host -smp 4 -m 8192 -bios "$firmware" \
 		-drive "file=$disk,if=virtio,format=qcow2" $installer_args \
 		-device virtio-gpu-pci -display cocoa -device qemu-xhci -device usb-kbd -device usb-tablet \
 		-netdev "user,id=net0,hostfwd=tcp:$host:$ssh_port-:22,hostfwd=tcp:$host:$cockpit_port-:9090" \
@@ -340,23 +340,29 @@ launch_x86_64() {
 		set -- -display none
 		display_command="-display none"
 	fi
+	boot_command=
+	if [ "$mode" = install ]; then
+		set -- -boot once=d "$@"
+		boot_command="-boot once=d"
+	fi
 	if [ "$mode" = install ]; then
 		cp "$vars_template" "$vars"
 	else
 		need_file "$vars"
 	fi
 	cat >"$acceptance_dir/qemu-command.txt" <<EOF
-$qemu -machine q35,accel=kvm -cpu host -smp 4 -m 4096
+$qemu -machine q35,accel=kvm -cpu host -smp 4 -m 8192
 -drive if=pflash,format=raw,readonly=on,file=$firmware
 -drive if=pflash,format=raw,file=$vars
 -drive file=$disk,if=virtio,format=qcow2 $installer_args
 -netdev user,id=net0,hostfwd=tcp:$host:$ssh_port-:22,hostfwd=tcp:$host:$cockpit_port-:9090
 $display_command
+$boot_command
 EOF
 	# Word splitting is intentional for the fixed, locally constructed installer arguments.
 	# shellcheck disable=SC2086
 	[ -z "${kickstart_iso:-}" ] || start_installer_input_ejector "$kickstart_iso"
-	exec "$qemu" -machine q35,accel=kvm -cpu host -smp 4 -m 4096 \
+	exec "$qemu" -machine q35,accel=kvm -cpu host -smp 4 -m 8192 \
 		-drive "if=pflash,format=raw,readonly=on,file=$firmware" \
 		-drive "if=pflash,format=raw,file=$vars" \
 		-drive "file=$disk,if=virtio,format=qcow2" $installer_args \

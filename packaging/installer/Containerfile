@@ -42,6 +42,7 @@ COPY --chmod=0644 packaging/installer/pipewire-allow-root.conf /etc/systemd/user
 COPY packaging/installer/addons/org_fedoraproject_soda /usr/share/anaconda/addons/org_fedoraproject_soda
 COPY --chmod=0644 packaging/installer/addons/org.fedoraproject.Anaconda.Addons.SodaInstaller.conf /usr/share/anaconda/dbus/confs/org.fedoraproject.Anaconda.Addons.SodaInstaller.conf
 COPY --chmod=0644 packaging/installer/addons/org.fedoraproject.Anaconda.Addons.SodaInstaller.service /usr/share/anaconda/dbus/services/org.fedoraproject.Anaconda.Addons.SodaInstaller.service
+COPY --chmod=0644 packaging/installer/org.fedoraproject.Anaconda.Modules.Payloads.service /usr/share/anaconda/dbus/services/org.fedoraproject.Anaconda.Modules.Payloads.service
 
 RUN kernel="$(find /usr/lib/modules -mindepth 2 -maxdepth 2 -name vmlinuz -printf '%h\n' | sed 's#.*/##')" \
     && test -n "$kernel" \
