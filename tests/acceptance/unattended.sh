@@ -156,8 +156,8 @@ tailscale_auth_key=$tailscale_auth_key
 %end
 
 %pre --erroronfail
-scratch_type=$(findmnt -n -o FSTYPE --target /var/tmp)
-scratch_size=$(findmnt -n -b -o SIZE --target /var/tmp)
+scratch_type=\$(findmnt -n -o FSTYPE --target /var/tmp)
+scratch_size=\$(findmnt -n -b -o SIZE --target /var/tmp)
 if ! { [ "\$scratch_type" = tmpfs ] && [ "\$scratch_size" -ge 4294967296 ]; }; then
     echo "Soda installer scratch is not the required 4 GiB tmpfs" >&2
     exit 1
@@ -167,7 +167,16 @@ if [ ! -e "\$oemdrv" ]; then
     echo "The parsed OEMDRV installer input is unavailable for ejection" >&2
     exit 1
 fi
-/usr/bin/eject "\$oemdrv"
+eject_attempts=0
+while [ -e "\$oemdrv" ]; do
+    if [ "\$eject_attempts" -ge 120 ]; then
+        echo "The parsed OEMDRV installer input was not removed after guest ejection" >&2
+        exit 1
+    fi
+    /usr/bin/eject "\$oemdrv" || [ ! -e "\$oemdrv" ] || exit 1
+    eject_attempts=\$((eject_attempts + 1))
+    sleep 1
+done
 %end
 EOF
 	chmod 0600 "$kickstart"

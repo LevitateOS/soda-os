@@ -99,8 +99,10 @@ environment value, log field, or retained Soda or target file. Raw-QEMU
 acceptance necessarily carries installer inputs in a protected, transient
 Kickstart and OEMDRV image; it removes the Kickstart source after image
 creation. After Anaconda parses the generated Kickstart, its `%pre` section
-ejects OEMDRV in the guest. The host verifies through QMP that the exact
-test-only drive is empty before removing its host file.
+asks the guest to eject OEMDRV. The host requires the exact QEMU device to
+report an open, unlocked tray before removing the medium from that already-open
+device, verifies the empty drive through QMP, and removes its host file. It
+never forces or initiates the tray opening from the host.
 
 Forgejo's native PAM source delegates later authentication to the shipped
 `soda-forgejo` PAM policy. The accepted outcome is that a primary human can log

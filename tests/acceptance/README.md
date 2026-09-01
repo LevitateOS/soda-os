@@ -30,8 +30,10 @@ On matching-native x86-64 or AArch64 hardware,
 Kickstart input for a disposable installation. It requires a protected file
 containing one disposable Tailscale auth key. The runner removes the Kickstart
 source after creating OEMDRV. After Anaconda parses the generated Kickstart,
-its `%pre` section ejects that input in the guest; the host verifies the empty
-drive through QMP and removes the host file. The native VM uses 8 GiB of memory
+its `%pre` section requests ejection in the guest. The host requires that exact
+QEMU device to report an open, unlocked tray, removes the medium from the
+already-open device, verifies the empty drive, and removes the host file. The
+host never forces the tray open. The native VM uses 8 GiB of memory
 so the
 installer's 4 GiB ephemeral `/var/tmp` mount can hold the immutable payload's
 transient import blobs. On x86-64, QEMU keeps the installed disk as the default

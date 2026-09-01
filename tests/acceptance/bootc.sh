@@ -280,23 +280,59 @@ start_installer_input_ejector() {
 			kill -0 "$qemu_pid" 2>/dev/null || exit 1
 			[ "$(date +%s)" -lt "$deadline" ] || die "Anaconda did not eject the parsed Kickstart input within 600 seconds"
 			if [ -S "$(qmp_path)" ]; then
-				if qmp '{"execute":"query-block"}' >"$eject_tmp" 2>/dev/null; then
+				if qmp '{"execute":"query-block","id":"soda-oemdrv-guest-ejected"}' >"$eject_tmp" 2>/dev/null; then
 					if jq -s -e 'any(.[]; has("error"))' "$eject_tmp" >/dev/null; then
 						die "QEMU rejected installer-input inspection"
 					fi
 					if jq -s -e '
 						[ .[]
+						  | select(.id? == "soda-oemdrv-guest-ejected")
 						  | .return?
 						  | select(type == "array")
 						  | .[]
 						  | select(
 						      .device == "soda-oemdrv"
 						      and .qdev == "soda-oemdrv-device"
+						      and .removable == true
+						      and .tray_open == true
+						      and .locked == false
 						    )
 						] as $matches
-						| (($matches | length) == 1
-						   and ($matches[0] | has("inserted") | not))
+						| ($matches | length) == 1
 					' "$eject_tmp" >/dev/null; then
+						if jq -s -e '
+							[ .[]
+							  | select(.id? == "soda-oemdrv-guest-ejected")
+							  | .return?
+							  | select(type == "array")
+							  | .[]
+							  | select(.device == "soda-oemdrv" and .qdev == "soda-oemdrv-device")
+							] | length == 1 and (.[0] | has("inserted"))
+						' "$eject_tmp" >/dev/null; then
+							qmp '{"execute":"blockdev-remove-medium","arguments":{"id":"soda-oemdrv-device"},"id":"soda-oemdrv-remove-medium"}' >>"$eject_tmp" 2>/dev/null ||
+								die "QEMU could not complete guest-requested installer-input removal"
+						fi
+						qmp '{"execute":"query-block","id":"soda-oemdrv-medium-absent"}' >>"$eject_tmp" 2>/dev/null ||
+							die "QEMU could not verify installer-input removal"
+						if jq -s -e 'any(.[]; has("error"))' "$eject_tmp" >/dev/null; then
+							die "QEMU rejected guest-requested installer-input removal"
+						fi
+						jq -s -e '
+							[ .[]
+							  | select(.id? == "soda-oemdrv-medium-absent")
+							  | .return?
+							  | select(type == "array")
+							  | .[]
+							  | select(
+							      .device == "soda-oemdrv"
+							      and .qdev == "soda-oemdrv-device"
+							      and .removable == true
+							      and .tray_open == true
+							      and .locked == false
+							      and (has("inserted") | not)
+							    )
+							] | length == 1
+						' "$eject_tmp" >/dev/null || die "QEMU still exposes the installer input"
 						break
 					fi
 				fi

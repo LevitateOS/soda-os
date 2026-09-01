@@ -190,8 +190,10 @@ func TestUnattendedInstallerInputsMatchTheFourValueContract(t *testing.T) {
 		"%pre --erroronfail",
 		"/dev/disk/by-label/OEMDRV",
 		`/usr/bin/eject "\$oemdrv"`,
-		`scratch_type=$(findmnt -n -o FSTYPE --target /var/tmp)`,
-		`scratch_size=$(findmnt -n -b -o SIZE --target /var/tmp)`,
+		`eject_attempts=\$((eject_attempts + 1))`,
+		"The parsed OEMDRV installer input was not removed after guest ejection",
+		`scratch_type=\$(findmnt -n -o FSTYPE --target /var/tmp)`,
+		`scratch_size=\$(findmnt -n -b -o SIZE --target /var/tmp)`,
 		`[ "\$scratch_type" = tmpfs ] && [ "\$scratch_size" -ge 4294967296 ]`,
 		`rm -f "$kickstart"`,
 		"trap abort_prepare 1 2 15",
@@ -214,12 +216,18 @@ func TestUnattendedInstallerInputsMatchTheFourValueContract(t *testing.T) {
 	require.Contains(t, string(bootRunner), "installer-boot-override.jsonl")
 	require.Contains(t, string(bootRunner), "down down end spc i n s t dot c m d l i n e")
 	require.Contains(t, string(bootRunner), "installer-input-eject.jsonl")
-	require.Contains(t, string(bootRunner), `{"execute":"query-block"}`)
+	require.Contains(t, string(bootRunner), `{"execute":"query-block","id":"soda-oemdrv-guest-ejected"}`)
 	require.Contains(t, string(bootRunner), `.device == "soda-oemdrv"`)
 	require.Contains(t, string(bootRunner), `.qdev == "soda-oemdrv-device"`)
+	require.Contains(t, string(bootRunner), `.removable == true`)
+	require.Contains(t, string(bootRunner), `.tray_open == true`)
+	require.Contains(t, string(bootRunner), `.locked == false`)
+	require.Contains(t, string(bootRunner), `{"execute":"blockdev-remove-medium","arguments":{"id":"soda-oemdrv-device"},"id":"soda-oemdrv-remove-medium"}`)
+	require.Contains(t, string(bootRunner), "soda-oemdrv-guest-ejected")
+	require.Contains(t, string(bootRunner), "soda-oemdrv-medium-absent")
 	require.NotContains(t, string(bootRunner), "soda-acceptance-kickstart-consumed")
 	require.NotContains(t, string(bootRunner), `"execute":"blockdev-open-tray"`)
-	require.NotContains(t, string(bootRunner), `"execute":"blockdev-remove-medium"`)
+	require.NotContains(t, string(bootRunner), `"force":true`)
 	require.Contains(t, string(bootRunner), "-m 8192")
 	require.Contains(t, string(bootRunner), "-boot order=c,once=d")
 	require.Contains(t, string(bootRunner), "-boot order=c")
