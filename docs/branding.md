@@ -11,10 +11,12 @@ Soda branding package.
 
 Use `soda-logo-horizontal.svg` as the primary mark on white or very light
 backgrounds. Use `soda-logo-horizontal-dark.svg` on midnight-navy or other
-dark backgrounds. `soda-logo-white.svg` is the reverse-wordmark variant;
-`soda-logo-navy.svg` and `soda-logo-black.svg` are single-colour marks for
-restricted reproduction. Use the approved full-colour `soda-symbol.svg`
-whenever the name is already visible or space is square.
+dark backgrounds. Its built-in white keyline keeps the full-colour symbol
+distinct when the background matches the symbol's navy fill.
+`soda-logo-white.svg`, `soda-logo-navy.svg`, and `soda-logo-black.svg` are
+single-colour marks for restricted reproduction. Use the approved full-colour
+`soda-symbol.svg` whenever the name is already visible or space is square; its
+white keyline protects the symbol boundary on dark backgrounds.
 
 The symbol's white, navy, and black counterparts are reduced one-colour line
 marks for flat, high-contrast backgrounds. They retain the outer circle,
@@ -27,8 +29,9 @@ and the horizontal mark remains more legible at the available Cockpit widths.
 The approved `soda-symbol.svg` master produces every icon and favicon size.
 
 Keep clear space equal to one bubble diameter around every mark. Do not use the
-horizontal wordmark below 114 px wide. Do not recolour, outline, stretch,
-rotate, add effects, or place the full-colour mark on cyan or busy backgrounds.
+horizontal wordmark below 114 px wide. Do not recolour, add another outline,
+stretch, rotate, add effects, or place the full-colour mark on cyan or busy
+backgrounds. Never place a one-colour mark on the same colour background.
 Customer-facing branding must say Soda OS only.
 
 ## Outputs and regeneration

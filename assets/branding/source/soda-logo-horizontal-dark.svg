@@ -8,7 +8,7 @@
   <style>#soda-wordmark { fill: #fff; }</style>
 
   <g id="soda-symbol" aria-hidden="true">
-    <circle cx="128" cy="128" r="116" fill="#06245B"/>
+    <circle cx="128" cy="128" r="116" fill="#06245B" stroke="#FFFFFF" stroke-width="8"/>
     <path d="M21.5106 174C49 154 77 151 105 171C134 191 164 196 195 174C212 162 224 161 234.4894 174A116 116 0 0 1 21.5106 174Z" fill="#10D7E8"/>
     <circle cx="193" cy="65" r="11" fill="#10D7E8"/>
     <circle cx="213" cy="96" r="7" fill="#10D7E8"/>

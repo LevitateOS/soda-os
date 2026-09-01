@@ -11,6 +11,8 @@
     cy="128"
     r="116"
     fill="#06245B"
+    stroke="#FFFFFF"
+    stroke-width="8"
   />
 
   <path
