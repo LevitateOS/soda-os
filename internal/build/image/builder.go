@@ -202,6 +202,8 @@ func (b *Builder) BuildImage(ctx context.Context) error {
 	args := []string{
 		"buildx", "build", "--platform", b.Spec.Base.Platform,
 		"--build-context", "fedora-base=docker-image://" + baseTag,
+		"--build-context", "rpm-inputs=" + b.artifactPath("rpms"),
+		"--build-context", "lock-inputs=" + b.artifactPath("bootc"),
 		"--file", "packaging/bootc/Containerfile",
 		"--tag", b.Spec.Image.Registry + ":" + b.Spec.Identity.Version,
 		"--build-arg", "SODA_VERSION=" + b.Spec.Identity.Version,
@@ -212,7 +214,7 @@ func (b *Builder) BuildImage(ctx context.Context) error {
 		"--build-arg", "BOOTC_NEVRA=" + b.Spec.Platform.Base.BootcNEVRA,
 		"--provenance=false",
 		"--output", "type=oci,dest=" + output + ",oci-mediatypes=true,rewrite-timestamp=true",
-		".",
+		"packaging/bootc",
 	}
 	if err := b.runner.Run(ctx, process.Command{Dir: b.Root, Name: "docker", Args: args}); err != nil {
 		return err

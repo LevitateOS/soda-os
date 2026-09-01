@@ -16,13 +16,13 @@ LABEL org.opencontainers.image.title="Soda OS" \
       org.opencontainers.image.base.name="${FEDORA_BASE_REFERENCE}" \
       org.sodaos.source-date-epoch="${SOURCE_DATE_EPOCH}"
 
-COPY .artifacts/rpms/soda-release-*.rpm /var/tmp/soda-rpms/
-COPY .artifacts/rpms/soda-runtime-*.rpm /var/tmp/soda-rpms/
-COPY .artifacts/rpms/soda-projects-*.rpm /var/tmp/soda-rpms/
-COPY .artifacts/rpms/soda-forgejo-*.rpm /var/tmp/soda-rpms/
-COPY .artifacts/rpms/soda-bun-*.rpm /var/tmp/soda-rpms/
-COPY .artifacts/bootc/fedora-packages.txt /var/tmp/soda-lock/fedora-packages.txt
-COPY .artifacts/bootc/expected-packages.txt /var/tmp/soda-lock/expected-packages.txt
+COPY --from=rpm-inputs /soda-release-*.rpm /var/tmp/soda-rpms/
+COPY --from=rpm-inputs /soda-runtime-*.rpm /var/tmp/soda-rpms/
+COPY --from=rpm-inputs /soda-projects-*.rpm /var/tmp/soda-rpms/
+COPY --from=rpm-inputs /soda-forgejo-*.rpm /var/tmp/soda-rpms/
+COPY --from=rpm-inputs /soda-bun-*.rpm /var/tmp/soda-rpms/
+COPY --from=lock-inputs /fedora-packages.txt /var/tmp/soda-lock/fedora-packages.txt
+COPY --from=lock-inputs /expected-packages.txt /var/tmp/soda-lock/expected-packages.txt
 
 RUN dnf -y --setopt=install_weak_deps=False --enablerepo=updates-testing install \
       $(cat /var/tmp/soda-lock/fedora-packages.txt) \

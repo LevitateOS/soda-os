@@ -16,9 +16,13 @@ func TestRuntimeImageBootcContainerContract(t *testing.T) {
 	require.True(t, strings.HasPrefix(containerfile, "FROM fedora-base\n"))
 	for _, expected := range []string{
 		"ARG FEDORA_BASE_REFERENCE", "org.opencontainers.image.base.name=\"${FEDORA_BASE_REFERENCE}\"", "systemd-sysusers /usr/lib/sysusers.d/soda.conf /usr/lib/sysusers.d/soda-projects.conf",
-		"COPY .artifacts/rpms/soda-projects-*.rpm /var/tmp/soda-rpms/",
-		"COPY .artifacts/rpms/soda-forgejo-*.rpm /var/tmp/soda-rpms/",
-		"COPY .artifacts/rpms/soda-bun-*.rpm /var/tmp/soda-rpms/",
+		"COPY --from=rpm-inputs /soda-release-*.rpm /var/tmp/soda-rpms/",
+		"COPY --from=rpm-inputs /soda-runtime-*.rpm /var/tmp/soda-rpms/",
+		"COPY --from=rpm-inputs /soda-projects-*.rpm /var/tmp/soda-rpms/",
+		"COPY --from=rpm-inputs /soda-forgejo-*.rpm /var/tmp/soda-rpms/",
+		"COPY --from=rpm-inputs /soda-bun-*.rpm /var/tmp/soda-rpms/",
+		"COPY --from=lock-inputs /fedora-packages.txt /var/tmp/soda-lock/fedora-packages.txt",
+		"COPY --from=lock-inputs /expected-packages.txt /var/tmp/soda-lock/expected-packages.txt",
 		"getent group soda-workspaces",
 		"install -o root -g root -m 0644 /usr/lib/soda/pam/cockpit /etc/pam.d/cockpit",
 		"systemctl enable sshd.service sodad.service soda-tailscale-enroll.service cockpit.socket forgejo.service tailscaled.service nftables.service",
@@ -60,33 +64,17 @@ func TestRuntimeImageBootcContainerContract(t *testing.T) {
 	}
 }
 
-func TestImageBuildContextContract(t *testing.T) {
-	contents, err := os.ReadFile(filepath.Join("..", "..", "..", ".dockerignore"))
+func TestRuntimeImageBuildContextContract(t *testing.T) {
+	contents, err := os.ReadFile("builder.go")
 	require.NoError(t, err)
-	require.Equal(t, []string{
-		".git",
-		".tailscale_auth_key",
-		".artifacts/**",
-		"!.artifacts/builder/",
-		"!.artifacts/builder/packages.lock",
-		"!.artifacts/builder/go.tar.gz",
-		"!.artifacts/rpms/",
-		"!.artifacts/rpms/soda-release-*.rpm",
-		"!.artifacts/rpms/soda-runtime-*.rpm",
-		"!.artifacts/rpms/soda-projects-*.rpm",
-		"!.artifacts/rpms/soda-forgejo-*.rpm",
-		"!.artifacts/rpms/soda-bun-*.rpm",
-		"!.artifacts/bootc/",
-		"!.artifacts/bootc/fedora-packages.txt",
-		"!.artifacts/bootc/expected-packages.txt",
-		"!.artifacts/installer/",
-		"!.artifacts/installer/context/",
-		"!.artifacts/installer/context/installer-packages.txt",
-		"!.artifacts/installer/context/installer-boot-packages.txt",
-		"!.artifacts/installer/context/installer-efi-vendor.txt",
-		"!.artifacts/installer/context/interactive-defaults.ks",
-		"!.artifacts/installer/context/iso.yaml",
-	}, packagingNonCommentLines(string(contents)))
+	build := string(contents)
+	require.Contains(t, build, `"--build-context", "rpm-inputs=" + b.artifactPath("rpms")`)
+	require.Contains(t, build, `"--build-context", "lock-inputs=" + b.artifactPath("bootc")`)
+	require.Contains(t, build, `"packaging/bootc",`)
+
+	containerfile, err := os.ReadFile(filepath.Join("..", "..", "..", "packaging", "bootc", "Containerfile"))
+	require.NoError(t, err)
+	require.NotContains(t, string(containerfile), ".artifacts/")
 }
 
 func TestRuntimeImageStateDirectoriesAndSELinuxContract(t *testing.T) {
