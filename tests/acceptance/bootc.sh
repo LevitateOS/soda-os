@@ -887,8 +887,7 @@ capture_forgejo_state() {
 		forgejo_url=$(printf "{}\n" | /usr/libexec/soda/soda-projects list | jq -er .forgejo_url)
 		forgejo_get() {
 			path=$1
-			printf "url = \"%s%s\"\nrequest = \"GET\"\nsilent = true\nshow-error = true\nfail = true\n" \
-				"$forgejo_url" "$path" | curl --config -
+			curl --fail --silent --show-error --request GET --url "$forgejo_url$path"
 		}
 		user=$(forgejo_get /api/v1/users/soda-test)
 		repositories=$(forgejo_get "/api/v1/users/soda-test/repos?limit=100")
