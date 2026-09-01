@@ -104,9 +104,8 @@ valid_exact_image_reference() {
 	esac
 	repository=${reference%@sha256:*}
 	digest=${reference##*@sha256:}
-	case "$repository" in
-		''|*[!A-Za-z0-9._:/-]*|*@*) return 1 ;;
-	esac
+	printf '%s\n' "$repository" | LC_ALL=C grep -Eq \
+		'^[a-z0-9][a-z0-9.-]*(:[0-9]{1,5})?/[a-z0-9]+([._-][a-z0-9]+)*(/[a-z0-9]+([._-][a-z0-9]+)*)*$' || return 1
 	[ "${#digest}" -eq 64 ] || return 1
 	printf '%s\n' "$digest" | LC_ALL=C grep -Eq '^[0-9a-f]{64}$'
 }
@@ -639,7 +638,7 @@ fallback_stage() {
 	operations=$(fallback_operations_dir)
 	stamp=$(date -u +%Y%m%dT%H%M%SZ)
 	credentials=$(password_file)
-	admin_ssh "sudo -k -S -p '' /usr/bin/bootc switch --download-only $reference" <"$credentials" \
+	admin_ssh "sudo -k -S -p '' /usr/bin/bootc switch --download-only '$reference'" <"$credentials" \
 		>"$operations/stage-$target-$stamp.stdout" 2>"$operations/stage-$target-$stamp.stderr"
 	privileged_bootc_status >"$operations/stage-$target-$stamp.json"
 	jq -e --arg reference "$reference" --arg digest "$digest" '
