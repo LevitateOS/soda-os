@@ -20,9 +20,16 @@ import (
 
 const sodaRegistry = "ghcr.io/levitateos/soda-os"
 
-var targetRPMs = []string{"soda-release", "soda-runtime", "soda-projects", "soda-forgejo"}
+var targetRPMs = []string{"soda-release", "soda-runtime", "soda-projects", "soda-forgejo", "soda-bun"}
 
-var requiredStockCockpitPackages = []string{"cockpit-bridge", "cockpit-system", "cockpit-ws", "cockpit-ws-selinux"}
+var requiredStockCockpitPackages = []string{
+	"cockpit-bridge",
+	"cockpit-networkmanager",
+	"cockpit-storaged",
+	"cockpit-system",
+	"cockpit-ws",
+	"cockpit-ws-selinux",
+}
 
 type packageLock struct {
 	SchemaVersion uint32          `toml:"schema_version"`
@@ -91,6 +98,7 @@ func (b *Builder) Check(_ context.Context) error {
 	return errors.Join(
 		validateImageSpec(spec),
 		validateRuntimePackageLock(lock, spec),
+		validateStockCockpitLockClosure(lock),
 		b.validateBuildInputs(),
 	)
 }
@@ -162,7 +170,7 @@ func validateLockedPackage(item lockedPackage, seen map[string]bool) error {
 }
 
 func (b *Builder) validateBuildInputs() error {
-	for _, path := range []string{"packaging/bootc/Containerfile", "packaging/builder/Containerfile", b.Spec.Platform.Builder.PackageLock, b.Spec.Platform.Installer.PackageLock, b.Spec.Platform.Installer.ToolLock, b.Spec.Platform.Installer.ISOConfig, "packaging/rpm/release/soda-release.spec", "packaging/rpm/runtime/soda-runtime.spec", "packaging/rpm/projects/soda-projects.spec", "packaging/rpm/forgejo/soda-forgejo.spec", "packaging/rpm/runtime/sources/sysusers/soda.conf", "distro/locks/forgejo-source.toml"} {
+	for _, path := range []string{"packaging/bootc/Containerfile", "packaging/builder/Containerfile", b.Spec.Platform.Builder.PackageLock, b.Spec.Platform.Installer.PackageLock, b.Spec.Platform.Installer.ToolLock, b.Spec.Platform.Installer.ISOConfig, "packaging/rpm/release/soda-release.spec", "packaging/rpm/runtime/soda-runtime.spec", "packaging/rpm/projects/soda-projects.spec", "packaging/rpm/forgejo/soda-forgejo.spec", "packaging/rpm/bun/soda-bun.spec", "packaging/rpm/bun/sources/LICENSE.md", "packaging/rpm/runtime/sources/sysusers/soda.conf", "distro/locks/forgejo-source.toml", "distro/locks/bun-source.toml", "distro/toolset-commands.txt"} {
 		if !isFile(b.path(path)) {
 			return fmt.Errorf("required bootc build input %s is missing", path)
 		}

@@ -1,0 +1,18 @@
+version = "1.4.0"
+license_url = "https://raw.githubusercontent.com/oven-sh/bun/bun-v1.4.0/LICENSE.md"
+license_upstream_sha256 = "b9caf52728691b4057e371232c221a132883198be2f3d2ddf92c90404c984b1a"
+license_sha256 = "51402e15bdab948668eb5bcca05c096bc8c47beaf96f0db4b41777faf546ba4f"
+checksum_manifest_url = "https://github.com/oven-sh/bun/releases/download/bun-v1.4.0/SHASUMS256.txt"
+checksum_manifest_sha256 = "6bbf829c3002634c7187ece516dd7d8c538fbaf20b0adecd496b1fd419f5da15"
+
+[asset.x86_64]
+archive = "bun-linux-x64-baseline-1.4.0.zip"
+member = "bun-linux-x64-baseline/bun"
+url = "https://github.com/oven-sh/bun/releases/download/bun-v1.4.0/bun-linux-x64-baseline.zip"
+sha256 = "184fb4595f0d401a217cf7c78c1bc430ba83314dab7a8b94805babbf7fa7097f"
+
+[asset.aarch64]
+archive = "bun-linux-aarch64-1.4.0.zip"
+member = "bun-linux-aarch64/bun"
+url = "https://github.com/oven-sh/bun/releases/download/bun-v1.4.0/bun-linux-aarch64.zip"
+sha256 = "4b1a332ee861983eb93bcfe6f770fff94e3e31b2c388bdaea3c8ed35e58eed0e"

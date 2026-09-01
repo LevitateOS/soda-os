@@ -25,13 +25,6 @@ func (b *Builder) BuildRPMs(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	lock, err := b.packageLock()
-	if err != nil {
-		return err
-	}
-	if err = validateStockCockpitLockClosure(lock); err != nil {
-		return err
-	}
 	if err := b.buildContainer(ctx); err != nil {
 		return err
 	}
@@ -150,6 +143,13 @@ func (b *Builder) buildGoBinaries(ctx context.Context, revision string) error {
 }
 
 func (b *Builder) stageRPMSources(build, sources string) error {
+	if err := b.stageBunSource(sources); err != nil {
+		return err
+	}
+	return b.stageNonBunRPMSources(build, sources)
+}
+
+func (b *Builder) stageNonBunRPMSources(build, sources string) error {
 	files := [][2]string{
 		{filepath.Join(build, "sodad"), filepath.Join(sources, "sodad")},
 		{filepath.Join(build, "sodactl"), filepath.Join(sources, "sodactl")},
@@ -191,6 +191,7 @@ func (b *Builder) stageRPMSources(build, sources string) error {
 		{b.path("packaging/rpm/forgejo/sources/tmpfiles/forgejo.conf"), filepath.Join(sources, "forgejo.tmpfiles")},
 		{b.path("packaging/rpm/forgejo/sources/pam/soda-forgejo"), filepath.Join(sources, "soda-forgejo.pam")},
 		{b.path("packaging/rpm/release/sources/BASE_SYSTEM.md"), filepath.Join(sources, "BASE_SYSTEM.md")},
+		{b.path("distro/toolset-commands.txt"), filepath.Join(sources, "toolset-commands.txt")},
 		{b.path("assets/branding/source/soda-symbol.svg"), filepath.Join(sources, "soda-symbol.svg")},
 	}
 	for _, size := range []string{"16", "24", "32", "48", "64", "128", "256", "512"} {
@@ -243,7 +244,7 @@ func (b *Builder) buildContainer(ctx context.Context) error {
 	goArchive := b.path(b.Spec.Platform.Builder.GoArchive)
 	contents, err := os.ReadFile(goArchive)
 	if err != nil {
-		return fmt.Errorf("pinned Go 1.27 builder input is missing; run just builder-tools: %w", err)
+		return fmt.Errorf("pinned Go 1.27 builder input is missing; run just builder-tools %s: %w", b.Spec.Platform.Architecture.Name, err)
 	}
 	hash := sha256.Sum256(contents)
 	if hex.EncodeToString(hash[:]) != b.Spec.Platform.Builder.GoArchiveSHA256 {
@@ -276,10 +277,14 @@ func (b *Builder) builderTag() string {
 func (b *Builder) rpmbuild(ctx context.Context, name string) error {
 	epoch := fmt.Sprint(b.Spec.Build.SourceDateEpoch)
 	spec := "packaging/rpm/" + strings.TrimPrefix(name, "soda-") + "/" + name + ".spec"
-	return b.docker(ctx, []string{"SOURCE_DATE_EPOCH=" + epoch}, "rpmbuild", "-bb",
+	command := b.dockerCommand([]string{"SOURCE_DATE_EPOCH=" + epoch}, "rpmbuild", "-bb",
 		"--define", "_topdir /src/.artifacts/rpmbuild",
 		"--define", "_source_date_epoch "+epoch,
 		"--define", "use_source_date_epoch_as_buildtime 1",
 		"--define", "_buildhost soda-builder",
 		spec)
+	args := make([]string, 0, len(command.Args)+2)
+	args = append(args, command.Args[0], "--network", "none")
+	command.Args = append(args, command.Args[1:]...)
+	return b.runner.Run(ctx, command)
 }

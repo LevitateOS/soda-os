@@ -539,3 +539,9 @@ name = "soda-forgejo"
 nevra = "soda-forgejo-0:15.0.7-1.fc44.aarch64"
 source = "local-rpm"
 file = "soda-forgejo-15.0.7-1.fc44.aarch64.rpm"
+
+[[package]]
+name = "soda-bun"
+nevra = "soda-bun-0:1.4.0-1.fc44.aarch64"
+source = "local-rpm"
+file = "soda-bun-1.4.0-1.fc44.aarch64.rpm"

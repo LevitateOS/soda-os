@@ -26,17 +26,20 @@ check:
     go run ./cmd/soda-image --architecture aarch64 check
     go run ./cmd/soda-image --architecture x86_64 check
 
-rpm architecture: builder-tools forgejo-source
+rpm architecture: (builder-tools architecture) forgejo-source bun-source
     go run ./cmd/soda-image --architecture {{quote(architecture)}} rpm
 
 forgejo-source:
     ./scripts/fetch-forgejo-source.sh
 
-oci architecture: builder-tools
+bun-source:
+    ./scripts/fetch-bun-source.sh
+
+oci architecture: (builder-tools architecture) forgejo-source bun-source
     go run ./cmd/soda-image --architecture {{quote(architecture)}} oci
 
-builder-tools:
-    ./scripts/fetch-builder-tools.sh
+builder-tools architecture:
+    ./scripts/fetch-builder-tools.sh {{quote(architecture)}}
 
 iso architecture archive:
     go run ./cmd/soda-image --architecture {{quote(architecture)}} iso --archive {{quote(archive)}}

@@ -55,6 +55,8 @@ func TestNativeWorkspaceCockpitPackagesAreLockedForSiblingArchitectures(t *testi
 			}
 			require.Equal(t, []lockedPackage{
 				{Name: "cockpit-bridge", NEVRA: "cockpit-bridge-0:366-1.fc44.noarch", Source: "fedora"},
+				{Name: "cockpit-networkmanager", NEVRA: "cockpit-networkmanager-0:366-1.fc44.noarch", Source: "fedora"},
+				{Name: "cockpit-storaged", NEVRA: "cockpit-storaged-0:366-1.fc44.noarch", Source: "fedora"},
 				{Name: "cockpit-system", NEVRA: "cockpit-system-0:366-1.fc44.noarch", Source: "fedora"},
 				{Name: "cockpit-ws", NEVRA: "cockpit-ws-0:366-1.fc44." + test.packageArch, Source: "fedora"},
 				{Name: "cockpit-ws-selinux", NEVRA: "cockpit-ws-selinux-0:366-1.fc44." + test.packageArch, Source: "fedora"},
@@ -89,7 +91,7 @@ func TestNativeWorkspaceSourcesAreStagedForRPMBuild(t *testing.T) {
 		require.NoError(t, os.WriteFile(filepath.Join(build, name), []byte(name), 0o755))
 	}
 
-	require.NoError(t, (&Builder{Root: root}).stageRPMSources(build, sources))
+	require.NoError(t, (&Builder{Root: root}).stageNonBunRPMSources(build, sources))
 	for _, name := range []string{
 		"soda-projects", "soda-workspace-helper", "soda-projects-manifest.json",
 		"soda-projects-index.html", "soda-projects-app.mjs", "soda-projects-protocol.mjs",

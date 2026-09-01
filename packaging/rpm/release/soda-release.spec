@@ -9,7 +9,7 @@ BuildArch:      noarch
 Release identity and defaults for the Soda OS Fedora bootc derivative.
 
 %install
-mkdir -p %{buildroot}%{_prefix}/lib/soda %{buildroot}%{_datadir}/doc/soda-release %{buildroot}%{_datadir}/pixmaps
+mkdir -p %{buildroot}%{_prefix}/lib/soda %{buildroot}%{_datadir}/soda %{buildroot}%{_datadir}/doc/soda-release %{buildroot}%{_datadir}/pixmaps
 for size in 16 24 32 48 64 128 256 512; do
   mkdir -p %{buildroot}%{_datadir}/icons/hicolor/${size}x${size}/apps
 done
@@ -34,6 +34,7 @@ cat > %{buildroot}%{_prefix}/lib/soda/system-release <<'EOF'
 Soda OS release 0.4.0
 EOF
 install -m 0644 %{_sourcedir}/BASE_SYSTEM.md %{buildroot}%{_datadir}/doc/soda-release/BASE_SYSTEM.md
+install -m 0644 %{_sourcedir}/toolset-commands.txt %{buildroot}%{_datadir}/soda/toolset-commands.txt
 install -m 0644 %{_sourcedir}/soda-symbol.svg %{buildroot}%{_datadir}/pixmaps/soda-os.svg
 for size in 16 24 32 48 64 128 256 512; do
   install -m 0644 %{_sourcedir}/soda-os-${size}.png %{buildroot}%{_datadir}/icons/hicolor/${size}x${size}/apps/soda-os.png
@@ -41,6 +42,7 @@ done
 
 %files
 %{_prefix}/lib/soda
+%{_datadir}/soda/toolset-commands.txt
 %{_datadir}/doc/soda-release/BASE_SYSTEM.md
 %{_datadir}/pixmaps/soda-os.svg
 %{_datadir}/icons/hicolor/*/apps/soda-os.png

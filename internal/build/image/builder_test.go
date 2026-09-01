@@ -115,6 +115,7 @@ func TestRPMBuildPinsHeaderTimeAndHost(t *testing.T) {
 	require.NoError(t, builder.rpmbuild(context.Background(), "soda-runtime"))
 	require.Len(t, runner.Commands, 1)
 	command := runner.Commands[0].String()
+	require.Contains(t, command, "docker run --network none")
 	require.Contains(t, command, "--define _source_date_epoch 1787825905")
 	require.Contains(t, command, "--define use_source_date_epoch_as_buildtime 1")
 	require.Contains(t, command, "--define _buildhost soda-builder")
