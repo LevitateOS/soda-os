@@ -3,7 +3,6 @@ package image
 import (
 	"context"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -97,7 +96,7 @@ func (b *Builder) Check(_ context.Context) error {
 }
 
 func validateImageSpec(spec config.DistroSpec) error {
-	if spec.Identity.Architecture != spec.Platform.Architecture.Name || spec.Base.Reference != spec.Platform.Base.Reference || spec.Base.Platform != spec.Platform.Architecture.Platform || spec.Image.Registry != sodaRegistry || spec.Image.StateSchema != 4 || spec.Build.SourceDateEpoch < 0 {
+	if spec.Identity.Architecture != spec.Platform.Architecture.Name || spec.Base.Reference != spec.Platform.Base.Reference || spec.Base.Platform != spec.Platform.Architecture.Platform || spec.Image.Registry != sodaRegistry || spec.Build.SourceDateEpoch < 0 {
 		return errors.New("Soda image specification differs from the selected architecture contract")
 	}
 	return nil
@@ -179,9 +178,6 @@ func (b *Builder) BuildImage(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	if err := b.stageDistribution(); err != nil {
-		return err
-	}
 	revision, err := b.sourceRevision(ctx)
 	if err != nil {
 		return err
@@ -229,18 +225,6 @@ func (b *Builder) lintImage(ctx context.Context, archive string) error {
 		return fmt.Errorf("bootc container lint: %w", err)
 	}
 	return nil
-}
-
-func (b *Builder) stageDistribution() error {
-	destination := b.artifactPath("bootc", "distribution")
-	if err := recreate(destination); err != nil {
-		return err
-	}
-	distribution, err := json.Marshal(b.Spec.Distribution)
-	if err != nil {
-		return fmt.Errorf("encode release distribution: %w", err)
-	}
-	return os.WriteFile(filepath.Join(destination, "distribution.json"), append(distribution, '\n'), 0o644)
 }
 
 func (b *Builder) sourceRevision(ctx context.Context) (string, error) {

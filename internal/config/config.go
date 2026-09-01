@@ -25,7 +25,6 @@ type DistroSpec struct {
 
 type DistributionSpec struct {
 	GitHubRepository string `toml:"github_repository" json:"github_repository"`
-	IndexURL         string `toml:"index_url" json:"index_url"`
 }
 
 type IdentitySpec struct {
@@ -43,7 +42,6 @@ type BaseSpec struct {
 
 type ImageSpec struct {
 	Registry    string `toml:"registry"`
-	StateSchema uint32 `toml:"state_schema"`
 	PackageLock string `toml:"package_lock"`
 }
 

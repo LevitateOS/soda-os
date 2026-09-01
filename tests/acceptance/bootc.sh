@@ -56,7 +56,6 @@ Optional environment:
   SODA_ACCEPTANCE_ADMIN_PASSWORD_FILE=<test-only administrator password file>
   SODA_ACCEPTANCE_DISK=$SODA_ACCEPTANCE_DIR/soda-system.qcow2
   SODA_ACCEPTANCE_DISK_SIZE=40G
-  SODA_ACCEPTANCE_RELEASE_INDEX_URL=<optional GitHub release index URL>
   SODA_ACCEPTANCE_RELEASE_RECORD=<release record to hash during capture>
   SODA_ACCEPTANCE_ISO=<installer ISO to hash during capture>
   SODA_QEMU=<platform QEMU executable>
@@ -403,18 +402,6 @@ valid_name() {
 	esac
 }
 
-capture_release_index() {
-	index_url=${SODA_ACCEPTANCE_RELEASE_INDEX_URL:-}
-	if [ -z "$index_url" ]; then
-		echo "release index capture skipped: SODA_ACCEPTANCE_RELEASE_INDEX_URL is unset" >"$1/release-index.skipped"
-		return
-	fi
-	release_dir=$1/release
-	mkdir -p "$release_dir"
-	curl --fail --silent --show-error -D "$release_dir/index.headers" -o "$release_dir/index.json" "$index_url"
-	sha256sum "$release_dir"/* >"$release_dir/sha256sums.txt"
-}
-
 capture() {
 	name=${1:-}
 	valid_name "$name" || die "capture requires a lowercase name containing only letters, digits, and hyphens"
@@ -499,7 +486,6 @@ capture() {
 		sysctl kernel.printk
 	' >"$checkpoint/guest.txt" 2>"$checkpoint/guest.stderr"
 	curl --fail --silent --show-error --insecure "https://$guest_host:$guest_cockpit_port/ping" >"$checkpoint/cockpit-health.txt"
-	capture_release_index "$checkpoint"
 
 	for artifact in "${SODA_ACCEPTANCE_RELEASE_RECORD:-}" "${SODA_ACCEPTANCE_ISO:-}"; do
 		[ -z "$artifact" ] || [ ! -f "$artifact" ] || sha256sum "$artifact" >>"$checkpoint/artifact-sha256sums.txt"

@@ -8,11 +8,9 @@ hostname = "soda"
 
 [image]
 registry = "ghcr.io/levitateos/soda-os"
-state_schema = 4
 
 [distribution]
 github_repository = "LevitateOS/soda-os"
-index_url = "https://github.com/LevitateOS/soda-os/releases/latest/download/soda-os-release-index.json"
 
 [build]
 source_date_epoch = 1787825905

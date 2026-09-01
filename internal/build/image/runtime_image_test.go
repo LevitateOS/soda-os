@@ -31,14 +31,19 @@ func TestRuntimeImageBootcContainerContract(t *testing.T) {
 		"semanage fcontext -a -t ssh_home_t '/var/lib/forgejo/.ssh(/.*)?'", "restorecon -RF /var/lib/forgejo/.ssh /opt/soda/toolchains", "ssh-keygen -q -t ed25519 -N '' -f /run/soda-sshd-hostkey",
 		"/usr/sbin/sshd -t -h /run/soda-sshd-hostkey", "rm -f /run/soda-sshd-hostkey /run/soda-sshd-hostkey.pub",
 		"--enablerepo=updates-testing", `test "$(rpm -q --qf '%{NAME}-%{EPOCHNUM}:%{VERSION}-%{RELEASE}.%{ARCH}' bootc)" = "${BOOTC_NEVRA}"`,
-		"rpm -q skopeo",
 		"bootc switch --help | grep -F -- '--download-only'", "bootc switch --help | grep -F -- '--from-downloaded'",
 		"rpm-inventory.sha256", "sha256sum --check rpm-inventory.sha256", "/usr/lib/sysimage/libdnf5/transaction_history.sqlite*",
 		"/var/cache/ldconfig/aux-cache", "/var/cache/libdnf5", "/var/lib/dnf/repos", "/var/log/dnf5.log", "/run/dnf",
-		"COPY .artifacts/bootc/distribution/distribution.json /usr/share/soda/release/distribution.json",
-		`org.sodaos.state-schema="4"`,
 	} {
 		require.Contains(t, containerfile, expected)
+	}
+	for _, obsolete := range []string{
+		"rpm -q skopeo",
+		".artifacts/bootc/distribution",
+		"/usr/share/soda/release/distribution.json",
+		"org.sodaos.state-schema",
+	} {
+		require.NotContains(t, containerfile, obsolete)
 	}
 	require.NotContains(t, containerfile, "cp -f /usr/lib/soda/system-release /etc/redhat-release")
 	require.NotContains(t, containerfile, "bootc-fetch-apply-updates.service")
@@ -110,6 +115,9 @@ func TestRuntimeImageRPMStagingAndPackageContract(t *testing.T) {
 	require.NotContains(t, string(runtimeSpec), "soda-cockpit")
 	require.NotContains(t, string(runtimeSpec), "soda-authd")
 	require.Contains(t, string(runtimeSpec), "soda-forgejo = 15.0.7")
+	require.Contains(t, string(runtimeSpec), "Temporary host telemetry RPCs")
+	require.NotContains(t, string(runtimeSpec), "telemetry and update")
+	require.NotContains(t, string(runtimeSpec), "update RPCs")
 	require.NotContains(t, string(runtimeSpec), "00-soda-var-srv.conf")
 
 	releaseSpec, err := os.ReadFile(filepath.Join("..", "..", "..", "packaging", "rpm", "release", "soda-release.spec"))
@@ -234,8 +242,9 @@ func TestRuntimeImageSystemdResidualContract(t *testing.T) {
 
 	sodadUnit, err := os.ReadFile(filepath.Join(runtimeSources, "systemd", "sodad.service"))
 	require.NoError(t, err)
-	require.Contains(t, string(sodadUnit), "After=local-fs.target network-online.target")
-	require.Contains(t, string(sodadUnit), "Wants=network-online.target")
+	require.Contains(t, string(sodadUnit), "After=local-fs.target")
+	require.NotContains(t, string(sodadUnit), "network-online.target")
+	require.NotContains(t, string(sodadUnit), "Wants=")
 	require.Contains(t, string(sodadUnit), "StandardOutput=append:/var/log/soda/sodad/service.log")
 	require.NotContains(t, string(sodadUnit), "opt-soda-toolchains.mount")
 	require.NotContains(t, string(sodadUnit), "var-srv-soda-projects.mount")

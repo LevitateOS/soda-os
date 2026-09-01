@@ -1,7 +1,6 @@
 [Unit]
 Description=Soda OS runtime daemon
-After=local-fs.target network-online.target
-Wants=network-online.target
+After=local-fs.target
 
 [Service]
 Type=simple

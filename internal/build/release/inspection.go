@@ -9,7 +9,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 
 	v1 "github.com/google/go-containerregistry/pkg/v1"
@@ -29,7 +28,7 @@ func (p *Publisher) inspect(img v1.Image, exactReference string) (Record, error)
 	if err != nil {
 		return Record{}, err
 	}
-	return Record{SchemaVersion: 2, SodaVersion: p.spec.Identity.Version, SourceRevision: revision, Platform: p.spec.Base.Platform, Channel: p.spec.Platform.Release.Channel, FedoraBaseReference: p.spec.Base.Reference, SodaImageReference: exactReference, StateSchema: p.spec.Image.StateSchema, RPMInventorySHA256: inventoryDigest}, nil
+	return Record{SchemaVersion: 2, SodaVersion: p.spec.Identity.Version, SourceRevision: revision, Platform: p.spec.Base.Platform, Channel: p.spec.Platform.Release.Channel, FedoraBaseReference: p.spec.Base.Reference, SodaImageReference: exactReference, RPMInventorySHA256: inventoryDigest}, nil
 }
 
 func (p *Publisher) inspectImageIdentity(configFile *v1.ConfigFile) (string, error) {
@@ -40,10 +39,6 @@ func (p *Publisher) inspectImageIdentity(configFile *v1.ConfigFile) (string, err
 	revision := labels["org.opencontainers.image.revision"]
 	if len(revision) != 40 || !hexadecimal(revision) {
 		return "", errors.New("release image has no full source revision label")
-	}
-	stateSchema, err := strconv.ParseUint(labels["org.sodaos.state-schema"], 10, 32)
-	if err != nil || uint32(stateSchema) != p.spec.Image.StateSchema {
-		return "", errors.New("release image state schema label differs from the Soda specification")
 	}
 	if labels["org.opencontainers.image.version"] != p.spec.Identity.Version {
 		return "", errors.New("release image version label differs from the Soda specification")

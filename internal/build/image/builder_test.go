@@ -257,19 +257,3 @@ func TestSodaRPMsAreScriptletFree(t *testing.T) {
 		require.NotRegexp(t, scriptlet, string(spec), "%s must be an image-build input without RPM lifecycle scriptlets", name)
 	}
 }
-
-func TestStageDistributionWritesUpdateLocation(t *testing.T) {
-	root := t.TempDir()
-	builder := &Builder{Root: root, Spec: testDistributionSpec()}
-	require.NoError(t, builder.stageDistribution())
-	distribution, err := os.ReadFile(filepath.Join(root, ".artifacts", "bootc", "distribution", "distribution.json"))
-	require.NoError(t, err)
-	require.JSONEq(t, `{"github_repository":"LevitateOS/soda-os","index_url":"https://github.com/LevitateOS/soda-os/releases/latest/download/soda-os-release-index.json"}`, string(distribution))
-}
-
-func testDistributionSpec() config.DistroSpec {
-	return config.DistroSpec{Distribution: config.DistributionSpec{
-		GitHubRepository: "LevitateOS/soda-os",
-		IndexURL:         "https://github.com/LevitateOS/soda-os/releases/latest/download/soda-os-release-index.json",
-	}}
-}

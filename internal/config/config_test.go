@@ -1,7 +1,9 @@
 package config
 
 import (
+	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -14,6 +16,17 @@ func TestLoadDistro(t *testing.T) {
 	require.Equal(t, "aarch64", spec.Identity.Architecture)
 	require.Equal(t, "linux/arm64", spec.Base.Platform)
 	require.Equal(t, DefaultDaemonSocket, spec.Paths.DaemonSocket)
+	require.Equal(t, "LevitateOS/soda-os", spec.Distribution.GitHubRepository)
+}
+
+func TestDistroHasNoRuntimeUpdateDiscoveryMetadata(t *testing.T) {
+	for _, path := range []string{filepath.Join("testdata", "soda.toml"), filepath.Join("..", "..", "distro", "soda.toml")} {
+		contents, err := os.ReadFile(path)
+		require.NoError(t, err)
+		require.NotContains(t, string(contents), "index_url")
+		require.NotContains(t, string(contents), "state_schema")
+		require.Equal(t, 1, strings.Count(string(contents), "github_repository"))
+	}
 }
 
 func TestLoadDistroSelectsEqualSiblingPlatforms(t *testing.T) {

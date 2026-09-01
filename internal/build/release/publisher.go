@@ -31,7 +31,6 @@ type Record struct {
 	Channel             string `json:"channel"`
 	FedoraBaseReference string `json:"fedora_base_reference"`
 	SodaImageReference  string `json:"soda_image_reference"`
-	StateSchema         uint32 `json:"state_schema"`
 	RPMInventorySHA256  string `json:"rpm_inventory_sha256"`
 	ISOChecksum         string `json:"iso_sha256,omitempty"`
 }

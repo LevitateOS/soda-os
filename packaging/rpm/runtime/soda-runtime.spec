@@ -6,9 +6,8 @@ License:        MIT OR Apache-2.0
 Requires:       ca-certificates, gcc, gcc-c++, git-core, iproute, make, nftables-services, openssh-clients, openssh-server, policycoreutils, policycoreutils-python-utils, pkgconf-pkg-config, shadow-utils, soda-forgejo = 15.0.7, systemd, tailscale, tar, unzip, util-linux-core, xz
 
 %description
-Temporary host telemetry and update RPCs, their administrator CLI, and the
-remaining image-owned host service composition. Projects do not use this
-daemon.
+Temporary host telemetry RPCs and their administrator health CLI. Projects do
+not use this daemon.
 
 %install
 mkdir -p %{buildroot}%{_libexecdir}/soda %{buildroot}%{_prefix}/lib/soda/network %{buildroot}%{_bindir} %{buildroot}%{_unitdir} %{buildroot}%{_unitdir}/getty@tty1.service.d %{buildroot}%{_unitdir}/nftables.service.d %{buildroot}%{_presetdir} %{buildroot}%{_tmpfilesdir} %{buildroot}%{_sysctldir} %{buildroot}%{_sysusersdir} %{buildroot}%{_sysconfdir}/profile.d
