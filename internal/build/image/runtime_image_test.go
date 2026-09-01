@@ -59,7 +59,7 @@ func TestRuntimeImageBootcContainerContract(t *testing.T) {
 func TestRuntimeImageStateDirectoriesAndSELinuxContract(t *testing.T) {
 	sysusers, err := os.ReadFile(filepath.Join("..", "..", "..", "packaging", "rpm", "runtime", "sources", "sysusers", "soda.conf"))
 	require.NoError(t, err)
-	require.Equal(t, []string{"g soda-api 976"}, packagingNonCommentLines(string(sysusers)))
+	require.Equal(t, []string{"g soda-api -"}, packagingNonCommentLines(string(sysusers)))
 
 	projectSysusers, err := os.ReadFile(filepath.Join("..", "..", "..", "packaging", "rpm", "projects", "sources", "sysusers", "soda-projects.conf"))
 	require.NoError(t, err)

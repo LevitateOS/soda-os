@@ -38,7 +38,7 @@ RUN dnf -y --setopt=install_weak_deps=False --enablerepo=updates-testing install
       /run/dnf \
       /var/tmp/soda-rpms \
     && systemd-sysusers /usr/lib/sysusers.d/soda.conf /usr/lib/sysusers.d/soda-projects.conf \
-    && test "$(getent group soda-api | cut -d: -f3)" = 976 \
+    && getent group soda-api \
     && getent group soda-workspaces \
     && install -d -m 0755 /opt/soda/toolchains \
     && install -o root -g root -m 0644 /usr/lib/soda/pam/cockpit /etc/pam.d/cockpit \

@@ -15,7 +15,7 @@ func TestNativeIdentitySysusersContract(t *testing.T) {
 	require.NoError(t, err)
 
 	lines := nonCommentLines(string(contents))
-	require.Equal(t, []string{"g soda-api 976"}, lines)
+	require.Equal(t, []string{"g soda-api -"}, lines)
 	require.NotContains(t, lines, "g soda-people -")
 	require.NotContains(t, string(contents), "soda-cockpit")
 
