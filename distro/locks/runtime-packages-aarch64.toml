@@ -2,6 +2,11 @@ schema_version = 1
 base_reference = "quay.io/fedora/fedora-bootc@sha256:950a52fa1244db4d7fe2673af57fd6784a605a83bec3cd2d716ed8c00ebd366d"
 
 [[package]]
+name = "ShellCheck"
+nevra = "ShellCheck-0:0.11.0-4.fc44.aarch64"
+source = "fedora"
+
+[[package]]
 name = "binutils"
 nevra = "binutils-0:2.46.1-1.fc44.aarch64"
 source = "fedora"
@@ -12,13 +17,58 @@ nevra = "bootc-0:1.16.10-1.fc44.aarch64"
 source = "fedora"
 
 [[package]]
+name = "buildah"
+nevra = "buildah-2:1.43.2-1.fc44.aarch64"
+source = "fedora"
+
+[[package]]
+name = "bzip2"
+nevra = "bzip2-0:1.0.8-23.fc44.aarch64"
+source = "fedora"
+
+[[package]]
+name = "cargo"
+nevra = "cargo-0:1.98.0-1.fc44.aarch64"
+source = "fedora"
+
+[[package]]
 name = "checkpolicy"
 nevra = "checkpolicy-0:3.11-1.fc44.aarch64"
 source = "fedora"
 
 [[package]]
+name = "clippy"
+nevra = "clippy-0:1.98.0-1.fc44.aarch64"
+source = "fedora"
+
+[[package]]
+name = "cmake"
+nevra = "cmake-0:4.3.0-1.fc44.aarch64"
+source = "fedora"
+
+[[package]]
+name = "cmake-data"
+nevra = "cmake-data-0:4.3.0-1.fc44.noarch"
+source = "fedora"
+
+[[package]]
+name = "cmake-filesystem"
+nevra = "cmake-filesystem-0:4.3.0-1.fc44.aarch64"
+source = "fedora"
+
+[[package]]
 name = "cockpit-bridge"
 nevra = "cockpit-bridge-0:366-1.fc44.noarch"
+source = "fedora"
+
+[[package]]
+name = "cockpit-networkmanager"
+nevra = "cockpit-networkmanager-0:366-1.fc44.noarch"
+source = "fedora"
+
+[[package]]
+name = "cockpit-storaged"
+nevra = "cockpit-storaged-0:366-1.fc44.noarch"
 source = "fedora"
 
 [[package]]
@@ -42,6 +92,36 @@ nevra = "cpp-0:16.2.1-2.fc44.aarch64"
 source = "fedora"
 
 [[package]]
+name = "curl"
+nevra = "curl-0:8.18.0-9.fc44.aarch64"
+source = "fedora"
+
+[[package]]
+name = "dns-root-data"
+nevra = "dns-root-data-0:2026260100-2.fc44.noarch"
+source = "fedora"
+
+[[package]]
+name = "ed"
+nevra = "ed-0:1.22.5-2.fc44.aarch64"
+source = "fedora"
+
+[[package]]
+name = "emacs-filesystem"
+nevra = "emacs-filesystem-1:30.2-2.fc44.aarch64"
+source = "fedora"
+
+[[package]]
+name = "fd-find"
+nevra = "fd-find-0:10.4.2-4.fc44.aarch64"
+source = "fedora"
+
+[[package]]
+name = "fzf"
+nevra = "fzf-0:0.74.3-1.fc44.aarch64"
+source = "fedora"
+
+[[package]]
 name = "gcc"
 nevra = "gcc-0:16.2.1-2.fc44.aarch64"
 source = "fedora"
@@ -49,6 +129,11 @@ source = "fedora"
 [[package]]
 name = "gcc-c++"
 nevra = "gcc-c++-0:16.2.1-2.fc44.aarch64"
+source = "fedora"
+
+[[package]]
+name = "gh"
+nevra = "gh-0:2.97.0-2.fc44.aarch64"
 source = "fedora"
 
 [[package]]
@@ -67,6 +152,66 @@ nevra = "glibc-devel-0:2.43-8.fc44.aarch64"
 source = "fedora"
 
 [[package]]
+name = "gnutls-dane"
+nevra = "gnutls-dane-0:3.8.13-1.fc44.aarch64"
+source = "fedora"
+
+[[package]]
+name = "go-filesystem"
+nevra = "go-filesystem-0:3.8.0-2.fc44.aarch64"
+source = "fedora"
+
+[[package]]
+name = "golang"
+nevra = "golang-0:1.26.7-1.fc44.aarch64"
+source = "fedora"
+
+[[package]]
+name = "golang-bin"
+nevra = "golang-bin-0:1.26.7-1.fc44.aarch64"
+source = "fedora"
+
+[[package]]
+name = "golang-src"
+nevra = "golang-src-0:1.26.7-1.fc44.noarch"
+source = "fedora"
+
+[[package]]
+name = "gpm-libs"
+nevra = "gpm-libs-0:1.20.7-53.fc44.aarch64"
+source = "fedora"
+
+[[package]]
+name = "gzip"
+nevra = "gzip-0:1.14-2.fc44.aarch64"
+source = "fedora"
+
+[[package]]
+name = "hiredis"
+nevra = "hiredis-0:1.2.0-8.fc44.aarch64"
+source = "fedora"
+
+[[package]]
+name = "jemalloc"
+nevra = "jemalloc-0:5.3.0-14.fc44.aarch64"
+source = "fedora"
+
+[[package]]
+name = "jq"
+nevra = "jq-0:1.8.1-3.fc44.aarch64"
+source = "fedora"
+
+[[package]]
+name = "jsoncpp"
+nevra = "jsoncpp-0:1.9.6-3.fc44.aarch64"
+source = "fedora"
+
+[[package]]
+name = "just"
+nevra = "just-0:1.57.0-1.fc44.aarch64"
+source = "fedora"
+
+[[package]]
 name = "kernel-headers"
 nevra = "kernel-headers-0:7.1.3-200.fc44.aarch64"
 source = "fedora"
@@ -82,8 +227,23 @@ nevra = "libatomic-0:16.2.1-2.fc44.aarch64"
 source = "fedora"
 
 [[package]]
+name = "libgit2"
+nevra = "libgit2-0:1.9.7-1.fc44.aarch64"
+source = "fedora"
+
+[[package]]
 name = "libmpc"
 nevra = "libmpc-0:1.4.1-1.fc44.aarch64"
+source = "fedora"
+
+[[package]]
+name = "libsodium"
+nevra = "libsodium-0:1.0.22-1.fc44.aarch64"
+source = "fedora"
+
+[[package]]
+name = "libssh2"
+nevra = "libssh2-0:1.11.1-9.fc44.aarch64"
 source = "fedora"
 
 [[package]]
@@ -102,8 +262,83 @@ nevra = "libxcrypt-devel-0:4.5.2-3.fc44.aarch64"
 source = "fedora"
 
 [[package]]
+name = "llhttp"
+nevra = "llhttp-0:9.3.1-1.fc44.aarch64"
+source = "fedora"
+
+[[package]]
+name = "llvm-filesystem"
+nevra = "llvm-filesystem-0:22.1.8-4.fc44.aarch64"
+source = "fedora"
+
+[[package]]
+name = "llvm-libs"
+nevra = "llvm-libs-0:22.1.8-4.fc44.aarch64"
+source = "fedora"
+
+[[package]]
 name = "make"
 nevra = "make-1:4.4.1-12.fc44.aarch64"
+source = "fedora"
+
+[[package]]
+name = "nano"
+nevra = "nano-0:8.7.1-2.fc44.aarch64"
+source = "fedora"
+
+[[package]]
+name = "ninja-build"
+nevra = "ninja-build-0:1.13.2-2.fc44.aarch64"
+source = "fedora"
+
+[[package]]
+name = "nodejs24"
+nevra = "nodejs24-1:24.18.0-1.fc44.aarch64"
+source = "fedora"
+
+[[package]]
+name = "nodejs24-bin"
+nevra = "nodejs24-bin-1:24.18.0-1.fc44.noarch"
+source = "fedora"
+
+[[package]]
+name = "nodejs24-libs"
+nevra = "nodejs24-libs-1:24.18.0-1.fc44.aarch64"
+source = "fedora"
+
+[[package]]
+name = "nodejs24-npm"
+nevra = "nodejs24-npm-1:11.16.0-1.24.18.0.1.fc44.noarch"
+source = "fedora"
+
+[[package]]
+name = "nodejs24-npm-bin"
+nevra = "nodejs24-npm-bin-1:24.18.0-1.fc44.noarch"
+source = "fedora"
+
+[[package]]
+name = "openssh-clients"
+nevra = "openssh-clients-0:10.2p1-14.fc44.aarch64"
+source = "fedora"
+
+[[package]]
+name = "openssl"
+nevra = "openssl-1:3.5.7-2.fc44.aarch64"
+source = "fedora"
+
+[[package]]
+name = "patch"
+nevra = "patch-0:2.8-4.fc44.aarch64"
+source = "fedora"
+
+[[package]]
+name = "pkgconf-pkg-config"
+nevra = "pkgconf-pkg-config-0:2.5.1-1.fc44.aarch64"
+source = "fedora"
+
+[[package]]
+name = "podman"
+nevra = "podman-5:5.8.4-1.fc44.aarch64"
 source = "fedora"
 
 [[package]]
@@ -112,8 +347,18 @@ nevra = "policycoreutils-python-utils-0:3.11-2.fc44.noarch"
 source = "fedora"
 
 [[package]]
+name = "python3"
+nevra = "python3-0:3.14.7-1.fc44.aarch64"
+source = "fedora"
+
+[[package]]
 name = "python3-audit"
 nevra = "python3-audit-0:4.2.1-1.fc44.aarch64"
+source = "fedora"
+
+[[package]]
+name = "python3-dbus"
+nevra = "python3-dbus-0:1.4.0-9.fc44.aarch64"
 source = "fedora"
 
 [[package]]
@@ -142,15 +387,140 @@ nevra = "python3-setools-0:4.6.0-6.fc44.aarch64"
 source = "fedora"
 
 [[package]]
-name = "soda-release"
-nevra = "soda-release-0:0.4.0-1.fc44.noarch"
-source = "local-rpm"
-file = "soda-release-0.4.0-1.fc44.noarch.rpm"
+name = "rhash"
+nevra = "rhash-0:1.4.5-4.fc44.aarch64"
+source = "fedora"
+
+[[package]]
+name = "ripgrep"
+nevra = "ripgrep-0:15.2.0-1.fc44.aarch64"
+source = "fedora"
+
+[[package]]
+name = "rsync"
+nevra = "rsync-0:3.5.0-1.fc44.aarch64"
+source = "fedora"
+
+[[package]]
+name = "rust"
+nevra = "rust-0:1.98.0-1.fc44.aarch64"
+source = "fedora"
+
+[[package]]
+name = "rust-std-static"
+nevra = "rust-std-static-0:1.98.0-1.fc44.aarch64"
+source = "fedora"
+
+[[package]]
+name = "rustfmt"
+nevra = "rustfmt-0:1.98.0-1.fc44.aarch64"
+source = "fedora"
+
+[[package]]
+name = "skopeo"
+nevra = "skopeo-1:1.22.2-2.fc44.aarch64"
+source = "fedora"
+
+[[package]]
+name = "sqlite"
+nevra = "sqlite-0:3.51.2-2.fc44.aarch64"
+source = "fedora"
 
 [[package]]
 name = "tailscale"
 nevra = "tailscale-0:1.98.8-1.fc44.aarch64"
 source = "fedora"
+
+[[package]]
+name = "tar"
+nevra = "tar-2:1.35-8.fc44.aarch64"
+source = "fedora"
+
+[[package]]
+name = "unbound-libs"
+nevra = "unbound-libs-0:1.26.0-1.fc44.aarch64"
+source = "fedora"
+
+[[package]]
+name = "unzip"
+nevra = "unzip-0:6.0-69.fc44.aarch64"
+source = "fedora"
+
+[[package]]
+name = "uv"
+nevra = "uv-0:0.12.3-1.fc44.aarch64"
+source = "fedora"
+
+[[package]]
+name = "vim-common"
+nevra = "vim-common-2:9.2.967-1.fc44.aarch64"
+source = "fedora"
+
+[[package]]
+name = "vim-enhanced"
+nevra = "vim-enhanced-2:9.2.967-1.fc44.aarch64"
+source = "fedora"
+
+[[package]]
+name = "vim-filesystem"
+nevra = "vim-filesystem-2:9.2.967-1.fc44.noarch"
+source = "fedora"
+
+[[package]]
+name = "wget2"
+nevra = "wget2-0:2.2.1-2.fc44.aarch64"
+source = "fedora"
+
+[[package]]
+name = "wget2-libs"
+nevra = "wget2-libs-0:2.2.1-2.fc44.aarch64"
+source = "fedora"
+
+[[package]]
+name = "wget2-wget"
+nevra = "wget2-wget-0:2.2.1-2.fc44.aarch64"
+source = "fedora"
+
+[[package]]
+name = "which"
+nevra = "which-0:2.25-1.fc44.aarch64"
+source = "fedora"
+
+[[package]]
+name = "xxd"
+nevra = "xxd-2:9.2.967-1.fc44.aarch64"
+source = "fedora"
+
+[[package]]
+name = "xxhash-libs"
+nevra = "xxhash-libs-0:0.8.3-4.fc44.aarch64"
+source = "fedora"
+
+[[package]]
+name = "xz"
+nevra = "xz-1:5.8.2-2.fc44.aarch64"
+source = "fedora"
+
+[[package]]
+name = "yq"
+nevra = "yq-0:4.53.3-1.fc44.aarch64"
+source = "fedora"
+
+[[package]]
+name = "zip"
+nevra = "zip-0:3.0-45.fc44.aarch64"
+source = "fedora"
+
+[[package]]
+name = "zstd"
+nevra = "zstd-0:1.5.7-5.fc44.aarch64"
+source = "fedora"
+
+[[package]]
+name = "soda-release"
+nevra = "soda-release-0:0.4.0-1.fc44.noarch"
+source = "local-rpm"
+file = "soda-release-0.4.0-1.fc44.noarch.rpm"
 
 [[package]]
 name = "soda-runtime"
