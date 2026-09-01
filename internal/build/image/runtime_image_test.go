@@ -77,6 +77,26 @@ func TestRuntimeImageBuildContextContract(t *testing.T) {
 	require.NotContains(t, string(containerfile), ".artifacts/")
 }
 
+func TestRepositoryBuildContextExcludesCredentialsAndUnrelatedArtifacts(t *testing.T) {
+	contents, err := os.ReadFile(filepath.Join("..", "..", "..", ".dockerignore"))
+	require.NoError(t, err)
+	ignore := string(contents)
+	for _, excluded := range []string{
+		".tailscale_auth_key", "**/*.key", "**/*.pem", "**/*.db", "**/*.qcow2", "**/*.oci-archive.tar",
+		"distro/base/**/*.oci-archive.tar", ".artifacts/**", ".artifacts/builder/**", ".artifacts/installer/**", ".artifacts/installer/context/**",
+	} {
+		require.Contains(t, ignore, excluded+"\n")
+	}
+	for _, included := range []string{
+		"!.artifacts/builder/packages.lock", "!.artifacts/builder/go.tar.gz",
+		"!.artifacts/installer/context/installer-packages.txt", "!.artifacts/installer/context/installer-boot-packages.txt",
+		"!.artifacts/installer/context/installer-efi-vendor.txt", "!.artifacts/installer/context/interactive-defaults.ks",
+		"!.artifacts/installer/context/iso.yaml",
+	} {
+		require.Contains(t, ignore, included+"\n")
+	}
+}
+
 func TestRuntimeImageStateDirectoriesAndSELinuxContract(t *testing.T) {
 	sysusers, err := os.ReadFile(filepath.Join("..", "..", "..", "packaging", "rpm", "runtime", "sources", "sysusers", "soda.conf"))
 	require.NoError(t, err)
