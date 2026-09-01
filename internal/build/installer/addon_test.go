@@ -70,8 +70,8 @@ func TestSodaInstallerTaskUsesBoundedNativeForgejoAndSecrets(t *testing.T) {
 		"get_user_list(self._users)", "has_admin_priviledges", "etc/passwd", "etc/group",
 		".ssh/authorized_keys", "crypt_password", "set_user_list", "os.memfd_create",
 		`["/usr/bin/mount", "--bind"`,
-		`"/usr/bin/setfiles"`, `"-F"`, `"-r"`, `self._sysroot / "var" / "home" / username`,
-		`"targeted"`, `"file_contexts"`, `logical_home.samefile(physical_home)`,
+		`"/usr/sbin/chroot"`, `"/usr/sbin/restorecon"`, `"-RF"`,
+		`PurePosixPath("/home") / username`,
 		"fcntl.F_SEAL_WRITE", "/proc/self/fd/", `"/user/sign_up"`,
 		`"email": f"{username}@localhost"`, "DISABLE_REGISTRATION = false",
 		`"/usr/bin/systemd-tmpfiles"`, `"forgejo.conf"`,
@@ -82,7 +82,8 @@ func TestSodaInstallerTaskUsesBoundedNativeForgejoAndSecrets(t *testing.T) {
 	}
 	require.NotContains(t, string(installation), "installer-admin.json")
 	require.NotContains(t, string(installation), "--password")
-	require.NotContains(t, string(installation), `"/usr/sbin/restorecon"`)
+	require.NotContains(t, string(installation), `self._sysroot / "var" / "home" / username`)
+	require.NotContains(t, string(installation), `"/usr/bin/setfiles"`)
 	require.NotContains(t, string(installation), `self._physical_root`)
 	require.NotContains(t, string(installation), `ostree/deploy`)
 	require.NotContains(t, string(installation), `persistent bootc variable-data`)
