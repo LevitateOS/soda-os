@@ -681,6 +681,10 @@ capture() {
 	admin_ssh '
 		set -eu
 		echo "[identity]"; id
+		test "$(getenforce)" = Enforcing
+		for path in "$HOME" "$HOME/.ssh" "$HOME/.ssh/authorized_keys"; do
+			matchpathcon -V "$path"
+		done
 		echo "[time]"; date -u +%Y-%m-%dT%H:%M:%SZ
 		echo "[boot-id]"; cat /proc/sys/kernel/random/boot_id
 		echo "[kernel]"; uname -a

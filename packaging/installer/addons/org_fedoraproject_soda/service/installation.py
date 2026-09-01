@@ -37,7 +37,7 @@ class ProvisionSodaInstallationTask(Task):
             users = get_user_list(self._users)
             user, password = self._validate_native_input(users)
             self._validate_installed_linux_account(user)
-            self._restore_installed_linux_account_contexts(user.name)
+            self._label_installed_linux_account(user.name)
             self._create_forgejo_administrator(user.name, password)
             self._replace_plaintext_passwords()
             passwords_replaced = True
@@ -103,24 +103,51 @@ class ProvisionSodaInstallationTask(Task):
         if len(keys) != 1 or keys[0] not in installed_keys:
             raise RuntimeError("the installed administrator SSH key does not match")
 
-    def _restore_installed_linux_account_contexts(self, username):
-        home = PurePosixPath("/home") / username
+    def _label_installed_linux_account(self, username):
+        logical_home = self._sysroot / "home" / username
+        physical_home = self._sysroot / "var" / "home" / username
+        try:
+            if not logical_home.samefile(physical_home) or not physical_home.is_dir():
+                raise RuntimeError(
+                    "the installed administrator home does not use the expected physical path"
+                )
+        except OSError:
+            raise RuntimeError(
+                "the installed administrator home does not use the expected physical path"
+            ) from None
+
+        file_contexts = (
+            self._sysroot
+            / "etc"
+            / "selinux"
+            / "targeted"
+            / "contexts"
+            / "files"
+            / "file_contexts"
+        )
+        if not file_contexts.is_file():
+            raise RuntimeError("the installed SELinux policy is unavailable")
+
         result = subprocess.run(
             [
-                "/usr/sbin/chroot",
+                "/usr/bin/setfiles",
+                "-F",
+                "-r",
                 str(self._sysroot),
-                "/usr/sbin/restorecon",
-                "-RF",
-                str(home),
+                str(file_contexts),
+                str(physical_home),
             ],
             stdin=subprocess.DEVNULL,
             stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
+            text=True,
             check=False,
         )
         if result.returncode != 0:
+            detail = result.stderr.strip()
             raise RuntimeError(
-                "the installed administrator SELinux contexts could not be restored"
+                "the installed administrator SELinux contexts could not be applied"
+                + (f": {detail}" if detail else "")
             )
 
     def _find_account_record(self, relative_path, name, minimum_fields):
