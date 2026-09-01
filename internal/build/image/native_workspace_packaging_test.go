@@ -31,68 +31,50 @@ func TestNativeWorkspaceBinariesAreBuilt(t *testing.T) {
 	require.Contains(t, joined, "-o /src/.artifacts/build/soda-workspace-helper ./cmd/soda-workspace-helper")
 }
 
-func TestNativeWorkspaceCockpitPackagesAreLockedForX86_64(t *testing.T) {
-	root, err := filepath.Abs(filepath.Join("..", "..", ".."))
-	require.NoError(t, err)
-	lock, err := (&Builder{Root: root, Spec: config.DistroSpec{
-		Image: config.ImageSpec{PackageLock: "distro/locks/runtime-packages-x86_64.toml"},
-	}}).packageLock()
-	require.NoError(t, err)
-
-	var cockpitPackages []lockedPackage
-	for _, item := range lock.Package {
-		if strings.HasPrefix(item.Name, "cockpit-") {
-			cockpitPackages = append(cockpitPackages, item)
-		}
-	}
-	require.Equal(t, []lockedPackage{
-		{Name: "cockpit-bridge", NEVRA: "cockpit-bridge-0:366-1.fc44.noarch", Source: "fedora"},
-		{Name: "cockpit-system", NEVRA: "cockpit-system-0:366-1.fc44.noarch", Source: "fedora"},
-		{Name: "cockpit-ws", NEVRA: "cockpit-ws-0:366-1.fc44.x86_64", Source: "fedora"},
-		{Name: "cockpit-ws-selinux", NEVRA: "cockpit-ws-selinux-0:366-1.fc44.x86_64", Source: "fedora"},
-	}, cockpitPackages)
-}
-
-func TestStockCockpitLockClosureBlocksUnresolvedSiblingInputs(t *testing.T) {
+func TestNativeWorkspaceCockpitPackagesAreLockedForSiblingArchitectures(t *testing.T) {
 	root, err := filepath.Abs(filepath.Join("..", "..", ".."))
 	require.NoError(t, err)
 	for _, test := range []struct {
 		architecture string
-		wantError    string
+		packageArch  string
 	}{
-		{architecture: "x86_64"},
-		{architecture: "aarch64", wantError: "runtime package lock requires matching-native resolution for: cockpit-bridge, cockpit-system, cockpit-ws, cockpit-ws-selinux"},
+		{architecture: "aarch64", packageArch: "aarch64"},
+		{architecture: "x86_64", packageArch: "x86_64"},
 	} {
 		t.Run(test.architecture, func(t *testing.T) {
 			builder, buildErr := NewBuilder(root, filepath.Join(root, "distro", "soda.toml"), test.architecture, nil)
 			require.NoError(t, buildErr)
 			lock, lockErr := builder.packageLock()
 			require.NoError(t, lockErr)
-			if test.wantError == "" {
-				require.NoError(t, validateStockCockpitLockClosure(lock))
-				return
+
+			var cockpitPackages []lockedPackage
+			for _, item := range lock.Package {
+				if strings.HasPrefix(item.Name, "cockpit-") {
+					cockpitPackages = append(cockpitPackages, item)
+				}
 			}
-			require.EqualError(t, validateStockCockpitLockClosure(lock), test.wantError)
+			require.Equal(t, []lockedPackage{
+				{Name: "cockpit-bridge", NEVRA: "cockpit-bridge-0:366-1.fc44.noarch", Source: "fedora"},
+				{Name: "cockpit-system", NEVRA: "cockpit-system-0:366-1.fc44.noarch", Source: "fedora"},
+				{Name: "cockpit-ws", NEVRA: "cockpit-ws-0:366-1.fc44." + test.packageArch, Source: "fedora"},
+				{Name: "cockpit-ws-selinux", NEVRA: "cockpit-ws-selinux-0:366-1.fc44." + test.packageArch, Source: "fedora"},
+			}, cockpitPackages)
 		})
 	}
 }
 
-func TestAArch64ArtifactBuildFailsBeforeDockerUntilCockpitLockIsResolved(t *testing.T) {
+func TestStockCockpitLockClosureIsCompleteForSiblingInputs(t *testing.T) {
 	root, err := filepath.Abs(filepath.Join("..", "..", ".."))
 	require.NoError(t, err)
-	runner := &recordingRunner{Outputs: map[string]string{
-		"git status --porcelain=v1 --untracked-files=all": "",
-		"git rev-parse HEAD":                              strings.Repeat("a", 40) + "\n",
-	}}
-	builder, err := NewBuilder(root, filepath.Join(root, "distro", "soda.toml"), "aarch64", runner)
-	require.NoError(t, err)
-	builder.hostArchitecture = "arm64"
-
-	require.EqualError(t, builder.BuildRPMs(context.Background()), "runtime package lock requires matching-native resolution for: cockpit-bridge, cockpit-system, cockpit-ws, cockpit-ws-selinux")
-	require.Equal(t, []string{
-		"git status --porcelain=v1 --untracked-files=all",
-		"git rev-parse HEAD",
-	}, []string{runner.Commands[0].String(), runner.Commands[1].String()})
+	for _, architecture := range []string{"aarch64", "x86_64"} {
+		t.Run(architecture, func(t *testing.T) {
+			builder, buildErr := NewBuilder(root, filepath.Join(root, "distro", "soda.toml"), architecture, nil)
+			require.NoError(t, buildErr)
+			lock, lockErr := builder.packageLock()
+			require.NoError(t, lockErr)
+			require.NoError(t, validateStockCockpitLockClosure(lock))
+		})
+	}
 }
 
 func TestNativeWorkspaceSourcesAreStagedForRPMBuild(t *testing.T) {

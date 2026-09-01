@@ -17,6 +17,26 @@ nevra = "checkpolicy-0:3.11-1.fc44.aarch64"
 source = "fedora"
 
 [[package]]
+name = "cockpit-bridge"
+nevra = "cockpit-bridge-0:366-1.fc44.noarch"
+source = "fedora"
+
+[[package]]
+name = "cockpit-system"
+nevra = "cockpit-system-0:366-1.fc44.noarch"
+source = "fedora"
+
+[[package]]
+name = "cockpit-ws"
+nevra = "cockpit-ws-0:366-1.fc44.aarch64"
+source = "fedora"
+
+[[package]]
+name = "cockpit-ws-selinux"
+nevra = "cockpit-ws-selinux-0:366-1.fc44.aarch64"
+source = "fedora"
+
+[[package]]
 name = "cpp"
 nevra = "cpp-0:16.2.1-2.fc44.aarch64"
 source = "fedora"

@@ -69,10 +69,8 @@ network publication step. Architecture selection is always explicit; neither
 sibling is a default or fallback.
 The package lock pins every Fedora package added to the immutable base, and the
 finished image contains a complete RPM inventory plus its verified SHA-256
-checksum. The x86-64 lock includes the exact stock-Cockpit closure. The AArch64
-lock still requires matching-native Cockpit resolution for this workspace
-slice, so its RPM and OCI commands fail before artifact generation until that
-input is recorded; this is an evidence gap, not a different product target.
+checksum. Both sibling locks include their exact matching-native stock-Cockpit
+closure.
 
 Local development does not publish or sign images. Optional release metadata
 records preserve the exact local archive digest, image labels, RPM inventory,

@@ -12,17 +12,12 @@ remaining runtime paths, and source-date epoch. The builder obtains the
 source revision from the current Git commit, and every command requires an
 explicit `--architecture aarch64` or `--architecture x86_64` selection.
 
-The platform-selected runtime package lock must record exact NEVRAs for every
+The platform-selected runtime package lock records exact NEVRAs for every
 Fedora RPM added to its pinned base and for the four locally built Soda RPM
-inputs. The x86-64 lock currently includes the exact stock-Cockpit dependency
-closure. The AArch64 lock still requires matching-native resolution of that
-closure; AArch64 RPM and OCI construction therefore fail before artifact
-generation until the native result is recorded. The cross-architecture
-`soda-image check` command continues to validate shared source and platform
-configuration, but does not claim that missing native package evidence. This is
-a temporary verification gap, not a different product contract. The Soda RPMs
-are build inputs only; no mutable Soda RPM repository is created or embedded.
-Weak dependencies are disabled.
+inputs. Both sibling locks include their independently resolved matching-native
+stock-Cockpit dependency closure. The Soda RPMs are build inputs only; no
+mutable Soda RPM repository is created or embedded. Weak dependencies are
+disabled.
 
 During `just oci ARCH`, the Go builder:
 
