@@ -22,16 +22,20 @@ catalogued project and gives administrators the supported cascading human
 deletion action. It may invoke one short synchronous privileged operation for
 the accepted catalog and workspace lifecycle, but Soda retains no general
 project control plane, daemon, database, RPC API, credential store, job engine,
-or reconciliation system. Podman is available as an optional development tool
-and is not the isolation mechanism.
+or reconciliation system. Cockpit's Fedora-owned pages read generic host,
+service, journal, storage, and network state directly from Linux; Soda does not
+translate or copy that telemetry. Podman is available as an optional
+development tool and is not the isolation mechanism.
 
 The [base principles](docs/principles.md) state the product purpose and ownership
 philosophy. The [architectural reset](docs/architecture-reset.md) records the
 accepted architecture and issue ownership. The native workspace and
 image-lifecycle slices have removed the custom identity, project,
 repository-projection, dashboard, SSH gateway, database, workflow, and
-runtime-update layers; later reset milestones still own the temporary
-telemetry, toolchain, and residual RPC cleanup.
+runtime-update layers. The native host and immutable-toolset slice has also
+removed Soda telemetry and runtime toolchain management. Only the temporary
+health-only daemon, local socket, and protobuf/gRPC shell remain for the final
+control-plane deletion milestone.
 
 This repository is independent from LevitateOS. It borrows the separation
 between declarative distro specifications, Go orchestration, explicit
@@ -42,8 +46,8 @@ base, kernel, userspace, RPM/DNF, systemd, SELinux, and SSH.
 
 - `cmd`: bounded runtime, Projects, helper, and artifact executables
 - `cockpit`: the static stock-Cockpit Projects package
-- `internal`: native Projects behavior, temporary residual runtime, and the artifact pipeline under `internal/build`
-- `distro`: Soda identity, profiles, distribution locks, and Fedora base metadata
+- `internal`: native Projects behavior, the temporary health-only runtime, and the artifact pipeline under `internal/build`
+- `distro`: Soda identity, immutable tool manifest, distribution locks, and Fedora base metadata
 - `packaging`: bootc and RPM inputs grouped by shipped package
 - `assets`: canonical Soda branding sources and rendered assets
 - `docs`: architecture, artifact, branding, and release operations
@@ -61,8 +65,8 @@ just iso "$ARCH" ".artifacts/images/soda-os-0.4.0-${ARCH}.oci.tar"
 ```
 
 Build artifacts are written under `.artifacts/` and are never committed.
-`just rpm` builds exactly the four locked local Soda RPM inputs. `just oci`
-builds those RPMs and emits
+`just rpm` builds the locked local Soda RPM inputs, including the narrowly
+packaged Bun binary. `just oci` builds those RPMs and emits
 `.artifacts/images/soda-os-0.4.0-${ARCH}.oci.tar` without loading or publishing
 the image. `just iso` derives the exact image digest from that local archive and
 embeds it in a platform-matched installer without a registry, signing key, or
@@ -70,8 +74,10 @@ network publication step. Architecture selection is always explicit; neither
 sibling is a default or fallback.
 The package lock pins every Fedora package added to the immutable base, and the
 finished image contains a complete RPM inventory plus its verified SHA-256
-checksum. Both sibling locks include their exact matching-native stock-Cockpit
-closure.
+checksum. Both sibling locks include their independently resolved
+matching-native stock-Cockpit and development-tool closures. The installed
+command contract is recorded at `/usr/share/soda/toolset-commands.txt`; every
+listed command is ordinary immutable image content available through `PATH`.
 
 Local development does not publish or sign images. Optional release metadata
 records preserve the exact local archive digest, image labels, RPM inventory,
@@ -113,7 +119,13 @@ out-of-band and non-cascading.
 
 Projects choose non-conflicting host ports themselves. They may use Podman or
 other ordinary tools when useful; Soda does not allocate ports or manage
-network namespaces. Linux administrators operate deployments through native
+network namespaces. The broad reviewed Go, Python, Rust, JavaScript, native
+build, Git, container, data, archive, and editor toolset is installed in the
+image. Users keep language packages, caches, and project-local dependencies in
+their ordinary homes and workspaces; Soda has no runtime toolchain resolver,
+profile, readiness database, downloader, or update service.
+
+Linux administrators operate deployments through native
 `bootc status`, `bootc switch --download-only <exact-reference>`, and
 `bootc switch --from-downloaded`, followed by a controlled reboot. Supported
 fallback selects an earlier exact Soda digest through the same switch path and

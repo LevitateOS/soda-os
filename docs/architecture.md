@@ -2,9 +2,9 @@
 
 The product contract and ownership rules live in
 [principles.md](principles.md) and [architecture-reset.md](architecture-reset.md).
-This document describes the current implementation after the native workspace
-vertical slice. It is implementation evidence, not an independent source of
-product requirements.
+This document describes the current implementation after the native workspace,
+native host-administration, and immutable-toolset slices. It is implementation
+evidence, not an independent source of product requirements.
 
 ## Native ownership
 
@@ -15,7 +15,9 @@ product requirements.
   authentication.
 - Forgejo or an external Git host owns repositories, collaboration, access,
   and repository lifecycle.
-- Stock Cockpit owns browser authentication, sessions, and host administration.
+- Stock Cockpit owns browser authentication, sessions, and generic host
+  administration through its Fedora-owned system, metrics, service, journal,
+  account, terminal, storage, and networking packages.
 - Tailscale owns the enrolled node identity and private-network connectivity.
 
 Soda owns only the appliance composition, the minimal project catalog, the
@@ -83,6 +85,24 @@ managed ports only on loopback and `tailscale0` and rejects other ingress.
 Projects select their own non-conflicting ports; Soda has no port allocator or
 container/network controller.
 
+## Immutable development tools
+
+The reviewed development-tool collection is installed into the bootc image
+from exact architecture-owned package locks. Fedora RPMs supply the language
+runtimes, compilers, build systems, Git and SSH clients, container tools,
+utilities, archives, and editors. The one tool without a Fedora package, Bun,
+is installed from an architecture-specific checksum-locked upstream artifact
+through a narrow local RPM. That RPM owns only the executable and its license;
+it has no downloader or updater.
+
+`/usr/share/soda/toolset-commands.txt` records the approved command-level
+contract. Every listed command is available through ordinary system `PATH` to
+primary and derived accounts. Language packages, caches, virtual environments,
+and project-local dependencies remain user-owned state in ordinary homes and
+workspaces. Soda has no runtime toolchain profiles, resolver, readiness state,
+download service, version reconciliation, toolchain mount, or persistent
+toolchain directory.
+
 ## Native image lifecycle
 
 Linux administrators inspect and select exact Soda image digests through
@@ -96,13 +116,13 @@ update API, CLI wrapper, background updater, retry, or recovery service.
 
 ## Temporary residual runtime
 
-The architectural reset is issue-ordered. Until its owning later milestone
-lands, the reduced `sodad`/`sodactl` surface retains only host telemetry over
-the local Unix gRPC socket. It has no Soda identity, project,
-repository-projection, provisioning, update, or SQLite authority. Telemetry and
-the image-resident toolchain cleanup remain explicit later
-deletion/replacement milestones. They do not participate in the Projects
-workflow.
+The architectural reset is issue-ordered. Until the final control-plane
+deletion milestone lands, the reduced `sodad`/`sodactl` surface retains only a
+`Health` RPC over the local Unix gRPC socket. It has no Soda identity, project,
+repository-projection, provisioning, update, telemetry, toolchain, or SQLite
+authority and does not participate in the Projects workflow. The daemon,
+socket, generated protobuf code, gRPC transport, and health CLI are temporary
+residual infrastructure, not accepted product architecture.
 
 ## Sibling architectures
 

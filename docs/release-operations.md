@@ -31,6 +31,11 @@ storage, and writes the ISO plus its SHA-256 sidecar under `.artifacts/images/`.
 It does not contact GHCR, push an image, invoke Cosign, or require any signing
 key, passphrase, signature, or registry credentials.
 
+The OCI build also verifies the architecture-owned package lock, the fixed
+Forgejo and Bun source inputs, and every command in the installed immutable
+tool manifest. Bun source and RPM construction occur only on matching-native
+hardware. There is no runtime source lookup or tool download path.
+
 The optional metadata command independently inspects the completed ISO and
 writes an unsigned local record containing the image labels, exact local digest,
 RPM inventory checksum, and ISO checksum:
@@ -121,5 +126,7 @@ production installations. It can install or boot an architecture-selected VM,
 wait for SSH and Cockpit health, exercise an attributed SSH workload, capture
 host and guest evidence, prove native account-preserving image selection, and
 request a clean ACPI shutdown. Captures may include the local record, ISO
-hashes, bootc status, service state, and QEMU state. Local acceptance does not
-create or require production signatures.
+hashes, bootc status, service state, stock Cockpit package discovery, the exact
+immutable command manifest, absence of the former toolchain mount and state,
+and QEMU state. Local acceptance does not create or require production
+signatures.

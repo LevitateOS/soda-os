@@ -182,11 +182,12 @@ deployment model must remain permanent.
 Use the present tree as a navigation aid, not an immutable architecture:
 
 - `cmd`: executable-specific construction and command behavior
-- `cockpit`: Cockpit and PAM executables, daemon client, HTTP views, and assets
+- `cockpit`: the static stock-Cockpit Projects package and its presentation assets
 - `internal/build`: image, installer, and release production
-- `internal`: runtime domain, daemon, host, persistence, SSH, updates, telemetry,
-  toolchains, and process execution
-- `distro`: current distribution specification, profiles, locks, and base inputs
+- `internal`: native Projects behavior, the temporary health-only runtime, host
+  integration, and process execution
+- `distro`: current distribution specification, immutable tool manifest, locks,
+  and base inputs
 - `packaging`: files grouped by the artifact or package that ships them
 - `tests/acceptance`: system-level installation and boot evidence
 - `scripts` and `tools`: repository verification and developer tooling

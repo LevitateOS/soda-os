@@ -13,23 +13,25 @@ source revision from the current Git commit, and every command requires an
 explicit `--architecture aarch64` or `--architecture x86_64` selection.
 
 The platform-selected runtime package lock records exact NEVRAs for every
-Fedora RPM added to its pinned base and for the four locally built Soda RPM
-inputs. Both sibling locks include their independently resolved matching-native
-stock-Cockpit dependency closure. The Soda RPMs are build inputs only; no
-mutable Soda RPM repository is created or embedded. Weak dependencies are
-disabled.
+Fedora RPM added to its pinned base and for the locally built Soda RPM inputs.
+Those inputs include the narrow architecture-specific `soda-bun` package.
+Both sibling locks include their independently resolved matching-native stock-
+Cockpit and immutable-development-tool dependency closures. The Soda RPMs are
+build inputs only; no mutable Soda RPM repository is created or embedded. Weak
+dependencies are disabled.
 
 During `just oci ARCH`, the Go builder:
 
 1. validates the immutable base, platform, registry, and package lock;
-2. reproducibly builds `soda-release`, `soda-runtime`, `soda-projects`, and
-   `soda-forgejo` with the configured version, source revision, and source date;
+2. reproducibly builds `soda-release`, `soda-runtime`, `soda-projects`,
+   `soda-forgejo`, and `soda-bun` with the configured version, source revision,
+   and source date;
 3. installs the exact locked transaction into the pinned Fedora bootc base;
 4. creates the temporary `soda-api` group and the Linux-native
    `soda-workspaces` classification group;
-5. composes stock Cockpit's PAM policy and enables SSH, `cockpit.socket`, the
-   one-attempt Tailscale enrollment unit, Forgejo, native nftables, the reduced
-   residual Soda service, and the remaining toolchain mount;
+5. composes stock Cockpit's PAM policy and host packages and enables SSH,
+   `cockpit.socket`, the one-attempt Tailscale enrollment unit, Forgejo, native
+   nftables, and the reduced health-only Soda service;
 6. masks the automatic bootc update timer while retaining manual bootc
    operations;
 7. records the complete installed RPM inventory and verifies its SHA-256; and
@@ -167,8 +169,27 @@ accounts' ordinary `$HOME/Projects` directories.
 
 The pre-reset Soda database, copied person/project/repository state, shared
 project mount, alternate authorized-key tree, Cockpit certificates, and
-standalone dashboard state are not created. The image-owned toolchain cache and
-mount remain temporary until issue #24 removes the runtime toolchain manager.
+standalone dashboard state are not created. Neither `/opt/soda/toolchains` nor
+`/var/lib/soda/toolchains` exists, and no toolchain mount, profile, readiness
+record, downloader, or runtime manager is shipped.
+
+## Immutable development toolset
+
+The image installs the approved command collection from exact Fedora package
+locks plus the checksum-locked, architecture-specific `soda-bun` RPM. The
+approved commands cover Go, Python and uv, Rust, Node.js, Bun, native compilers
+and build systems, Git and SSH, rootless container tools, data and network
+utilities, archives, and editors. The exact command-level contract is installed
+at `/usr/share/soda/toolset-commands.txt`, with one command per line. Image
+construction fails when any listed command is unavailable through ordinary
+system `PATH`.
+
+Bun source acquisition is a bounded build input: each matching-native builder
+fetches the selected official architecture asset, verifies its locked checksum
+and license, and builds the local RPM without network access. Soda performs no
+runtime tool discovery or download. Primary and derived accounts use the same
+immutable commands while retaining their own ecosystem caches, virtual
+environments, and project-local dependencies in their ordinary homes.
 
 ## Manual OS updates
 

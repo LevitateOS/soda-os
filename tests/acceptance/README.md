@@ -13,10 +13,11 @@ other.
 
 1. Run `just check`.
 2. Run `just rpm ARCH` and require the exact locked `soda-release`,
-   `soda-runtime`, `soda-projects`, and `soda-forgejo` inputs.
+   `soda-runtime`, `soda-projects`, `soda-forgejo`, and `soda-bun` inputs.
 3. Run `just oci ARCH` and inspect the matching-native OCI archive, installed
-   package inventory, image labels, stock Cockpit payload, and absence of the
-   deleted identity/project/dashboard/SSH control-plane payload.
+   package inventory, image labels, complete stock Cockpit host payload,
+   immutable tool manifest, and absence of the deleted identity, project,
+   dashboard, SSH, telemetry, and toolchain-control payload.
 4. Build the matching ISO from that local archive and verify its checksum and
    exact embedded image digest.
 5. Install through native raw QEMU and capture the booted digest, native
@@ -31,10 +32,18 @@ containing one disposable Tailscale auth key. The runner removes the Kickstart
 source after creating OEMDRV; after Anaconda confirms parsing it, QMP ejects the
 medium and the host file is removed.
 
-Load the generated `runner.env`, then use:
+Load the generated `runner.env` in two terminals. `launch` replaces its shell
+with QEMU and remains in the foreground until the VM stops.
+
+In terminal 1:
 
 ```sh
 tests/acceptance/bootc.sh launch install
+```
+
+In terminal 2, after loading the same `runner.env`:
+
+```sh
 tests/acceptance/bootc.sh wait
 tests/acceptance/bootc.sh capture installed
 tests/acceptance/bootc.sh stop
@@ -66,6 +75,45 @@ SSH behavior, standalone web services, and Soda SQLite authority.
 The current runner captures installed platform and service evidence. Final
 automation of every architecture-reset scenario and the post-#39 absence
 inventory remain issue #25 work.
+
+## Native host and immutable-toolset evidence
+
+An installed-image capture requires the Fedora-owned Cockpit system, storage,
+and networking packages plus Soda's branding and Projects package to be
+discoverable. Before capture, authenticate as the primary account and exercise
+Overview, Metrics, Services, Logs, Accounts, Terminal, Storage, Networking, and
+Projects.
+Use Projects to create a derived workspace and confirm that the derived account
+is rejected by Cockpit PAM. Export its direct-SSH details in terminal 2; when
+the primary administrator key was copied during setup, for example:
+
+```sh
+export SODA_ACCEPTANCE_WORKSPACE_TARGET='<derived-username>'
+export SODA_ACCEPTANCE_WORKSPACE_KEY="$SODA_ACCEPTANCE_ADMIN_KEY"
+export SODA_ACCEPTANCE_REQUIRE_WORKSPACE_TOOLSET=1
+```
+
+The UI observations must use Linux-owned values as displayed by stock Cockpit;
+there is no Soda host-status RPC or telemetry page to compare.
+
+`capture` sends the same reusable, unprivileged smoke script to the primary
+account and, for milestone evidence, requires and exercises the derived account
+when `SODA_ACCEPTANCE_REQUIRE_WORKSPACE_TOOLSET=1`. It
+compares `/usr/share/soda/toolset-commands.txt` with the exact approved command
+contract, resolves every entry through ordinary `PATH`, and builds or runs
+small Go, Python, Rust, Node.js, Bun, C, and C++ programs in a user-owned
+temporary directory. It also exercises representative Git/SSH, build, archive,
+editor, and data tools plus rootless `podman info` and `podman unshare`. The
+Podman checks use only native per-user state and do not add a Soda container
+fixture or control path.
+
+The capture must fail if `/opt/soda/toolchains`,
+`/var/lib/soda/toolchains`, `opt-soda-toolchains.mount`, or
+`soda-state-directories.service` exists. It must also prove that the residual
+`sodad` surface remains health-only by running and validating
+`sudo sodactl health`. When `SODA_ACCEPTANCE_ADMIN_PASSWORD_FILE` is set, the
+password is supplied only on standard input; otherwise capture requires
+passwordless non-interactive sudo for that command.
 
 ## Native update and fallback evidence
 

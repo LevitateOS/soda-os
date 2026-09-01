@@ -6,6 +6,25 @@ manager, systemd, SELinux policy, SSH server, bootc runtime, and their RPM
 provenance. Soda OS is an independent remote-development appliance and is not
 endorsed by the Fedora Project.
 
+## Native host administration
+
+Stock Cockpit supplies authentication and its Fedora-owned overview, metrics,
+services, logs, accounts, terminal, storage, and networking pages. Those pages
+read Linux-owned state directly. Soda adds branding and the focused Projects
+package but ships no separate telemetry sampler, translated host-status API, or
+custom host-administration backend.
+
+## Immutable development tools
+
+The reviewed development-tool collection is installed in this image through
+exact architecture-owned Fedora package locks plus a checksum-locked Bun RPM.
+`/usr/share/soda/toolset-commands.txt` lists the command contract, with one
+command per line. The same system commands are available to primary and derived
+workspace accounts through ordinary `PATH`; user packages, caches, and project
+dependencies remain in their homes. Soda has no runtime toolchain profiles,
+downloader, readiness state, persistent toolchain directory, or toolchain
+mount.
+
 ## Manual image lifecycle
 
 Automatic image updates are disabled. A Linux administrator inspects and
