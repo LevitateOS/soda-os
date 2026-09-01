@@ -37,6 +37,7 @@ class ProvisionSodaInstallationTask(Task):
             users = get_user_list(self._users)
             user, password = self._validate_native_input(users)
             self._validate_installed_linux_account(user)
+            self._restore_installed_linux_account_contexts(user.name)
             self._create_forgejo_administrator(user.name, password)
             self._replace_plaintext_passwords()
             passwords_replaced = True
@@ -101,6 +102,26 @@ class ProvisionSodaInstallationTask(Task):
             raise RuntimeError("the installed administrator SSH key is missing") from None
         if len(keys) != 1 or keys[0] not in installed_keys:
             raise RuntimeError("the installed administrator SSH key does not match")
+
+    def _restore_installed_linux_account_contexts(self, username):
+        home = PurePosixPath("/home") / username
+        result = subprocess.run(
+            [
+                "/usr/sbin/chroot",
+                str(self._sysroot),
+                "/usr/sbin/restorecon",
+                "-RF",
+                str(home),
+            ],
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=False,
+        )
+        if result.returncode != 0:
+            raise RuntimeError(
+                "the installed administrator SELinux contexts could not be restored"
+            )
 
     def _find_account_record(self, relative_path, name, minimum_fields):
         try:

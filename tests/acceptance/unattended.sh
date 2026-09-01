@@ -40,8 +40,15 @@ need_file() {
 
 prepare() {
 	case "$(uname -m)" in
-		x86_64|amd64) ;;
-		*) die "x86-64 unattended acceptance requires matching native hardware" ;;
+		aarch64|arm64)
+			architecture=aarch64
+			expected_platform=linux/arm64
+			;;
+		x86_64|amd64)
+			architecture=x86_64
+			expected_platform=linux/amd64
+			;;
+		*) die "unattended acceptance requires matching native AArch64 or x86-64 hardware" ;;
 	esac
 	for command in jq openssl ssh-keygen sha256sum xorriso; do
 		need "$command"
@@ -84,7 +91,7 @@ PY
 	record=$(CDPATH= cd -- "$(dirname "$record")" && pwd)/$(basename "$record")
 
 	platform=$(jq -r '.platform // empty' "$record")
-	[ "$platform" = linux/amd64 ] || die "release record platform $platform is not linux/amd64"
+	[ "$platform" = "$expected_platform" ] || die "release record platform $platform is not $expected_platform"
 	image_reference=$(jq -r '.soda_image_reference // empty' "$record")
 	case "$image_reference" in
 		*@sha256:????????????????????????????????????????????????????????????????) ;;
@@ -155,7 +162,7 @@ EOF
 	image_digest=$(printf '%s\n' "$image_reference" | sed 's/.*@//')
 	cat >"$acceptance_dir/runner.env" <<EOF
 export SODA_ACCEPTANCE_DIR=$acceptance_dir
-export SODA_ACCEPTANCE_ARCHITECTURE=x86_64
+export SODA_ACCEPTANCE_ARCHITECTURE=$architecture
 export SODA_ACCEPTANCE_ADMIN=$admin
 export SODA_ACCEPTANCE_ADMIN_KEY=$admin_key
 export SODA_ACCEPTANCE_ADMIN_PASSWORD_FILE=$password_file

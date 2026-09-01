@@ -24,11 +24,12 @@ other.
 
 ## Raw-QEMU preparation
 
-On x86-64, `tests/acceptance/unattended.sh prepare` creates a protected,
-test-only OEMDRV Kickstart input for a disposable installation. It requires a
-protected file containing one disposable Tailscale auth key. The runner removes
-the Kickstart source after creating OEMDRV; after Anaconda confirms parsing it,
-QMP ejects the medium and the host file is removed.
+On matching-native x86-64 or AArch64 hardware,
+`tests/acceptance/unattended.sh prepare` creates a protected, test-only OEMDRV
+Kickstart input for a disposable installation. It requires a protected file
+containing one disposable Tailscale auth key. The runner removes the Kickstart
+source after creating OEMDRV; after Anaconda confirms parsing it, QMP ejects the
+medium and the host file is removed.
 
 Load the generated `runner.env`, then use:
 

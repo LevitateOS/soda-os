@@ -66,6 +66,7 @@ func TestSodaInstallerTaskUsesBoundedNativeForgejoAndSecrets(t *testing.T) {
 	for _, expected := range []string{
 		"get_user_list(self._users)", "has_admin_priviledges", "etc/passwd", "etc/group",
 		".ssh/authorized_keys", "crypt_password", "set_user_list", "os.memfd_create",
+		`"/usr/sbin/restorecon"`, `"-RF"`, `PurePosixPath("/home") / username`,
 		"fcntl.F_SEAL_WRITE", "/proc/self/fd/", `"/user/sign_up"`,
 		`"email": f"{username}@localhost"`, "DISABLE_REGISTRATION = false",
 		`"/usr/bin/systemd-tmpfiles"`, `"forgejo.conf"`,
@@ -177,6 +178,10 @@ func TestUnattendedInstallerInputsMatchTheFourValueContract(t *testing.T) {
 		"os.lstat(source_name)",
 		"source_stat.st_mode & 0o077",
 		"Tailscale auth key input must remain outside acceptance evidence",
+		"aarch64|arm64)",
+		"expected_platform=linux/arm64",
+		"expected_platform=linux/amd64",
+		"export SODA_ACCEPTANCE_ARCHITECTURE=$architecture",
 		`rm -f "$kickstart"`,
 		"trap abort_prepare 1 2 15",
 	} {
