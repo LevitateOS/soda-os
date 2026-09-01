@@ -27,10 +27,11 @@ and is not the isolation mechanism.
 
 The [base principles](docs/principles.md) state the product purpose and ownership
 philosophy. The [architectural reset](docs/architecture-reset.md) records the
-accepted architecture and issue ownership. The native workspace slice has
-removed the custom identity, project, repository-projection, dashboard, SSH
-gateway, database, and workflow layers; later reset milestones still own the
-temporary telemetry, update, toolchain, and residual RPC cleanup.
+accepted architecture and issue ownership. The native workspace and
+image-lifecycle slices have removed the custom identity, project,
+repository-projection, dashboard, SSH gateway, database, workflow, and
+runtime-update layers; later reset milestones still own the temporary
+telemetry, toolchain, and residual RPC cleanup.
 
 This repository is independent from LevitateOS. It borrows the separation
 between declarative distro specifications, Go orchestration, explicit
@@ -113,9 +114,12 @@ out-of-band and non-cascading.
 Projects choose non-conflicting host ports themselves. They may use Podman or
 other ordinary tools when useful; Soda does not allocate ports or manage
 network namespaces. Linux administrators operate deployments through native
-`bootc` commands. Supported fallback to an earlier image must preserve current
-Linux account state; direct `bootc rollback` is not claimed until verified.
-The automatic update timer remains disabled.
+`bootc status`, `bootc switch --download-only <exact-reference>`, and
+`bootc switch --from-downloaded`, followed by a controlled reboot. Supported
+fallback selects an earlier exact Soda digest through the same switch path and
+preserves current Linux account state. Direct `bootc rollback` is unsupported.
+The automatic update timer remains disabled, and Soda ships no runtime update
+service, discovery client, API, or CLI wrapper.
 
 See the [architectural reset](docs/architecture-reset.md), the
 [current implementation architecture](docs/architecture.md), the

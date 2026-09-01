@@ -63,5 +63,32 @@ projection state, the shared project mount, alternate authorized keys, forced
 SSH behavior, standalone web services, and Soda SQLite authority.
 
 The current runner captures installed platform and service evidence. Final
-automation of every architecture-reset scenario, native update/fallback proof,
-and the post-#39 absence inventory remain issue #25 work.
+automation of every architecture-reset scenario and the post-#39 absence
+inventory remain issue #25 work.
+
+## Native update and fallback evidence
+
+The bounded fallback fixture requires exact digest references for image A and
+image B:
+
+```sh
+export SODA_ACCEPTANCE_IMAGE_A_REFERENCE='registry.example/soda-os@sha256:<a-digest>'
+export SODA_ACCEPTANCE_IMAGE_B_REFERENCE='registry.example/soda-os@sha256:<b-digest>'
+
+tests/acceptance/bootc.sh fallback seed-a
+tests/acceptance/bootc.sh fallback capture a-installed
+tests/acceptance/bootc.sh fallback stage b
+tests/acceptance/bootc.sh fallback unlock
+tests/acceptance/bootc.sh stop
+```
+
+After launching the installed disk again, capture and compare the updated
+state. Repeat the same stage/unlock/reboot sequence toward A, compare current
+state again, and finally recover forward to B. `fallback mutate-b` creates and
+deletes authoritative B-era state only after the pre-mutation manifests have
+proved equal. `fallback capture` records normalized Linux, workspace, catalog,
+Forgejo, Tailscale, SSH-host-key, and automatic-update evidence without raw
+password hashes or credentials.
+
+Run the full sequence independently on matching-native x86-64 and AArch64
+hardware. The x86-64 proof does not qualify AArch64 release completion.

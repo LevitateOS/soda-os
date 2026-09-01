@@ -83,15 +83,26 @@ managed ports only on loopback and `tailscale0` and rejects other ingress.
 Projects select their own non-conflicting ports; Soda has no port allocator or
 container/network controller.
 
+## Native image lifecycle
+
+Linux administrators inspect and select exact Soda image digests through
+native `bootc status` and `bootc switch` operations. Automatic updates remain
+disabled. Supported fallback creates a new deployment from an earlier exact
+Soda reference through the same switch path, preserving current `/etc` and
+`/var`; direct `bootc rollback` is unsupported.
+
+Soda ships no runtime release-discovery client, translated deployment state,
+update API, CLI wrapper, background updater, retry, or recovery service.
+
 ## Temporary residual runtime
 
-The architectural reset is issue-ordered. Until their owning later milestones
-land, the reduced `sodad`/`sodactl` surface retains only host telemetry and the
-pre-reset update operations over the local Unix gRPC socket. It has no Soda
-identity, project, repository-projection, provisioning, or SQLite authority.
-Telemetry, the runtime update wrapper, and the image-resident toolchain cleanup
-remain explicit later deletion/replacement milestones. They do not participate
-in the Projects workflow.
+The architectural reset is issue-ordered. Until its owning later milestone
+lands, the reduced `sodad`/`sodactl` surface retains only host telemetry over
+the local Unix gRPC socket. It has no Soda identity, project,
+repository-projection, provisioning, update, or SQLite authority. Telemetry and
+the image-resident toolchain cleanup remain explicit later
+deletion/replacement milestones. They do not participate in the Projects
+workflow.
 
 ## Sibling architectures
 

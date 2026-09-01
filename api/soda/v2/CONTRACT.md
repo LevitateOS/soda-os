@@ -1,7 +1,7 @@
 # Soda API v2 residual contract
 
 > [!IMPORTANT]
-> This file describes the temporary six-RPC daemon surface that remains while
+> This file describes the temporary two-RPC daemon surface that remains while
 > the architectural reset is in progress. It is implementation evidence, not a
 > target API or compatibility promise. The accepted architecture removes this
 > generic gRPC control plane; see [the architectural
@@ -14,10 +14,6 @@ methods:
 
 - `Health`
 - `GetHostStatus`
-- `GetOSUpdateStatus`
-- `CheckOSUpdate`
-- `StageOSUpdate`
-- `ActivateOSUpdate`
 
 The identity, administrator-role, SSH-device-key, project, membership,
 worktree, provisioning-job, and Forgejo projection/provisioning RPCs and
@@ -35,9 +31,10 @@ this API.
 - `GetHostStatus` returns the currently sampled service, firewall, network,
   CPU, load, uptime, memory, and filesystem projection. This copied telemetry
   surface is owned for deletion by issue #34 after the stock Cockpit switch.
-- The four OS-update methods expose the pre-reset translated update path. They
-  are owned by issue #38, which replaces them with verified native `bootc`
-  operations and an account-preserving supported fallback.
+
+The pre-reset update RPCs and translated update path have been deleted. Linux
+administrators use native `bootc` operations for exact-digest image selection
+and account-preserving fallback.
 
 These later issues own deletion of their complete residual slices. Their
 temporary presence does not make telemetry, update translation, the daemon,
@@ -51,19 +48,3 @@ version.
 `GetHostStatus` returns `Unavailable` when host telemetry is not configured or
 cannot be sampled. Otherwise it returns the current telemetry projection in
 `HostStatus`.
-
-The OS-update methods return `Unavailable` when the update implementation is
-not configured or an upstream failure cannot be mapped more precisely:
-
-- `GetOSUpdateStatus` projects the booted and optional staged deployments.
-- `CheckOSUpdate` returns the currently resolved release candidate.
-- `StageOSUpdate` passes the requested image reference to the residual update
-  implementation and returns the resulting status.
-- `ActivateOSUpdate` requires `confirm_reboot = true`; otherwise it returns
-  `InvalidArgument`. On success it requests activation and returns
-  `reboot_requested = true`.
-
-Residual update failures map invalid input to `InvalidArgument`, rejected or
-unsatisfied update state to `FailedPrecondition`, context cancellation to
-`Canceled`, a context deadline to `DeadlineExceeded`, and other failures to
-`Unavailable`.

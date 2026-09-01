@@ -21,8 +21,7 @@ disabled.
 
 During `just oci ARCH`, the Go builder:
 
-1. validates the immutable base, platform, registry, state schema, and package
-   lock;
+1. validates the immutable base, platform, registry, and package lock;
 2. reproducibly builds `soda-release`, `soda-runtime`, `soda-projects`, and
    `soda-forgejo` with the configured version, source revision, and source date;
 3. installs the exact locked transaction into the pinned Fedora bootc base;
@@ -36,9 +35,9 @@ During `just oci ARCH`, the Go builder:
 7. records the complete installed RPM inventory and verifies its SHA-256; and
 8. exports an OCI archive without loading, pushing, signing, or publishing it.
 
-OCI labels record the Soda version, Git revision, creation time, pinned base,
-and runtime state schema. BuildKit rewrites image timestamps to the configured
-source-date epoch and omits provenance attestations from this local artifact.
+OCI labels record the Soda version, Git revision, creation time, and pinned
+base. BuildKit rewrites image timestamps to the configured source-date epoch
+and omits provenance attestations from this local artifact.
 
 ## Local installer media
 
@@ -173,17 +172,29 @@ mount remain temporary until issue #24 removes the runtime toolchain manager.
 
 ## Manual OS updates
 
-The runtime masks Fedora's automatic bootc update timer. An administrator uses
-`sodactl os update status`, `check`, `stage`, and
-`activate --confirm-reboot`. Checking resolves the installed sibling's
-release-index entry once and inspects the immutable image metadata. It accepts
-only an exact Soda repository digest, the installed platform, and state schema
-4. Staging calls bootc with the exact `@sha256:` reference and download-only, so it
-does not restart Soda services or change the running deployment. Activation
-uses the already-downloaded deployment and requires the explicit reboot
-confirmation. There is no background polling, download, activation, or reboot.
+The runtime masks Fedora's automatic bootc update timer. A Linux administrator
+uses native `bootc` with an exact Soda image reference:
 
-The optional local release record binds Soda version and source revision, the Fedora
-base reference, exact Soda image reference, platform, state schema, RPM
-inventory checksum, and the installer ISO checksum when an ISO is produced.
-The state schema is 4; cross-schema state rollback is not supported.
+```sh
+sudo bootc status
+sudo bootc switch --download-only ghcr.io/levitateos/soda-os@sha256:<digest>
+sudo bootc status
+sudo bootc switch --from-downloaded
+sudo systemctl reboot
+```
+
+The download-only step does not change the running deployment. The second
+switch command turns the already downloaded image into a bootable deployment;
+the administrator then performs the controlled reboot. Supported fallback
+uses the same sequence with an earlier exact Soda digest. Direct
+`bootc rollback` is unsupported because it can restore the earlier
+deployment's historical `/etc` instead of preserving current Linux account
+state.
+
+Soda ships no runtime release-index client, translated update state, update
+API, CLI wrapper, polling, download service, activation service, retry, or
+recovery process.
+
+The optional local release record binds Soda version and source revision, the
+Fedora base reference, exact Soda image reference, platform, RPM inventory
+checksum, and the installer ISO checksum when an ISO is produced.

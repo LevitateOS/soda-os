@@ -1,13 +1,9 @@
 # Soda OS artifact operations
 
 > [!IMPORTANT]
-> This document describes the pre-reset artifact and publication implementation
-> currently present in the repository. Its Soda runtime release index, state
-> schema, and updater are deletion targets, not the target update contract. See
-> the [architectural reset](architecture-reset.md),
-> [issue #38](https://github.com/LevitateOS/soda-os/issues/38), and
-> [issue #23](https://github.com/LevitateOS/soda-os/issues/23) for the governing
-> native-bootc and publication direction.
+> Publication remains a later architectural-reset milestone. Installed Soda
+> systems do not consume the paired release index at runtime; administrators
+> select exact published image digests through native `bootc` operations.
 
 Local development produces platform-specific OCI archives and installer ISOs
 without publishing or signing them. Architecture selection is explicit and
@@ -97,13 +93,23 @@ This release cycle records the infrastructure decision only. It does not add
 the workflow, configure the GitHub environment or runners, provision a service,
 push an image, sign an artifact, upload an asset, or publish a release.
 
-## Installed-system updates
+## Installed-system image lifecycle
 
-Installed hosts resolve their platform entry from the release index, require an
-exact `ghcr.io/levitateos/soda-os@sha256:...` reference, inspect the image's
-platform and Soda metadata, and stage it with `bootc switch --download-only`.
-Activation remains a separate administrator-confirmed reboot. Soda does not
-poll, download, activate, or reboot automatically.
+An administrator selects an exact published image digest and uses the native
+sequence:
+
+```sh
+sudo bootc status
+sudo bootc switch --download-only ghcr.io/levitateos/soda-os@sha256:<digest>
+sudo bootc status
+sudo bootc switch --from-downloaded
+sudo systemctl reboot
+```
+
+Supported fallback uses the same sequence with an earlier exact Soda digest.
+Direct `bootc rollback` is unsupported because current account state must be
+preserved. Soda does not discover releases, poll, download, activate, or reboot
+automatically.
 
 Local development artifacts and records remain unsigned. Production signing and
 publication belong only to the protected workflow defined above.
@@ -113,6 +119,7 @@ publication belong only to the protected workflow defined above.
 `tests/acceptance/bootc.sh` keeps disposable acceptance guests separate from
 production installations. It can install or boot an architecture-selected VM,
 wait for SSH and Cockpit health, exercise an attributed SSH workload, capture
-host and guest evidence, and request a clean ACPI shutdown. Captures may include
-the release index, local record, ISO hashes, bootc status, service state, and
-QEMU state. Local acceptance does not create or require production signatures.
+host and guest evidence, prove native account-preserving image selection, and
+request a clean ACPI shutdown. Captures may include the local record, ISO
+hashes, bootc status, service state, and QEMU state. Local acceptance does not
+create or require production signatures.
