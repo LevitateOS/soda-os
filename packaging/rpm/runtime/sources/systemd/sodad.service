@@ -1,8 +1,7 @@
 [Unit]
-Description=Soda OS project daemon
-Requires=var-srv-soda-projects.mount opt-soda-toolchains.mount
-After=local-fs.target network-online.target var-srv-soda-projects.mount opt-soda-toolchains.mount forgejo.service
-Wants=network-online.target forgejo.service
+Description=Soda OS runtime daemon
+After=local-fs.target network-online.target
+Wants=network-online.target
 
 [Service]
 Type=simple
@@ -11,9 +10,6 @@ ExecStart=/usr/libexec/soda/sodad
 Restart=on-failure
 RuntimeDirectory=soda
 RuntimeDirectoryMode=0770
-RuntimeDirectoryPreserve=yes
-StateDirectory=soda
-StateDirectoryMode=0751
 StandardOutput=append:/var/log/soda/sodad/service.log
 StandardError=append:/var/log/soda/sodad/service.log
 UMask=0007

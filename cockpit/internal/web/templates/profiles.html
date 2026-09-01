@@ -1,7 +1,0 @@
-{{define "profiles.html"}}{{template "header" .}}
-<h1>Development environments</h1>
-<section class="panel"><p>Each project pins the stable versions resolved on its first successful project setup.</p>
-<dl class="summary"><div><dt>Web</dt><dd>Node.js + Bun</dd></div><div><dt>Python</dt><dd>CPython + uv</dd></div><div><dt>Rust</dt><dd>rustc + Cargo</dd></div><div><dt>Go</dt><dd>Go toolchain</dd></div></dl>
-</section>
-<section id="profile-projects" class="panel"><h2>Project environments</h2>{{if .Projects}}<ul class="items">{{range .Projects}}<li><a href="/projects/{{.ID}}">{{.Name}}</a><span>{{.Profile}}</span></li>{{end}}</ul>{{else}}<p>No projects are assigned.</p>{{end}}</section>
-{{template "footer" .}}{{end}}

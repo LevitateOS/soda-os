@@ -10,7 +10,7 @@ Commands:
   launch installed     Boot the existing acceptance disk without installer media
   wait                 Wait for SSH and Cockpit, then prove key-based admin SSH
   capture NAME         Capture nonprivileged host, guest, QMP, and registry evidence
-  workload start       Start the configured forced-command SSH continuity workload
+  workload start       Start the configured direct-workspace SSH continuity workload
   workload verify      Verify the continuity workload and record its heartbeat
   stop                 Request a clean ACPI shutdown through QMP
 
@@ -26,9 +26,8 @@ Additional launch install environment:
   SODA_ACCEPTANCE_KICKSTART_ISO    Optional test-only OEMDRV automation ISO
 
 Additional workload environment:
-  SODA_ACCEPTANCE_WORKSPACE_TARGET Soda person's Linux username, for example vince
-  SODA_ACCEPTANCE_PROJECT          Project slug selected through SODA_PROJECT
-  SODA_ACCEPTANCE_WORKSPACE_KEY    Registered Soda device private key
+  SODA_ACCEPTANCE_WORKSPACE_TARGET Derived Linux workspace username
+  SODA_ACCEPTANCE_WORKSPACE_KEY    Primary user's standard SSH private key
 
 Before capture NAME, create privileged bootc evidence in the guest:
   mkdir -p "$HOME/.local/state/soda-acceptance"
@@ -119,15 +118,12 @@ admin_ssh() {
 workspace_ssh() {
 	require_guest_endpoint
 	workspace_target=${SODA_ACCEPTANCE_WORKSPACE_TARGET:-}
-	workspace_project=${SODA_ACCEPTANCE_PROJECT:-}
 	workspace_key=${SODA_ACCEPTANCE_WORKSPACE_KEY:-}
 	[ -n "$workspace_target" ] || die "SODA_ACCEPTANCE_WORKSPACE_TARGET is required"
-	[ -n "$workspace_project" ] || die "SODA_ACCEPTANCE_PROJECT is required"
 	[ -n "$workspace_key" ] || die "SODA_ACCEPTANCE_WORKSPACE_KEY is required"
 	need_file "$workspace_key"
 	need_file "$(known_hosts_path)"
 	ssh -T -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
-		-o "SetEnv=SODA_PROJECT=$workspace_project" \
 		-o "UserKnownHostsFile=$(known_hosts_path)" -i "$workspace_key" -p "$guest_ssh_port" \
 		"$workspace_target@$guest_host" "$@"
 }
@@ -319,7 +315,7 @@ wait_ready() {
 	done
 	trap - 0 1 2 15
 	ssh-keygen -lf "$known_hosts" >"$acceptance_dir/ssh-host-key-fingerprint.txt"
-	while ! curl --fail --silent --show-error --insecure "https://$guest_host:$guest_cockpit_port/healthz" >/dev/null 2>&1; do
+	while ! curl --fail --silent --show-error --insecure "https://$guest_host:$guest_cockpit_port/ping" >/dev/null 2>&1; do
 		[ "$(date +%s)" -lt "$deadline" ] || die "Cockpit did not become ready within 1200 seconds"
 		sleep 2
 	done
@@ -377,35 +373,50 @@ capture() {
 	date -u +%Y-%m-%dT%H:%M:%SZ >"$checkpoint/captured-at.txt"
 	mv "$privileged_tmp" "$checkpoint/privileged.json"
 	trap - 0 1 2 15
-	if [ -n "$password_file" ]; then
-		admin_ssh "sudo -S -p '' python3 -c 'import sqlite3; print(sqlite3.connect(\"/var/lib/soda/soda.db\").execute(\"PRAGMA user_version\").fetchone()[0])'" \
-			<"$password_file" >"$checkpoint/state-schema.txt"
-	fi
 	qmp '{"execute":"query-status"}' >"$checkpoint/qmp-status.json"
 	admin_ssh '
+		set -eu
 		echo "[identity]"; id
 		echo "[time]"; date -u +%Y-%m-%dT%H:%M:%SZ
 		echo "[boot-id]"; cat /proc/sys/kernel/random/boot_id
 		echo "[kernel]"; uname -a
 		echo "[services]"
-		for unit in sodad sshd soda-cockpit soda-authd forgejo avahi-daemon tailscaled soda-state-directories.service var-srv-soda-projects.mount opt-soda-toolchains.mount; do
+		for unit in sodad sshd cockpit.socket forgejo tailscaled soda-state-directories.service opt-soda-toolchains.mount; do
 			printf "%s=" "$unit"; systemctl is-active "$unit" 2>/dev/null || true
 		done
 		echo "[failed-units]"; systemctl --failed --no-legend --plain || true
-		echo "[built-in-git]"
-		rpm -q soda-release soda-runtime soda-cockpit soda-forgejo
+		echo "[native-git-host]"
+		rpm -q soda-release soda-runtime soda-projects soda-forgejo
 		forgejo --version
 		getent passwd git
 		test -s /etc/forgejo/app.ini && echo configuration=present
-		test -s /var/lib/soda/built-in-git-token && echo automation-token=present
-		test -d /var/lib/forgejo/data/repositories/soda && echo repositories=present
+		echo "[deleted-workspace-control-plane]"
+		for unit in soda-authd.service soda-cockpit.service var-srv-soda-projects.mount; do
+			if systemctl cat "$unit" >/dev/null 2>&1; then
+				echo "unexpected-unit=$unit"
+				exit 1
+			fi
+			echo "$unit=absent"
+		done
+		for path in /var/lib/soda/soda.db /var/lib/soda/built-in-git-token /var/lib/soda/projects /var/srv/soda/projects /srv/soda/projects /etc/soda/authorized_keys /usr/libexec/soda/soda-ssh; do
+			if test -e "$path"; then
+				echo "unexpected-path=$path"
+				exit 1
+			fi
+			echo "$path=absent"
+		done
+		if getent group soda-people >/dev/null; then
+			echo "unexpected-group=soda-people"
+			exit 1
+		fi
+		echo "soda-people=absent"
 		echo "[boot-entries]"; efibootmgr -v 2>/dev/null || true
 		echo "[automatic-update]"
 		for unit in bootc-fetch-apply-updates.timer bootc-fetch-apply-updates.service; do
 			printf "%s=" "$unit"; systemctl is-enabled "$unit" 2>/dev/null || true
 		done
 		echo "[mounts]"
-		for target in /var/lib/soda /srv/soda/projects /opt/soda/toolchains; do
+		for target in /var/lib/soda /opt/soda/toolchains; do
 			findmnt "$target" 2>/dev/null || true
 		done
 		echo "[host-keys]"
@@ -414,7 +425,7 @@ capture() {
 		systemctl show getty@tty1.service autovt@tty1.service -p Id -p Names -p MainPID -p NRestarts
 		sysctl kernel.printk
 	' >"$checkpoint/guest.txt" 2>"$checkpoint/guest.stderr"
-	curl --fail --silent --show-error --insecure "https://$guest_host:$guest_cockpit_port/healthz" >"$checkpoint/cockpit-health.txt"
+	curl --fail --silent --show-error --insecure "https://$guest_host:$guest_cockpit_port/ping" >"$checkpoint/cockpit-health.txt"
 	capture_release_index "$checkpoint"
 
 	for artifact in "${SODA_ACCEPTANCE_RELEASE_RECORD:-}" "${SODA_ACCEPTANCE_ISO:-}"; do

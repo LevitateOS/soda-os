@@ -55,26 +55,9 @@ func render(_ asset: Asset) throws {
     }
 }
 
-func copy(_ source: String, _ destination: String) throws {
-    let from = root.appendingPathComponent(source)
-    let to = root.appendingPathComponent(destination)
-    try FileManager.default.createDirectory(at: to.deletingLastPathComponent(), withIntermediateDirectories: true)
-    try? FileManager.default.removeItem(at: to)
-    try FileManager.default.copyItem(at: from, to: to)
-}
-
 do {
     for asset in assets {
         try render(asset)
-    }
-    for (source, output) in [
-        ("assets/branding/source/soda-logo-horizontal.svg", "cockpit/internal/web/static/soda-logo.svg"),
-        ("assets/branding/source/soda-logo-horizontal-dark.svg", "cockpit/internal/web/static/soda-logo-dark.svg"),
-        ("assets/branding/source/soda-symbol.svg", "cockpit/internal/web/static/favicon.svg"),
-        ("assets/branding/web/favicon-32.png", "cockpit/internal/web/static/favicon-32.png"),
-        ("assets/branding/web/apple-touch-icon.png", "cockpit/internal/web/static/apple-touch-icon.png"),
-    ] {
-        try copy(source, output)
     }
 } catch {
     fputs("branding render failed: \(error.localizedDescription)\n", stderr)

@@ -31,15 +31,3 @@ type ProjectEnvironment struct {
 	Path      []string          `json:"path"`
 	Variables map[string]string `json:"variables,omitempty"`
 }
-
-type ProjectToolchainResolution struct {
-	ProjectID               string
-	ToolchainInstallationID string
-}
-
-type ProvisioningJob struct {
-	ID        string
-	ProjectID string
-	State     JobState
-	Error     *string
-}

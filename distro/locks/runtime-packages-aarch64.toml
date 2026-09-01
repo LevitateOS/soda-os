@@ -139,10 +139,10 @@ source = "local-rpm"
 file = "soda-runtime-0.4.0-1.fc44.aarch64.rpm"
 
 [[package]]
-name = "soda-cockpit"
-nevra = "soda-cockpit-0:0.4.0-1.fc44.aarch64"
+name = "soda-projects"
+nevra = "soda-projects-0:0.4.0-1.fc44.aarch64"
 source = "local-rpm"
-file = "soda-cockpit-0.4.0-1.fc44.aarch64.rpm"
+file = "soda-projects-0.4.0-1.fc44.aarch64.rpm"
 
 [[package]]
 name = "soda-forgejo"

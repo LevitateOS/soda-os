@@ -17,12 +17,6 @@ index_url = "https://github.com/LevitateOS/soda-os/releases/latest/download/soda
 [build]
 source_date_epoch = 1787825905
 
-[network]
-cockpit_port = 9090
-mdns_name = "soda.local"
-
 [paths]
-state_dir = "/var/lib/soda"
-projects_dir = "/srv/soda/projects"
 toolchains_dir = "/opt/soda/toolchains"
 daemon_socket = "/run/soda/sodad.sock"

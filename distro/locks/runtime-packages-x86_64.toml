@@ -32,6 +32,11 @@ nevra = "cockpit-ws-0:366-1.fc44.x86_64"
 source = "fedora"
 
 [[package]]
+name = "cockpit-ws-selinux"
+nevra = "cockpit-ws-selinux-0:366-1.fc44.x86_64"
+source = "fedora"
+
+[[package]]
 name = "cpp"
 nevra = "cpp-0:16.2.1-2.fc44.x86_64"
 source = "fedora"
@@ -164,10 +169,10 @@ source = "local-rpm"
 file = "soda-runtime-0.4.0-1.fc44.x86_64.rpm"
 
 [[package]]
-name = "soda-cockpit"
-nevra = "soda-cockpit-0:0.4.0-1.fc44.x86_64"
+name = "soda-projects"
+nevra = "soda-projects-0:0.4.0-1.fc44.x86_64"
 source = "local-rpm"
-file = "soda-cockpit-0.4.0-1.fc44.x86_64.rpm"
+file = "soda-projects-0.4.0-1.fc44.x86_64.rpm"
 
 [[package]]
 name = "soda-forgejo"

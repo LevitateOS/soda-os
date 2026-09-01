@@ -25,6 +25,13 @@ func (b *Builder) BuildRPMs(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	lock, err := b.packageLock()
+	if err != nil {
+		return err
+	}
+	if err = validateStockCockpitLockClosure(lock); err != nil {
+		return err
+	}
 	if err := b.buildContainer(ctx); err != nil {
 		return err
 	}
@@ -130,13 +137,10 @@ func (b *Builder) buildGoBinaries(ctx context.Context, revision string) error {
 	for _, target := range []struct{ output, pkg string }{
 		{"sodad", "./cmd/sodad"},
 		{"sodactl", "./cmd/sodactl"},
-		{"soda-ssh", "./cmd/soda-ssh"},
 		{"soda-projects", "./cmd/soda-projects"},
 		{"soda-workspace-helper", "./cmd/soda-workspace-helper"},
 		{"soda-tailnet", "./cmd/soda-tailnet"},
 		{"soda-forgejo-tailnet", "./cmd/soda-forgejo-tailnet"},
-		{"soda-cockpit", "./cockpit/cmd/soda-cockpit"},
-		{"soda-authd", "./cockpit/cmd/soda-authd"},
 	} {
 		if err := b.docker(ctx, []string{"CGO_ENABLED=1", "SOURCE_DATE_EPOCH=" + fmt.Sprint(b.Spec.Build.SourceDateEpoch)}, "go", "build", "-buildvcs=false", "-trimpath", "-ldflags="+linkerFlags, "-o", "/src/.artifacts/build/"+target.output, target.pkg); err != nil {
 			return err
@@ -149,17 +153,13 @@ func (b *Builder) stageRPMSources(build, sources string) error {
 	files := [][2]string{
 		{filepath.Join(build, "sodad"), filepath.Join(sources, "sodad")},
 		{filepath.Join(build, "sodactl"), filepath.Join(sources, "sodactl")},
-		{filepath.Join(build, "soda-ssh"), filepath.Join(sources, "soda-ssh")},
 		{filepath.Join(build, "soda-projects"), filepath.Join(sources, "soda-projects")},
 		{filepath.Join(build, "soda-workspace-helper"), filepath.Join(sources, "soda-workspace-helper")},
 		{filepath.Join(build, "soda-tailnet"), filepath.Join(sources, "soda-tailnet")},
-		{filepath.Join(build, "soda-cockpit"), filepath.Join(sources, "soda-cockpit")},
-		{filepath.Join(build, "soda-authd"), filepath.Join(sources, "soda-authd")},
 		{filepath.Join(build, "forgejo"), filepath.Join(sources, "forgejo")},
 		{b.path("packaging/rpm/runtime/sources/systemd/sodad.service"), filepath.Join(sources, "sodad.service")},
 		{b.path("packaging/rpm/runtime/sources/systemd/soda-tailscale-enroll.service"), filepath.Join(sources, "soda-tailscale-enroll.service")},
 		{b.path("packaging/rpm/runtime/sources/systemd/soda-state-directories.service"), filepath.Join(sources, "soda-state-directories.service")},
-		{b.path("packaging/rpm/runtime/sources/systemd/var-srv-soda-projects.mount"), filepath.Join(sources, "var-srv-soda-projects.mount")},
 		{b.path("packaging/rpm/runtime/sources/systemd/opt-soda-toolchains.mount"), filepath.Join(sources, "opt-soda-toolchains.mount")},
 		{b.path("packaging/rpm/runtime/sources/systemd/90-soda.preset"), filepath.Join(sources, "90-soda.preset")},
 		{b.path("packaging/rpm/runtime/sources/nftables/soda-ingress.nft"), filepath.Join(sources, "soda-ingress.nft")},
@@ -168,24 +168,20 @@ func (b *Builder) stageRPMSources(build, sources string) error {
 		{b.path("packaging/rpm/runtime/sources/tmpfiles/soda.conf"), filepath.Join(sources, "soda.conf")},
 		{b.path("packaging/rpm/runtime/sources/sysctl/60-soda-console.conf"), filepath.Join(sources, "60-soda-console.conf")},
 		{b.path("packaging/rpm/runtime/sources/sysusers/soda.conf"), filepath.Join(sources, "soda.sysusers")},
-		{b.path("packaging/rpm/runtime/sources/sshd/41-soda-project-accounts.conf"), filepath.Join(sources, "41-soda-project-accounts.conf")},
 		{b.path("packaging/rpm/runtime/sources/console/soda-console-welcome"), filepath.Join(sources, "soda-console-welcome")},
 		{b.path("packaging/rpm/runtime/sources/profile.d/soda-console-welcome.sh"), filepath.Join(sources, "soda-console-welcome.sh")},
-		{b.path("packaging/rpm/cockpit/sources/systemd/soda-cockpit.service"), filepath.Join(sources, "soda-cockpit.service")},
-		{b.path("packaging/rpm/cockpit/sources/systemd/soda-authd.service"), filepath.Join(sources, "soda-authd.service")},
-		{b.path("packaging/rpm/cockpit/sources/avahi/soda-cockpit.service"), filepath.Join(sources, "soda-cockpit.avahi.service")},
-		{b.path("packaging/rpm/cockpit/sources/pam/soda-cockpit"), filepath.Join(sources, "soda-cockpit.pam")},
-		{b.path("packaging/rpm/cockpit/sources/pam/cockpit-stock"), filepath.Join(sources, "cockpit-stock.pam")},
-		{b.path("packaging/rpm/cockpit/sources/polkit/org.sodaos.projects.policy"), filepath.Join(sources, "org.sodaos.projects.policy")},
-		{b.path("packaging/rpm/cockpit/sources/tmpfiles/soda-projects.conf"), filepath.Join(sources, "soda-projects.tmpfiles")},
+		{b.path("packaging/rpm/projects/sources/pam/cockpit-stock"), filepath.Join(sources, "cockpit-stock.pam")},
+		{b.path("packaging/rpm/projects/sources/polkit/org.sodaos.projects.policy"), filepath.Join(sources, "org.sodaos.projects.policy")},
+		{b.path("packaging/rpm/projects/sources/tmpfiles/soda-projects.conf"), filepath.Join(sources, "soda-projects.tmpfiles")},
+		{b.path("packaging/rpm/projects/sources/sysusers/soda-projects.conf"), filepath.Join(sources, "soda-projects.sysusers")},
 		{b.path("cockpit/soda-projects/manifest.json"), filepath.Join(sources, "soda-projects-manifest.json")},
 		{b.path("cockpit/soda-projects/index.html"), filepath.Join(sources, "soda-projects-index.html")},
 		{b.path("cockpit/soda-projects/app.mjs"), filepath.Join(sources, "soda-projects-app.mjs")},
 		{b.path("cockpit/soda-projects/protocol.mjs"), filepath.Join(sources, "soda-projects-protocol.mjs")},
 		{b.path("cockpit/soda-projects/ui.mjs"), filepath.Join(sources, "soda-projects-ui.mjs")},
 		{b.path("cockpit/soda-projects/app.css"), filepath.Join(sources, "soda-projects-app.css")},
-		{b.path("packaging/rpm/cockpit/sources/branding/sodaos/branding.css"), filepath.Join(sources, "soda-cockpit-branding.css")},
-		{b.path("assets/branding/source/soda-symbol.svg"), filepath.Join(sources, "soda-cockpit-symbol.svg")},
+		{b.path("packaging/rpm/projects/sources/branding/sodaos/branding.css"), filepath.Join(sources, "soda-projects-branding.css")},
+		{b.path("assets/branding/source/soda-symbol.svg"), filepath.Join(sources, "soda-projects-symbol.svg")},
 		{b.path("packaging/rpm/forgejo/sources/systemd/forgejo.service"), filepath.Join(sources, "forgejo.service")},
 		{b.path("packaging/rpm/forgejo/sources/systemd/forgejo-init.service"), filepath.Join(sources, "forgejo-init.service")},
 		{b.path("packaging/rpm/forgejo/sources/forgejo-init"), filepath.Join(sources, "forgejo-init")},

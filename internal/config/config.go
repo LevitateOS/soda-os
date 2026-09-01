@@ -8,8 +8,6 @@ import (
 )
 
 const (
-	DefaultStateDir      = "/var/lib/soda"
-	DefaultProjectsDir   = "/srv/soda/projects"
 	DefaultToolchainsDir = "/opt/soda/toolchains"
 	DefaultDaemonSocket  = "/run/soda/sodad.sock"
 )
@@ -21,7 +19,6 @@ type DistroSpec struct {
 	Image         ImageSpec        `toml:"image"`
 	Distribution  DistributionSpec `toml:"distribution"`
 	Build         BuildSpec        `toml:"build"`
-	Network       NetworkSpec      `toml:"network"`
 	Paths         PathSpec         `toml:"paths"`
 	Platform      PlatformSpec     `toml:"-"`
 }
@@ -96,14 +93,7 @@ type BuildSpec struct {
 	SourceDateEpoch int64 `toml:"source_date_epoch"`
 }
 
-type NetworkSpec struct {
-	CockpitPort uint16 `toml:"cockpit_port"`
-	MDNSName    string `toml:"mdns_name"`
-}
-
 type PathSpec struct {
-	StateDir      string `toml:"state_dir"`
-	ProjectsDir   string `toml:"projects_dir"`
 	ToolchainsDir string `toml:"toolchains_dir"`
 	DaemonSocket  string `toml:"daemon_socket"`
 }

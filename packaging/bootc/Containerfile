@@ -19,7 +19,7 @@ LABEL org.opencontainers.image.title="Soda OS" \
 
 COPY .artifacts/rpms/soda-release-*.rpm /var/tmp/soda-rpms/
 COPY .artifacts/rpms/soda-runtime-*.rpm /var/tmp/soda-rpms/
-COPY .artifacts/rpms/soda-cockpit-*.rpm /var/tmp/soda-rpms/
+COPY .artifacts/rpms/soda-projects-*.rpm /var/tmp/soda-rpms/
 COPY .artifacts/rpms/soda-forgejo-*.rpm /var/tmp/soda-rpms/
 COPY .artifacts/bootc/fedora-packages.txt /var/tmp/soda-lock/fedora-packages.txt
 COPY .artifacts/bootc/expected-packages.txt /var/tmp/soda-lock/expected-packages.txt
@@ -38,12 +38,14 @@ RUN dnf -y --setopt=install_weak_deps=False --enablerepo=updates-testing install
       /var/log/dnf5.log \
       /run/dnf \
       /var/tmp/soda-rpms \
-    && systemd-sysusers /usr/lib/sysusers.d/soda.conf \
+    && systemd-sysusers /usr/lib/sysusers.d/soda.conf /usr/lib/sysusers.d/soda-projects.conf \
     && test "$(getent group soda-api | cut -d: -f3)" = 976 \
-    && test "$(id -u soda-cockpit)" = 976 \
+    && getent group soda-workspaces \
     && install -d -m 0755 /opt/soda/toolchains \
-    && systemctl preset sshd.service sodad.service soda-tailscale-enroll.service soda-authd.service soda-cockpit.service forgejo.service avahi-daemon.service tailscaled.service nftables.service var-srv-soda-projects.mount opt-soda-toolchains.mount \
-    && systemctl enable sshd.service sodad.service soda-tailscale-enroll.service soda-authd.service soda-cockpit.service forgejo.service avahi-daemon.service tailscaled.service nftables.service var-srv-soda-projects.mount opt-soda-toolchains.mount \
+    && install -o root -g root -m 0644 /usr/lib/soda/pam/cockpit /etc/pam.d/cockpit \
+    && restorecon -F /etc/pam.d/cockpit \
+    && systemctl preset sshd.service sodad.service soda-tailscale-enroll.service cockpit.socket forgejo.service tailscaled.service nftables.service opt-soda-toolchains.mount \
+    && systemctl enable sshd.service sodad.service soda-tailscale-enroll.service cockpit.socket forgejo.service tailscaled.service nftables.service opt-soda-toolchains.mount \
     && getent passwd git \
     && systemctl mask bootc-fetch-apply-updates.timer \
     && cp -f /usr/lib/soda/os-release /etc/os-release \
@@ -53,14 +55,11 @@ RUN dnf -y --setopt=install_weak_deps=False --enablerepo=updates-testing install
     && cp -f /usr/lib/soda/system-release /etc/system-release \
     && rm -f /etc/redhat-release \
     && semanage fcontext -a -t var_lib_t '/var/lib/soda(/.*)?' \
-    && semanage fcontext -a -e /home /var/lib/soda/projects \
     && semanage fcontext -a -e /opt /var/lib/soda/toolchains \
-    && semanage fcontext -a -e /home /var/srv/soda/projects \
     && semanage fcontext -a -e /opt /opt/soda/toolchains \
     && semanage fcontext -a -t var_log_t '/var/log/soda(/.*)?' \
-    && semanage fcontext -a -t ssh_home_t '/etc/soda/authorized_keys(/.*)?' \
     && semanage fcontext -a -t ssh_home_t '/var/lib/forgejo/.ssh(/.*)?' \
-    && restorecon -RF /etc/soda/authorized_keys /var/lib/forgejo/.ssh /opt/soda/toolchains \
+    && restorecon -RF /var/lib/forgejo/.ssh /opt/soda/toolchains \
     && ssh-keygen -q -t ed25519 -N '' -f /run/soda-sshd-hostkey \
     && /usr/sbin/sshd -t -h /run/soda-sshd-hostkey \
     && rm -f /run/soda-sshd-hostkey /run/soda-sshd-hostkey.pub \

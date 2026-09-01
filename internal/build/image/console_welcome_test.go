@@ -22,8 +22,8 @@ func TestConsoleWelcomeDisplaysHostnameAndIPv4Address(t *testing.T) {
 			want:          "\nWelcome to Soda OS.\n\nTailscale is connected.\nMagicDNS identity: atlas.example.ts.net\nOpen the Soda OS dashboard:\n  https://atlas.example.ts.net:9090\n\nLocal console address:\n  https://10.0.2.15:9090\n",
 		},
 		"no global address": {
-			tailnetOutput: "\nTailscale is not enrolled. Tailnet access is unavailable.\nInfrastructure owner: run `sudo tailscale up`, then open the one-time URL it prints to authorize this appliance. After authorization, run `sudo systemctl restart soda-cockpit` to load the Tailnet dashboard certificate. Soda does not store a Tailnet authorization key.\n",
-			want:          "\nWelcome to Soda OS.\n\nTailscale is not enrolled. Tailnet access is unavailable.\nInfrastructure owner: run `sudo tailscale up`, then open the one-time URL it prints to authorize this appliance. After authorization, run `sudo systemctl restart soda-cockpit` to load the Tailnet dashboard certificate. Soda does not store a Tailnet authorization key.\n",
+			tailnetOutput: "\nTailscale is not enrolled. Tailnet access is unavailable.\nInfrastructure owner: run `sudo tailscale up`, then open the one-time URL it prints to authorize this appliance. After authorization, run `sudo systemctl restart forgejo` to load the Tailnet Forgejo address. Soda does not store a Tailnet authorization key.\n",
+			want:          "\nWelcome to Soda OS.\n\nTailscale is not enrolled. Tailnet access is unavailable.\nInfrastructure owner: run `sudo tailscale up`, then open the one-time URL it prints to authorize this appliance. After authorization, run `sudo systemctl restart forgejo` to load the Tailnet Forgejo address. Soda does not store a Tailnet authorization key.\n",
 		},
 	} {
 		t.Run(name, func(t *testing.T) {

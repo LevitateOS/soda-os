@@ -2,10 +2,7 @@ enable sshd.service
 enable sodad.service
 enable soda-tailscale-enroll.service
 enable forgejo.service
-enable soda-authd.service
-enable soda-cockpit.service
-enable avahi-daemon.service
+enable cockpit.socket
 enable tailscaled.service
 enable nftables.service
-enable var-srv-soda-projects.mount
 enable opt-soda-toolchains.mount

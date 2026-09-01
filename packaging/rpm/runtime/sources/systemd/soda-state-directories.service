@@ -4,9 +4,9 @@ Documentation=man:tmpfiles.d(5) man:systemd-tmpfiles(8)
 DefaultDependencies=no
 RequiresMountsFor=/var
 After=systemd-sysusers.service systemd-remount-fs.service
-Before=local-fs.target var-srv-soda-projects.mount opt-soda-toolchains.mount
+Before=local-fs.target opt-soda-toolchains.mount
 
 [Service]
 Type=oneshot
-ExecStart=/usr/bin/systemd-tmpfiles --create --prefix=/var/lib/soda --prefix=/var/srv/soda
+ExecStart=/usr/bin/systemd-tmpfiles --create --prefix=/var/lib/soda
 RemainAfterExit=yes

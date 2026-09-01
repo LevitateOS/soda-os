@@ -21,7 +21,9 @@ import (
 
 const sodaRegistry = "ghcr.io/levitateos/soda-os"
 
-var targetRPMs = []string{"soda-release", "soda-runtime", "soda-cockpit", "soda-forgejo"}
+var targetRPMs = []string{"soda-release", "soda-runtime", "soda-projects", "soda-forgejo"}
+
+var requiredStockCockpitPackages = []string{"cockpit-bridge", "cockpit-system", "cockpit-ws", "cockpit-ws-selinux"}
 
 type packageLock struct {
 	SchemaVersion uint32          `toml:"schema_version"`
@@ -115,6 +117,23 @@ func validateRuntimePackageLock(lock packageLock, spec config.DistroSpec) error 
 	return nil
 }
 
+func validateStockCockpitLockClosure(lock packageLock) error {
+	locked := make(map[string]bool, len(lock.Package))
+	for _, item := range lock.Package {
+		locked[item.Name] = true
+	}
+	missing := make([]string, 0, len(requiredStockCockpitPackages))
+	for _, name := range requiredStockCockpitPackages {
+		if !locked[name] {
+			missing = append(missing, name)
+		}
+	}
+	if len(missing) != 0 {
+		return fmt.Errorf("runtime package lock requires matching-native resolution for: %s", strings.Join(missing, ", "))
+	}
+	return nil
+}
+
 func classifyRuntimePackages(packages []lockedPackage, bootcNEVRA string) ([]string, bool, error) {
 	seen, local, bootcLocked := make(map[string]bool, len(packages)), make([]string, 0, len(targetRPMs)), false
 	for _, item := range packages {
@@ -144,7 +163,7 @@ func validateLockedPackage(item lockedPackage, seen map[string]bool) error {
 }
 
 func (b *Builder) validateBuildInputs() error {
-	for _, path := range []string{"packaging/bootc/Containerfile", "packaging/builder/Containerfile", b.Spec.Platform.Builder.PackageLock, b.Spec.Platform.Installer.PackageLock, b.Spec.Platform.Installer.ToolLock, b.Spec.Platform.Installer.ISOConfig, "packaging/rpm/release/soda-release.spec", "packaging/rpm/runtime/soda-runtime.spec", "packaging/rpm/cockpit/soda-cockpit.spec", "packaging/rpm/forgejo/soda-forgejo.spec", "packaging/rpm/runtime/sources/sysusers/soda.conf", "distro/locks/forgejo-source.toml"} {
+	for _, path := range []string{"packaging/bootc/Containerfile", "packaging/builder/Containerfile", b.Spec.Platform.Builder.PackageLock, b.Spec.Platform.Installer.PackageLock, b.Spec.Platform.Installer.ToolLock, b.Spec.Platform.Installer.ISOConfig, "packaging/rpm/release/soda-release.spec", "packaging/rpm/runtime/soda-runtime.spec", "packaging/rpm/projects/soda-projects.spec", "packaging/rpm/forgejo/soda-forgejo.spec", "packaging/rpm/runtime/sources/sysusers/soda.conf", "distro/locks/forgejo-source.toml"} {
 		if !isFile(b.path(path)) {
 			return fmt.Errorf("required bootc build input %s is missing", path)
 		}

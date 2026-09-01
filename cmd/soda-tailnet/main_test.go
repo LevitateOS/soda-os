@@ -13,10 +13,12 @@ func TestEnrollmentMessage(t *testing.T) {
 		status tailnet.Status
 		err    error
 		want   string
+		absent string
 	}{
 		"not enrolled": {
 			status: tailnet.Status{BackendState: "NeedsLogin"},
-			want:   "Tailscale is not enrolled. Tailnet access is unavailable.\nInfrastructure owner: run `sudo tailscale up`, then open the one-time URL it prints to authorize this appliance. After authorization, run `sudo systemctl restart soda-cockpit forgejo`",
+			want:   "Tailscale is not enrolled. Tailnet access is unavailable.\nInfrastructure owner: run `sudo tailscale up`, then open the one-time URL it prints to authorize this appliance. After authorization, run `sudo systemctl restart forgejo`",
+			absent: "soda-cockpit",
 		},
 		"identity ready": {
 			status: tailnet.Status{BackendState: "Running", Identity: "atlas.example.ts.net"},
@@ -28,7 +30,11 @@ func TestEnrollmentMessage(t *testing.T) {
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
-			require.Contains(t, enrollmentMessage(test.status, test.err), test.want)
+			message := enrollmentMessage(test.status, test.err)
+			require.Contains(t, message, test.want)
+			if test.absent != "" {
+				require.NotContains(t, message, test.absent)
+			}
 		})
 	}
 }

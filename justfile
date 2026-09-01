@@ -20,6 +20,7 @@ check:
     tests/acceptance/unattended.sh --help >/dev/null
     ./scripts/protobuf-verify.sh
     ./scripts/check-complexity.sh
+    node --test cockpit/soda-projects/*.test.mjs
     go vet ./...
     go test ./...
     go run ./cmd/soda-image --architecture aarch64 check

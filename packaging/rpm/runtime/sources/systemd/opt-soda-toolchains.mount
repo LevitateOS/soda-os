@@ -2,7 +2,6 @@
 Description=Soda OS persistent toolchain storage
 Requires=soda-state-directories.service
 After=soda-state-directories.service
-Before=sodad.service
 
 [Mount]
 What=/var/lib/soda/toolchains

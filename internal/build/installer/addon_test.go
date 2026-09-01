@@ -196,5 +196,5 @@ func TestUnattendedInstallerInputsMatchTheFourValueContract(t *testing.T) {
 	require.Contains(t, string(bootRunner), `rm -f "$installer_input"`)
 	require.Contains(t, string(bootRunner), "installer-input-eject.jsonl")
 	require.Contains(t, string(bootRunner), `"$admin@$guest_host"`)
-	require.Contains(t, string(bootRunner), `https://$guest_host:$guest_cockpit_port/healthz`)
+	require.Contains(t, string(bootRunner), `https://$guest_host:$guest_cockpit_port/ping`)
 }

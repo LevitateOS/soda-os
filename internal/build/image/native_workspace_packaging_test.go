@@ -49,7 +49,50 @@ func TestNativeWorkspaceCockpitPackagesAreLockedForX86_64(t *testing.T) {
 		{Name: "cockpit-bridge", NEVRA: "cockpit-bridge-0:366-1.fc44.noarch", Source: "fedora"},
 		{Name: "cockpit-system", NEVRA: "cockpit-system-0:366-1.fc44.noarch", Source: "fedora"},
 		{Name: "cockpit-ws", NEVRA: "cockpit-ws-0:366-1.fc44.x86_64", Source: "fedora"},
+		{Name: "cockpit-ws-selinux", NEVRA: "cockpit-ws-selinux-0:366-1.fc44.x86_64", Source: "fedora"},
 	}, cockpitPackages)
+}
+
+func TestStockCockpitLockClosureBlocksUnresolvedSiblingInputs(t *testing.T) {
+	root, err := filepath.Abs(filepath.Join("..", "..", ".."))
+	require.NoError(t, err)
+	for _, test := range []struct {
+		architecture string
+		wantError    string
+	}{
+		{architecture: "x86_64"},
+		{architecture: "aarch64", wantError: "runtime package lock requires matching-native resolution for: cockpit-bridge, cockpit-system, cockpit-ws, cockpit-ws-selinux"},
+	} {
+		t.Run(test.architecture, func(t *testing.T) {
+			builder, buildErr := NewBuilder(root, filepath.Join(root, "distro", "soda.toml"), test.architecture, nil)
+			require.NoError(t, buildErr)
+			lock, lockErr := builder.packageLock()
+			require.NoError(t, lockErr)
+			if test.wantError == "" {
+				require.NoError(t, validateStockCockpitLockClosure(lock))
+				return
+			}
+			require.EqualError(t, validateStockCockpitLockClosure(lock), test.wantError)
+		})
+	}
+}
+
+func TestAArch64ArtifactBuildFailsBeforeDockerUntilCockpitLockIsResolved(t *testing.T) {
+	root, err := filepath.Abs(filepath.Join("..", "..", ".."))
+	require.NoError(t, err)
+	runner := &recordingRunner{Outputs: map[string]string{
+		"git status --porcelain=v1 --untracked-files=all": "",
+		"git rev-parse HEAD":                              strings.Repeat("a", 40) + "\n",
+	}}
+	builder, err := NewBuilder(root, filepath.Join(root, "distro", "soda.toml"), "aarch64", runner)
+	require.NoError(t, err)
+	builder.hostArchitecture = "arm64"
+
+	require.EqualError(t, builder.BuildRPMs(context.Background()), "runtime package lock requires matching-native resolution for: cockpit-bridge, cockpit-system, cockpit-ws, cockpit-ws-selinux")
+	require.Equal(t, []string{
+		"git status --porcelain=v1 --untracked-files=all",
+		"git rev-parse HEAD",
+	}, []string{runner.Commands[0].String(), runner.Commands[1].String()})
 }
 
 func TestNativeWorkspaceSourcesAreStagedForRPMBuild(t *testing.T) {
@@ -58,8 +101,8 @@ func TestNativeWorkspaceSourcesAreStagedForRPMBuild(t *testing.T) {
 	build := t.TempDir()
 	sources := t.TempDir()
 	for _, name := range []string{
-		"sodad", "sodactl", "soda-ssh", "soda-projects", "soda-workspace-helper",
-		"soda-tailnet", "soda-forgejo-tailnet", "soda-cockpit", "soda-authd", "forgejo",
+		"sodad", "sodactl", "soda-projects", "soda-workspace-helper",
+		"soda-tailnet", "soda-forgejo-tailnet", "forgejo",
 	} {
 		require.NoError(t, os.WriteFile(filepath.Join(build, name), []byte(name), 0o755))
 	}
@@ -68,8 +111,8 @@ func TestNativeWorkspaceSourcesAreStagedForRPMBuild(t *testing.T) {
 	for _, name := range []string{
 		"soda-projects", "soda-workspace-helper", "soda-projects-manifest.json",
 		"soda-projects-index.html", "soda-projects-app.mjs", "soda-projects-protocol.mjs",
-		"soda-projects-ui.mjs", "soda-projects-app.css", "soda-cockpit-branding.css", "soda-cockpit-symbol.svg",
-		"org.sodaos.projects.policy", "soda-projects.tmpfiles", "cockpit-stock.pam",
+		"soda-projects-ui.mjs", "soda-projects-app.css", "soda-projects-branding.css", "soda-projects-symbol.svg",
+		"org.sodaos.projects.policy", "soda-projects.tmpfiles", "soda-projects.sysusers", "cockpit-stock.pam",
 	} {
 		info, statErr := os.Stat(filepath.Join(sources, name))
 		require.NoError(t, statErr, name)
@@ -78,7 +121,7 @@ func TestNativeWorkspaceSourcesAreStagedForRPMBuild(t *testing.T) {
 }
 
 func TestNativeWorkspacePolkitPolicyBindsOnlyTheFixedHelper(t *testing.T) {
-	path := filepath.Join("..", "..", "..", "packaging", "rpm", "cockpit", "sources", "polkit", "org.sodaos.projects.policy")
+	path := filepath.Join("..", "..", "..", "packaging", "rpm", "projects", "sources", "polkit", "org.sodaos.projects.policy")
 	contents, err := os.ReadFile(path)
 	require.NoError(t, err)
 	var policy struct {
@@ -105,7 +148,7 @@ func TestNativeWorkspacePolkitPolicyBindsOnlyTheFixedHelper(t *testing.T) {
 }
 
 func TestStockCockpitPAMTemplatePreservesVendorStackAndRejectsWorkspaceAccounts(t *testing.T) {
-	contents, err := os.ReadFile(filepath.Join("..", "..", "..", "packaging", "rpm", "cockpit", "sources", "pam", "cockpit-stock"))
+	contents, err := os.ReadFile(filepath.Join("..", "..", "..", "packaging", "rpm", "projects", "sources", "pam", "cockpit-stock"))
 	require.NoError(t, err)
 	lines := packagingNonCommentLines(string(contents))
 	require.Equal(t, []string{
@@ -129,9 +172,9 @@ func TestStockCockpitPAMTemplatePreservesVendorStackAndRejectsWorkspaceAccounts(
 	}, lines)
 }
 
-func TestNativeWorkspaceRPMAddsAssetsWithoutSwitchingCockpit(t *testing.T) {
+func TestNativeWorkspaceRPMOwnsTheStockCockpitProjectsSurface(t *testing.T) {
 	root := filepath.Join("..", "..", "..")
-	spec, err := os.ReadFile(filepath.Join(root, "packaging", "rpm", "cockpit", "soda-cockpit.spec"))
+	spec, err := os.ReadFile(filepath.Join(root, "packaging", "rpm", "projects", "soda-projects.spec"))
 	require.NoError(t, err)
 	text := string(spec)
 	for _, expected := range []string{
@@ -139,26 +182,30 @@ func TestNativeWorkspaceRPMAddsAssetsWithoutSwitchingCockpit(t *testing.T) {
 		"%{_libexecdir}/soda/soda-workspace-helper",
 		"%{_datadir}/polkit-1/actions/org.sodaos.projects.policy",
 		"%{_tmpfilesdir}/soda-projects.conf",
+		"%{_sysusersdir}/soda-projects.conf",
 		"%{_prefix}/lib/soda/pam/cockpit",
 		"%{_datadir}/cockpit/soda-projects/",
 		"%{_datadir}/cockpit/branding/sodaos/",
-		"%{_unitdir}/soda-cockpit.service",
 	} {
 		require.Contains(t, text, expected)
 	}
 	require.NotContains(t, text, "%{_sysconfdir}/pam.d/cockpit")
+	require.NotContains(t, text, "%{_unitdir}/soda-cockpit.service")
+	require.NotContains(t, text, "soda-authd")
 	dependencies := specRequires(text)
 	for _, name := range []string{
-		"coreutils", "git-core", "glibc-common", "policycoreutils", "polkit",
-		"procps-ng", "shadow-utils", "systemd", "util-linux",
+		"cockpit-system", "cockpit-ws", "coreutils", "git-core", "glibc-common", "openssh-clients", "policycoreutils", "polkit",
+		"procps-ng", "shadow-utils", "systemd", "tailscale", "util-linux",
 	} {
 		require.Contains(t, dependencies, name)
 	}
+	require.NotContains(t, dependencies, "soda-runtime")
 	require.NotContains(t, dependencies, "util-linux-core")
 
-	tmpfiles, err := os.ReadFile(filepath.Join(root, "packaging", "rpm", "cockpit", "sources", "tmpfiles", "soda-projects.conf"))
+	tmpfiles, err := os.ReadFile(filepath.Join(root, "packaging", "rpm", "projects", "sources", "tmpfiles", "soda-projects.conf"))
 	require.NoError(t, err)
 	require.Equal(t, []string{
+		"d /var/lib/soda 0755 root root -",
 		"d /var/lib/soda/catalog 0755 root root -",
 		`f /var/lib/soda/catalog/projects.json 0644 root root - []\n`,
 		"d /run/lock/soda 0755 root root -",
@@ -167,10 +214,9 @@ func TestNativeWorkspaceRPMAddsAssetsWithoutSwitchingCockpit(t *testing.T) {
 
 	runtimeTmpfiles, err := os.ReadFile(filepath.Join(root, "packaging", "rpm", "runtime", "sources", "tmpfiles", "soda.conf"))
 	require.NoError(t, err)
-	require.Contains(t, packagingNonCommentLines(string(runtimeTmpfiles)), "d /var/lib/soda 0751 root soda-api -")
-	runtimeService, err := os.ReadFile(filepath.Join(root, "packaging", "rpm", "runtime", "sources", "systemd", "sodad.service"))
-	require.NoError(t, err)
-	require.Contains(t, string(runtimeService), "StateDirectoryMode=0751")
+	require.NotContains(t, string(runtimeTmpfiles), "d /var/lib/soda ")
+	require.NotContains(t, string(runtimeTmpfiles), "/var/lib/soda/catalog")
+	require.NotContains(t, string(runtimeTmpfiles), "/var/lib/soda/projects")
 }
 
 func specRequires(contents string) map[string]bool {

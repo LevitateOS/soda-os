@@ -6,6 +6,8 @@ import (
 	"github.com/LevitateOS/soda-os/internal/domain"
 	sodav2 "github.com/LevitateOS/soda-os/internal/gen/soda/v2"
 	"github.com/LevitateOS/soda-os/internal/telemetry"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -13,6 +15,17 @@ type TelemetryAdapter struct{ manager *telemetry.Manager }
 
 func NewTelemetryAdapter(manager *telemetry.Manager) *TelemetryAdapter {
 	return &TelemetryAdapter{manager: manager}
+}
+
+func (s *Service) GetHostStatus(ctx context.Context, _ *sodav2.GetHostStatusRequest) (*sodav2.GetHostStatusResponse, error) {
+	if s.telemetry == nil {
+		return nil, status.Error(codes.Unavailable, "host telemetry is unavailable")
+	}
+	hostStatus, err := s.telemetry.HostStatus(ctx)
+	if err != nil {
+		return nil, status.Error(codes.Unavailable, err.Error())
+	}
+	return &sodav2.GetHostStatusResponse{Host: hostStatus}, nil
 }
 
 func (o *TelemetryAdapter) HostStatus(context.Context) (*sodav2.HostStatus, error) {

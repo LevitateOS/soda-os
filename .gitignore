@@ -3,7 +3,6 @@
 .DS_Store
 .artifacts/
 target/
-cockpit/soda-cockpit
 cockpit/node_modules/
 *.rpm
 *.qcow2

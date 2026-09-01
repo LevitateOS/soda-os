@@ -3,6 +3,7 @@ package telemetry
 import (
 	"context"
 	"errors"
+	"slices"
 	"testing"
 )
 
@@ -16,6 +17,17 @@ func (f fakeHostFiles) ReadFile(path string) ([]byte, error) {
 	return []byte(value), nil
 }
 func (fakeHostFiles) Statfs(string) (uint64, uint64, error) { return 100, 40, nil }
+
+type filesystemRecordingHostFiles struct{ paths []string }
+
+func (*filesystemRecordingHostFiles) ReadFile(string) ([]byte, error) {
+	return nil, errors.New("missing")
+}
+
+func (f *filesystemRecordingHostFiles) Statfs(path string) (uint64, uint64, error) {
+	f.paths = append(f.paths, path)
+	return 100, 40, nil
+}
 
 type fakeRunner struct {
 	ip  []byte
@@ -66,5 +78,44 @@ func TestNetworkParseFailureIsReported(t *testing.T) {
 	_, err := networkInterfaces(context.Background(), fakeRunner{ip: []byte("not JSON")})
 	if err == nil {
 		t.Fatal("invalid JSON must be an observable parser failure")
+	}
+}
+
+func TestFilesystemStatusExcludesRemovedSharedProjectsPath(t *testing.T) {
+	files := &filesystemRecordingHostFiles{}
+	statuses := filesystemStatus(files)
+
+	wantPaths := []string{"/", "/opt/soda/toolchains"}
+	if !slices.Equal(files.paths, wantPaths) {
+		t.Fatalf("unexpected filesystem probes: got %v want %v", files.paths, wantPaths)
+	}
+	if len(statuses) != len(wantPaths) {
+		t.Fatalf("unexpected filesystem status count: got %d want %d", len(statuses), len(wantPaths))
+	}
+}
+
+type serviceRecordingRunner struct{ names []string }
+
+func (r *serviceRecordingRunner) Output(_ context.Context, name string, args ...string) ([]byte, error) {
+	if name == "systemctl" && len(args) == 3 {
+		r.names = append(r.names, args[2])
+	}
+	return nil, nil
+}
+
+func TestHostServicesUseStockCockpitWithoutStandaloneServices(t *testing.T) {
+	runner := &serviceRecordingRunner{}
+	services := NewSystemHostSampler(runner, fakeHostFiles{}).sampleServices(context.Background())
+
+	wantServices := []string{"sodad", "cockpit.socket", "forgejo", "sshd", "NetworkManager", "firewalld"}
+	actualServices := make([]string, 0, len(services))
+	for _, service := range services {
+		actualServices = append(actualServices, service.Name)
+	}
+	if !slices.Equal(actualServices, wantServices) {
+		t.Fatalf("unexpected monitored services: got %v want %v", actualServices, wantServices)
+	}
+	if !slices.Equal(runner.names, wantServices[1:]) {
+		t.Fatalf("unexpected systemctl service checks: got %v want %v", runner.names, wantServices[1:])
 	}
 }

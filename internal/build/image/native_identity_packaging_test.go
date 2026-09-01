@@ -10,12 +10,18 @@ import (
 )
 
 func TestNativeIdentitySysusersContract(t *testing.T) {
-	contents, err := os.ReadFile(filepath.Join("..", "..", "..", "packaging", "rpm", "runtime", "sources", "sysusers", "soda.conf"))
+	root := filepath.Join("..", "..", "..", "packaging", "rpm")
+	contents, err := os.ReadFile(filepath.Join(root, "runtime", "sources", "sysusers", "soda.conf"))
 	require.NoError(t, err)
 
 	lines := nonCommentLines(string(contents))
-	require.Contains(t, lines, "g soda-workspaces -")
-	require.Contains(t, lines, "g soda-people -", "the forced-command SSH path remains until its replacement is usable")
+	require.Equal(t, []string{"g soda-api 976"}, lines)
+	require.NotContains(t, lines, "g soda-people -")
+	require.NotContains(t, string(contents), "soda-cockpit")
+
+	contents, err = os.ReadFile(filepath.Join(root, "projects", "sources", "sysusers", "soda-projects.conf"))
+	require.NoError(t, err)
+	require.Equal(t, []string{"g soda-workspaces -"}, nonCommentLines(string(contents)))
 }
 
 func TestForgejoPAMRejectsNonPrimaryAccounts(t *testing.T) {

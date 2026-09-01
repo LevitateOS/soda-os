@@ -22,162 +22,6 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-type Role int32
-
-const (
-	Role_ROLE_UNSPECIFIED Role = 0
-	Role_ROLE_ADMIN       Role = 1
-	Role_ROLE_DEVELOPER   Role = 2
-)
-
-// Enum value maps for Role.
-var (
-	Role_name = map[int32]string{
-		0: "ROLE_UNSPECIFIED",
-		1: "ROLE_ADMIN",
-		2: "ROLE_DEVELOPER",
-	}
-	Role_value = map[string]int32{
-		"ROLE_UNSPECIFIED": 0,
-		"ROLE_ADMIN":       1,
-		"ROLE_DEVELOPER":   2,
-	}
-)
-
-func (x Role) Enum() *Role {
-	p := new(Role)
-	*p = x
-	return p
-}
-
-func (x Role) String() string {
-	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
-}
-
-func (Role) Descriptor() protoreflect.EnumDescriptor {
-	return file_soda_v2_soda_proto_enumTypes[0].Descriptor()
-}
-
-func (Role) Type() protoreflect.EnumType {
-	return &file_soda_v2_soda_proto_enumTypes[0]
-}
-
-func (x Role) Number() protoreflect.EnumNumber {
-	return protoreflect.EnumNumber(x)
-}
-
-// Deprecated: Use Role.Descriptor instead.
-func (Role) EnumDescriptor() ([]byte, []int) {
-	return file_soda_v2_soda_proto_rawDescGZIP(), []int{0}
-}
-
-type ToolchainProfile int32
-
-const (
-	ToolchainProfile_TOOLCHAIN_PROFILE_UNSPECIFIED ToolchainProfile = 0
-	ToolchainProfile_TOOLCHAIN_PROFILE_WEB         ToolchainProfile = 1
-	ToolchainProfile_TOOLCHAIN_PROFILE_PYTHON      ToolchainProfile = 2
-	ToolchainProfile_TOOLCHAIN_PROFILE_RUST        ToolchainProfile = 3
-	ToolchainProfile_TOOLCHAIN_PROFILE_GO          ToolchainProfile = 4
-)
-
-// Enum value maps for ToolchainProfile.
-var (
-	ToolchainProfile_name = map[int32]string{
-		0: "TOOLCHAIN_PROFILE_UNSPECIFIED",
-		1: "TOOLCHAIN_PROFILE_WEB",
-		2: "TOOLCHAIN_PROFILE_PYTHON",
-		3: "TOOLCHAIN_PROFILE_RUST",
-		4: "TOOLCHAIN_PROFILE_GO",
-	}
-	ToolchainProfile_value = map[string]int32{
-		"TOOLCHAIN_PROFILE_UNSPECIFIED": 0,
-		"TOOLCHAIN_PROFILE_WEB":         1,
-		"TOOLCHAIN_PROFILE_PYTHON":      2,
-		"TOOLCHAIN_PROFILE_RUST":        3,
-		"TOOLCHAIN_PROFILE_GO":          4,
-	}
-)
-
-func (x ToolchainProfile) Enum() *ToolchainProfile {
-	p := new(ToolchainProfile)
-	*p = x
-	return p
-}
-
-func (x ToolchainProfile) String() string {
-	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
-}
-
-func (ToolchainProfile) Descriptor() protoreflect.EnumDescriptor {
-	return file_soda_v2_soda_proto_enumTypes[1].Descriptor()
-}
-
-func (ToolchainProfile) Type() protoreflect.EnumType {
-	return &file_soda_v2_soda_proto_enumTypes[1]
-}
-
-func (x ToolchainProfile) Number() protoreflect.EnumNumber {
-	return protoreflect.EnumNumber(x)
-}
-
-// Deprecated: Use ToolchainProfile.Descriptor instead.
-func (ToolchainProfile) EnumDescriptor() ([]byte, []int) {
-	return file_soda_v2_soda_proto_rawDescGZIP(), []int{1}
-}
-
-type JobState int32
-
-const (
-	JobState_JOB_STATE_UNSPECIFIED JobState = 0
-	JobState_JOB_STATE_INSTALLING  JobState = 1
-	JobState_JOB_STATE_READY       JobState = 2
-	JobState_JOB_STATE_FAILED      JobState = 3
-)
-
-// Enum value maps for JobState.
-var (
-	JobState_name = map[int32]string{
-		0: "JOB_STATE_UNSPECIFIED",
-		1: "JOB_STATE_INSTALLING",
-		2: "JOB_STATE_READY",
-		3: "JOB_STATE_FAILED",
-	}
-	JobState_value = map[string]int32{
-		"JOB_STATE_UNSPECIFIED": 0,
-		"JOB_STATE_INSTALLING":  1,
-		"JOB_STATE_READY":       2,
-		"JOB_STATE_FAILED":      3,
-	}
-)
-
-func (x JobState) Enum() *JobState {
-	p := new(JobState)
-	*p = x
-	return p
-}
-
-func (x JobState) String() string {
-	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
-}
-
-func (JobState) Descriptor() protoreflect.EnumDescriptor {
-	return file_soda_v2_soda_proto_enumTypes[2].Descriptor()
-}
-
-func (JobState) Type() protoreflect.EnumType {
-	return &file_soda_v2_soda_proto_enumTypes[2]
-}
-
-func (x JobState) Number() protoreflect.EnumNumber {
-	return protoreflect.EnumNumber(x)
-}
-
-// Deprecated: Use JobState.Descriptor instead.
-func (JobState) EnumDescriptor() ([]byte, []int) {
-	return file_soda_v2_soda_proto_rawDescGZIP(), []int{2}
-}
-
 type RuntimeState int32
 
 const (
@@ -214,11 +58,11 @@ func (x RuntimeState) String() string {
 }
 
 func (RuntimeState) Descriptor() protoreflect.EnumDescriptor {
-	return file_soda_v2_soda_proto_enumTypes[3].Descriptor()
+	return file_soda_v2_soda_proto_enumTypes[0].Descriptor()
 }
 
 func (RuntimeState) Type() protoreflect.EnumType {
-	return &file_soda_v2_soda_proto_enumTypes[3]
+	return &file_soda_v2_soda_proto_enumTypes[0]
 }
 
 func (x RuntimeState) Number() protoreflect.EnumNumber {
@@ -227,881 +71,7 @@ func (x RuntimeState) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use RuntimeState.Descriptor instead.
 func (RuntimeState) EnumDescriptor() ([]byte, []int) {
-	return file_soda_v2_soda_proto_rawDescGZIP(), []int{3}
-}
-
-type Person struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	Username      string                 `protobuf:"bytes,2,opt,name=username,proto3" json:"username,omitempty"`
-	DisplayName   string                 `protobuf:"bytes,3,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
-	Email         string                 `protobuf:"bytes,4,opt,name=email,proto3" json:"email,omitempty"`
-	Role          Role                   `protobuf:"varint,5,opt,name=role,proto3,enum=soda.v2.Role" json:"role,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *Person) Reset() {
-	*x = Person{}
-	mi := &file_soda_v2_soda_proto_msgTypes[0]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *Person) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*Person) ProtoMessage() {}
-
-func (x *Person) ProtoReflect() protoreflect.Message {
-	mi := &file_soda_v2_soda_proto_msgTypes[0]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use Person.ProtoReflect.Descriptor instead.
-func (*Person) Descriptor() ([]byte, []int) {
 	return file_soda_v2_soda_proto_rawDescGZIP(), []int{0}
-}
-
-func (x *Person) GetId() string {
-	if x != nil {
-		return x.Id
-	}
-	return ""
-}
-
-func (x *Person) GetUsername() string {
-	if x != nil {
-		return x.Username
-	}
-	return ""
-}
-
-func (x *Person) GetDisplayName() string {
-	if x != nil {
-		return x.DisplayName
-	}
-	return ""
-}
-
-func (x *Person) GetEmail() string {
-	if x != nil {
-		return x.Email
-	}
-	return ""
-}
-
-func (x *Person) GetRole() Role {
-	if x != nil {
-		return x.Role
-	}
-	return Role_ROLE_UNSPECIFIED
-}
-
-type SshDeviceKey struct {
-	state            protoimpl.MessageState `protogen:"open.v1"`
-	Id               string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	PersonId         string                 `protobuf:"bytes,2,opt,name=person_id,json=personId,proto3" json:"person_id,omitempty"`
-	Label            string                 `protobuf:"bytes,3,opt,name=label,proto3" json:"label,omitempty"`
-	PublicKey        string                 `protobuf:"bytes,4,opt,name=public_key,json=publicKey,proto3" json:"public_key,omitempty"`
-	Fingerprint      string                 `protobuf:"bytes,5,opt,name=fingerprint,proto3" json:"fingerprint,omitempty"`
-	IdentityFileHint string                 `protobuf:"bytes,6,opt,name=identity_file_hint,json=identityFileHint,proto3" json:"identity_file_hint,omitempty"`
-	CreatedAt        *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
-}
-
-func (x *SshDeviceKey) Reset() {
-	*x = SshDeviceKey{}
-	mi := &file_soda_v2_soda_proto_msgTypes[1]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *SshDeviceKey) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*SshDeviceKey) ProtoMessage() {}
-
-func (x *SshDeviceKey) ProtoReflect() protoreflect.Message {
-	mi := &file_soda_v2_soda_proto_msgTypes[1]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use SshDeviceKey.ProtoReflect.Descriptor instead.
-func (*SshDeviceKey) Descriptor() ([]byte, []int) {
-	return file_soda_v2_soda_proto_rawDescGZIP(), []int{1}
-}
-
-func (x *SshDeviceKey) GetId() string {
-	if x != nil {
-		return x.Id
-	}
-	return ""
-}
-
-func (x *SshDeviceKey) GetPersonId() string {
-	if x != nil {
-		return x.PersonId
-	}
-	return ""
-}
-
-func (x *SshDeviceKey) GetLabel() string {
-	if x != nil {
-		return x.Label
-	}
-	return ""
-}
-
-func (x *SshDeviceKey) GetPublicKey() string {
-	if x != nil {
-		return x.PublicKey
-	}
-	return ""
-}
-
-func (x *SshDeviceKey) GetFingerprint() string {
-	if x != nil {
-		return x.Fingerprint
-	}
-	return ""
-}
-
-func (x *SshDeviceKey) GetIdentityFileHint() string {
-	if x != nil {
-		return x.IdentityFileHint
-	}
-	return ""
-}
-
-func (x *SshDeviceKey) GetCreatedAt() *timestamppb.Timestamp {
-	if x != nil {
-		return x.CreatedAt
-	}
-	return nil
-}
-
-type GitIdentity struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	PersonId      string                 `protobuf:"bytes,1,opt,name=person_id,json=personId,proto3" json:"person_id,omitempty"`
-	PublicKey     string                 `protobuf:"bytes,2,opt,name=public_key,json=publicKey,proto3" json:"public_key,omitempty"`
-	Fingerprint   string                 `protobuf:"bytes,3,opt,name=fingerprint,proto3" json:"fingerprint,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *GitIdentity) Reset() {
-	*x = GitIdentity{}
-	mi := &file_soda_v2_soda_proto_msgTypes[2]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *GitIdentity) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*GitIdentity) ProtoMessage() {}
-
-func (x *GitIdentity) ProtoReflect() protoreflect.Message {
-	mi := &file_soda_v2_soda_proto_msgTypes[2]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use GitIdentity.ProtoReflect.Descriptor instead.
-func (*GitIdentity) Descriptor() ([]byte, []int) {
-	return file_soda_v2_soda_proto_rawDescGZIP(), []int{2}
-}
-
-func (x *GitIdentity) GetPersonId() string {
-	if x != nil {
-		return x.PersonId
-	}
-	return ""
-}
-
-func (x *GitIdentity) GetPublicKey() string {
-	if x != nil {
-		return x.PublicKey
-	}
-	return ""
-}
-
-func (x *GitIdentity) GetFingerprint() string {
-	if x != nil {
-		return x.Fingerprint
-	}
-	return ""
-}
-
-type EmptyProjectSource struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *EmptyProjectSource) Reset() {
-	*x = EmptyProjectSource{}
-	mi := &file_soda_v2_soda_proto_msgTypes[3]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *EmptyProjectSource) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*EmptyProjectSource) ProtoMessage() {}
-
-func (x *EmptyProjectSource) ProtoReflect() protoreflect.Message {
-	mi := &file_soda_v2_soda_proto_msgTypes[3]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use EmptyProjectSource.ProtoReflect.Descriptor instead.
-func (*EmptyProjectSource) Descriptor() ([]byte, []int) {
-	return file_soda_v2_soda_proto_rawDescGZIP(), []int{3}
-}
-
-type GitProjectSource struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	RemoteUrl     string                 `protobuf:"bytes,1,opt,name=remote_url,json=remoteUrl,proto3" json:"remote_url,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *GitProjectSource) Reset() {
-	*x = GitProjectSource{}
-	mi := &file_soda_v2_soda_proto_msgTypes[4]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *GitProjectSource) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*GitProjectSource) ProtoMessage() {}
-
-func (x *GitProjectSource) ProtoReflect() protoreflect.Message {
-	mi := &file_soda_v2_soda_proto_msgTypes[4]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use GitProjectSource.ProtoReflect.Descriptor instead.
-func (*GitProjectSource) Descriptor() ([]byte, []int) {
-	return file_soda_v2_soda_proto_rawDescGZIP(), []int{4}
-}
-
-func (x *GitProjectSource) GetRemoteUrl() string {
-	if x != nil {
-		return x.RemoteUrl
-	}
-	return ""
-}
-
-type ProjectSource struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// Types that are valid to be assigned to Source:
-	//
-	//	*ProjectSource_Empty
-	//	*ProjectSource_Git
-	Source        isProjectSource_Source `protobuf_oneof:"source"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *ProjectSource) Reset() {
-	*x = ProjectSource{}
-	mi := &file_soda_v2_soda_proto_msgTypes[5]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *ProjectSource) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*ProjectSource) ProtoMessage() {}
-
-func (x *ProjectSource) ProtoReflect() protoreflect.Message {
-	mi := &file_soda_v2_soda_proto_msgTypes[5]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use ProjectSource.ProtoReflect.Descriptor instead.
-func (*ProjectSource) Descriptor() ([]byte, []int) {
-	return file_soda_v2_soda_proto_rawDescGZIP(), []int{5}
-}
-
-func (x *ProjectSource) GetSource() isProjectSource_Source {
-	if x != nil {
-		return x.Source
-	}
-	return nil
-}
-
-func (x *ProjectSource) GetEmpty() *EmptyProjectSource {
-	if x != nil {
-		if x, ok := x.Source.(*ProjectSource_Empty); ok {
-			return x.Empty
-		}
-	}
-	return nil
-}
-
-func (x *ProjectSource) GetGit() *GitProjectSource {
-	if x != nil {
-		if x, ok := x.Source.(*ProjectSource_Git); ok {
-			return x.Git
-		}
-	}
-	return nil
-}
-
-type isProjectSource_Source interface {
-	isProjectSource_Source()
-}
-
-type ProjectSource_Empty struct {
-	Empty *EmptyProjectSource `protobuf:"bytes,1,opt,name=empty,proto3,oneof"`
-}
-
-type ProjectSource_Git struct {
-	Git *GitProjectSource `protobuf:"bytes,2,opt,name=git,proto3,oneof"`
-}
-
-func (*ProjectSource_Empty) isProjectSource_Source() {}
-
-func (*ProjectSource_Git) isProjectSource_Source() {}
-
-type Project struct {
-	state             protoimpl.MessageState `protogen:"open.v1"`
-	Id                string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	Slug              string                 `protobuf:"bytes,2,opt,name=slug,proto3" json:"slug,omitempty"`
-	Name              string                 `protobuf:"bytes,3,opt,name=name,proto3" json:"name,omitempty"`
-	UnixUser          string                 `protobuf:"bytes,4,opt,name=unix_user,json=unixUser,proto3" json:"unix_user,omitempty"`
-	Profile           ToolchainProfile       `protobuf:"varint,5,opt,name=profile,proto3,enum=soda.v2.ToolchainProfile" json:"profile,omitempty"`
-	Source            *ProjectSource         `protobuf:"bytes,6,opt,name=source,proto3" json:"source,omitempty"`
-	BootstrapPersonId string                 `protobuf:"bytes,7,opt,name=bootstrap_person_id,json=bootstrapPersonId,proto3" json:"bootstrap_person_id,omitempty"`
-	unknownFields     protoimpl.UnknownFields
-	sizeCache         protoimpl.SizeCache
-}
-
-func (x *Project) Reset() {
-	*x = Project{}
-	mi := &file_soda_v2_soda_proto_msgTypes[6]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *Project) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*Project) ProtoMessage() {}
-
-func (x *Project) ProtoReflect() protoreflect.Message {
-	mi := &file_soda_v2_soda_proto_msgTypes[6]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use Project.ProtoReflect.Descriptor instead.
-func (*Project) Descriptor() ([]byte, []int) {
-	return file_soda_v2_soda_proto_rawDescGZIP(), []int{6}
-}
-
-func (x *Project) GetId() string {
-	if x != nil {
-		return x.Id
-	}
-	return ""
-}
-
-func (x *Project) GetSlug() string {
-	if x != nil {
-		return x.Slug
-	}
-	return ""
-}
-
-func (x *Project) GetName() string {
-	if x != nil {
-		return x.Name
-	}
-	return ""
-}
-
-func (x *Project) GetUnixUser() string {
-	if x != nil {
-		return x.UnixUser
-	}
-	return ""
-}
-
-func (x *Project) GetProfile() ToolchainProfile {
-	if x != nil {
-		return x.Profile
-	}
-	return ToolchainProfile_TOOLCHAIN_PROFILE_UNSPECIFIED
-}
-
-func (x *Project) GetSource() *ProjectSource {
-	if x != nil {
-		return x.Source
-	}
-	return nil
-}
-
-func (x *Project) GetBootstrapPersonId() string {
-	if x != nil {
-		return x.BootstrapPersonId
-	}
-	return ""
-}
-
-type Membership struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	ProjectId     string                 `protobuf:"bytes,1,opt,name=project_id,json=projectId,proto3" json:"project_id,omitempty"`
-	PersonId      string                 `protobuf:"bytes,2,opt,name=person_id,json=personId,proto3" json:"person_id,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *Membership) Reset() {
-	*x = Membership{}
-	mi := &file_soda_v2_soda_proto_msgTypes[7]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *Membership) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*Membership) ProtoMessage() {}
-
-func (x *Membership) ProtoReflect() protoreflect.Message {
-	mi := &file_soda_v2_soda_proto_msgTypes[7]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use Membership.ProtoReflect.Descriptor instead.
-func (*Membership) Descriptor() ([]byte, []int) {
-	return file_soda_v2_soda_proto_rawDescGZIP(), []int{7}
-}
-
-func (x *Membership) GetProjectId() string {
-	if x != nil {
-		return x.ProjectId
-	}
-	return ""
-}
-
-func (x *Membership) GetPersonId() string {
-	if x != nil {
-		return x.PersonId
-	}
-	return ""
-}
-
-type Worktree struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	ProjectId     string                 `protobuf:"bytes,2,opt,name=project_id,json=projectId,proto3" json:"project_id,omitempty"`
-	PersonId      string                 `protobuf:"bytes,3,opt,name=person_id,json=personId,proto3" json:"person_id,omitempty"`
-	Name          string                 `protobuf:"bytes,4,opt,name=name,proto3" json:"name,omitempty"`
-	Branch        string                 `protobuf:"bytes,5,opt,name=branch,proto3" json:"branch,omitempty"`
-	Path          string                 `protobuf:"bytes,6,opt,name=path,proto3" json:"path,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *Worktree) Reset() {
-	*x = Worktree{}
-	mi := &file_soda_v2_soda_proto_msgTypes[8]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *Worktree) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*Worktree) ProtoMessage() {}
-
-func (x *Worktree) ProtoReflect() protoreflect.Message {
-	mi := &file_soda_v2_soda_proto_msgTypes[8]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use Worktree.ProtoReflect.Descriptor instead.
-func (*Worktree) Descriptor() ([]byte, []int) {
-	return file_soda_v2_soda_proto_rawDescGZIP(), []int{8}
-}
-
-func (x *Worktree) GetId() string {
-	if x != nil {
-		return x.Id
-	}
-	return ""
-}
-
-func (x *Worktree) GetProjectId() string {
-	if x != nil {
-		return x.ProjectId
-	}
-	return ""
-}
-
-func (x *Worktree) GetPersonId() string {
-	if x != nil {
-		return x.PersonId
-	}
-	return ""
-}
-
-func (x *Worktree) GetName() string {
-	if x != nil {
-		return x.Name
-	}
-	return ""
-}
-
-func (x *Worktree) GetBranch() string {
-	if x != nil {
-		return x.Branch
-	}
-	return ""
-}
-
-func (x *Worktree) GetPath() string {
-	if x != nil {
-		return x.Path
-	}
-	return ""
-}
-
-type ToolchainInstallation struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	Profile       ToolchainProfile       `protobuf:"varint,2,opt,name=profile,proto3,enum=soda.v2.ToolchainProfile" json:"profile,omitempty"`
-	Version       string                 `protobuf:"bytes,3,opt,name=version,proto3" json:"version,omitempty"`
-	Path          string                 `protobuf:"bytes,4,opt,name=path,proto3" json:"path,omitempty"`
-	Checksum      string                 `protobuf:"bytes,5,opt,name=checksum,proto3" json:"checksum,omitempty"`
-	State         JobState               `protobuf:"varint,6,opt,name=state,proto3,enum=soda.v2.JobState" json:"state,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *ToolchainInstallation) Reset() {
-	*x = ToolchainInstallation{}
-	mi := &file_soda_v2_soda_proto_msgTypes[9]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *ToolchainInstallation) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*ToolchainInstallation) ProtoMessage() {}
-
-func (x *ToolchainInstallation) ProtoReflect() protoreflect.Message {
-	mi := &file_soda_v2_soda_proto_msgTypes[9]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use ToolchainInstallation.ProtoReflect.Descriptor instead.
-func (*ToolchainInstallation) Descriptor() ([]byte, []int) {
-	return file_soda_v2_soda_proto_rawDescGZIP(), []int{9}
-}
-
-func (x *ToolchainInstallation) GetId() string {
-	if x != nil {
-		return x.Id
-	}
-	return ""
-}
-
-func (x *ToolchainInstallation) GetProfile() ToolchainProfile {
-	if x != nil {
-		return x.Profile
-	}
-	return ToolchainProfile_TOOLCHAIN_PROFILE_UNSPECIFIED
-}
-
-func (x *ToolchainInstallation) GetVersion() string {
-	if x != nil {
-		return x.Version
-	}
-	return ""
-}
-
-func (x *ToolchainInstallation) GetPath() string {
-	if x != nil {
-		return x.Path
-	}
-	return ""
-}
-
-func (x *ToolchainInstallation) GetChecksum() string {
-	if x != nil {
-		return x.Checksum
-	}
-	return ""
-}
-
-func (x *ToolchainInstallation) GetState() JobState {
-	if x != nil {
-		return x.State
-	}
-	return JobState_JOB_STATE_UNSPECIFIED
-}
-
-type ProjectToolchainResolution struct {
-	state                   protoimpl.MessageState `protogen:"open.v1"`
-	ProjectId               string                 `protobuf:"bytes,1,opt,name=project_id,json=projectId,proto3" json:"project_id,omitempty"`
-	ToolchainInstallationId string                 `protobuf:"bytes,2,opt,name=toolchain_installation_id,json=toolchainInstallationId,proto3" json:"toolchain_installation_id,omitempty"`
-	unknownFields           protoimpl.UnknownFields
-	sizeCache               protoimpl.SizeCache
-}
-
-func (x *ProjectToolchainResolution) Reset() {
-	*x = ProjectToolchainResolution{}
-	mi := &file_soda_v2_soda_proto_msgTypes[10]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *ProjectToolchainResolution) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*ProjectToolchainResolution) ProtoMessage() {}
-
-func (x *ProjectToolchainResolution) ProtoReflect() protoreflect.Message {
-	mi := &file_soda_v2_soda_proto_msgTypes[10]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use ProjectToolchainResolution.ProtoReflect.Descriptor instead.
-func (*ProjectToolchainResolution) Descriptor() ([]byte, []int) {
-	return file_soda_v2_soda_proto_rawDescGZIP(), []int{10}
-}
-
-func (x *ProjectToolchainResolution) GetProjectId() string {
-	if x != nil {
-		return x.ProjectId
-	}
-	return ""
-}
-
-func (x *ProjectToolchainResolution) GetToolchainInstallationId() string {
-	if x != nil {
-		return x.ToolchainInstallationId
-	}
-	return ""
-}
-
-type ProvisioningJob struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	ProjectId     string                 `protobuf:"bytes,2,opt,name=project_id,json=projectId,proto3" json:"project_id,omitempty"`
-	State         JobState               `protobuf:"varint,3,opt,name=state,proto3,enum=soda.v2.JobState" json:"state,omitempty"`
-	Error         *string                `protobuf:"bytes,4,opt,name=error,proto3,oneof" json:"error,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *ProvisioningJob) Reset() {
-	*x = ProvisioningJob{}
-	mi := &file_soda_v2_soda_proto_msgTypes[11]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *ProvisioningJob) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*ProvisioningJob) ProtoMessage() {}
-
-func (x *ProvisioningJob) ProtoReflect() protoreflect.Message {
-	mi := &file_soda_v2_soda_proto_msgTypes[11]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use ProvisioningJob.ProtoReflect.Descriptor instead.
-func (*ProvisioningJob) Descriptor() ([]byte, []int) {
-	return file_soda_v2_soda_proto_rawDescGZIP(), []int{11}
-}
-
-func (x *ProvisioningJob) GetId() string {
-	if x != nil {
-		return x.Id
-	}
-	return ""
-}
-
-func (x *ProvisioningJob) GetProjectId() string {
-	if x != nil {
-		return x.ProjectId
-	}
-	return ""
-}
-
-func (x *ProvisioningJob) GetState() JobState {
-	if x != nil {
-		return x.State
-	}
-	return JobState_JOB_STATE_UNSPECIFIED
-}
-
-func (x *ProvisioningJob) GetError() string {
-	if x != nil && x.Error != nil {
-		return *x.Error
-	}
-	return ""
-}
-
-type DeployKey struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	ProjectId     string                 `protobuf:"bytes,1,opt,name=project_id,json=projectId,proto3" json:"project_id,omitempty"`
-	PublicKey     string                 `protobuf:"bytes,2,opt,name=public_key,json=publicKey,proto3" json:"public_key,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *DeployKey) Reset() {
-	*x = DeployKey{}
-	mi := &file_soda_v2_soda_proto_msgTypes[12]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *DeployKey) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*DeployKey) ProtoMessage() {}
-
-func (x *DeployKey) ProtoReflect() protoreflect.Message {
-	mi := &file_soda_v2_soda_proto_msgTypes[12]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use DeployKey.ProtoReflect.Descriptor instead.
-func (*DeployKey) Descriptor() ([]byte, []int) {
-	return file_soda_v2_soda_proto_rawDescGZIP(), []int{12}
-}
-
-func (x *DeployKey) GetProjectId() string {
-	if x != nil {
-		return x.ProjectId
-	}
-	return ""
-}
-
-func (x *DeployKey) GetPublicKey() string {
-	if x != nil {
-		return x.PublicKey
-	}
-	return ""
 }
 
 type ServiceStatus struct {
@@ -1114,7 +84,7 @@ type ServiceStatus struct {
 
 func (x *ServiceStatus) Reset() {
 	*x = ServiceStatus{}
-	mi := &file_soda_v2_soda_proto_msgTypes[13]
+	mi := &file_soda_v2_soda_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1126,7 +96,7 @@ func (x *ServiceStatus) String() string {
 func (*ServiceStatus) ProtoMessage() {}
 
 func (x *ServiceStatus) ProtoReflect() protoreflect.Message {
-	mi := &file_soda_v2_soda_proto_msgTypes[13]
+	mi := &file_soda_v2_soda_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1139,7 +109,7 @@ func (x *ServiceStatus) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ServiceStatus.ProtoReflect.Descriptor instead.
 func (*ServiceStatus) Descriptor() ([]byte, []int) {
-	return file_soda_v2_soda_proto_rawDescGZIP(), []int{13}
+	return file_soda_v2_soda_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *ServiceStatus) GetName() string {
@@ -1166,7 +136,7 @@ type NetworkInterface struct {
 
 func (x *NetworkInterface) Reset() {
 	*x = NetworkInterface{}
-	mi := &file_soda_v2_soda_proto_msgTypes[14]
+	mi := &file_soda_v2_soda_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1178,7 +148,7 @@ func (x *NetworkInterface) String() string {
 func (*NetworkInterface) ProtoMessage() {}
 
 func (x *NetworkInterface) ProtoReflect() protoreflect.Message {
-	mi := &file_soda_v2_soda_proto_msgTypes[14]
+	mi := &file_soda_v2_soda_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1191,7 +161,7 @@ func (x *NetworkInterface) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NetworkInterface.ProtoReflect.Descriptor instead.
 func (*NetworkInterface) Descriptor() ([]byte, []int) {
-	return file_soda_v2_soda_proto_rawDescGZIP(), []int{14}
+	return file_soda_v2_soda_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *NetworkInterface) GetName() string {
@@ -1219,7 +189,7 @@ type FilesystemStatus struct {
 
 func (x *FilesystemStatus) Reset() {
 	*x = FilesystemStatus{}
-	mi := &file_soda_v2_soda_proto_msgTypes[15]
+	mi := &file_soda_v2_soda_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1231,7 +201,7 @@ func (x *FilesystemStatus) String() string {
 func (*FilesystemStatus) ProtoMessage() {}
 
 func (x *FilesystemStatus) ProtoReflect() protoreflect.Message {
-	mi := &file_soda_v2_soda_proto_msgTypes[15]
+	mi := &file_soda_v2_soda_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1244,7 +214,7 @@ func (x *FilesystemStatus) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FilesystemStatus.ProtoReflect.Descriptor instead.
 func (*FilesystemStatus) Descriptor() ([]byte, []int) {
-	return file_soda_v2_soda_proto_rawDescGZIP(), []int{15}
+	return file_soda_v2_soda_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *FilesystemStatus) GetPath() string {
@@ -1279,7 +249,7 @@ type LoadAverage struct {
 
 func (x *LoadAverage) Reset() {
 	*x = LoadAverage{}
-	mi := &file_soda_v2_soda_proto_msgTypes[16]
+	mi := &file_soda_v2_soda_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1291,7 +261,7 @@ func (x *LoadAverage) String() string {
 func (*LoadAverage) ProtoMessage() {}
 
 func (x *LoadAverage) ProtoReflect() protoreflect.Message {
-	mi := &file_soda_v2_soda_proto_msgTypes[16]
+	mi := &file_soda_v2_soda_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1304,7 +274,7 @@ func (x *LoadAverage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LoadAverage.ProtoReflect.Descriptor instead.
 func (*LoadAverage) Descriptor() ([]byte, []int) {
-	return file_soda_v2_soda_proto_rawDescGZIP(), []int{16}
+	return file_soda_v2_soda_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *LoadAverage) GetOneMinute() float64 {
@@ -1348,7 +318,7 @@ type HostStatus struct {
 
 func (x *HostStatus) Reset() {
 	*x = HostStatus{}
-	mi := &file_soda_v2_soda_proto_msgTypes[17]
+	mi := &file_soda_v2_soda_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1360,7 +330,7 @@ func (x *HostStatus) String() string {
 func (*HostStatus) ProtoMessage() {}
 
 func (x *HostStatus) ProtoReflect() protoreflect.Message {
-	mi := &file_soda_v2_soda_proto_msgTypes[17]
+	mi := &file_soda_v2_soda_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1373,7 +343,7 @@ func (x *HostStatus) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HostStatus.ProtoReflect.Descriptor instead.
 func (*HostStatus) Descriptor() ([]byte, []int) {
-	return file_soda_v2_soda_proto_rawDescGZIP(), []int{17}
+	return file_soda_v2_soda_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *HostStatus) GetSampledAt() *timestamppb.Timestamp {
@@ -1468,7 +438,7 @@ type HealthRequest struct {
 
 func (x *HealthRequest) Reset() {
 	*x = HealthRequest{}
-	mi := &file_soda_v2_soda_proto_msgTypes[18]
+	mi := &file_soda_v2_soda_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1480,7 +450,7 @@ func (x *HealthRequest) String() string {
 func (*HealthRequest) ProtoMessage() {}
 
 func (x *HealthRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_soda_v2_soda_proto_msgTypes[18]
+	mi := &file_soda_v2_soda_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1493,7 +463,7 @@ func (x *HealthRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HealthRequest.ProtoReflect.Descriptor instead.
 func (*HealthRequest) Descriptor() ([]byte, []int) {
-	return file_soda_v2_soda_proto_rawDescGZIP(), []int{18}
+	return file_soda_v2_soda_proto_rawDescGZIP(), []int{5}
 }
 
 type HealthResponse struct {
@@ -1507,7 +477,7 @@ type HealthResponse struct {
 
 func (x *HealthResponse) Reset() {
 	*x = HealthResponse{}
-	mi := &file_soda_v2_soda_proto_msgTypes[19]
+	mi := &file_soda_v2_soda_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1519,7 +489,7 @@ func (x *HealthResponse) String() string {
 func (*HealthResponse) ProtoMessage() {}
 
 func (x *HealthResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_soda_v2_soda_proto_msgTypes[19]
+	mi := &file_soda_v2_soda_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1532,7 +502,7 @@ func (x *HealthResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HealthResponse.ProtoReflect.Descriptor instead.
 func (*HealthResponse) Descriptor() ([]byte, []int) {
-	return file_soda_v2_soda_proto_rawDescGZIP(), []int{19}
+	return file_soda_v2_soda_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *HealthResponse) GetStatus() string {
@@ -1556,1698 +526,6 @@ func (x *HealthResponse) GetVersion() string {
 	return ""
 }
 
-type CreatePersonRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Username      string                 `protobuf:"bytes,1,opt,name=username,proto3" json:"username,omitempty"`
-	DisplayName   string                 `protobuf:"bytes,2,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
-	Email         string                 `protobuf:"bytes,3,opt,name=email,proto3" json:"email,omitempty"`
-	Role          Role                   `protobuf:"varint,4,opt,name=role,proto3,enum=soda.v2.Role" json:"role,omitempty"`
-	Password      string                 `protobuf:"bytes,5,opt,name=password,proto3" json:"password,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *CreatePersonRequest) Reset() {
-	*x = CreatePersonRequest{}
-	mi := &file_soda_v2_soda_proto_msgTypes[20]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *CreatePersonRequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*CreatePersonRequest) ProtoMessage() {}
-
-func (x *CreatePersonRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_soda_v2_soda_proto_msgTypes[20]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use CreatePersonRequest.ProtoReflect.Descriptor instead.
-func (*CreatePersonRequest) Descriptor() ([]byte, []int) {
-	return file_soda_v2_soda_proto_rawDescGZIP(), []int{20}
-}
-
-func (x *CreatePersonRequest) GetUsername() string {
-	if x != nil {
-		return x.Username
-	}
-	return ""
-}
-
-func (x *CreatePersonRequest) GetDisplayName() string {
-	if x != nil {
-		return x.DisplayName
-	}
-	return ""
-}
-
-func (x *CreatePersonRequest) GetEmail() string {
-	if x != nil {
-		return x.Email
-	}
-	return ""
-}
-
-func (x *CreatePersonRequest) GetRole() Role {
-	if x != nil {
-		return x.Role
-	}
-	return Role_ROLE_UNSPECIFIED
-}
-
-func (x *CreatePersonRequest) GetPassword() string {
-	if x != nil {
-		return x.Password
-	}
-	return ""
-}
-
-type CreatePersonResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Person        *Person                `protobuf:"bytes,1,opt,name=person,proto3" json:"person,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *CreatePersonResponse) Reset() {
-	*x = CreatePersonResponse{}
-	mi := &file_soda_v2_soda_proto_msgTypes[21]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *CreatePersonResponse) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*CreatePersonResponse) ProtoMessage() {}
-
-func (x *CreatePersonResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_soda_v2_soda_proto_msgTypes[21]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use CreatePersonResponse.ProtoReflect.Descriptor instead.
-func (*CreatePersonResponse) Descriptor() ([]byte, []int) {
-	return file_soda_v2_soda_proto_rawDescGZIP(), []int{21}
-}
-
-func (x *CreatePersonResponse) GetPerson() *Person {
-	if x != nil {
-		return x.Person
-	}
-	return nil
-}
-
-type ImportPersonRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Username      string                 `protobuf:"bytes,1,opt,name=username,proto3" json:"username,omitempty"`
-	DisplayName   string                 `protobuf:"bytes,2,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
-	Email         string                 `protobuf:"bytes,3,opt,name=email,proto3" json:"email,omitempty"`
-	Role          Role                   `protobuf:"varint,4,opt,name=role,proto3,enum=soda.v2.Role" json:"role,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *ImportPersonRequest) Reset() {
-	*x = ImportPersonRequest{}
-	mi := &file_soda_v2_soda_proto_msgTypes[22]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *ImportPersonRequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*ImportPersonRequest) ProtoMessage() {}
-
-func (x *ImportPersonRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_soda_v2_soda_proto_msgTypes[22]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use ImportPersonRequest.ProtoReflect.Descriptor instead.
-func (*ImportPersonRequest) Descriptor() ([]byte, []int) {
-	return file_soda_v2_soda_proto_rawDescGZIP(), []int{22}
-}
-
-func (x *ImportPersonRequest) GetUsername() string {
-	if x != nil {
-		return x.Username
-	}
-	return ""
-}
-
-func (x *ImportPersonRequest) GetDisplayName() string {
-	if x != nil {
-		return x.DisplayName
-	}
-	return ""
-}
-
-func (x *ImportPersonRequest) GetEmail() string {
-	if x != nil {
-		return x.Email
-	}
-	return ""
-}
-
-func (x *ImportPersonRequest) GetRole() Role {
-	if x != nil {
-		return x.Role
-	}
-	return Role_ROLE_UNSPECIFIED
-}
-
-type ImportPersonResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Person        *Person                `protobuf:"bytes,1,opt,name=person,proto3" json:"person,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *ImportPersonResponse) Reset() {
-	*x = ImportPersonResponse{}
-	mi := &file_soda_v2_soda_proto_msgTypes[23]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *ImportPersonResponse) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*ImportPersonResponse) ProtoMessage() {}
-
-func (x *ImportPersonResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_soda_v2_soda_proto_msgTypes[23]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use ImportPersonResponse.ProtoReflect.Descriptor instead.
-func (*ImportPersonResponse) Descriptor() ([]byte, []int) {
-	return file_soda_v2_soda_proto_rawDescGZIP(), []int{23}
-}
-
-func (x *ImportPersonResponse) GetPerson() *Person {
-	if x != nil {
-		return x.Person
-	}
-	return nil
-}
-
-type ListPeopleRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *ListPeopleRequest) Reset() {
-	*x = ListPeopleRequest{}
-	mi := &file_soda_v2_soda_proto_msgTypes[24]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *ListPeopleRequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*ListPeopleRequest) ProtoMessage() {}
-
-func (x *ListPeopleRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_soda_v2_soda_proto_msgTypes[24]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use ListPeopleRequest.ProtoReflect.Descriptor instead.
-func (*ListPeopleRequest) Descriptor() ([]byte, []int) {
-	return file_soda_v2_soda_proto_rawDescGZIP(), []int{24}
-}
-
-type ListPeopleResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	People        []*Person              `protobuf:"bytes,1,rep,name=people,proto3" json:"people,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *ListPeopleResponse) Reset() {
-	*x = ListPeopleResponse{}
-	mi := &file_soda_v2_soda_proto_msgTypes[25]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *ListPeopleResponse) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*ListPeopleResponse) ProtoMessage() {}
-
-func (x *ListPeopleResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_soda_v2_soda_proto_msgTypes[25]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use ListPeopleResponse.ProtoReflect.Descriptor instead.
-func (*ListPeopleResponse) Descriptor() ([]byte, []int) {
-	return file_soda_v2_soda_proto_rawDescGZIP(), []int{25}
-}
-
-func (x *ListPeopleResponse) GetPeople() []*Person {
-	if x != nil {
-		return x.People
-	}
-	return nil
-}
-
-type GetGitIdentityRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	PersonId      string                 `protobuf:"bytes,1,opt,name=person_id,json=personId,proto3" json:"person_id,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *GetGitIdentityRequest) Reset() {
-	*x = GetGitIdentityRequest{}
-	mi := &file_soda_v2_soda_proto_msgTypes[26]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *GetGitIdentityRequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*GetGitIdentityRequest) ProtoMessage() {}
-
-func (x *GetGitIdentityRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_soda_v2_soda_proto_msgTypes[26]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use GetGitIdentityRequest.ProtoReflect.Descriptor instead.
-func (*GetGitIdentityRequest) Descriptor() ([]byte, []int) {
-	return file_soda_v2_soda_proto_rawDescGZIP(), []int{26}
-}
-
-func (x *GetGitIdentityRequest) GetPersonId() string {
-	if x != nil {
-		return x.PersonId
-	}
-	return ""
-}
-
-type GetGitIdentityResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Identity      *GitIdentity           `protobuf:"bytes,1,opt,name=identity,proto3" json:"identity,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *GetGitIdentityResponse) Reset() {
-	*x = GetGitIdentityResponse{}
-	mi := &file_soda_v2_soda_proto_msgTypes[27]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *GetGitIdentityResponse) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*GetGitIdentityResponse) ProtoMessage() {}
-
-func (x *GetGitIdentityResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_soda_v2_soda_proto_msgTypes[27]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use GetGitIdentityResponse.ProtoReflect.Descriptor instead.
-func (*GetGitIdentityResponse) Descriptor() ([]byte, []int) {
-	return file_soda_v2_soda_proto_rawDescGZIP(), []int{27}
-}
-
-func (x *GetGitIdentityResponse) GetIdentity() *GitIdentity {
-	if x != nil {
-		return x.Identity
-	}
-	return nil
-}
-
-type CreateSshDeviceKeyRequest struct {
-	state            protoimpl.MessageState `protogen:"open.v1"`
-	PersonId         string                 `protobuf:"bytes,1,opt,name=person_id,json=personId,proto3" json:"person_id,omitempty"`
-	Label            string                 `protobuf:"bytes,2,opt,name=label,proto3" json:"label,omitempty"`
-	PublicKey        string                 `protobuf:"bytes,3,opt,name=public_key,json=publicKey,proto3" json:"public_key,omitempty"`
-	IdentityFileHint string                 `protobuf:"bytes,4,opt,name=identity_file_hint,json=identityFileHint,proto3" json:"identity_file_hint,omitempty"`
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
-}
-
-func (x *CreateSshDeviceKeyRequest) Reset() {
-	*x = CreateSshDeviceKeyRequest{}
-	mi := &file_soda_v2_soda_proto_msgTypes[28]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *CreateSshDeviceKeyRequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*CreateSshDeviceKeyRequest) ProtoMessage() {}
-
-func (x *CreateSshDeviceKeyRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_soda_v2_soda_proto_msgTypes[28]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use CreateSshDeviceKeyRequest.ProtoReflect.Descriptor instead.
-func (*CreateSshDeviceKeyRequest) Descriptor() ([]byte, []int) {
-	return file_soda_v2_soda_proto_rawDescGZIP(), []int{28}
-}
-
-func (x *CreateSshDeviceKeyRequest) GetPersonId() string {
-	if x != nil {
-		return x.PersonId
-	}
-	return ""
-}
-
-func (x *CreateSshDeviceKeyRequest) GetLabel() string {
-	if x != nil {
-		return x.Label
-	}
-	return ""
-}
-
-func (x *CreateSshDeviceKeyRequest) GetPublicKey() string {
-	if x != nil {
-		return x.PublicKey
-	}
-	return ""
-}
-
-func (x *CreateSshDeviceKeyRequest) GetIdentityFileHint() string {
-	if x != nil {
-		return x.IdentityFileHint
-	}
-	return ""
-}
-
-type CreateSshDeviceKeyResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Key           *SshDeviceKey          `protobuf:"bytes,1,opt,name=key,proto3" json:"key,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *CreateSshDeviceKeyResponse) Reset() {
-	*x = CreateSshDeviceKeyResponse{}
-	mi := &file_soda_v2_soda_proto_msgTypes[29]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *CreateSshDeviceKeyResponse) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*CreateSshDeviceKeyResponse) ProtoMessage() {}
-
-func (x *CreateSshDeviceKeyResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_soda_v2_soda_proto_msgTypes[29]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use CreateSshDeviceKeyResponse.ProtoReflect.Descriptor instead.
-func (*CreateSshDeviceKeyResponse) Descriptor() ([]byte, []int) {
-	return file_soda_v2_soda_proto_rawDescGZIP(), []int{29}
-}
-
-func (x *CreateSshDeviceKeyResponse) GetKey() *SshDeviceKey {
-	if x != nil {
-		return x.Key
-	}
-	return nil
-}
-
-type ListSshDeviceKeysRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	PersonId      string                 `protobuf:"bytes,1,opt,name=person_id,json=personId,proto3" json:"person_id,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *ListSshDeviceKeysRequest) Reset() {
-	*x = ListSshDeviceKeysRequest{}
-	mi := &file_soda_v2_soda_proto_msgTypes[30]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *ListSshDeviceKeysRequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*ListSshDeviceKeysRequest) ProtoMessage() {}
-
-func (x *ListSshDeviceKeysRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_soda_v2_soda_proto_msgTypes[30]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use ListSshDeviceKeysRequest.ProtoReflect.Descriptor instead.
-func (*ListSshDeviceKeysRequest) Descriptor() ([]byte, []int) {
-	return file_soda_v2_soda_proto_rawDescGZIP(), []int{30}
-}
-
-func (x *ListSshDeviceKeysRequest) GetPersonId() string {
-	if x != nil {
-		return x.PersonId
-	}
-	return ""
-}
-
-type ListSshDeviceKeysResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Keys          []*SshDeviceKey        `protobuf:"bytes,1,rep,name=keys,proto3" json:"keys,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *ListSshDeviceKeysResponse) Reset() {
-	*x = ListSshDeviceKeysResponse{}
-	mi := &file_soda_v2_soda_proto_msgTypes[31]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *ListSshDeviceKeysResponse) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*ListSshDeviceKeysResponse) ProtoMessage() {}
-
-func (x *ListSshDeviceKeysResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_soda_v2_soda_proto_msgTypes[31]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use ListSshDeviceKeysResponse.ProtoReflect.Descriptor instead.
-func (*ListSshDeviceKeysResponse) Descriptor() ([]byte, []int) {
-	return file_soda_v2_soda_proto_rawDescGZIP(), []int{31}
-}
-
-func (x *ListSshDeviceKeysResponse) GetKeys() []*SshDeviceKey {
-	if x != nil {
-		return x.Keys
-	}
-	return nil
-}
-
-type RevokeSshDeviceKeyRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	PersonId      string                 `protobuf:"bytes,1,opt,name=person_id,json=personId,proto3" json:"person_id,omitempty"`
-	KeyId         string                 `protobuf:"bytes,2,opt,name=key_id,json=keyId,proto3" json:"key_id,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *RevokeSshDeviceKeyRequest) Reset() {
-	*x = RevokeSshDeviceKeyRequest{}
-	mi := &file_soda_v2_soda_proto_msgTypes[32]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *RevokeSshDeviceKeyRequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*RevokeSshDeviceKeyRequest) ProtoMessage() {}
-
-func (x *RevokeSshDeviceKeyRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_soda_v2_soda_proto_msgTypes[32]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use RevokeSshDeviceKeyRequest.ProtoReflect.Descriptor instead.
-func (*RevokeSshDeviceKeyRequest) Descriptor() ([]byte, []int) {
-	return file_soda_v2_soda_proto_rawDescGZIP(), []int{32}
-}
-
-func (x *RevokeSshDeviceKeyRequest) GetPersonId() string {
-	if x != nil {
-		return x.PersonId
-	}
-	return ""
-}
-
-func (x *RevokeSshDeviceKeyRequest) GetKeyId() string {
-	if x != nil {
-		return x.KeyId
-	}
-	return ""
-}
-
-type RevokeSshDeviceKeyResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Key           *SshDeviceKey          `protobuf:"bytes,1,opt,name=key,proto3" json:"key,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *RevokeSshDeviceKeyResponse) Reset() {
-	*x = RevokeSshDeviceKeyResponse{}
-	mi := &file_soda_v2_soda_proto_msgTypes[33]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *RevokeSshDeviceKeyResponse) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*RevokeSshDeviceKeyResponse) ProtoMessage() {}
-
-func (x *RevokeSshDeviceKeyResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_soda_v2_soda_proto_msgTypes[33]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use RevokeSshDeviceKeyResponse.ProtoReflect.Descriptor instead.
-func (*RevokeSshDeviceKeyResponse) Descriptor() ([]byte, []int) {
-	return file_soda_v2_soda_proto_rawDescGZIP(), []int{33}
-}
-
-func (x *RevokeSshDeviceKeyResponse) GetKey() *SshDeviceKey {
-	if x != nil {
-		return x.Key
-	}
-	return nil
-}
-
-type CreateProjectRequest struct {
-	state             protoimpl.MessageState `protogen:"open.v1"`
-	Slug              string                 `protobuf:"bytes,1,opt,name=slug,proto3" json:"slug,omitempty"`
-	Name              string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
-	Profile           ToolchainProfile       `protobuf:"varint,3,opt,name=profile,proto3,enum=soda.v2.ToolchainProfile" json:"profile,omitempty"`
-	Source            *ProjectSource         `protobuf:"bytes,4,opt,name=source,proto3" json:"source,omitempty"`
-	InitialPersonIds  []string               `protobuf:"bytes,5,rep,name=initial_person_ids,json=initialPersonIds,proto3" json:"initial_person_ids,omitempty"`
-	BootstrapPersonId string                 `protobuf:"bytes,6,opt,name=bootstrap_person_id,json=bootstrapPersonId,proto3" json:"bootstrap_person_id,omitempty"`
-	unknownFields     protoimpl.UnknownFields
-	sizeCache         protoimpl.SizeCache
-}
-
-func (x *CreateProjectRequest) Reset() {
-	*x = CreateProjectRequest{}
-	mi := &file_soda_v2_soda_proto_msgTypes[34]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *CreateProjectRequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*CreateProjectRequest) ProtoMessage() {}
-
-func (x *CreateProjectRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_soda_v2_soda_proto_msgTypes[34]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use CreateProjectRequest.ProtoReflect.Descriptor instead.
-func (*CreateProjectRequest) Descriptor() ([]byte, []int) {
-	return file_soda_v2_soda_proto_rawDescGZIP(), []int{34}
-}
-
-func (x *CreateProjectRequest) GetSlug() string {
-	if x != nil {
-		return x.Slug
-	}
-	return ""
-}
-
-func (x *CreateProjectRequest) GetName() string {
-	if x != nil {
-		return x.Name
-	}
-	return ""
-}
-
-func (x *CreateProjectRequest) GetProfile() ToolchainProfile {
-	if x != nil {
-		return x.Profile
-	}
-	return ToolchainProfile_TOOLCHAIN_PROFILE_UNSPECIFIED
-}
-
-func (x *CreateProjectRequest) GetSource() *ProjectSource {
-	if x != nil {
-		return x.Source
-	}
-	return nil
-}
-
-func (x *CreateProjectRequest) GetInitialPersonIds() []string {
-	if x != nil {
-		return x.InitialPersonIds
-	}
-	return nil
-}
-
-func (x *CreateProjectRequest) GetBootstrapPersonId() string {
-	if x != nil {
-		return x.BootstrapPersonId
-	}
-	return ""
-}
-
-type CreateProjectResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Project       *Project               `protobuf:"bytes,1,opt,name=project,proto3" json:"project,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *CreateProjectResponse) Reset() {
-	*x = CreateProjectResponse{}
-	mi := &file_soda_v2_soda_proto_msgTypes[35]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *CreateProjectResponse) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*CreateProjectResponse) ProtoMessage() {}
-
-func (x *CreateProjectResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_soda_v2_soda_proto_msgTypes[35]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use CreateProjectResponse.ProtoReflect.Descriptor instead.
-func (*CreateProjectResponse) Descriptor() ([]byte, []int) {
-	return file_soda_v2_soda_proto_rawDescGZIP(), []int{35}
-}
-
-func (x *CreateProjectResponse) GetProject() *Project {
-	if x != nil {
-		return x.Project
-	}
-	return nil
-}
-
-type ListProjectsRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *ListProjectsRequest) Reset() {
-	*x = ListProjectsRequest{}
-	mi := &file_soda_v2_soda_proto_msgTypes[36]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *ListProjectsRequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*ListProjectsRequest) ProtoMessage() {}
-
-func (x *ListProjectsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_soda_v2_soda_proto_msgTypes[36]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use ListProjectsRequest.ProtoReflect.Descriptor instead.
-func (*ListProjectsRequest) Descriptor() ([]byte, []int) {
-	return file_soda_v2_soda_proto_rawDescGZIP(), []int{36}
-}
-
-type ListProjectsResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Projects      []*Project             `protobuf:"bytes,1,rep,name=projects,proto3" json:"projects,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *ListProjectsResponse) Reset() {
-	*x = ListProjectsResponse{}
-	mi := &file_soda_v2_soda_proto_msgTypes[37]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *ListProjectsResponse) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*ListProjectsResponse) ProtoMessage() {}
-
-func (x *ListProjectsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_soda_v2_soda_proto_msgTypes[37]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use ListProjectsResponse.ProtoReflect.Descriptor instead.
-func (*ListProjectsResponse) Descriptor() ([]byte, []int) {
-	return file_soda_v2_soda_proto_rawDescGZIP(), []int{37}
-}
-
-func (x *ListProjectsResponse) GetProjects() []*Project {
-	if x != nil {
-		return x.Projects
-	}
-	return nil
-}
-
-type ListProjectsForPersonRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	PersonId      string                 `protobuf:"bytes,1,opt,name=person_id,json=personId,proto3" json:"person_id,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *ListProjectsForPersonRequest) Reset() {
-	*x = ListProjectsForPersonRequest{}
-	mi := &file_soda_v2_soda_proto_msgTypes[38]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *ListProjectsForPersonRequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*ListProjectsForPersonRequest) ProtoMessage() {}
-
-func (x *ListProjectsForPersonRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_soda_v2_soda_proto_msgTypes[38]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use ListProjectsForPersonRequest.ProtoReflect.Descriptor instead.
-func (*ListProjectsForPersonRequest) Descriptor() ([]byte, []int) {
-	return file_soda_v2_soda_proto_rawDescGZIP(), []int{38}
-}
-
-func (x *ListProjectsForPersonRequest) GetPersonId() string {
-	if x != nil {
-		return x.PersonId
-	}
-	return ""
-}
-
-type ListProjectsForPersonResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Projects      []*Project             `protobuf:"bytes,1,rep,name=projects,proto3" json:"projects,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *ListProjectsForPersonResponse) Reset() {
-	*x = ListProjectsForPersonResponse{}
-	mi := &file_soda_v2_soda_proto_msgTypes[39]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *ListProjectsForPersonResponse) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*ListProjectsForPersonResponse) ProtoMessage() {}
-
-func (x *ListProjectsForPersonResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_soda_v2_soda_proto_msgTypes[39]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use ListProjectsForPersonResponse.ProtoReflect.Descriptor instead.
-func (*ListProjectsForPersonResponse) Descriptor() ([]byte, []int) {
-	return file_soda_v2_soda_proto_rawDescGZIP(), []int{39}
-}
-
-func (x *ListProjectsForPersonResponse) GetProjects() []*Project {
-	if x != nil {
-		return x.Projects
-	}
-	return nil
-}
-
-type AddCollaboratorRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	ProjectId     string                 `protobuf:"bytes,1,opt,name=project_id,json=projectId,proto3" json:"project_id,omitempty"`
-	PersonId      string                 `protobuf:"bytes,2,opt,name=person_id,json=personId,proto3" json:"person_id,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *AddCollaboratorRequest) Reset() {
-	*x = AddCollaboratorRequest{}
-	mi := &file_soda_v2_soda_proto_msgTypes[40]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *AddCollaboratorRequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*AddCollaboratorRequest) ProtoMessage() {}
-
-func (x *AddCollaboratorRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_soda_v2_soda_proto_msgTypes[40]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use AddCollaboratorRequest.ProtoReflect.Descriptor instead.
-func (*AddCollaboratorRequest) Descriptor() ([]byte, []int) {
-	return file_soda_v2_soda_proto_rawDescGZIP(), []int{40}
-}
-
-func (x *AddCollaboratorRequest) GetProjectId() string {
-	if x != nil {
-		return x.ProjectId
-	}
-	return ""
-}
-
-func (x *AddCollaboratorRequest) GetPersonId() string {
-	if x != nil {
-		return x.PersonId
-	}
-	return ""
-}
-
-type AddCollaboratorResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Membership    *Membership            `protobuf:"bytes,1,opt,name=membership,proto3" json:"membership,omitempty"`
-	Worktree      *Worktree              `protobuf:"bytes,2,opt,name=worktree,proto3" json:"worktree,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *AddCollaboratorResponse) Reset() {
-	*x = AddCollaboratorResponse{}
-	mi := &file_soda_v2_soda_proto_msgTypes[41]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *AddCollaboratorResponse) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*AddCollaboratorResponse) ProtoMessage() {}
-
-func (x *AddCollaboratorResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_soda_v2_soda_proto_msgTypes[41]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use AddCollaboratorResponse.ProtoReflect.Descriptor instead.
-func (*AddCollaboratorResponse) Descriptor() ([]byte, []int) {
-	return file_soda_v2_soda_proto_rawDescGZIP(), []int{41}
-}
-
-func (x *AddCollaboratorResponse) GetMembership() *Membership {
-	if x != nil {
-		return x.Membership
-	}
-	return nil
-}
-
-func (x *AddCollaboratorResponse) GetWorktree() *Worktree {
-	if x != nil {
-		return x.Worktree
-	}
-	return nil
-}
-
-type ListCollaboratorsRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	ProjectId     string                 `protobuf:"bytes,1,opt,name=project_id,json=projectId,proto3" json:"project_id,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *ListCollaboratorsRequest) Reset() {
-	*x = ListCollaboratorsRequest{}
-	mi := &file_soda_v2_soda_proto_msgTypes[42]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *ListCollaboratorsRequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*ListCollaboratorsRequest) ProtoMessage() {}
-
-func (x *ListCollaboratorsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_soda_v2_soda_proto_msgTypes[42]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use ListCollaboratorsRequest.ProtoReflect.Descriptor instead.
-func (*ListCollaboratorsRequest) Descriptor() ([]byte, []int) {
-	return file_soda_v2_soda_proto_rawDescGZIP(), []int{42}
-}
-
-func (x *ListCollaboratorsRequest) GetProjectId() string {
-	if x != nil {
-		return x.ProjectId
-	}
-	return ""
-}
-
-type Collaborator struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Person        *Person                `protobuf:"bytes,1,opt,name=person,proto3" json:"person,omitempty"`
-	Membership    *Membership            `protobuf:"bytes,2,opt,name=membership,proto3" json:"membership,omitempty"`
-	Worktrees     []*Worktree            `protobuf:"bytes,3,rep,name=worktrees,proto3" json:"worktrees,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *Collaborator) Reset() {
-	*x = Collaborator{}
-	mi := &file_soda_v2_soda_proto_msgTypes[43]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *Collaborator) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*Collaborator) ProtoMessage() {}
-
-func (x *Collaborator) ProtoReflect() protoreflect.Message {
-	mi := &file_soda_v2_soda_proto_msgTypes[43]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use Collaborator.ProtoReflect.Descriptor instead.
-func (*Collaborator) Descriptor() ([]byte, []int) {
-	return file_soda_v2_soda_proto_rawDescGZIP(), []int{43}
-}
-
-func (x *Collaborator) GetPerson() *Person {
-	if x != nil {
-		return x.Person
-	}
-	return nil
-}
-
-func (x *Collaborator) GetMembership() *Membership {
-	if x != nil {
-		return x.Membership
-	}
-	return nil
-}
-
-func (x *Collaborator) GetWorktrees() []*Worktree {
-	if x != nil {
-		return x.Worktrees
-	}
-	return nil
-}
-
-type ListCollaboratorsResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Collaborators []*Collaborator        `protobuf:"bytes,1,rep,name=collaborators,proto3" json:"collaborators,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *ListCollaboratorsResponse) Reset() {
-	*x = ListCollaboratorsResponse{}
-	mi := &file_soda_v2_soda_proto_msgTypes[44]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *ListCollaboratorsResponse) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*ListCollaboratorsResponse) ProtoMessage() {}
-
-func (x *ListCollaboratorsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_soda_v2_soda_proto_msgTypes[44]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use ListCollaboratorsResponse.ProtoReflect.Descriptor instead.
-func (*ListCollaboratorsResponse) Descriptor() ([]byte, []int) {
-	return file_soda_v2_soda_proto_rawDescGZIP(), []int{44}
-}
-
-func (x *ListCollaboratorsResponse) GetCollaborators() []*Collaborator {
-	if x != nil {
-		return x.Collaborators
-	}
-	return nil
-}
-
-type ListWorktreesRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	ProjectId     string                 `protobuf:"bytes,1,opt,name=project_id,json=projectId,proto3" json:"project_id,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *ListWorktreesRequest) Reset() {
-	*x = ListWorktreesRequest{}
-	mi := &file_soda_v2_soda_proto_msgTypes[45]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *ListWorktreesRequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*ListWorktreesRequest) ProtoMessage() {}
-
-func (x *ListWorktreesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_soda_v2_soda_proto_msgTypes[45]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use ListWorktreesRequest.ProtoReflect.Descriptor instead.
-func (*ListWorktreesRequest) Descriptor() ([]byte, []int) {
-	return file_soda_v2_soda_proto_rawDescGZIP(), []int{45}
-}
-
-func (x *ListWorktreesRequest) GetProjectId() string {
-	if x != nil {
-		return x.ProjectId
-	}
-	return ""
-}
-
-type ListWorktreesResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Worktrees     []*Worktree            `protobuf:"bytes,1,rep,name=worktrees,proto3" json:"worktrees,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *ListWorktreesResponse) Reset() {
-	*x = ListWorktreesResponse{}
-	mi := &file_soda_v2_soda_proto_msgTypes[46]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *ListWorktreesResponse) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*ListWorktreesResponse) ProtoMessage() {}
-
-func (x *ListWorktreesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_soda_v2_soda_proto_msgTypes[46]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use ListWorktreesResponse.ProtoReflect.Descriptor instead.
-func (*ListWorktreesResponse) Descriptor() ([]byte, []int) {
-	return file_soda_v2_soda_proto_rawDescGZIP(), []int{46}
-}
-
-func (x *ListWorktreesResponse) GetWorktrees() []*Worktree {
-	if x != nil {
-		return x.Worktrees
-	}
-	return nil
-}
-
-type GetDeployKeyRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	ProjectId     string                 `protobuf:"bytes,1,opt,name=project_id,json=projectId,proto3" json:"project_id,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *GetDeployKeyRequest) Reset() {
-	*x = GetDeployKeyRequest{}
-	mi := &file_soda_v2_soda_proto_msgTypes[47]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *GetDeployKeyRequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*GetDeployKeyRequest) ProtoMessage() {}
-
-func (x *GetDeployKeyRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_soda_v2_soda_proto_msgTypes[47]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use GetDeployKeyRequest.ProtoReflect.Descriptor instead.
-func (*GetDeployKeyRequest) Descriptor() ([]byte, []int) {
-	return file_soda_v2_soda_proto_rawDescGZIP(), []int{47}
-}
-
-func (x *GetDeployKeyRequest) GetProjectId() string {
-	if x != nil {
-		return x.ProjectId
-	}
-	return ""
-}
-
-type GetDeployKeyResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	DeployKey     *DeployKey             `protobuf:"bytes,1,opt,name=deploy_key,json=deployKey,proto3" json:"deploy_key,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *GetDeployKeyResponse) Reset() {
-	*x = GetDeployKeyResponse{}
-	mi := &file_soda_v2_soda_proto_msgTypes[48]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *GetDeployKeyResponse) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*GetDeployKeyResponse) ProtoMessage() {}
-
-func (x *GetDeployKeyResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_soda_v2_soda_proto_msgTypes[48]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use GetDeployKeyResponse.ProtoReflect.Descriptor instead.
-func (*GetDeployKeyResponse) Descriptor() ([]byte, []int) {
-	return file_soda_v2_soda_proto_rawDescGZIP(), []int{48}
-}
-
-func (x *GetDeployKeyResponse) GetDeployKey() *DeployKey {
-	if x != nil {
-		return x.DeployKey
-	}
-	return nil
-}
-
-type GetProjectToolchainRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	ProjectId     string                 `protobuf:"bytes,1,opt,name=project_id,json=projectId,proto3" json:"project_id,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *GetProjectToolchainRequest) Reset() {
-	*x = GetProjectToolchainRequest{}
-	mi := &file_soda_v2_soda_proto_msgTypes[49]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *GetProjectToolchainRequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*GetProjectToolchainRequest) ProtoMessage() {}
-
-func (x *GetProjectToolchainRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_soda_v2_soda_proto_msgTypes[49]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use GetProjectToolchainRequest.ProtoReflect.Descriptor instead.
-func (*GetProjectToolchainRequest) Descriptor() ([]byte, []int) {
-	return file_soda_v2_soda_proto_rawDescGZIP(), []int{49}
-}
-
-func (x *GetProjectToolchainRequest) GetProjectId() string {
-	if x != nil {
-		return x.ProjectId
-	}
-	return ""
-}
-
-type GetProjectToolchainResponse struct {
-	state         protoimpl.MessageState      `protogen:"open.v1"`
-	Installation  *ToolchainInstallation      `protobuf:"bytes,1,opt,name=installation,proto3" json:"installation,omitempty"`
-	Resolution    *ProjectToolchainResolution `protobuf:"bytes,2,opt,name=resolution,proto3" json:"resolution,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *GetProjectToolchainResponse) Reset() {
-	*x = GetProjectToolchainResponse{}
-	mi := &file_soda_v2_soda_proto_msgTypes[50]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *GetProjectToolchainResponse) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*GetProjectToolchainResponse) ProtoMessage() {}
-
-func (x *GetProjectToolchainResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_soda_v2_soda_proto_msgTypes[50]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use GetProjectToolchainResponse.ProtoReflect.Descriptor instead.
-func (*GetProjectToolchainResponse) Descriptor() ([]byte, []int) {
-	return file_soda_v2_soda_proto_rawDescGZIP(), []int{50}
-}
-
-func (x *GetProjectToolchainResponse) GetInstallation() *ToolchainInstallation {
-	if x != nil {
-		return x.Installation
-	}
-	return nil
-}
-
-func (x *GetProjectToolchainResponse) GetResolution() *ProjectToolchainResolution {
-	if x != nil {
-		return x.Resolution
-	}
-	return nil
-}
-
-type StartProvisioningRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	ProjectId     string                 `protobuf:"bytes,1,opt,name=project_id,json=projectId,proto3" json:"project_id,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *StartProvisioningRequest) Reset() {
-	*x = StartProvisioningRequest{}
-	mi := &file_soda_v2_soda_proto_msgTypes[51]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *StartProvisioningRequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*StartProvisioningRequest) ProtoMessage() {}
-
-func (x *StartProvisioningRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_soda_v2_soda_proto_msgTypes[51]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use StartProvisioningRequest.ProtoReflect.Descriptor instead.
-func (*StartProvisioningRequest) Descriptor() ([]byte, []int) {
-	return file_soda_v2_soda_proto_rawDescGZIP(), []int{51}
-}
-
-func (x *StartProvisioningRequest) GetProjectId() string {
-	if x != nil {
-		return x.ProjectId
-	}
-	return ""
-}
-
-type StartProvisioningResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Job           *ProvisioningJob       `protobuf:"bytes,1,opt,name=job,proto3" json:"job,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *StartProvisioningResponse) Reset() {
-	*x = StartProvisioningResponse{}
-	mi := &file_soda_v2_soda_proto_msgTypes[52]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *StartProvisioningResponse) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*StartProvisioningResponse) ProtoMessage() {}
-
-func (x *StartProvisioningResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_soda_v2_soda_proto_msgTypes[52]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use StartProvisioningResponse.ProtoReflect.Descriptor instead.
-func (*StartProvisioningResponse) Descriptor() ([]byte, []int) {
-	return file_soda_v2_soda_proto_rawDescGZIP(), []int{52}
-}
-
-func (x *StartProvisioningResponse) GetJob() *ProvisioningJob {
-	if x != nil {
-		return x.Job
-	}
-	return nil
-}
-
-type ListProvisioningJobsRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	ProjectId     string                 `protobuf:"bytes,1,opt,name=project_id,json=projectId,proto3" json:"project_id,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *ListProvisioningJobsRequest) Reset() {
-	*x = ListProvisioningJobsRequest{}
-	mi := &file_soda_v2_soda_proto_msgTypes[53]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *ListProvisioningJobsRequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*ListProvisioningJobsRequest) ProtoMessage() {}
-
-func (x *ListProvisioningJobsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_soda_v2_soda_proto_msgTypes[53]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use ListProvisioningJobsRequest.ProtoReflect.Descriptor instead.
-func (*ListProvisioningJobsRequest) Descriptor() ([]byte, []int) {
-	return file_soda_v2_soda_proto_rawDescGZIP(), []int{53}
-}
-
-func (x *ListProvisioningJobsRequest) GetProjectId() string {
-	if x != nil {
-		return x.ProjectId
-	}
-	return ""
-}
-
-type ListProvisioningJobsResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Jobs          []*ProvisioningJob     `protobuf:"bytes,1,rep,name=jobs,proto3" json:"jobs,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *ListProvisioningJobsResponse) Reset() {
-	*x = ListProvisioningJobsResponse{}
-	mi := &file_soda_v2_soda_proto_msgTypes[54]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *ListProvisioningJobsResponse) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*ListProvisioningJobsResponse) ProtoMessage() {}
-
-func (x *ListProvisioningJobsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_soda_v2_soda_proto_msgTypes[54]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use ListProvisioningJobsResponse.ProtoReflect.Descriptor instead.
-func (*ListProvisioningJobsResponse) Descriptor() ([]byte, []int) {
-	return file_soda_v2_soda_proto_rawDescGZIP(), []int{54}
-}
-
-func (x *ListProvisioningJobsResponse) GetJobs() []*ProvisioningJob {
-	if x != nil {
-		return x.Jobs
-	}
-	return nil
-}
-
 type GetHostStatusRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
@@ -3256,7 +534,7 @@ type GetHostStatusRequest struct {
 
 func (x *GetHostStatusRequest) Reset() {
 	*x = GetHostStatusRequest{}
-	mi := &file_soda_v2_soda_proto_msgTypes[55]
+	mi := &file_soda_v2_soda_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3268,7 +546,7 @@ func (x *GetHostStatusRequest) String() string {
 func (*GetHostStatusRequest) ProtoMessage() {}
 
 func (x *GetHostStatusRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_soda_v2_soda_proto_msgTypes[55]
+	mi := &file_soda_v2_soda_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3281,7 +559,7 @@ func (x *GetHostStatusRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetHostStatusRequest.ProtoReflect.Descriptor instead.
 func (*GetHostStatusRequest) Descriptor() ([]byte, []int) {
-	return file_soda_v2_soda_proto_rawDescGZIP(), []int{55}
+	return file_soda_v2_soda_proto_rawDescGZIP(), []int{7}
 }
 
 type GetHostStatusResponse struct {
@@ -3293,7 +571,7 @@ type GetHostStatusResponse struct {
 
 func (x *GetHostStatusResponse) Reset() {
 	*x = GetHostStatusResponse{}
-	mi := &file_soda_v2_soda_proto_msgTypes[56]
+	mi := &file_soda_v2_soda_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3305,7 +583,7 @@ func (x *GetHostStatusResponse) String() string {
 func (*GetHostStatusResponse) ProtoMessage() {}
 
 func (x *GetHostStatusResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_soda_v2_soda_proto_msgTypes[56]
+	mi := &file_soda_v2_soda_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3318,7 +596,7 @@ func (x *GetHostStatusResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetHostStatusResponse.ProtoReflect.Descriptor instead.
 func (*GetHostStatusResponse) Descriptor() ([]byte, []int) {
-	return file_soda_v2_soda_proto_rawDescGZIP(), []int{56}
+	return file_soda_v2_soda_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *GetHostStatusResponse) GetHost() *HostStatus {
@@ -3342,7 +620,7 @@ type OSDeployment struct {
 
 func (x *OSDeployment) Reset() {
 	*x = OSDeployment{}
-	mi := &file_soda_v2_soda_proto_msgTypes[57]
+	mi := &file_soda_v2_soda_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3354,7 +632,7 @@ func (x *OSDeployment) String() string {
 func (*OSDeployment) ProtoMessage() {}
 
 func (x *OSDeployment) ProtoReflect() protoreflect.Message {
-	mi := &file_soda_v2_soda_proto_msgTypes[57]
+	mi := &file_soda_v2_soda_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3367,7 +645,7 @@ func (x *OSDeployment) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OSDeployment.ProtoReflect.Descriptor instead.
 func (*OSDeployment) Descriptor() ([]byte, []int) {
-	return file_soda_v2_soda_proto_rawDescGZIP(), []int{57}
+	return file_soda_v2_soda_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *OSDeployment) GetImageReference() string {
@@ -3423,7 +701,7 @@ type OSUpdateStatus struct {
 
 func (x *OSUpdateStatus) Reset() {
 	*x = OSUpdateStatus{}
-	mi := &file_soda_v2_soda_proto_msgTypes[58]
+	mi := &file_soda_v2_soda_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3435,7 +713,7 @@ func (x *OSUpdateStatus) String() string {
 func (*OSUpdateStatus) ProtoMessage() {}
 
 func (x *OSUpdateStatus) ProtoReflect() protoreflect.Message {
-	mi := &file_soda_v2_soda_proto_msgTypes[58]
+	mi := &file_soda_v2_soda_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3448,7 +726,7 @@ func (x *OSUpdateStatus) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OSUpdateStatus.ProtoReflect.Descriptor instead.
 func (*OSUpdateStatus) Descriptor() ([]byte, []int) {
-	return file_soda_v2_soda_proto_rawDescGZIP(), []int{58}
+	return file_soda_v2_soda_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *OSUpdateStatus) GetBooted() *OSDeployment {
@@ -3487,7 +765,7 @@ type OSRelease struct {
 
 func (x *OSRelease) Reset() {
 	*x = OSRelease{}
-	mi := &file_soda_v2_soda_proto_msgTypes[59]
+	mi := &file_soda_v2_soda_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3499,7 +777,7 @@ func (x *OSRelease) String() string {
 func (*OSRelease) ProtoMessage() {}
 
 func (x *OSRelease) ProtoReflect() protoreflect.Message {
-	mi := &file_soda_v2_soda_proto_msgTypes[59]
+	mi := &file_soda_v2_soda_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3512,7 +790,7 @@ func (x *OSRelease) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OSRelease.ProtoReflect.Descriptor instead.
 func (*OSRelease) Descriptor() ([]byte, []int) {
-	return file_soda_v2_soda_proto_rawDescGZIP(), []int{59}
+	return file_soda_v2_soda_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *OSRelease) GetImageReference() string {
@@ -3572,7 +850,7 @@ type GetOSUpdateStatusRequest struct {
 
 func (x *GetOSUpdateStatusRequest) Reset() {
 	*x = GetOSUpdateStatusRequest{}
-	mi := &file_soda_v2_soda_proto_msgTypes[60]
+	mi := &file_soda_v2_soda_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3584,7 +862,7 @@ func (x *GetOSUpdateStatusRequest) String() string {
 func (*GetOSUpdateStatusRequest) ProtoMessage() {}
 
 func (x *GetOSUpdateStatusRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_soda_v2_soda_proto_msgTypes[60]
+	mi := &file_soda_v2_soda_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3597,7 +875,7 @@ func (x *GetOSUpdateStatusRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetOSUpdateStatusRequest.ProtoReflect.Descriptor instead.
 func (*GetOSUpdateStatusRequest) Descriptor() ([]byte, []int) {
-	return file_soda_v2_soda_proto_rawDescGZIP(), []int{60}
+	return file_soda_v2_soda_proto_rawDescGZIP(), []int{12}
 }
 
 type GetOSUpdateStatusResponse struct {
@@ -3609,7 +887,7 @@ type GetOSUpdateStatusResponse struct {
 
 func (x *GetOSUpdateStatusResponse) Reset() {
 	*x = GetOSUpdateStatusResponse{}
-	mi := &file_soda_v2_soda_proto_msgTypes[61]
+	mi := &file_soda_v2_soda_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3621,7 +899,7 @@ func (x *GetOSUpdateStatusResponse) String() string {
 func (*GetOSUpdateStatusResponse) ProtoMessage() {}
 
 func (x *GetOSUpdateStatusResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_soda_v2_soda_proto_msgTypes[61]
+	mi := &file_soda_v2_soda_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3634,7 +912,7 @@ func (x *GetOSUpdateStatusResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetOSUpdateStatusResponse.ProtoReflect.Descriptor instead.
 func (*GetOSUpdateStatusResponse) Descriptor() ([]byte, []int) {
-	return file_soda_v2_soda_proto_rawDescGZIP(), []int{61}
+	return file_soda_v2_soda_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *GetOSUpdateStatusResponse) GetStatus() *OSUpdateStatus {
@@ -3652,7 +930,7 @@ type CheckOSUpdateRequest struct {
 
 func (x *CheckOSUpdateRequest) Reset() {
 	*x = CheckOSUpdateRequest{}
-	mi := &file_soda_v2_soda_proto_msgTypes[62]
+	mi := &file_soda_v2_soda_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3664,7 +942,7 @@ func (x *CheckOSUpdateRequest) String() string {
 func (*CheckOSUpdateRequest) ProtoMessage() {}
 
 func (x *CheckOSUpdateRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_soda_v2_soda_proto_msgTypes[62]
+	mi := &file_soda_v2_soda_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3677,7 +955,7 @@ func (x *CheckOSUpdateRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CheckOSUpdateRequest.ProtoReflect.Descriptor instead.
 func (*CheckOSUpdateRequest) Descriptor() ([]byte, []int) {
-	return file_soda_v2_soda_proto_rawDescGZIP(), []int{62}
+	return file_soda_v2_soda_proto_rawDescGZIP(), []int{14}
 }
 
 type CheckOSUpdateResponse struct {
@@ -3689,7 +967,7 @@ type CheckOSUpdateResponse struct {
 
 func (x *CheckOSUpdateResponse) Reset() {
 	*x = CheckOSUpdateResponse{}
-	mi := &file_soda_v2_soda_proto_msgTypes[63]
+	mi := &file_soda_v2_soda_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3701,7 +979,7 @@ func (x *CheckOSUpdateResponse) String() string {
 func (*CheckOSUpdateResponse) ProtoMessage() {}
 
 func (x *CheckOSUpdateResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_soda_v2_soda_proto_msgTypes[63]
+	mi := &file_soda_v2_soda_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3714,7 +992,7 @@ func (x *CheckOSUpdateResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CheckOSUpdateResponse.ProtoReflect.Descriptor instead.
 func (*CheckOSUpdateResponse) Descriptor() ([]byte, []int) {
-	return file_soda_v2_soda_proto_rawDescGZIP(), []int{63}
+	return file_soda_v2_soda_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *CheckOSUpdateResponse) GetRelease() *OSRelease {
@@ -3733,7 +1011,7 @@ type StageOSUpdateRequest struct {
 
 func (x *StageOSUpdateRequest) Reset() {
 	*x = StageOSUpdateRequest{}
-	mi := &file_soda_v2_soda_proto_msgTypes[64]
+	mi := &file_soda_v2_soda_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3745,7 +1023,7 @@ func (x *StageOSUpdateRequest) String() string {
 func (*StageOSUpdateRequest) ProtoMessage() {}
 
 func (x *StageOSUpdateRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_soda_v2_soda_proto_msgTypes[64]
+	mi := &file_soda_v2_soda_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3758,7 +1036,7 @@ func (x *StageOSUpdateRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StageOSUpdateRequest.ProtoReflect.Descriptor instead.
 func (*StageOSUpdateRequest) Descriptor() ([]byte, []int) {
-	return file_soda_v2_soda_proto_rawDescGZIP(), []int{64}
+	return file_soda_v2_soda_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *StageOSUpdateRequest) GetImageReference() string {
@@ -3777,7 +1055,7 @@ type StageOSUpdateResponse struct {
 
 func (x *StageOSUpdateResponse) Reset() {
 	*x = StageOSUpdateResponse{}
-	mi := &file_soda_v2_soda_proto_msgTypes[65]
+	mi := &file_soda_v2_soda_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3789,7 +1067,7 @@ func (x *StageOSUpdateResponse) String() string {
 func (*StageOSUpdateResponse) ProtoMessage() {}
 
 func (x *StageOSUpdateResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_soda_v2_soda_proto_msgTypes[65]
+	mi := &file_soda_v2_soda_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3802,7 +1080,7 @@ func (x *StageOSUpdateResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StageOSUpdateResponse.ProtoReflect.Descriptor instead.
 func (*StageOSUpdateResponse) Descriptor() ([]byte, []int) {
-	return file_soda_v2_soda_proto_rawDescGZIP(), []int{65}
+	return file_soda_v2_soda_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *StageOSUpdateResponse) GetStatus() *OSUpdateStatus {
@@ -3821,7 +1099,7 @@ type ActivateOSUpdateRequest struct {
 
 func (x *ActivateOSUpdateRequest) Reset() {
 	*x = ActivateOSUpdateRequest{}
-	mi := &file_soda_v2_soda_proto_msgTypes[66]
+	mi := &file_soda_v2_soda_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3833,7 +1111,7 @@ func (x *ActivateOSUpdateRequest) String() string {
 func (*ActivateOSUpdateRequest) ProtoMessage() {}
 
 func (x *ActivateOSUpdateRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_soda_v2_soda_proto_msgTypes[66]
+	mi := &file_soda_v2_soda_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3846,7 +1124,7 @@ func (x *ActivateOSUpdateRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ActivateOSUpdateRequest.ProtoReflect.Descriptor instead.
 func (*ActivateOSUpdateRequest) Descriptor() ([]byte, []int) {
-	return file_soda_v2_soda_proto_rawDescGZIP(), []int{66}
+	return file_soda_v2_soda_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *ActivateOSUpdateRequest) GetConfirmReboot() bool {
@@ -3865,7 +1143,7 @@ type ActivateOSUpdateResponse struct {
 
 func (x *ActivateOSUpdateResponse) Reset() {
 	*x = ActivateOSUpdateResponse{}
-	mi := &file_soda_v2_soda_proto_msgTypes[67]
+	mi := &file_soda_v2_soda_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3877,7 +1155,7 @@ func (x *ActivateOSUpdateResponse) String() string {
 func (*ActivateOSUpdateResponse) ProtoMessage() {}
 
 func (x *ActivateOSUpdateResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_soda_v2_soda_proto_msgTypes[67]
+	mi := &file_soda_v2_soda_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3890,7 +1168,7 @@ func (x *ActivateOSUpdateResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ActivateOSUpdateResponse.ProtoReflect.Descriptor instead.
 func (*ActivateOSUpdateResponse) Descriptor() ([]byte, []int) {
-	return file_soda_v2_soda_proto_rawDescGZIP(), []int{67}
+	return file_soda_v2_soda_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *ActivateOSUpdateResponse) GetRebootRequested() bool {
@@ -3904,80 +1182,7 @@ var File_soda_v2_soda_proto protoreflect.FileDescriptor
 
 const file_soda_v2_soda_proto_rawDesc = "" +
 	"\n" +
-	"\x12soda/v2/soda.proto\x12\asoda.v2\x1a\x1fgoogle/protobuf/timestamp.proto\"\x90\x01\n" +
-	"\x06Person\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1a\n" +
-	"\busername\x18\x02 \x01(\tR\busername\x12!\n" +
-	"\fdisplay_name\x18\x03 \x01(\tR\vdisplayName\x12\x14\n" +
-	"\x05email\x18\x04 \x01(\tR\x05email\x12!\n" +
-	"\x04role\x18\x05 \x01(\x0e2\r.soda.v2.RoleR\x04role\"\xfb\x01\n" +
-	"\fSshDeviceKey\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1b\n" +
-	"\tperson_id\x18\x02 \x01(\tR\bpersonId\x12\x14\n" +
-	"\x05label\x18\x03 \x01(\tR\x05label\x12\x1d\n" +
-	"\n" +
-	"public_key\x18\x04 \x01(\tR\tpublicKey\x12 \n" +
-	"\vfingerprint\x18\x05 \x01(\tR\vfingerprint\x12,\n" +
-	"\x12identity_file_hint\x18\x06 \x01(\tR\x10identityFileHint\x129\n" +
-	"\n" +
-	"created_at\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\"k\n" +
-	"\vGitIdentity\x12\x1b\n" +
-	"\tperson_id\x18\x01 \x01(\tR\bpersonId\x12\x1d\n" +
-	"\n" +
-	"public_key\x18\x02 \x01(\tR\tpublicKey\x12 \n" +
-	"\vfingerprint\x18\x03 \x01(\tR\vfingerprint\"\x14\n" +
-	"\x12EmptyProjectSource\"1\n" +
-	"\x10GitProjectSource\x12\x1d\n" +
-	"\n" +
-	"remote_url\x18\x01 \x01(\tR\tremoteUrl\"}\n" +
-	"\rProjectSource\x123\n" +
-	"\x05empty\x18\x01 \x01(\v2\x1b.soda.v2.EmptyProjectSourceH\x00R\x05empty\x12-\n" +
-	"\x03git\x18\x02 \x01(\v2\x19.soda.v2.GitProjectSourceH\x00R\x03gitB\b\n" +
-	"\x06source\"\xf3\x01\n" +
-	"\aProject\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
-	"\x04slug\x18\x02 \x01(\tR\x04slug\x12\x12\n" +
-	"\x04name\x18\x03 \x01(\tR\x04name\x12\x1b\n" +
-	"\tunix_user\x18\x04 \x01(\tR\bunixUser\x123\n" +
-	"\aprofile\x18\x05 \x01(\x0e2\x19.soda.v2.ToolchainProfileR\aprofile\x12.\n" +
-	"\x06source\x18\x06 \x01(\v2\x16.soda.v2.ProjectSourceR\x06source\x12.\n" +
-	"\x13bootstrap_person_id\x18\a \x01(\tR\x11bootstrapPersonId\"H\n" +
-	"\n" +
-	"Membership\x12\x1d\n" +
-	"\n" +
-	"project_id\x18\x01 \x01(\tR\tprojectId\x12\x1b\n" +
-	"\tperson_id\x18\x02 \x01(\tR\bpersonId\"\x96\x01\n" +
-	"\bWorktree\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1d\n" +
-	"\n" +
-	"project_id\x18\x02 \x01(\tR\tprojectId\x12\x1b\n" +
-	"\tperson_id\x18\x03 \x01(\tR\bpersonId\x12\x12\n" +
-	"\x04name\x18\x04 \x01(\tR\x04name\x12\x16\n" +
-	"\x06branch\x18\x05 \x01(\tR\x06branch\x12\x12\n" +
-	"\x04path\x18\x06 \x01(\tR\x04path\"\xcf\x01\n" +
-	"\x15ToolchainInstallation\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\x123\n" +
-	"\aprofile\x18\x02 \x01(\x0e2\x19.soda.v2.ToolchainProfileR\aprofile\x12\x18\n" +
-	"\aversion\x18\x03 \x01(\tR\aversion\x12\x12\n" +
-	"\x04path\x18\x04 \x01(\tR\x04path\x12\x1a\n" +
-	"\bchecksum\x18\x05 \x01(\tR\bchecksum\x12'\n" +
-	"\x05state\x18\x06 \x01(\x0e2\x11.soda.v2.JobStateR\x05state\"w\n" +
-	"\x1aProjectToolchainResolution\x12\x1d\n" +
-	"\n" +
-	"project_id\x18\x01 \x01(\tR\tprojectId\x12:\n" +
-	"\x19toolchain_installation_id\x18\x02 \x01(\tR\x17toolchainInstallationId\"\x8e\x01\n" +
-	"\x0fProvisioningJob\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1d\n" +
-	"\n" +
-	"project_id\x18\x02 \x01(\tR\tprojectId\x12'\n" +
-	"\x05state\x18\x03 \x01(\x0e2\x11.soda.v2.JobStateR\x05state\x12\x19\n" +
-	"\x05error\x18\x04 \x01(\tH\x00R\x05error\x88\x01\x01B\b\n" +
-	"\x06_error\"I\n" +
-	"\tDeployKey\x12\x1d\n" +
-	"\n" +
-	"project_id\x18\x01 \x01(\tR\tprojectId\x12\x1d\n" +
-	"\n" +
-	"public_key\x18\x02 \x01(\tR\tpublicKey\"P\n" +
+	"\x12soda/v2/soda.proto\x12\asoda.v2\x1a\x1fgoogle/protobuf/timestamp.proto\"P\n" +
 	"\rServiceStatus\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12+\n" +
 	"\x05state\x18\x02 \x01(\x0e2\x15.soda.v2.RuntimeStateR\x05state\"D\n" +
@@ -4018,111 +1223,7 @@ const file_soda_v2_soda_proto_rawDesc = "" +
 	"\x0eHealthResponse\x12\x16\n" +
 	"\x06status\x18\x01 \x01(\tR\x06status\x12\x18\n" +
 	"\aservice\x18\x02 \x01(\tR\aservice\x12\x18\n" +
-	"\aversion\x18\x03 \x01(\tR\aversion\"\xa9\x01\n" +
-	"\x13CreatePersonRequest\x12\x1a\n" +
-	"\busername\x18\x01 \x01(\tR\busername\x12!\n" +
-	"\fdisplay_name\x18\x02 \x01(\tR\vdisplayName\x12\x14\n" +
-	"\x05email\x18\x03 \x01(\tR\x05email\x12!\n" +
-	"\x04role\x18\x04 \x01(\x0e2\r.soda.v2.RoleR\x04role\x12\x1a\n" +
-	"\bpassword\x18\x05 \x01(\tR\bpassword\"?\n" +
-	"\x14CreatePersonResponse\x12'\n" +
-	"\x06person\x18\x01 \x01(\v2\x0f.soda.v2.PersonR\x06person\"\x8d\x01\n" +
-	"\x13ImportPersonRequest\x12\x1a\n" +
-	"\busername\x18\x01 \x01(\tR\busername\x12!\n" +
-	"\fdisplay_name\x18\x02 \x01(\tR\vdisplayName\x12\x14\n" +
-	"\x05email\x18\x03 \x01(\tR\x05email\x12!\n" +
-	"\x04role\x18\x04 \x01(\x0e2\r.soda.v2.RoleR\x04role\"?\n" +
-	"\x14ImportPersonResponse\x12'\n" +
-	"\x06person\x18\x01 \x01(\v2\x0f.soda.v2.PersonR\x06person\"\x13\n" +
-	"\x11ListPeopleRequest\"=\n" +
-	"\x12ListPeopleResponse\x12'\n" +
-	"\x06people\x18\x01 \x03(\v2\x0f.soda.v2.PersonR\x06people\"4\n" +
-	"\x15GetGitIdentityRequest\x12\x1b\n" +
-	"\tperson_id\x18\x01 \x01(\tR\bpersonId\"J\n" +
-	"\x16GetGitIdentityResponse\x120\n" +
-	"\bidentity\x18\x01 \x01(\v2\x14.soda.v2.GitIdentityR\bidentity\"\x9b\x01\n" +
-	"\x19CreateSshDeviceKeyRequest\x12\x1b\n" +
-	"\tperson_id\x18\x01 \x01(\tR\bpersonId\x12\x14\n" +
-	"\x05label\x18\x02 \x01(\tR\x05label\x12\x1d\n" +
-	"\n" +
-	"public_key\x18\x03 \x01(\tR\tpublicKey\x12,\n" +
-	"\x12identity_file_hint\x18\x04 \x01(\tR\x10identityFileHint\"E\n" +
-	"\x1aCreateSshDeviceKeyResponse\x12'\n" +
-	"\x03key\x18\x01 \x01(\v2\x15.soda.v2.SshDeviceKeyR\x03key\"7\n" +
-	"\x18ListSshDeviceKeysRequest\x12\x1b\n" +
-	"\tperson_id\x18\x01 \x01(\tR\bpersonId\"F\n" +
-	"\x19ListSshDeviceKeysResponse\x12)\n" +
-	"\x04keys\x18\x01 \x03(\v2\x15.soda.v2.SshDeviceKeyR\x04keys\"O\n" +
-	"\x19RevokeSshDeviceKeyRequest\x12\x1b\n" +
-	"\tperson_id\x18\x01 \x01(\tR\bpersonId\x12\x15\n" +
-	"\x06key_id\x18\x02 \x01(\tR\x05keyId\"E\n" +
-	"\x1aRevokeSshDeviceKeyResponse\x12'\n" +
-	"\x03key\x18\x01 \x01(\v2\x15.soda.v2.SshDeviceKeyR\x03key\"\x81\x02\n" +
-	"\x14CreateProjectRequest\x12\x12\n" +
-	"\x04slug\x18\x01 \x01(\tR\x04slug\x12\x12\n" +
-	"\x04name\x18\x02 \x01(\tR\x04name\x123\n" +
-	"\aprofile\x18\x03 \x01(\x0e2\x19.soda.v2.ToolchainProfileR\aprofile\x12.\n" +
-	"\x06source\x18\x04 \x01(\v2\x16.soda.v2.ProjectSourceR\x06source\x12,\n" +
-	"\x12initial_person_ids\x18\x05 \x03(\tR\x10initialPersonIds\x12.\n" +
-	"\x13bootstrap_person_id\x18\x06 \x01(\tR\x11bootstrapPersonId\"C\n" +
-	"\x15CreateProjectResponse\x12*\n" +
-	"\aproject\x18\x01 \x01(\v2\x10.soda.v2.ProjectR\aproject\"\x15\n" +
-	"\x13ListProjectsRequest\"D\n" +
-	"\x14ListProjectsResponse\x12,\n" +
-	"\bprojects\x18\x01 \x03(\v2\x10.soda.v2.ProjectR\bprojects\";\n" +
-	"\x1cListProjectsForPersonRequest\x12\x1b\n" +
-	"\tperson_id\x18\x01 \x01(\tR\bpersonId\"M\n" +
-	"\x1dListProjectsForPersonResponse\x12,\n" +
-	"\bprojects\x18\x01 \x03(\v2\x10.soda.v2.ProjectR\bprojects\"T\n" +
-	"\x16AddCollaboratorRequest\x12\x1d\n" +
-	"\n" +
-	"project_id\x18\x01 \x01(\tR\tprojectId\x12\x1b\n" +
-	"\tperson_id\x18\x02 \x01(\tR\bpersonId\"}\n" +
-	"\x17AddCollaboratorResponse\x123\n" +
-	"\n" +
-	"membership\x18\x01 \x01(\v2\x13.soda.v2.MembershipR\n" +
-	"membership\x12-\n" +
-	"\bworktree\x18\x02 \x01(\v2\x11.soda.v2.WorktreeR\bworktree\"9\n" +
-	"\x18ListCollaboratorsRequest\x12\x1d\n" +
-	"\n" +
-	"project_id\x18\x01 \x01(\tR\tprojectId\"\x9d\x01\n" +
-	"\fCollaborator\x12'\n" +
-	"\x06person\x18\x01 \x01(\v2\x0f.soda.v2.PersonR\x06person\x123\n" +
-	"\n" +
-	"membership\x18\x02 \x01(\v2\x13.soda.v2.MembershipR\n" +
-	"membership\x12/\n" +
-	"\tworktrees\x18\x03 \x03(\v2\x11.soda.v2.WorktreeR\tworktrees\"X\n" +
-	"\x19ListCollaboratorsResponse\x12;\n" +
-	"\rcollaborators\x18\x01 \x03(\v2\x15.soda.v2.CollaboratorR\rcollaborators\"5\n" +
-	"\x14ListWorktreesRequest\x12\x1d\n" +
-	"\n" +
-	"project_id\x18\x01 \x01(\tR\tprojectId\"H\n" +
-	"\x15ListWorktreesResponse\x12/\n" +
-	"\tworktrees\x18\x01 \x03(\v2\x11.soda.v2.WorktreeR\tworktrees\"4\n" +
-	"\x13GetDeployKeyRequest\x12\x1d\n" +
-	"\n" +
-	"project_id\x18\x01 \x01(\tR\tprojectId\"I\n" +
-	"\x14GetDeployKeyResponse\x121\n" +
-	"\n" +
-	"deploy_key\x18\x01 \x01(\v2\x12.soda.v2.DeployKeyR\tdeployKey\";\n" +
-	"\x1aGetProjectToolchainRequest\x12\x1d\n" +
-	"\n" +
-	"project_id\x18\x01 \x01(\tR\tprojectId\"\xa6\x01\n" +
-	"\x1bGetProjectToolchainResponse\x12B\n" +
-	"\finstallation\x18\x01 \x01(\v2\x1e.soda.v2.ToolchainInstallationR\finstallation\x12C\n" +
-	"\n" +
-	"resolution\x18\x02 \x01(\v2#.soda.v2.ProjectToolchainResolutionR\n" +
-	"resolution\"9\n" +
-	"\x18StartProvisioningRequest\x12\x1d\n" +
-	"\n" +
-	"project_id\x18\x01 \x01(\tR\tprojectId\"G\n" +
-	"\x19StartProvisioningResponse\x12*\n" +
-	"\x03job\x18\x01 \x01(\v2\x18.soda.v2.ProvisioningJobR\x03job\"<\n" +
-	"\x1bListProvisioningJobsRequest\x12\x1d\n" +
-	"\n" +
-	"project_id\x18\x01 \x01(\tR\tprojectId\"L\n" +
-	"\x1cListProvisioningJobsResponse\x12,\n" +
-	"\x04jobs\x18\x01 \x03(\v2\x18.soda.v2.ProvisioningJobR\x04jobs\"\x16\n" +
+	"\aversion\x18\x03 \x01(\tR\aversion\"\x16\n" +
 	"\x14GetHostStatusRequest\"@\n" +
 	"\x15GetHostStatusResponse\x12'\n" +
 	"\x04host\x18\x01 \x01(\v2\x13.soda.v2.HostStatusR\x04host\"\xd6\x01\n" +
@@ -4159,48 +1260,14 @@ const file_soda_v2_soda_proto_rawDesc = "" +
 	"\x17ActivateOSUpdateRequest\x12%\n" +
 	"\x0econfirm_reboot\x18\x01 \x01(\bR\rconfirmReboot\"E\n" +
 	"\x18ActivateOSUpdateResponse\x12)\n" +
-	"\x10reboot_requested\x18\x01 \x01(\bR\x0frebootRequested*@\n" +
-	"\x04Role\x12\x14\n" +
-	"\x10ROLE_UNSPECIFIED\x10\x00\x12\x0e\n" +
-	"\n" +
-	"ROLE_ADMIN\x10\x01\x12\x12\n" +
-	"\x0eROLE_DEVELOPER\x10\x02*\xa4\x01\n" +
-	"\x10ToolchainProfile\x12!\n" +
-	"\x1dTOOLCHAIN_PROFILE_UNSPECIFIED\x10\x00\x12\x19\n" +
-	"\x15TOOLCHAIN_PROFILE_WEB\x10\x01\x12\x1c\n" +
-	"\x18TOOLCHAIN_PROFILE_PYTHON\x10\x02\x12\x1a\n" +
-	"\x16TOOLCHAIN_PROFILE_RUST\x10\x03\x12\x18\n" +
-	"\x14TOOLCHAIN_PROFILE_GO\x10\x04*j\n" +
-	"\bJobState\x12\x19\n" +
-	"\x15JOB_STATE_UNSPECIFIED\x10\x00\x12\x18\n" +
-	"\x14JOB_STATE_INSTALLING\x10\x01\x12\x13\n" +
-	"\x0fJOB_STATE_READY\x10\x02\x12\x14\n" +
-	"\x10JOB_STATE_FAILED\x10\x03*\x81\x01\n" +
+	"\x10reboot_requested\x18\x01 \x01(\bR\x0frebootRequested*\x81\x01\n" +
 	"\fRuntimeState\x12\x1d\n" +
 	"\x19RUNTIME_STATE_UNSPECIFIED\x10\x00\x12\x17\n" +
 	"\x13RUNTIME_STATE_READY\x10\x01\x12\x1a\n" +
 	"\x16RUNTIME_STATE_DEGRADED\x10\x02\x12\x1d\n" +
-	"\x19RUNTIME_STATE_UNAVAILABLE\x10\x032\xb2\x0f\n" +
+	"\x19RUNTIME_STATE_UNAVAILABLE\x10\x032\xed\x03\n" +
 	"\vSodaService\x129\n" +
-	"\x06Health\x12\x16.soda.v2.HealthRequest\x1a\x17.soda.v2.HealthResponse\x12K\n" +
-	"\fCreatePerson\x12\x1c.soda.v2.CreatePersonRequest\x1a\x1d.soda.v2.CreatePersonResponse\x12K\n" +
-	"\fImportPerson\x12\x1c.soda.v2.ImportPersonRequest\x1a\x1d.soda.v2.ImportPersonResponse\x12E\n" +
-	"\n" +
-	"ListPeople\x12\x1a.soda.v2.ListPeopleRequest\x1a\x1b.soda.v2.ListPeopleResponse\x12Q\n" +
-	"\x0eGetGitIdentity\x12\x1e.soda.v2.GetGitIdentityRequest\x1a\x1f.soda.v2.GetGitIdentityResponse\x12]\n" +
-	"\x12CreateSshDeviceKey\x12\".soda.v2.CreateSshDeviceKeyRequest\x1a#.soda.v2.CreateSshDeviceKeyResponse\x12Z\n" +
-	"\x11ListSshDeviceKeys\x12!.soda.v2.ListSshDeviceKeysRequest\x1a\".soda.v2.ListSshDeviceKeysResponse\x12]\n" +
-	"\x12RevokeSshDeviceKey\x12\".soda.v2.RevokeSshDeviceKeyRequest\x1a#.soda.v2.RevokeSshDeviceKeyResponse\x12N\n" +
-	"\rCreateProject\x12\x1d.soda.v2.CreateProjectRequest\x1a\x1e.soda.v2.CreateProjectResponse\x12K\n" +
-	"\fListProjects\x12\x1c.soda.v2.ListProjectsRequest\x1a\x1d.soda.v2.ListProjectsResponse\x12f\n" +
-	"\x15ListProjectsForPerson\x12%.soda.v2.ListProjectsForPersonRequest\x1a&.soda.v2.ListProjectsForPersonResponse\x12T\n" +
-	"\x0fAddCollaborator\x12\x1f.soda.v2.AddCollaboratorRequest\x1a .soda.v2.AddCollaboratorResponse\x12Z\n" +
-	"\x11ListCollaborators\x12!.soda.v2.ListCollaboratorsRequest\x1a\".soda.v2.ListCollaboratorsResponse\x12N\n" +
-	"\rListWorktrees\x12\x1d.soda.v2.ListWorktreesRequest\x1a\x1e.soda.v2.ListWorktreesResponse\x12K\n" +
-	"\fGetDeployKey\x12\x1c.soda.v2.GetDeployKeyRequest\x1a\x1d.soda.v2.GetDeployKeyResponse\x12`\n" +
-	"\x13GetProjectToolchain\x12#.soda.v2.GetProjectToolchainRequest\x1a$.soda.v2.GetProjectToolchainResponse\x12Z\n" +
-	"\x11StartProvisioning\x12!.soda.v2.StartProvisioningRequest\x1a\".soda.v2.StartProvisioningResponse\x12c\n" +
-	"\x14ListProvisioningJobs\x12$.soda.v2.ListProvisioningJobsRequest\x1a%.soda.v2.ListProvisioningJobsResponse\x12N\n" +
+	"\x06Health\x12\x16.soda.v2.HealthRequest\x1a\x17.soda.v2.HealthResponse\x12N\n" +
 	"\rGetHostStatus\x12\x1d.soda.v2.GetHostStatusRequest\x1a\x1e.soda.v2.GetHostStatusResponse\x12Z\n" +
 	"\x11GetOSUpdateStatus\x12!.soda.v2.GetOSUpdateStatusRequest\x1a\".soda.v2.GetOSUpdateStatusResponse\x12N\n" +
 	"\rCheckOSUpdate\x12\x1d.soda.v2.CheckOSUpdateRequest\x1a\x1e.soda.v2.CheckOSUpdateResponse\x12N\n" +
@@ -4219,183 +1286,63 @@ func file_soda_v2_soda_proto_rawDescGZIP() []byte {
 	return file_soda_v2_soda_proto_rawDescData
 }
 
-var file_soda_v2_soda_proto_enumTypes = make([]protoimpl.EnumInfo, 4)
-var file_soda_v2_soda_proto_msgTypes = make([]protoimpl.MessageInfo, 68)
+var file_soda_v2_soda_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
+var file_soda_v2_soda_proto_msgTypes = make([]protoimpl.MessageInfo, 20)
 var file_soda_v2_soda_proto_goTypes = []any{
-	(Role)(0),                             // 0: soda.v2.Role
-	(ToolchainProfile)(0),                 // 1: soda.v2.ToolchainProfile
-	(JobState)(0),                         // 2: soda.v2.JobState
-	(RuntimeState)(0),                     // 3: soda.v2.RuntimeState
-	(*Person)(nil),                        // 4: soda.v2.Person
-	(*SshDeviceKey)(nil),                  // 5: soda.v2.SshDeviceKey
-	(*GitIdentity)(nil),                   // 6: soda.v2.GitIdentity
-	(*EmptyProjectSource)(nil),            // 7: soda.v2.EmptyProjectSource
-	(*GitProjectSource)(nil),              // 8: soda.v2.GitProjectSource
-	(*ProjectSource)(nil),                 // 9: soda.v2.ProjectSource
-	(*Project)(nil),                       // 10: soda.v2.Project
-	(*Membership)(nil),                    // 11: soda.v2.Membership
-	(*Worktree)(nil),                      // 12: soda.v2.Worktree
-	(*ToolchainInstallation)(nil),         // 13: soda.v2.ToolchainInstallation
-	(*ProjectToolchainResolution)(nil),    // 14: soda.v2.ProjectToolchainResolution
-	(*ProvisioningJob)(nil),               // 15: soda.v2.ProvisioningJob
-	(*DeployKey)(nil),                     // 16: soda.v2.DeployKey
-	(*ServiceStatus)(nil),                 // 17: soda.v2.ServiceStatus
-	(*NetworkInterface)(nil),              // 18: soda.v2.NetworkInterface
-	(*FilesystemStatus)(nil),              // 19: soda.v2.FilesystemStatus
-	(*LoadAverage)(nil),                   // 20: soda.v2.LoadAverage
-	(*HostStatus)(nil),                    // 21: soda.v2.HostStatus
-	(*HealthRequest)(nil),                 // 22: soda.v2.HealthRequest
-	(*HealthResponse)(nil),                // 23: soda.v2.HealthResponse
-	(*CreatePersonRequest)(nil),           // 24: soda.v2.CreatePersonRequest
-	(*CreatePersonResponse)(nil),          // 25: soda.v2.CreatePersonResponse
-	(*ImportPersonRequest)(nil),           // 26: soda.v2.ImportPersonRequest
-	(*ImportPersonResponse)(nil),          // 27: soda.v2.ImportPersonResponse
-	(*ListPeopleRequest)(nil),             // 28: soda.v2.ListPeopleRequest
-	(*ListPeopleResponse)(nil),            // 29: soda.v2.ListPeopleResponse
-	(*GetGitIdentityRequest)(nil),         // 30: soda.v2.GetGitIdentityRequest
-	(*GetGitIdentityResponse)(nil),        // 31: soda.v2.GetGitIdentityResponse
-	(*CreateSshDeviceKeyRequest)(nil),     // 32: soda.v2.CreateSshDeviceKeyRequest
-	(*CreateSshDeviceKeyResponse)(nil),    // 33: soda.v2.CreateSshDeviceKeyResponse
-	(*ListSshDeviceKeysRequest)(nil),      // 34: soda.v2.ListSshDeviceKeysRequest
-	(*ListSshDeviceKeysResponse)(nil),     // 35: soda.v2.ListSshDeviceKeysResponse
-	(*RevokeSshDeviceKeyRequest)(nil),     // 36: soda.v2.RevokeSshDeviceKeyRequest
-	(*RevokeSshDeviceKeyResponse)(nil),    // 37: soda.v2.RevokeSshDeviceKeyResponse
-	(*CreateProjectRequest)(nil),          // 38: soda.v2.CreateProjectRequest
-	(*CreateProjectResponse)(nil),         // 39: soda.v2.CreateProjectResponse
-	(*ListProjectsRequest)(nil),           // 40: soda.v2.ListProjectsRequest
-	(*ListProjectsResponse)(nil),          // 41: soda.v2.ListProjectsResponse
-	(*ListProjectsForPersonRequest)(nil),  // 42: soda.v2.ListProjectsForPersonRequest
-	(*ListProjectsForPersonResponse)(nil), // 43: soda.v2.ListProjectsForPersonResponse
-	(*AddCollaboratorRequest)(nil),        // 44: soda.v2.AddCollaboratorRequest
-	(*AddCollaboratorResponse)(nil),       // 45: soda.v2.AddCollaboratorResponse
-	(*ListCollaboratorsRequest)(nil),      // 46: soda.v2.ListCollaboratorsRequest
-	(*Collaborator)(nil),                  // 47: soda.v2.Collaborator
-	(*ListCollaboratorsResponse)(nil),     // 48: soda.v2.ListCollaboratorsResponse
-	(*ListWorktreesRequest)(nil),          // 49: soda.v2.ListWorktreesRequest
-	(*ListWorktreesResponse)(nil),         // 50: soda.v2.ListWorktreesResponse
-	(*GetDeployKeyRequest)(nil),           // 51: soda.v2.GetDeployKeyRequest
-	(*GetDeployKeyResponse)(nil),          // 52: soda.v2.GetDeployKeyResponse
-	(*GetProjectToolchainRequest)(nil),    // 53: soda.v2.GetProjectToolchainRequest
-	(*GetProjectToolchainResponse)(nil),   // 54: soda.v2.GetProjectToolchainResponse
-	(*StartProvisioningRequest)(nil),      // 55: soda.v2.StartProvisioningRequest
-	(*StartProvisioningResponse)(nil),     // 56: soda.v2.StartProvisioningResponse
-	(*ListProvisioningJobsRequest)(nil),   // 57: soda.v2.ListProvisioningJobsRequest
-	(*ListProvisioningJobsResponse)(nil),  // 58: soda.v2.ListProvisioningJobsResponse
-	(*GetHostStatusRequest)(nil),          // 59: soda.v2.GetHostStatusRequest
-	(*GetHostStatusResponse)(nil),         // 60: soda.v2.GetHostStatusResponse
-	(*OSDeployment)(nil),                  // 61: soda.v2.OSDeployment
-	(*OSUpdateStatus)(nil),                // 62: soda.v2.OSUpdateStatus
-	(*OSRelease)(nil),                     // 63: soda.v2.OSRelease
-	(*GetOSUpdateStatusRequest)(nil),      // 64: soda.v2.GetOSUpdateStatusRequest
-	(*GetOSUpdateStatusResponse)(nil),     // 65: soda.v2.GetOSUpdateStatusResponse
-	(*CheckOSUpdateRequest)(nil),          // 66: soda.v2.CheckOSUpdateRequest
-	(*CheckOSUpdateResponse)(nil),         // 67: soda.v2.CheckOSUpdateResponse
-	(*StageOSUpdateRequest)(nil),          // 68: soda.v2.StageOSUpdateRequest
-	(*StageOSUpdateResponse)(nil),         // 69: soda.v2.StageOSUpdateResponse
-	(*ActivateOSUpdateRequest)(nil),       // 70: soda.v2.ActivateOSUpdateRequest
-	(*ActivateOSUpdateResponse)(nil),      // 71: soda.v2.ActivateOSUpdateResponse
-	(*timestamppb.Timestamp)(nil),         // 72: google.protobuf.Timestamp
+	(RuntimeState)(0),                 // 0: soda.v2.RuntimeState
+	(*ServiceStatus)(nil),             // 1: soda.v2.ServiceStatus
+	(*NetworkInterface)(nil),          // 2: soda.v2.NetworkInterface
+	(*FilesystemStatus)(nil),          // 3: soda.v2.FilesystemStatus
+	(*LoadAverage)(nil),               // 4: soda.v2.LoadAverage
+	(*HostStatus)(nil),                // 5: soda.v2.HostStatus
+	(*HealthRequest)(nil),             // 6: soda.v2.HealthRequest
+	(*HealthResponse)(nil),            // 7: soda.v2.HealthResponse
+	(*GetHostStatusRequest)(nil),      // 8: soda.v2.GetHostStatusRequest
+	(*GetHostStatusResponse)(nil),     // 9: soda.v2.GetHostStatusResponse
+	(*OSDeployment)(nil),              // 10: soda.v2.OSDeployment
+	(*OSUpdateStatus)(nil),            // 11: soda.v2.OSUpdateStatus
+	(*OSRelease)(nil),                 // 12: soda.v2.OSRelease
+	(*GetOSUpdateStatusRequest)(nil),  // 13: soda.v2.GetOSUpdateStatusRequest
+	(*GetOSUpdateStatusResponse)(nil), // 14: soda.v2.GetOSUpdateStatusResponse
+	(*CheckOSUpdateRequest)(nil),      // 15: soda.v2.CheckOSUpdateRequest
+	(*CheckOSUpdateResponse)(nil),     // 16: soda.v2.CheckOSUpdateResponse
+	(*StageOSUpdateRequest)(nil),      // 17: soda.v2.StageOSUpdateRequest
+	(*StageOSUpdateResponse)(nil),     // 18: soda.v2.StageOSUpdateResponse
+	(*ActivateOSUpdateRequest)(nil),   // 19: soda.v2.ActivateOSUpdateRequest
+	(*ActivateOSUpdateResponse)(nil),  // 20: soda.v2.ActivateOSUpdateResponse
+	(*timestamppb.Timestamp)(nil),     // 21: google.protobuf.Timestamp
 }
 var file_soda_v2_soda_proto_depIdxs = []int32{
-	0,  // 0: soda.v2.Person.role:type_name -> soda.v2.Role
-	72, // 1: soda.v2.SshDeviceKey.created_at:type_name -> google.protobuf.Timestamp
-	7,  // 2: soda.v2.ProjectSource.empty:type_name -> soda.v2.EmptyProjectSource
-	8,  // 3: soda.v2.ProjectSource.git:type_name -> soda.v2.GitProjectSource
-	1,  // 4: soda.v2.Project.profile:type_name -> soda.v2.ToolchainProfile
-	9,  // 5: soda.v2.Project.source:type_name -> soda.v2.ProjectSource
-	1,  // 6: soda.v2.ToolchainInstallation.profile:type_name -> soda.v2.ToolchainProfile
-	2,  // 7: soda.v2.ToolchainInstallation.state:type_name -> soda.v2.JobState
-	2,  // 8: soda.v2.ProvisioningJob.state:type_name -> soda.v2.JobState
-	3,  // 9: soda.v2.ServiceStatus.state:type_name -> soda.v2.RuntimeState
-	72, // 10: soda.v2.HostStatus.sampled_at:type_name -> google.protobuf.Timestamp
-	3,  // 11: soda.v2.HostStatus.overall:type_name -> soda.v2.RuntimeState
-	17, // 12: soda.v2.HostStatus.services:type_name -> soda.v2.ServiceStatus
-	18, // 13: soda.v2.HostStatus.interfaces:type_name -> soda.v2.NetworkInterface
-	20, // 14: soda.v2.HostStatus.load_average:type_name -> soda.v2.LoadAverage
-	19, // 15: soda.v2.HostStatus.filesystems:type_name -> soda.v2.FilesystemStatus
-	0,  // 16: soda.v2.CreatePersonRequest.role:type_name -> soda.v2.Role
-	4,  // 17: soda.v2.CreatePersonResponse.person:type_name -> soda.v2.Person
-	0,  // 18: soda.v2.ImportPersonRequest.role:type_name -> soda.v2.Role
-	4,  // 19: soda.v2.ImportPersonResponse.person:type_name -> soda.v2.Person
-	4,  // 20: soda.v2.ListPeopleResponse.people:type_name -> soda.v2.Person
-	6,  // 21: soda.v2.GetGitIdentityResponse.identity:type_name -> soda.v2.GitIdentity
-	5,  // 22: soda.v2.CreateSshDeviceKeyResponse.key:type_name -> soda.v2.SshDeviceKey
-	5,  // 23: soda.v2.ListSshDeviceKeysResponse.keys:type_name -> soda.v2.SshDeviceKey
-	5,  // 24: soda.v2.RevokeSshDeviceKeyResponse.key:type_name -> soda.v2.SshDeviceKey
-	1,  // 25: soda.v2.CreateProjectRequest.profile:type_name -> soda.v2.ToolchainProfile
-	9,  // 26: soda.v2.CreateProjectRequest.source:type_name -> soda.v2.ProjectSource
-	10, // 27: soda.v2.CreateProjectResponse.project:type_name -> soda.v2.Project
-	10, // 28: soda.v2.ListProjectsResponse.projects:type_name -> soda.v2.Project
-	10, // 29: soda.v2.ListProjectsForPersonResponse.projects:type_name -> soda.v2.Project
-	11, // 30: soda.v2.AddCollaboratorResponse.membership:type_name -> soda.v2.Membership
-	12, // 31: soda.v2.AddCollaboratorResponse.worktree:type_name -> soda.v2.Worktree
-	4,  // 32: soda.v2.Collaborator.person:type_name -> soda.v2.Person
-	11, // 33: soda.v2.Collaborator.membership:type_name -> soda.v2.Membership
-	12, // 34: soda.v2.Collaborator.worktrees:type_name -> soda.v2.Worktree
-	47, // 35: soda.v2.ListCollaboratorsResponse.collaborators:type_name -> soda.v2.Collaborator
-	12, // 36: soda.v2.ListWorktreesResponse.worktrees:type_name -> soda.v2.Worktree
-	16, // 37: soda.v2.GetDeployKeyResponse.deploy_key:type_name -> soda.v2.DeployKey
-	13, // 38: soda.v2.GetProjectToolchainResponse.installation:type_name -> soda.v2.ToolchainInstallation
-	14, // 39: soda.v2.GetProjectToolchainResponse.resolution:type_name -> soda.v2.ProjectToolchainResolution
-	15, // 40: soda.v2.StartProvisioningResponse.job:type_name -> soda.v2.ProvisioningJob
-	15, // 41: soda.v2.ListProvisioningJobsResponse.jobs:type_name -> soda.v2.ProvisioningJob
-	21, // 42: soda.v2.GetHostStatusResponse.host:type_name -> soda.v2.HostStatus
-	61, // 43: soda.v2.OSUpdateStatus.booted:type_name -> soda.v2.OSDeployment
-	61, // 44: soda.v2.OSUpdateStatus.staged:type_name -> soda.v2.OSDeployment
-	62, // 45: soda.v2.GetOSUpdateStatusResponse.status:type_name -> soda.v2.OSUpdateStatus
-	63, // 46: soda.v2.CheckOSUpdateResponse.release:type_name -> soda.v2.OSRelease
-	62, // 47: soda.v2.StageOSUpdateResponse.status:type_name -> soda.v2.OSUpdateStatus
-	22, // 48: soda.v2.SodaService.Health:input_type -> soda.v2.HealthRequest
-	24, // 49: soda.v2.SodaService.CreatePerson:input_type -> soda.v2.CreatePersonRequest
-	26, // 50: soda.v2.SodaService.ImportPerson:input_type -> soda.v2.ImportPersonRequest
-	28, // 51: soda.v2.SodaService.ListPeople:input_type -> soda.v2.ListPeopleRequest
-	30, // 52: soda.v2.SodaService.GetGitIdentity:input_type -> soda.v2.GetGitIdentityRequest
-	32, // 53: soda.v2.SodaService.CreateSshDeviceKey:input_type -> soda.v2.CreateSshDeviceKeyRequest
-	34, // 54: soda.v2.SodaService.ListSshDeviceKeys:input_type -> soda.v2.ListSshDeviceKeysRequest
-	36, // 55: soda.v2.SodaService.RevokeSshDeviceKey:input_type -> soda.v2.RevokeSshDeviceKeyRequest
-	38, // 56: soda.v2.SodaService.CreateProject:input_type -> soda.v2.CreateProjectRequest
-	40, // 57: soda.v2.SodaService.ListProjects:input_type -> soda.v2.ListProjectsRequest
-	42, // 58: soda.v2.SodaService.ListProjectsForPerson:input_type -> soda.v2.ListProjectsForPersonRequest
-	44, // 59: soda.v2.SodaService.AddCollaborator:input_type -> soda.v2.AddCollaboratorRequest
-	46, // 60: soda.v2.SodaService.ListCollaborators:input_type -> soda.v2.ListCollaboratorsRequest
-	49, // 61: soda.v2.SodaService.ListWorktrees:input_type -> soda.v2.ListWorktreesRequest
-	51, // 62: soda.v2.SodaService.GetDeployKey:input_type -> soda.v2.GetDeployKeyRequest
-	53, // 63: soda.v2.SodaService.GetProjectToolchain:input_type -> soda.v2.GetProjectToolchainRequest
-	55, // 64: soda.v2.SodaService.StartProvisioning:input_type -> soda.v2.StartProvisioningRequest
-	57, // 65: soda.v2.SodaService.ListProvisioningJobs:input_type -> soda.v2.ListProvisioningJobsRequest
-	59, // 66: soda.v2.SodaService.GetHostStatus:input_type -> soda.v2.GetHostStatusRequest
-	64, // 67: soda.v2.SodaService.GetOSUpdateStatus:input_type -> soda.v2.GetOSUpdateStatusRequest
-	66, // 68: soda.v2.SodaService.CheckOSUpdate:input_type -> soda.v2.CheckOSUpdateRequest
-	68, // 69: soda.v2.SodaService.StageOSUpdate:input_type -> soda.v2.StageOSUpdateRequest
-	70, // 70: soda.v2.SodaService.ActivateOSUpdate:input_type -> soda.v2.ActivateOSUpdateRequest
-	23, // 71: soda.v2.SodaService.Health:output_type -> soda.v2.HealthResponse
-	25, // 72: soda.v2.SodaService.CreatePerson:output_type -> soda.v2.CreatePersonResponse
-	27, // 73: soda.v2.SodaService.ImportPerson:output_type -> soda.v2.ImportPersonResponse
-	29, // 74: soda.v2.SodaService.ListPeople:output_type -> soda.v2.ListPeopleResponse
-	31, // 75: soda.v2.SodaService.GetGitIdentity:output_type -> soda.v2.GetGitIdentityResponse
-	33, // 76: soda.v2.SodaService.CreateSshDeviceKey:output_type -> soda.v2.CreateSshDeviceKeyResponse
-	35, // 77: soda.v2.SodaService.ListSshDeviceKeys:output_type -> soda.v2.ListSshDeviceKeysResponse
-	37, // 78: soda.v2.SodaService.RevokeSshDeviceKey:output_type -> soda.v2.RevokeSshDeviceKeyResponse
-	39, // 79: soda.v2.SodaService.CreateProject:output_type -> soda.v2.CreateProjectResponse
-	41, // 80: soda.v2.SodaService.ListProjects:output_type -> soda.v2.ListProjectsResponse
-	43, // 81: soda.v2.SodaService.ListProjectsForPerson:output_type -> soda.v2.ListProjectsForPersonResponse
-	45, // 82: soda.v2.SodaService.AddCollaborator:output_type -> soda.v2.AddCollaboratorResponse
-	48, // 83: soda.v2.SodaService.ListCollaborators:output_type -> soda.v2.ListCollaboratorsResponse
-	50, // 84: soda.v2.SodaService.ListWorktrees:output_type -> soda.v2.ListWorktreesResponse
-	52, // 85: soda.v2.SodaService.GetDeployKey:output_type -> soda.v2.GetDeployKeyResponse
-	54, // 86: soda.v2.SodaService.GetProjectToolchain:output_type -> soda.v2.GetProjectToolchainResponse
-	56, // 87: soda.v2.SodaService.StartProvisioning:output_type -> soda.v2.StartProvisioningResponse
-	58, // 88: soda.v2.SodaService.ListProvisioningJobs:output_type -> soda.v2.ListProvisioningJobsResponse
-	60, // 89: soda.v2.SodaService.GetHostStatus:output_type -> soda.v2.GetHostStatusResponse
-	65, // 90: soda.v2.SodaService.GetOSUpdateStatus:output_type -> soda.v2.GetOSUpdateStatusResponse
-	67, // 91: soda.v2.SodaService.CheckOSUpdate:output_type -> soda.v2.CheckOSUpdateResponse
-	69, // 92: soda.v2.SodaService.StageOSUpdate:output_type -> soda.v2.StageOSUpdateResponse
-	71, // 93: soda.v2.SodaService.ActivateOSUpdate:output_type -> soda.v2.ActivateOSUpdateResponse
-	71, // [71:94] is the sub-list for method output_type
-	48, // [48:71] is the sub-list for method input_type
-	48, // [48:48] is the sub-list for extension type_name
-	48, // [48:48] is the sub-list for extension extendee
-	0,  // [0:48] is the sub-list for field type_name
+	0,  // 0: soda.v2.ServiceStatus.state:type_name -> soda.v2.RuntimeState
+	21, // 1: soda.v2.HostStatus.sampled_at:type_name -> google.protobuf.Timestamp
+	0,  // 2: soda.v2.HostStatus.overall:type_name -> soda.v2.RuntimeState
+	1,  // 3: soda.v2.HostStatus.services:type_name -> soda.v2.ServiceStatus
+	2,  // 4: soda.v2.HostStatus.interfaces:type_name -> soda.v2.NetworkInterface
+	4,  // 5: soda.v2.HostStatus.load_average:type_name -> soda.v2.LoadAverage
+	3,  // 6: soda.v2.HostStatus.filesystems:type_name -> soda.v2.FilesystemStatus
+	5,  // 7: soda.v2.GetHostStatusResponse.host:type_name -> soda.v2.HostStatus
+	10, // 8: soda.v2.OSUpdateStatus.booted:type_name -> soda.v2.OSDeployment
+	10, // 9: soda.v2.OSUpdateStatus.staged:type_name -> soda.v2.OSDeployment
+	11, // 10: soda.v2.GetOSUpdateStatusResponse.status:type_name -> soda.v2.OSUpdateStatus
+	12, // 11: soda.v2.CheckOSUpdateResponse.release:type_name -> soda.v2.OSRelease
+	11, // 12: soda.v2.StageOSUpdateResponse.status:type_name -> soda.v2.OSUpdateStatus
+	6,  // 13: soda.v2.SodaService.Health:input_type -> soda.v2.HealthRequest
+	8,  // 14: soda.v2.SodaService.GetHostStatus:input_type -> soda.v2.GetHostStatusRequest
+	13, // 15: soda.v2.SodaService.GetOSUpdateStatus:input_type -> soda.v2.GetOSUpdateStatusRequest
+	15, // 16: soda.v2.SodaService.CheckOSUpdate:input_type -> soda.v2.CheckOSUpdateRequest
+	17, // 17: soda.v2.SodaService.StageOSUpdate:input_type -> soda.v2.StageOSUpdateRequest
+	19, // 18: soda.v2.SodaService.ActivateOSUpdate:input_type -> soda.v2.ActivateOSUpdateRequest
+	7,  // 19: soda.v2.SodaService.Health:output_type -> soda.v2.HealthResponse
+	9,  // 20: soda.v2.SodaService.GetHostStatus:output_type -> soda.v2.GetHostStatusResponse
+	14, // 21: soda.v2.SodaService.GetOSUpdateStatus:output_type -> soda.v2.GetOSUpdateStatusResponse
+	16, // 22: soda.v2.SodaService.CheckOSUpdate:output_type -> soda.v2.CheckOSUpdateResponse
+	18, // 23: soda.v2.SodaService.StageOSUpdate:output_type -> soda.v2.StageOSUpdateResponse
+	20, // 24: soda.v2.SodaService.ActivateOSUpdate:output_type -> soda.v2.ActivateOSUpdateResponse
+	19, // [19:25] is the sub-list for method output_type
+	13, // [13:19] is the sub-list for method input_type
+	13, // [13:13] is the sub-list for extension type_name
+	13, // [13:13] is the sub-list for extension extendee
+	0,  // [0:13] is the sub-list for field type_name
 }
 
 func init() { file_soda_v2_soda_proto_init() }
@@ -4403,20 +1350,15 @@ func file_soda_v2_soda_proto_init() {
 	if File_soda_v2_soda_proto != nil {
 		return
 	}
-	file_soda_v2_soda_proto_msgTypes[5].OneofWrappers = []any{
-		(*ProjectSource_Empty)(nil),
-		(*ProjectSource_Git)(nil),
-	}
-	file_soda_v2_soda_proto_msgTypes[11].OneofWrappers = []any{}
-	file_soda_v2_soda_proto_msgTypes[17].OneofWrappers = []any{}
-	file_soda_v2_soda_proto_msgTypes[58].OneofWrappers = []any{}
+	file_soda_v2_soda_proto_msgTypes[4].OneofWrappers = []any{}
+	file_soda_v2_soda_proto_msgTypes[10].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_soda_v2_soda_proto_rawDesc), len(file_soda_v2_soda_proto_rawDesc)),
-			NumEnums:      4,
-			NumMessages:   68,
+			NumEnums:      1,
+			NumMessages:   20,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

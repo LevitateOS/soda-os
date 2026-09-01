@@ -101,15 +101,15 @@ func (s *SystemHostSampler) SampleHost(ctx context.Context) (domain.HostStatus, 
 
 func (s *SystemHostSampler) sampleServices(ctx context.Context) []domain.ServiceStatus {
 	services := []domain.ServiceStatus{{Name: "sodad", State: domain.RuntimeReady}}
-	for _, name := range []string{"soda-authd", "soda-cockpit", "forgejo", "sshd", "avahi-daemon", "NetworkManager", "firewalld"} {
+	for _, name := range []string{"cockpit.socket", "forgejo", "sshd", "NetworkManager", "firewalld"} {
 		services = append(services, domain.ServiceStatus{Name: name, State: serviceState(ctx, s.Commands, name)})
 	}
 	return services
 }
 
 func filesystemStatus(files HostFiles) []domain.FilesystemStatus {
-	result := make([]domain.FilesystemStatus, 0, 3)
-	for _, path := range []string{"/", "/srv/soda/projects", "/opt/soda/toolchains"} {
+	result := make([]domain.FilesystemStatus, 0, 2)
+	for _, path := range []string{"/", "/opt/soda/toolchains"} {
 		if total, available, err := files.Statfs(path); err == nil {
 			result = append(result, domain.FilesystemStatus{Path: path, TotalBytes: total, AvailableBytes: available})
 		}
