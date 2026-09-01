@@ -37,9 +37,12 @@ Additional launch install environment:
   SODA_ACCEPTANCE_ISO              Exact-digest Soda installer ISO
   SODA_ACCEPTANCE_KICKSTART_ISO    Optional test-only OEMDRV automation ISO
 
-Additional workload environment:
+Additional workspace/toolset environment:
   SODA_ACCEPTANCE_WORKSPACE_TARGET Derived Linux workspace username
   SODA_ACCEPTANCE_WORKSPACE_KEY    Primary user's standard SSH private key
+  SODA_ACCEPTANCE_REQUIRE_WORKSPACE_TOOLSET
+                                    Set to 1 for a milestone capture that must
+                                    exercise the derived workspace account
 
 Before capture NAME, create privileged bootc evidence in the guest:
   mkdir -p "$HOME/.local/state/soda-acceptance"
@@ -402,6 +405,186 @@ valid_name() {
 	esac
 }
 
+emit_toolset_smoke() {
+	cat <<'SODA_TOOLSET_SMOKE'
+set -eu
+
+toolset=/usr/share/soda/toolset-commands.txt
+test -r "$toolset"
+work=$(mktemp -d "${TMPDIR:-/tmp}/soda-toolset.XXXXXX")
+trap 'rm -rf "$work"' 0 1 2 15
+
+cat >"$work/expected-toolset.txt" <<'SODA_EXPECTED_TOOLSET'
+go
+gofmt
+python3
+uv
+uvx
+rustc
+cargo
+rustfmt
+cargo-clippy
+node
+npm
+npx
+bun
+gcc
+g++
+cpp
+as
+ld
+ar
+make
+cmake
+ninja
+pkg-config
+git
+git-lfs
+gh
+ssh
+scp
+sftp
+rsync
+podman
+buildah
+skopeo
+sqlite3
+jq
+yq
+curl
+wget
+openssl
+patch
+rg
+fd
+fzf
+shellcheck
+just
+tar
+gzip
+bzip2
+xz
+zstd
+zip
+unzip
+vim
+nano
+SODA_EXPECTED_TOOLSET
+
+echo "[identity]"
+id
+echo "[command-resolution]"
+cmp "$work/expected-toolset.txt" "$toolset"
+while IFS= read -r tool; do
+	test -n "$tool"
+	command -v "$tool"
+done <"$toolset"
+
+echo "[language-smoke]"
+cat >"$work/main.go" <<'SODA_GO_SOURCE'
+package main
+
+import "fmt"
+
+func main() {
+	fmt.Println("go-ok")
+}
+SODA_GO_SOURCE
+(
+	cd "$work"
+	GOTOOLCHAIN=local GO111MODULE=off GOCACHE="$work/go-cache" \
+		GOPATH="$work/go-path" GOMODCACHE="$work/go-mod-cache" \
+		go run main.go
+)
+python3 -c 'print("python-ok")'
+cat >"$work/main.rs" <<'SODA_RUST_SOURCE'
+fn main() {
+    println!("rust-ok");
+}
+SODA_RUST_SOURCE
+rustc "$work/main.rs" -o "$work/rust-smoke"
+"$work/rust-smoke"
+node -e 'console.log("node-ok")'
+bun -e 'console.log("bun-ok")'
+cat >"$work/main.c" <<'SODA_C_SOURCE'
+#include <stdio.h>
+
+int main(void) {
+    puts("c-ok");
+    return 0;
+}
+SODA_C_SOURCE
+gcc "$work/main.c" -o "$work/c-smoke"
+"$work/c-smoke"
+cat >"$work/main.cpp" <<'SODA_CPP_SOURCE'
+#include <iostream>
+
+int main() {
+    std::cout << "c++-ok" << std::endl;
+    return 0;
+}
+SODA_CPP_SOURCE
+g++ "$work/main.cpp" -o "$work/cpp-smoke"
+"$work/cpp-smoke"
+
+echo "[representative-tools]"
+go version
+python3 --version
+rustc --version
+node --version
+bun --version
+gcc --version | sed -n '1p'
+g++ --version | sed -n '1p'
+git --version
+git-lfs version
+gh --version | sed -n '1p'
+ssh -V 2>&1
+cmake --version | sed -n '1p'
+ninja --version
+make --version | sed -n '1p'
+pkg-config --version
+curl --version | sed -n '1p'
+wget --version | sed -n '1p'
+openssl version
+yq --version
+rg --version | sed -n '1p'
+fd --version
+fzf --version
+shellcheck --version | sed -n '1,2p'
+just --version
+vim --version | sed -n '1p'
+nano --version | sed -n '1p'
+
+echo "[archive-and-data-smoke]"
+(
+	cd "$work"
+	printf 'tar-ok\n' >tar-source.txt
+	tar -czf archive.tar.gz tar-source.txt
+	rm tar-source.txt
+	tar -xzf archive.tar.gz
+	grep -Fx tar-ok tar-source.txt
+	printf 'zip-ok\n' >zip-source.txt
+	zip -q archive.zip zip-source.txt
+	rm zip-source.txt
+	unzip -q archive.zip
+	grep -Fx zip-ok zip-source.txt
+)
+sqlite3 "$work/smoke.db" 'CREATE TABLE smoke(value TEXT); INSERT INTO smoke VALUES ("sqlite-ok");'
+test "$(sqlite3 "$work/smoke.db" 'SELECT value FROM smoke;')" = sqlite-ok
+printf '{"status":"jq-ok"}\n' | jq -e '.status == "jq-ok"'
+printf 'needle\n' >"$work/search.txt"
+rg -x needle "$work/search.txt"
+fd -t f '^search[.]txt$' "$work"
+
+echo "[rootless-podman]"
+podman info --format json >"$work/podman-info.json"
+jq -e '.host.security.rootless == true' "$work/podman-info.json"
+podman unshare /bin/sh -c 'test "$(id -u)" -eq 0'
+
+echo "toolset-smoke=ok"
+SODA_TOOLSET_SMOKE
+}
+
 capture() {
 	name=${1:-}
 	valid_name "$name" || die "capture requires a lowercase name containing only letters, digits, and hyphens"
@@ -412,6 +595,17 @@ capture() {
 		sha256:????????????????????????????????????????????????????????????????) ;;
 		*) die "SODA_ACCEPTANCE_IMAGE_DIGEST must be an exact sha256 digest" ;;
 	esac
+	require_workspace_toolset=${SODA_ACCEPTANCE_REQUIRE_WORKSPACE_TOOLSET:-0}
+	case "$require_workspace_toolset" in
+	0|1) ;;
+	*) die "SODA_ACCEPTANCE_REQUIRE_WORKSPACE_TOOLSET must be 0 or 1" ;;
+	esac
+	verify_workspace_toolset=0
+	if [ "$require_workspace_toolset" = 1 ] || [ -n "${SODA_ACCEPTANCE_WORKSPACE_TARGET:-}" ] || [ -n "${SODA_ACCEPTANCE_WORKSPACE_KEY:-}" ]; then
+		[ -n "${SODA_ACCEPTANCE_WORKSPACE_TARGET:-}" ] || die "SODA_ACCEPTANCE_WORKSPACE_TARGET is required when verifying workspace tools"
+		[ -n "${SODA_ACCEPTANCE_WORKSPACE_KEY:-}" ] || die "SODA_ACCEPTANCE_WORKSPACE_KEY is required when verifying workspace tools"
+		verify_workspace_toolset=1
+	fi
 	privileged_tmp=$acceptance_dir/."$name-privileged.$$.json"
 	trap 'rm -f "$privileged_tmp"' 0 1 2 15
 	password_file=${SODA_ACCEPTANCE_ADMIN_PASSWORD_FILE:-}
@@ -441,12 +635,23 @@ capture() {
 		echo "[boot-id]"; cat /proc/sys/kernel/random/boot_id
 		echo "[kernel]"; uname -a
 		echo "[services]"
-		for unit in sodad sshd cockpit.socket forgejo tailscaled soda-state-directories.service opt-soda-toolchains.mount; do
+		for unit in sodad sshd cockpit.socket forgejo tailscaled; do
 			printf "%s=" "$unit"; systemctl is-active "$unit" 2>/dev/null || true
 		done
 		echo "[failed-units]"; systemctl --failed --no-legend --plain || true
+		echo "[stock-cockpit]"
+		rpm -q cockpit-ws cockpit-system cockpit-storaged cockpit-networkmanager
+		for manifest in \
+			/usr/share/cockpit/storaged/manifest.json \
+			/usr/share/cockpit/networkmanager/manifest.json \
+			/usr/share/cockpit/soda-projects/manifest.json; do
+			test -s "$manifest"
+			echo "$manifest=present"
+		done
+		test -s /usr/share/cockpit/branding/sodaos/branding.css
+		echo "/usr/share/cockpit/branding/sodaos/branding.css=present"
 		echo "[native-git-host]"
-		rpm -q soda-release soda-runtime soda-projects soda-forgejo
+		rpm -q soda-release soda-runtime soda-projects soda-forgejo soda-bun
 		forgejo --version
 		getent passwd git
 		test -s /etc/forgejo/app.ini && echo configuration=present
@@ -470,21 +675,49 @@ capture() {
 			exit 1
 		fi
 		echo "soda-people=absent"
+		echo "[deleted-toolchain-control-plane]"
+		for unit in soda-state-directories.service opt-soda-toolchains.mount; do
+			if systemctl cat "$unit" >/dev/null 2>&1; then
+				echo "unexpected-unit=$unit"
+				exit 1
+			fi
+			echo "$unit=absent"
+		done
+		for path in /opt/soda/toolchains /var/lib/soda/toolchains; do
+			if test -e "$path"; then
+				echo "unexpected-path=$path"
+				exit 1
+			fi
+			echo "$path=absent"
+		done
 		echo "[boot-entries]"; efibootmgr -v 2>/dev/null || true
 		echo "[automatic-update]"
 		for unit in bootc-fetch-apply-updates.timer bootc-fetch-apply-updates.service; do
 			printf "%s=" "$unit"; systemctl is-enabled "$unit" 2>/dev/null || true
 		done
-		echo "[mounts]"
-		for target in /var/lib/soda /opt/soda/toolchains; do
-			findmnt "$target" 2>/dev/null || true
-		done
+		echo "[soda-state-filesystem]"
+		findmnt /var/lib/soda 2>/dev/null || true
 		echo "[host-keys]"
 		sha256sum /etc/ssh/ssh_host_*_key.pub 2>/dev/null || true
 		echo "[console]"
 		systemctl show getty@tty1.service autovt@tty1.service -p Id -p Names -p MainPID -p NRestarts
 		sysctl kernel.printk
 	' >"$checkpoint/guest.txt" 2>"$checkpoint/guest.stderr"
+	emit_toolset_smoke | admin_ssh /bin/sh -s \
+		>"$checkpoint/primary-toolset.txt" 2>"$checkpoint/primary-toolset.stderr"
+	if [ "$verify_workspace_toolset" = 1 ]; then
+		emit_toolset_smoke | workspace_ssh /bin/sh -s \
+			>"$checkpoint/workspace-toolset.txt" 2>"$checkpoint/workspace-toolset.stderr"
+	fi
+	if [ -n "$password_file" ]; then
+		admin_ssh "sudo -k -S -p '' /usr/bin/sodactl health" <"$password_file" \
+			>"$checkpoint/sodactl-health.json" 2>"$checkpoint/sodactl-health.stderr"
+	else
+		admin_ssh "sudo -n /usr/bin/sodactl health" \
+			>"$checkpoint/sodactl-health.json" 2>"$checkpoint/sodactl-health.stderr"
+	fi
+	jq -e '.status == "ok" and .service == "sodad" and (.version | type == "string" and length > 0)' \
+		"$checkpoint/sodactl-health.json" >/dev/null
 	curl --fail --silent --show-error --insecure "https://$guest_host:$guest_cockpit_port/ping" >"$checkpoint/cockpit-health.txt"
 
 	for artifact in "${SODA_ACCEPTANCE_RELEASE_RECORD:-}" "${SODA_ACCEPTANCE_ISO:-}"; do
