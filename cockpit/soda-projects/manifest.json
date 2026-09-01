@@ -1,0 +1,26 @@
+{
+  "version": "0.4.0",
+  "requires": {
+    "cockpit": "219"
+  },
+  "menu": {
+    "index": {
+      "label": "Projects",
+      "path": "index.html",
+      "order": 55,
+      "keywords": [
+        {
+          "matches": [
+            "project",
+            "repository",
+            "git",
+            "workspace",
+            "development",
+            "ssh"
+          ]
+        }
+      ]
+    }
+  },
+  "content-security-policy": "img-src 'self' data:"
+}

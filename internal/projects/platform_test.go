@@ -1,0 +1,223 @@
+package projects
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"io"
+	"path/filepath"
+)
+
+type fakePlatform struct {
+	uidMin    int
+	accounts  map[string]Account
+	ready     map[string]bool
+	keys      []byte
+	published map[string]string
+	failures  fakePlatformFailures
+	calls     fakePlatformCalls
+	onDelete  func(Account)
+}
+
+type fakePlatformFailures struct {
+	unsafeCleanup bool
+	publishErr    error
+	cleanupErr    error
+	passwordErr   error
+	setupLockErr  error
+	unlockErr     error
+	installErr    error
+	preflightErr  error
+}
+
+type fakePlatformCalls struct {
+	keyReads       int
+	deleted        []string
+	passwordChecks []string
+	reset          []string
+	locks          []string
+	installedKeys  map[string][]byte
+	preflights     []string
+}
+
+type fakeSetupLock struct {
+	platform *fakePlatform
+	id       string
+}
+
+type primaryRole uint8
+
+const (
+	primaryRoleUser primaryRole = iota
+	primaryRoleAdministrator
+)
+
+func newFakePlatform() *fakePlatform {
+	return &fakePlatform{
+		uidMin:    1000,
+		accounts:  map[string]Account{},
+		ready:     map[string]bool{},
+		keys:      []byte("ssh-ed25519 AAAA test\n"),
+		published: map[string]string{},
+		calls: fakePlatformCalls{
+			installedKeys: map[string][]byte{},
+		},
+	}
+}
+
+func (platform *fakePlatform) UIDMin() (int, error) { return platform.uidMin, nil }
+
+func (platform *fakePlatform) LookupAccount(_ context.Context, username string) (Account, error) {
+	account, found := platform.accounts[username]
+	if !found {
+		return Account{}, fmt.Errorf("%w: %s", ErrAccountNotFound, username)
+	}
+	return account, nil
+}
+
+func (platform *fakePlatform) WorkspaceAccounts(context.Context) ([]Account, error) {
+	accounts := []Account{}
+	for _, account := range platform.accounts {
+		if account.Groups[WorkspaceGroup] {
+			accounts = append(accounts, account)
+		}
+	}
+	return accounts, nil
+}
+
+func (platform *fakePlatform) ReadAuthorizedKeys(Account) ([]byte, error) {
+	platform.calls.keyReads++
+	if len(platform.keys) == 0 {
+		return nil, errors.New("authorized_keys does not contain a public key")
+	}
+	return platform.keys, nil
+}
+
+func (platform *fakePlatform) WorkspaceOperationSharedLock() (io.Closer, error) {
+	return platform.fakeLock("operations-shared")
+}
+
+func (platform *fakePlatform) WorkspaceOperationExclusiveLock() (io.Closer, error) {
+	return platform.fakeLock("operations-exclusive")
+}
+
+func (platform *fakePlatform) fakeLock(id string) (io.Closer, error) {
+	platform.calls.locks = append(platform.calls.locks, "lock:"+id)
+	if platform.failures.setupLockErr != nil {
+		return nil, platform.failures.setupLockErr
+	}
+	return &fakeSetupLock{platform: platform, id: id}, nil
+}
+
+func (platform *fakePlatform) SetupLock(_ Account, id string) (io.Closer, error) {
+	return platform.fakeLock(id)
+}
+
+func (lock *fakeSetupLock) Close() error {
+	lock.platform.calls.locks = append(lock.platform.calls.locks, "unlock:"+lock.id)
+	return lock.platform.failures.unlockErr
+}
+
+func (platform *fakePlatform) StagingPath(account Account, id string) string {
+	return filepath.Join("/run/user", fmt.Sprint(account.UID), "soda-projects", id, "checkout")
+}
+
+func (platform *fakePlatform) ResetStaging(_ Account, id string) error {
+	platform.calls.reset = append(platform.calls.reset, "reset:"+id)
+	return nil
+}
+
+func (platform *fakePlatform) PrepareStaging(_ Account, id string) error {
+	platform.calls.reset = append(platform.calls.reset, "prepare:"+id)
+	return nil
+}
+
+func (platform *fakePlatform) CleanupStaging(_ Account, id string) error {
+	platform.calls.reset = append(platform.calls.reset, "cleanup:"+id)
+	return platform.failures.cleanupErr
+}
+
+func (platform *fakePlatform) WorkspaceReady(account Account, id string) (bool, error) {
+	return platform.ready[account.Username+":"+id], nil
+}
+
+func (platform *fakePlatform) ValidatePasswordLocked(_ context.Context, account Account) error {
+	platform.calls.passwordChecks = append(platform.calls.passwordChecks, account.Username)
+	return platform.failures.passwordErr
+}
+
+func (platform *fakePlatform) CreateWorkspace(_ context.Context, primary Account, id string) (Account, error) {
+	username, _ := DerivedUsername(primary.Username, id)
+	marker, _ := WorkspaceMarker(primary.Username, id)
+	account := Account{
+		Username:     username,
+		UID:          2000 + len(platform.accounts),
+		GID:          2000 + len(platform.accounts),
+		PrimaryGroup: username,
+		GECOS:        marker,
+		Home:         "/home/" + username,
+		Shell:        WorkspaceShell,
+		Groups:       map[string]bool{WorkspaceGroup: true},
+	}
+	platform.accounts[username] = account
+	return account, nil
+}
+
+func (platform *fakePlatform) InstallAuthorizedKeys(workspace Account, keys []byte) error {
+	platform.calls.installedKeys[workspace.Username] = append([]byte(nil), keys...)
+	if platform.failures.installErr != nil {
+		return platform.failures.installErr
+	}
+	id, found := platform.published[workspace.Username]
+	if !found {
+		return errors.New("workspace clone was not published")
+	}
+	platform.ready[workspace.Username+":"+id] = true
+	return nil
+}
+
+func (platform *fakePlatform) PublishWorkspace(_ context.Context, _ Account, workspace Account, id string) error {
+	if platform.failures.publishErr != nil {
+		return platform.failures.publishErr
+	}
+	platform.published[workspace.Username] = id
+	return nil
+}
+
+func (platform *fakePlatform) SafeToRemoveIncomplete(Account, string) error {
+	if platform.failures.unsafeCleanup {
+		return errors.New("unexpected user content")
+	}
+	return nil
+}
+
+func (platform *fakePlatform) PreflightDeleteAccount(_ context.Context, account Account) error {
+	platform.calls.preflights = append(platform.calls.preflights, account.Username)
+	return platform.failures.preflightErr
+}
+
+func (platform *fakePlatform) DeleteAccount(_ context.Context, account Account) error {
+	if platform.onDelete != nil {
+		platform.onDelete(account)
+	}
+	platform.calls.deleted = append(platform.calls.deleted, account.Username)
+	delete(platform.accounts, account.Username)
+	delete(platform.published, account.Username)
+	return nil
+}
+
+func primaryAccount(username string, role primaryRole) Account {
+	groups := map[string]bool{}
+	if role == primaryRoleAdministrator {
+		groups["wheel"] = true
+	}
+	return Account{
+		Username:     username,
+		UID:          1000,
+		GID:          1000,
+		PrimaryGroup: username,
+		Home:         "/home/" + username,
+		Shell:        "/bin/bash",
+		Groups:       groups,
+	}
+}

@@ -1,0 +1,184 @@
+package projects
+
+import (
+	"bytes"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"unicode/utf8"
+)
+
+type EmptyRequest struct{}
+
+type AddExistingRequest struct {
+	ID           string `json:"id"`
+	DisplayName  string `json:"display_name"`
+	CanonicalURL string `json:"canonical_url"`
+}
+
+type CreateForgejoRequest struct {
+	ID          string `json:"id"`
+	DisplayName string `json:"display_name"`
+	Password    string `json:"password"`
+}
+
+type EditRequest = AddExistingRequest
+
+type SetupRequest struct {
+	ID          string `json:"id"`
+	GitUsername string `json:"git_username"`
+	GitPassword string `json:"git_password"`
+}
+
+type ProjectRequest struct {
+	ID string `json:"id"`
+}
+
+type DeleteHumanRequest struct {
+	Username string `json:"username"`
+}
+
+type ProjectView struct {
+	CatalogEntry
+	WorkspaceUsername string `json:"workspace_username"`
+}
+
+type CurrentUserView struct {
+	Username      string `json:"username"`
+	Administrator bool   `json:"administrator"`
+}
+
+type ListResponse struct {
+	Projects    []ProjectView   `json:"projects"`
+	CurrentUser CurrentUserView `json:"current_user"`
+	ForgejoURL  string          `json:"forgejo_url"`
+	SSHHost     string          `json:"ssh_host"`
+}
+
+type MutationResponse struct {
+	OK                bool         `json:"ok"`
+	Project           *ProjectView `json:"project,omitempty"`
+	WorkspaceUsername string       `json:"workspace_username,omitempty"`
+}
+
+type HelperCatalogRequest struct {
+	ID           string `json:"id"`
+	DisplayName  string `json:"display_name"`
+	CanonicalURL string `json:"canonical_url"`
+}
+
+type HelperWorkspaceRequest struct {
+	ID           string `json:"id"`
+	CanonicalURL string `json:"canonical_url"`
+}
+
+type HelperHumanRequest struct {
+	Username string `json:"username"`
+}
+
+// DecodeRequest accepts exactly one flat JSON object, rejects duplicate and
+// unknown fields, and never logs its contents.
+func DecodeRequest(reader io.Reader, destination any) error {
+	contents, err := io.ReadAll(io.LimitReader(reader, 1<<20+1))
+	if err != nil {
+		return fmt.Errorf("read request: %w", err)
+	}
+	if len(contents) > 1<<20 {
+		return errors.New("request exceeds 1 MiB")
+	}
+	if !utf8.Valid(contents) {
+		return errors.New("request must contain valid UTF-8")
+	}
+	object, err := decodeUniqueObject(contents)
+	if err != nil {
+		return err
+	}
+	normalized, err := json.Marshal(object)
+	if err != nil {
+		return err
+	}
+	decoder := json.NewDecoder(bytes.NewReader(normalized))
+	decoder.DisallowUnknownFields()
+	if err = decoder.Decode(destination); err != nil {
+		return fmt.Errorf("decode request: %w", err)
+	}
+	return nil
+}
+
+func decodeUniqueObject(contents []byte) (map[string]json.RawMessage, error) {
+	decoder := json.NewDecoder(bytes.NewReader(contents))
+	if err := requireRequestObject(decoder); err != nil {
+		return nil, err
+	}
+	object, err := decodeRequestFields(decoder)
+	if err != nil {
+		return nil, err
+	}
+	if err = finishRequestObject(decoder); err != nil {
+		return nil, err
+	}
+	return object, nil
+}
+
+func requireRequestObject(decoder *json.Decoder) error {
+	token, err := decoder.Token()
+	if err != nil {
+		return fmt.Errorf("decode request: %w", err)
+	}
+	delimiter, ok := token.(json.Delim)
+	if !ok || delimiter != '{' {
+		return errors.New("request must be one JSON object")
+	}
+	return nil
+}
+
+func decodeRequestFields(decoder *json.Decoder) (map[string]json.RawMessage, error) {
+	object := map[string]json.RawMessage{}
+	for decoder.More() {
+		field, err := decodeRequestFieldName(decoder, object)
+		if err != nil {
+			return nil, err
+		}
+		var value json.RawMessage
+		if err := decoder.Decode(&value); err != nil {
+			return nil, fmt.Errorf("decode request field %q: %w", field, err)
+		}
+		object[field] = value
+	}
+	return object, nil
+}
+
+func decodeRequestFieldName(decoder *json.Decoder, object map[string]json.RawMessage) (string, error) {
+	token, err := decoder.Token()
+	if err != nil {
+		return "", fmt.Errorf("decode request: %w", err)
+	}
+	field, ok := token.(string)
+	if !ok {
+		return "", errors.New("request field name must be a string")
+	}
+	if _, duplicate := object[field]; duplicate {
+		return "", fmt.Errorf("duplicate request field %q", field)
+	}
+	return field, nil
+}
+
+func finishRequestObject(decoder *json.Decoder) error {
+	token, err := decoder.Token()
+	if err != nil {
+		return fmt.Errorf("decode request: %w", err)
+	}
+	delimiter, ok := token.(json.Delim)
+	if !ok || delimiter != '}' {
+		return errors.New("request object is not closed")
+	}
+	token, err = decoder.Token()
+	if err == io.EOF {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("decode request: %w", err)
+	}
+	return fmt.Errorf("unexpected JSON value %v after request", token)
+}

@@ -1,2 +1,4 @@
 auth       include      system-auth
+account    requisite    pam_usertype.so isregular
+account    requisite    pam_succeed_if.so quiet user notingroup soda-workspaces
 account    include      system-auth

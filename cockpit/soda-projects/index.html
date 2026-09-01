@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Projects</title>
+    <link rel="stylesheet" href="app.css">
+    <script src="../base1/cockpit.js"></script>
+    <script type="module" src="app.mjs"></script>
+  </head>
+  <body>
+    <main class="page" aria-labelledby="page-title">
+      <header class="page-header">
+        <div>
+          <p class="eyebrow">Soda OS</p>
+          <h1 id="page-title">Projects</h1>
+          <p class="lede">Catalog repositories and create an isolated Linux workspace for each person.</p>
+        </div>
+        <div class="header-actions">
+          <button class="button secondary" id="refresh-projects" type="button">Refresh</button>
+          <button class="button secondary" id="open-add-existing" type="button">Add repository</button>
+          <button class="button primary" id="open-create-forgejo" type="button">New Forgejo project</button>
+        </div>
+      </header>
+
+      <div class="notice" id="notice" role="status" aria-live="polite" hidden></div>
+
+      <section class="panel" aria-labelledby="catalog-title">
+        <div class="panel-heading">
+          <div>
+            <h2 id="catalog-title">Project catalog</h2>
+            <p id="catalog-summary">Loading projects…</p>
+          </div>
+        </div>
+
+        <div class="table-wrap" id="projects-table-wrap" hidden>
+          <table>
+            <thead>
+              <tr>
+                <th scope="col">Project</th>
+                <th scope="col">Canonical repository</th>
+                <th scope="col">Your workspace</th>
+                <th scope="col"><span class="visually-hidden">Actions</span></th>
+              </tr>
+            </thead>
+            <tbody id="project-rows"></tbody>
+          </table>
+        </div>
+
+        <div class="empty-state" id="empty-projects" hidden>
+          <h3>No projects yet</h3>
+          <p>Add an existing Git repository or create an empty repository in your Forgejo namespace.</p>
+        </div>
+      </section>
+
+      <section class="panel danger-panel" id="human-deletion-panel" aria-labelledby="human-deletion-title" hidden>
+        <div>
+          <h2 id="human-deletion-title">Remove a person from this machine</h2>
+          <p>Administrators can remove a primary Linux account and its Soda-managed local workspaces. Forgejo accounts and canonical repositories are not deleted.</p>
+        </div>
+        <button class="button danger" id="open-delete-human" type="button">Remove person…</button>
+      </section>
+    </main>
+
+    <dialog id="add-existing-dialog" aria-labelledby="add-existing-title">
+      <form method="dialog" data-action-form="add-existing">
+        <header class="dialog-header">
+          <div>
+            <h2 id="add-existing-title">Add an existing repository</h2>
+            <p>The repository URL is stored without credentials.</p>
+          </div>
+          <button class="icon-button" type="button" data-dialog-close aria-label="Close">×</button>
+        </header>
+        <div class="form-body">
+          <label>
+            Project ID
+            <input name="id" required pattern="[a-z][a-z0-9-]{0,23}" maxlength="24" autocomplete="off" aria-describedby="project-id-help">
+          </label>
+          <p class="field-help" id="project-id-help">A stable lowercase name used for workspace paths.</p>
+          <label>
+            Display name
+            <input name="display_name" required autocomplete="off">
+          </label>
+          <label>
+            Canonical Git URL
+            <input name="canonical_url" required type="text" inputmode="url" autocomplete="off" placeholder="git@example.test:team/project.git">
+          </label>
+        </div>
+        <footer class="dialog-actions">
+          <button class="button secondary" type="button" data-dialog-close>Cancel</button>
+          <button class="button primary" value="default">Add repository</button>
+        </footer>
+      </form>
+    </dialog>
+
+    <dialog id="create-forgejo-dialog" aria-labelledby="create-forgejo-title">
+      <form method="dialog" data-action-form="create-forgejo">
+        <header class="dialog-header">
+          <div>
+            <h2 id="create-forgejo-title">Create a Forgejo project</h2>
+            <p id="forgejo-description">Creates an empty repository in your native Forgejo namespace.</p>
+          </div>
+          <button class="icon-button" type="button" data-dialog-close aria-label="Close">×</button>
+        </header>
+        <div class="form-body">
+          <label>
+            Project ID
+            <input name="id" required pattern="[a-z][a-z0-9-]{0,23}" maxlength="24" autocomplete="off">
+          </label>
+          <label>
+            Display name
+            <input name="display_name" required autocomplete="off">
+          </label>
+          <label>
+            Forgejo password
+            <input name="password" required type="password" autocomplete="off">
+          </label>
+          <p class="field-help">Used only for this request. Soda does not retain it.</p>
+        </div>
+        <footer class="dialog-actions">
+          <button class="button secondary" type="button" data-dialog-close>Cancel</button>
+          <button class="button primary" value="default">Create project</button>
+        </footer>
+      </form>
+    </dialog>
+
+    <dialog id="edit-project-dialog" aria-labelledby="edit-project-title">
+      <form method="dialog" data-action-form="edit">
+        <header class="dialog-header">
+          <div>
+            <h2 id="edit-project-title">Edit project</h2>
+            <p>The project ID remains unchanged. Edits affect future setup only.</p>
+          </div>
+          <button class="icon-button" type="button" data-dialog-close aria-label="Close">×</button>
+        </header>
+        <div class="form-body">
+          <input name="id" type="hidden">
+          <p>Project ID: <code data-project-id></code></p>
+          <label>
+            Display name
+            <input name="display_name" required autocomplete="off">
+          </label>
+          <label>
+            Canonical Git URL
+            <input name="canonical_url" required type="text" inputmode="url" autocomplete="off">
+          </label>
+        </div>
+        <footer class="dialog-actions">
+          <button class="button secondary" type="button" data-dialog-close>Cancel</button>
+          <button class="button primary" value="default">Save changes</button>
+        </footer>
+      </form>
+    </dialog>
+
+    <dialog id="setup-project-dialog" aria-labelledby="setup-project-title">
+      <form method="dialog" data-action-form="setup">
+        <header class="dialog-header">
+          <div>
+            <h2 id="setup-project-title">Set up for me</h2>
+            <p>Clones the repository before creating your derived workspace account.</p>
+          </div>
+          <button class="icon-button" type="button" data-dialog-close aria-label="Close">×</button>
+        </header>
+        <div class="form-body">
+          <input name="id" type="hidden">
+          <p>Project: <strong data-project-name></strong></p>
+          <label>
+            Git username <span class="optional">Optional</span>
+            <input name="git_username" autocomplete="off">
+          </label>
+          <label>
+            Git password or token <span class="optional">Optional</span>
+            <input name="git_password" type="password" autocomplete="off">
+          </label>
+          <p class="field-help">Leave these empty for public repositories or SSH authentication. Any supplied credential is used only by the unprivileged Git process and is not retained.</p>
+        </div>
+        <footer class="dialog-actions">
+          <button class="button secondary" type="button" data-dialog-close>Cancel</button>
+          <button class="button primary" value="default">Set up for me</button>
+        </footer>
+      </form>
+    </dialog>
+
+    <dialog id="remove-project-dialog" aria-labelledby="remove-project-title">
+      <form method="dialog" data-action-form="remove">
+        <header class="dialog-header">
+          <div>
+            <h2 id="remove-project-title">Remove project from Soda</h2>
+            <p>This permanently removes all local workspace accounts, homes, clones, dependencies, and uncommitted work for this project. The canonical repository is not deleted.</p>
+          </div>
+          <button class="icon-button" type="button" data-dialog-close aria-label="Close">×</button>
+        </header>
+        <div class="form-body">
+          <input name="id" type="hidden">
+          <label>
+            Type <code data-confirmation-value></code> to confirm
+            <input name="confirmation" required autocomplete="off">
+          </label>
+        </div>
+        <footer class="dialog-actions">
+          <button class="button secondary" type="button" data-dialog-close>Cancel</button>
+          <button class="button danger" value="default">Remove project</button>
+        </footer>
+      </form>
+    </dialog>
+
+    <dialog id="delete-human-dialog" aria-labelledby="delete-human-title">
+      <form method="dialog" data-action-form="delete-human">
+        <header class="dialog-header">
+          <div>
+            <h2 id="delete-human-title">Remove person from Soda OS</h2>
+            <p>This permanently removes the primary Linux account last, after its local Soda workspaces. Forgejo accounts and repositories remain unchanged.</p>
+          </div>
+          <button class="icon-button" type="button" data-dialog-close aria-label="Close">×</button>
+        </header>
+        <div class="form-body">
+          <label>
+            Primary username
+            <input name="username" required pattern="[a-z][a-z0-9-]{0,23}" maxlength="24" autocomplete="off">
+          </label>
+          <label>
+            Re-enter the username to confirm
+            <input name="confirmation" required autocomplete="off">
+          </label>
+        </div>
+        <footer class="dialog-actions">
+          <button class="button secondary" type="button" data-dialog-close>Cancel</button>
+          <button class="button danger" value="default">Remove person</button>
+        </footer>
+      </form>
+    </dialog>
+  </body>
+</html>

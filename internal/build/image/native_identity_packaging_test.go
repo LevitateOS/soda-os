@@ -1,0 +1,44 @@
+package image
+
+import (
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+
+	"github.com/stretchr/testify/require"
+)
+
+func TestNativeIdentitySysusersContract(t *testing.T) {
+	contents, err := os.ReadFile(filepath.Join("..", "..", "..", "packaging", "rpm", "runtime", "sources", "sysusers", "soda.conf"))
+	require.NoError(t, err)
+
+	lines := nonCommentLines(string(contents))
+	require.Contains(t, lines, "g soda-workspaces -")
+	require.Contains(t, lines, "g soda-people -", "the forced-command SSH path remains until its replacement is usable")
+}
+
+func TestForgejoPAMRejectsNonPrimaryAccounts(t *testing.T) {
+	contents, err := os.ReadFile(filepath.Join("..", "..", "..", "packaging", "rpm", "forgejo", "sources", "pam", "soda-forgejo"))
+	require.NoError(t, err)
+
+	lines := nonCommentLines(string(contents))
+	require.Equal(t, []string{
+		"auth include system-auth",
+		"account requisite pam_usertype.so isregular",
+		"account requisite pam_succeed_if.so quiet user notingroup soda-workspaces",
+		"account include system-auth",
+	}, lines)
+}
+
+func nonCommentLines(contents string) []string {
+	var lines []string
+	for line := range strings.Lines(contents) {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		lines = append(lines, strings.Join(strings.Fields(line), " "))
+	}
+	return lines
+}

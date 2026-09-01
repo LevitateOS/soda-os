@@ -1,0 +1,16 @@
+/* Soda OS login branding for Cockpit's supported os-release branding lookup. */
+#badge {
+    inline-size: 96px;
+    block-size: 96px;
+    background-image: url("soda-symbol.svg");
+    background-position: center;
+    background-repeat: no-repeat;
+    background-size: contain;
+}
+
+#brand::before {
+    content: "Soda OS";
+    color: #ffffff;
+    font-size: 1.1rem;
+    font-weight: 700;
+}
