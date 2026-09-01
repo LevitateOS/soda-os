@@ -40,11 +40,10 @@ RUN dnf -y --setopt=install_weak_deps=False --enablerepo=updates-testing install
     && systemd-sysusers /usr/lib/sysusers.d/soda.conf /usr/lib/sysusers.d/soda-projects.conf \
     && getent group soda-api \
     && getent group soda-workspaces \
-    && install -d -m 0755 /opt/soda/toolchains \
     && install -o root -g root -m 0644 /usr/lib/soda/pam/cockpit /etc/pam.d/cockpit \
     && restorecon -F /etc/pam.d/cockpit \
-    && systemctl preset sshd.service sodad.service soda-tailscale-enroll.service cockpit.socket forgejo.service tailscaled.service nftables.service opt-soda-toolchains.mount \
-    && systemctl enable sshd.service sodad.service soda-tailscale-enroll.service cockpit.socket forgejo.service tailscaled.service nftables.service opt-soda-toolchains.mount \
+    && systemctl preset sshd.service sodad.service soda-tailscale-enroll.service cockpit.socket forgejo.service tailscaled.service nftables.service \
+    && systemctl enable sshd.service sodad.service soda-tailscale-enroll.service cockpit.socket forgejo.service tailscaled.service nftables.service \
     && getent passwd git \
     && systemctl mask bootc-fetch-apply-updates.timer \
     && cp -f /usr/lib/soda/os-release /etc/os-release \
@@ -54,11 +53,9 @@ RUN dnf -y --setopt=install_weak_deps=False --enablerepo=updates-testing install
     && cp -f /usr/lib/soda/system-release /etc/system-release \
     && rm -f /etc/redhat-release \
     && semanage fcontext -a -t var_lib_t '/var/lib/soda(/.*)?' \
-    && semanage fcontext -a -e /opt /var/lib/soda/toolchains \
-    && semanage fcontext -a -e /opt /opt/soda/toolchains \
     && semanage fcontext -a -t var_log_t '/var/log/soda(/.*)?' \
     && semanage fcontext -a -t ssh_home_t '/var/lib/forgejo/.ssh(/.*)?' \
-    && restorecon -RF /var/lib/forgejo/.ssh /opt/soda/toolchains \
+    && restorecon -RF /var/lib/forgejo/.ssh \
     && ssh-keygen -q -t ed25519 -N '' -f /run/soda-sshd-hostkey \
     && /usr/sbin/sshd -t -h /run/soda-sshd-hostkey \
     && rm -f /run/soda-sshd-hostkey /run/soda-sshd-hostkey.pub \

@@ -5,4 +5,3 @@ enable forgejo.service
 enable cockpit.socket
 enable tailscaled.service
 enable nftables.service
-enable opt-soda-toolchains.mount

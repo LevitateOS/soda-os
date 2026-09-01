@@ -8,8 +8,7 @@ import (
 )
 
 const (
-	DefaultToolchainsDir = "/opt/soda/toolchains"
-	DefaultDaemonSocket  = "/run/soda/sodad.sock"
+	DefaultDaemonSocket = "/run/soda/sodad.sock"
 )
 
 type DistroSpec struct {
@@ -92,8 +91,7 @@ type BuildSpec struct {
 }
 
 type PathSpec struct {
-	ToolchainsDir string `toml:"toolchains_dir"`
-	DaemonSocket  string `toml:"daemon_socket"`
+	DaemonSocket string `toml:"daemon_socket"`
 }
 
 func LoadDistro(path, architecture string) (DistroSpec, error) {

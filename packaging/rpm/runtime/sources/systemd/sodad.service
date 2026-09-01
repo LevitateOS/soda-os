@@ -1,5 +1,5 @@
 [Unit]
-Description=Soda OS runtime daemon
+Description=Soda OS temporary health service
 After=local-fs.target
 
 [Service]

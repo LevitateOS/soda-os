@@ -15,23 +15,24 @@ func TestRuntimeImageBootcContainerContract(t *testing.T) {
 	containerfile := string(contents)
 	require.True(t, strings.HasPrefix(containerfile, "FROM fedora-base\n"))
 	for _, expected := range []string{
-		"ARG FEDORA_BASE_REFERENCE", "org.opencontainers.image.base.name=\"${FEDORA_BASE_REFERENCE}\"", "systemd-sysusers /usr/lib/sysusers.d/soda.conf /usr/lib/sysusers.d/soda-projects.conf", "install -d -m 0755 /opt/soda/toolchains",
+		"ARG FEDORA_BASE_REFERENCE", "org.opencontainers.image.base.name=\"${FEDORA_BASE_REFERENCE}\"", "systemd-sysusers /usr/lib/sysusers.d/soda.conf /usr/lib/sysusers.d/soda-projects.conf",
 		"COPY .artifacts/rpms/soda-projects-*.rpm /var/tmp/soda-rpms/",
 		"COPY .artifacts/rpms/soda-forgejo-*.rpm /var/tmp/soda-rpms/",
+		"COPY .artifacts/rpms/soda-bun-*.rpm /var/tmp/soda-rpms/",
 		"getent group soda-workspaces",
 		"install -o root -g root -m 0644 /usr/lib/soda/pam/cockpit /etc/pam.d/cockpit",
-		"systemctl enable sshd.service sodad.service soda-tailscale-enroll.service cockpit.socket forgejo.service tailscaled.service nftables.service opt-soda-toolchains.mount",
+		"systemctl enable sshd.service sodad.service soda-tailscale-enroll.service cockpit.socket forgejo.service tailscaled.service nftables.service",
 		"getent passwd git",
 		"systemctl mask bootc-fetch-apply-updates.timer", "cp -f /usr/lib/soda/os-release /etc/os-release",
 		"cp -f /usr/lib/soda/os-release /usr/lib/os-release", "cp -f /usr/lib/soda/issue /etc/issue",
 		"cp -f /usr/lib/soda/issue /etc/issue.net", "cp -f /usr/lib/soda/system-release /etc/system-release",
 		"rm -f /etc/redhat-release", "semanage fcontext -a -t var_lib_t '/var/lib/soda(/.*)?'",
-		"semanage fcontext -a -e /opt /var/lib/soda/toolchains", "semanage fcontext -a -e /opt /opt/soda/toolchains",
 		"semanage fcontext -a -t var_log_t '/var/log/soda(/.*)?'",
-		"semanage fcontext -a -t ssh_home_t '/var/lib/forgejo/.ssh(/.*)?'", "restorecon -RF /var/lib/forgejo/.ssh /opt/soda/toolchains", "ssh-keygen -q -t ed25519 -N '' -f /run/soda-sshd-hostkey",
+		"semanage fcontext -a -t ssh_home_t '/var/lib/forgejo/.ssh(/.*)?'", "restorecon -RF /var/lib/forgejo/.ssh", "ssh-keygen -q -t ed25519 -N '' -f /run/soda-sshd-hostkey",
 		"/usr/sbin/sshd -t -h /run/soda-sshd-hostkey", "rm -f /run/soda-sshd-hostkey /run/soda-sshd-hostkey.pub",
 		"--enablerepo=updates-testing", `test "$(rpm -q --qf '%{NAME}-%{EPOCHNUM}:%{VERSION}-%{RELEASE}.%{ARCH}' bootc)" = "${BOOTC_NEVRA}"`,
 		"bootc switch --help | grep -F -- '--download-only'", "bootc switch --help | grep -F -- '--from-downloaded'",
+		"test -r /usr/share/soda/toolset-commands.txt", `while IFS= read -r command; do command -v "$command" >/dev/null; done < /usr/share/soda/toolset-commands.txt`,
 		"rpm-inventory.sha256", "sha256sum --check rpm-inventory.sha256", "/usr/lib/sysimage/libdnf5/transaction_history.sqlite*",
 		"/var/cache/ldconfig/aux-cache", "/var/cache/libdnf5", "/var/lib/dnf/repos", "/var/log/dnf5.log", "/run/dnf",
 	} {
@@ -42,6 +43,9 @@ func TestRuntimeImageBootcContainerContract(t *testing.T) {
 		".artifacts/bootc/distribution",
 		"/usr/share/soda/release/distribution.json",
 		"org.sodaos.state-schema",
+		"/opt/soda/toolchains",
+		"/var/lib/soda/toolchains",
+		"opt-soda-toolchains.mount",
 	} {
 		require.NotContains(t, containerfile, obsolete)
 	}
@@ -68,7 +72,6 @@ func TestRuntimeImageStateDirectoriesAndSELinuxContract(t *testing.T) {
 	tmpfiles, err := os.ReadFile(filepath.Join("..", "..", "..", "packaging", "rpm", "runtime", "sources", "tmpfiles", "soda.conf"))
 	require.NoError(t, err)
 	require.Equal(t, []string{
-		"d /var/lib/soda/toolchains 0755 root root -",
 		"d /var/log/soda 0750 root soda-api -",
 		"d /var/log/soda/sodad 0750 root soda-api -",
 	}, packagingNonCommentLines(string(tmpfiles)))
@@ -83,7 +86,9 @@ func TestRuntimeImageStateDirectoriesAndSELinuxContract(t *testing.T) {
 func TestRuntimeImageRPMStagingAndPackageContract(t *testing.T) {
 	staging, err := os.ReadFile("rpm.go")
 	require.NoError(t, err)
-	require.Contains(t, string(staging), `b.path("packaging/rpm/runtime/sources/systemd/soda-state-directories.service"), filepath.Join(sources, "soda-state-directories.service")`)
+	require.NotContains(t, string(staging), "soda-state-directories.service")
+	require.NotContains(t, string(staging), "opt-soda-toolchains.mount")
+	require.Contains(t, string(staging), `b.path("distro/toolset-commands.txt"), filepath.Join(sources, "toolset-commands.txt")`)
 	require.Contains(t, string(staging), `b.path("packaging/rpm/runtime/sources/systemd/soda-tailscale-enroll.service"), filepath.Join(sources, "soda-tailscale-enroll.service")`)
 	require.Contains(t, string(staging), `b.path("packaging/rpm/runtime/sources/nftables/soda-ingress.nft"), filepath.Join(sources, "soda-ingress.nft")`)
 	require.Contains(t, string(staging), `b.path("packaging/rpm/runtime/sources/systemd/nftables.service.d/10-soda-ingress.conf"), filepath.Join(sources, "10-soda-ingress.conf")`)
@@ -100,8 +105,8 @@ func TestRuntimeImageRPMStagingAndPackageContract(t *testing.T) {
 
 	runtimeSpec, err := os.ReadFile(filepath.Join("..", "..", "..", "packaging", "rpm", "runtime", "soda-runtime.spec"))
 	require.NoError(t, err)
-	require.Contains(t, string(runtimeSpec), "install -m 0644 %{_sourcedir}/soda-state-directories.service %{buildroot}%{_unitdir}/soda-state-directories.service")
-	require.Contains(t, string(runtimeSpec), "%{_unitdir}/soda-state-directories.service")
+	require.NotContains(t, string(runtimeSpec), "soda-state-directories.service")
+	require.NotContains(t, string(runtimeSpec), "opt-soda-toolchains.mount")
 	require.Contains(t, string(runtimeSpec), "install -m 0644 %{_sourcedir}/soda-tailscale-enroll.service %{buildroot}%{_unitdir}/soda-tailscale-enroll.service")
 	require.Contains(t, string(runtimeSpec), "%{_unitdir}/soda-tailscale-enroll.service")
 	require.Contains(t, string(runtimeSpec), "tailscale")
@@ -115,7 +120,8 @@ func TestRuntimeImageRPMStagingAndPackageContract(t *testing.T) {
 	require.NotContains(t, string(runtimeSpec), "soda-cockpit")
 	require.NotContains(t, string(runtimeSpec), "soda-authd")
 	require.Contains(t, string(runtimeSpec), "soda-forgejo = 15.0.7")
-	require.Contains(t, string(runtimeSpec), "Temporary host telemetry RPCs")
+	require.Contains(t, string(runtimeSpec), "Temporary health-only daemon")
+	require.NotContains(t, string(runtimeSpec), "host telemetry")
 	require.NotContains(t, string(runtimeSpec), "telemetry and update")
 	require.NotContains(t, string(runtimeSpec), "update RPCs")
 	require.NotContains(t, string(runtimeSpec), "00-soda-var-srv.conf")
@@ -123,6 +129,7 @@ func TestRuntimeImageRPMStagingAndPackageContract(t *testing.T) {
 	releaseSpec, err := os.ReadFile(filepath.Join("..", "..", "..", "packaging", "rpm", "release", "soda-release.spec"))
 	require.NoError(t, err)
 	require.Contains(t, string(releaseSpec), `%{_prefix}/lib/soda/os-release`)
+	require.Contains(t, string(releaseSpec), `%{_datadir}/soda/toolset-commands.txt`)
 	require.NotContains(t, string(releaseSpec), `%{_sysconfdir}/soda-release`)
 }
 
@@ -204,7 +211,7 @@ func TestRuntimeImageSystemdResidualContract(t *testing.T) {
 	runtimeSources := filepath.Join("..", "..", "..", "packaging", "rpm", "runtime", "sources")
 	preset, err := os.ReadFile(filepath.Join(runtimeSources, "systemd", "90-soda.preset"))
 	require.NoError(t, err)
-	for _, unit := range []string{"sshd.service", "sodad.service", "soda-tailscale-enroll.service", "forgejo.service", "cockpit.socket", "tailscaled.service", "nftables.service", "opt-soda-toolchains.mount"} {
+	for _, unit := range []string{"sshd.service", "sodad.service", "soda-tailscale-enroll.service", "forgejo.service", "cockpit.socket", "tailscaled.service", "nftables.service"} {
 		require.True(t, strings.Contains(string(preset), "enable "+unit))
 	}
 	for _, obsolete := range []string{"soda-authd.service", "soda-cockpit.service", "avahi-daemon.service", "var-srv-soda-projects.mount"} {
@@ -226,22 +233,14 @@ func TestRuntimeImageSystemdResidualContract(t *testing.T) {
 	_, err = os.Stat(filepath.Join(runtimeSources, "systemd", "var-srv-soda-projects.mount"))
 	require.ErrorIs(t, err, os.ErrNotExist)
 
-	stateDirectories, err := os.ReadFile(filepath.Join(runtimeSources, "systemd", "soda-state-directories.service"))
-	require.NoError(t, err)
-	require.Contains(t, string(stateDirectories), "DefaultDependencies=no")
-	require.Contains(t, string(stateDirectories), "RequiresMountsFor=/var")
-	require.Contains(t, string(stateDirectories), "Before=local-fs.target opt-soda-toolchains.mount")
-	require.Contains(t, string(stateDirectories), "ExecStart=/usr/bin/systemd-tmpfiles --create --prefix=/var/lib/soda")
-	require.NotContains(t, string(stateDirectories), "/var/srv/soda")
-
-	toolchainMount, err := os.ReadFile(filepath.Join(runtimeSources, "systemd", "opt-soda-toolchains.mount"))
-	require.NoError(t, err)
-	require.Contains(t, string(toolchainMount), "Requires=soda-state-directories.service")
-	require.Contains(t, string(toolchainMount), "After=soda-state-directories.service")
-	require.NotContains(t, string(toolchainMount), "After=systemd-tmpfiles-setup.service")
+	for _, obsolete := range []string{"soda-state-directories.service", "opt-soda-toolchains.mount"} {
+		_, statErr := os.Stat(filepath.Join(runtimeSources, "systemd", obsolete))
+		require.ErrorIs(t, statErr, os.ErrNotExist)
+	}
 
 	sodadUnit, err := os.ReadFile(filepath.Join(runtimeSources, "systemd", "sodad.service"))
 	require.NoError(t, err)
+	require.Contains(t, string(sodadUnit), "Description=Soda OS temporary health service")
 	require.Contains(t, string(sodadUnit), "After=local-fs.target")
 	require.NotContains(t, string(sodadUnit), "network-online.target")
 	require.NotContains(t, string(sodadUnit), "Wants=")

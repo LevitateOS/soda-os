@@ -16,5 +16,4 @@ github_repository = "LevitateOS/soda-os"
 source_date_epoch = 1787825905
 
 [paths]
-toolchains_dir = "/opt/soda/toolchains"
 daemon_socket = "/run/soda/sodad.sock"
