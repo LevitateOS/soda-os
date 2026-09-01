@@ -3,8 +3,9 @@
 Soda OS uses the approved terminal-and-bubbles symbol and lowercase `soda os`
 wordmark. The source-of-truth artwork is SVG under `assets/branding/source`.
 `assets/branding/soda-os-logo-concept-v3.png` is the approved visual reference.
-Tracked PNGs under `assets/branding` and copies in Cockpit
-consumers are deterministic derivatives; do not edit them by hand.
+Tracked PNGs under `assets/branding` are deterministic derivatives; do not edit
+them by hand. Stock Cockpit consumes the canonical symbol directly through the
+Soda branding package.
 
 ## Marks and variants
 
@@ -34,8 +35,9 @@ Customer-facing branding must say Soda OS only.
 
 `assets/branding/icons` contains the hicolor installed-system icons at 16, 24,
 32, 48, 64, 128, 256,
-and 512 px. `assets/branding/web` contains favicon and touch-icon PNGs. Cockpit
-embeds its synchronized copies from `cockpit/internal/web/static`.
+and 512 px. `assets/branding/web` contains favicon and touch-icon PNGs for
+consumers that require raster web artwork. Stock Cockpit branding is shipped
+from `packaging/rpm/projects/sources/branding/sodaos` and the canonical symbol.
 
 `assets/branding/installer/manifest.tsv` maps every approved SVG master to a
 managed Anaconda raster derivative. Horizontal lockups use the established
@@ -55,6 +57,6 @@ just check
 ```
 
 The renderer requires the macOS Swift toolchain/AppKit and ImageMagick. AppKit
-rasterizes the SVGs and ImageMagick sizes its lossless TIFF output and
-synchronizes direct consumers. Review every regenerated derivative before
-shipping. Installer rendering separately requires `rsvg-convert` from librsvg.
+rasterizes the SVGs and ImageMagick sizes its lossless TIFF output. Review every
+regenerated derivative before shipping. Installer rendering separately
+requires `rsvg-convert` from librsvg.

@@ -1,37 +1,41 @@
 # Soda bootc runtime image and installer
 
-> [!IMPORTANT]
-> This document describes the pre-reset image and installer implementation
-> currently present in the repository. It is implementation evidence, not the
-> target runtime ownership model. See the
-> [architectural reset](architecture-reset.md) and
-> [issue #40](https://github.com/LevitateOS/soda-os/issues/40) for the governing
-> direction.
+This document describes the current image and installer implementation. The
+product contract remains in [architecture-reset.md](architecture-reset.md).
 
-`distro/soda.toml` is the shared schema-version-2 runtime image contract.
+`distro/soda.toml` is the shared runtime image specification.
 `distro/platforms/aarch64.toml` and `distro/platforms/x86_64.toml` are equal
 sibling platform contracts. Each pins its Fedora 44 bootc manifest, OCI
 platform, package and installer locks, tool inputs, artifact identity, and
-release channel. The shared specification owns the Soda image name, runtime
-state schema, version, paths, and source-date epoch. The builder obtains the
+release channel. The shared specification owns the Soda image name, version,
+remaining runtime paths, and source-date epoch. The builder obtains the
 source revision from the current Git commit, and every command requires an
 explicit `--architecture aarch64` or `--architecture x86_64` selection.
 
-The platform-selected runtime package lock records exact NEVRAs for every
+The platform-selected runtime package lock must record exact NEVRAs for every
 Fedora RPM added to its pinned base and for the four locally built Soda RPM
-inputs. The Soda RPMs are build inputs only; no mutable Soda RPM repository is
-created or embedded. Weak dependencies are disabled.
+inputs. The x86-64 lock currently includes the exact stock-Cockpit dependency
+closure. The AArch64 lock still requires matching-native resolution of that
+closure; AArch64 RPM and OCI construction therefore fail before artifact
+generation until the native result is recorded. The cross-architecture
+`soda-image check` command continues to validate shared source and platform
+configuration, but does not claim that missing native package evidence. This is
+a temporary verification gap, not a different product contract. The Soda RPMs
+are build inputs only; no mutable Soda RPM repository is created or embedded.
+Weak dependencies are disabled.
 
 During `just oci ARCH`, the Go builder:
 
 1. validates the immutable base, platform, registry, state schema, and package
    lock;
-2. reproducibly builds `soda-release`, `soda-runtime`, `soda-cockpit`, and
+2. reproducibly builds `soda-release`, `soda-runtime`, `soda-projects`, and
    `soda-forgejo` with the configured version, source revision, and source date;
 3. installs the exact locked transaction into the pinned Fedora bootc base;
-4. creates the fixed `soda-api` group and `soda-cockpit` service account;
-5. enables SSH, the one-attempt Tailscale enrollment unit, native nftables,
-   Soda services, Avahi, and the persistent-state bind mounts;
+4. creates the temporary `soda-api` group and the Linux-native
+   `soda-workspaces` classification group;
+5. composes stock Cockpit's PAM policy and enables SSH, `cockpit.socket`, the
+   one-attempt Tailscale enrollment unit, Forgejo, native nftables, the reduced
+   residual Soda service, and the remaining toolchain mount;
 6. masks the automatic bootc update timer while retaining manual bootc
    operations;
 7. records the complete installed RPM inventory and verifies its SHA-256; and
@@ -102,13 +106,17 @@ creation, then uses QMP to eject the OEMDRV and removes its host file after
 Anaconda reports that it parsed the Kickstart.
 
 Forgejo's native PAM source delegates later authentication to the shipped
-`soda-forgejo` PAM policy. Any primary human Linux account accepted by that
-policy can log in with its Linux username and password; Forgejo creates its own
-ordinary native user record on first successful login. Linux account creation
-performs no Forgejo operation, and later `wheel` membership has no Forgejo
-effect. Derived workspace accounts are Linux-only development identities that
-use their installed authorized public keys for direct OpenSSH access; the PAM
-policy must reject them so that they never become Forgejo users.
+`soda-forgejo` PAM policy. The accepted outcome is that a primary human can log
+in with their Linux username and password, after which Forgejo creates its own
+ordinary native user record. The exact pinned Forgejo service cannot currently
+read the password verifier required by PAM without a new `/etc/shadow`
+privilege boundary, so later-user PAM login remains deliberately unenabled
+pending that decision. Linux account creation performs no Forgejo operation,
+and later `wheel` membership has no Forgejo effect. Derived workspace accounts
+are Linux-only development identities that use their installed authorized
+public keys for direct OpenSSH access; the shipped account rule rejects the
+`soda-workspaces` group so they cannot become Forgejo users once the primary
+login boundary is resolved.
 
 Soda may set the PAM source's email domain to the fixed packaging convention
 `localhost`, allowing Forgejo to initialize `<username>@localhost`. The setting
@@ -156,13 +164,17 @@ access.
 
 ## Persistent host state
 
-Bootc owns the image base. Soda keeps mutable state under `/var/lib/soda` so it
-survives replacement of the image: SQLite schema 4 state, Cockpit certificates,
-projects, and toolchains. Image-owned mount units retain the existing visible
-paths `/srv/soda/projects` and `/opt/soda/toolchains`; direct SSH workspaces and
-the forced-command gateway therefore keep their established paths. `tmpfiles.d`
-creates the persistent directories. Linux users and PAM passwords, SSH host
-keys, `/etc/soda/authorized_keys`, and `/var/log/soda` are likewise host state.
+Bootc owns the image base. Linux owns primary and derived accounts, groups,
+passwords, private homes, standard authorized-key files, and SSH host keys.
+Forgejo owns its database and repositories. Tailscale owns its enrolled node
+state. Soda's only mutable Projects state is the exact three-field catalog
+below `/var/lib/soda/catalog`; complete workspace clones live in the derived
+accounts' ordinary `$HOME/Projects` directories.
+
+The pre-reset Soda database, copied person/project/repository state, shared
+project mount, alternate authorized-key tree, Cockpit certificates, and
+standalone dashboard state are not created. The image-owned toolchain cache and
+mount remain temporary until issue #24 removes the runtime toolchain manager.
 
 ## Manual OS updates
 

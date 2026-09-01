@@ -1,79 +1,67 @@
-# Bootc runtime image, installer, and update release gate
+# Bootc installation and native-product evidence
 
-> [!IMPORTANT]
-> This document records the pre-reset acceptance workflow currently present in
-> the repository. Its Soda database, project/worktree, forced-SSH, toolchain,
-> release-index, and update-control-plane assertions are implementation evidence,
-> not preservation requirements. See the
-> [architectural reset](../../docs/architecture-reset.md) and
-> [issue #25](https://github.com/LevitateOS/soda-os/issues/25) for the target
-> product-level acceptance outcomes.
+The governing product outcomes are in
+[architecture-reset.md](../../docs/architecture-reset.md). This directory
+contains the current raw-QEMU harness; issue #25 still owns its final
+single-workflow migration and the final post-#39 execution.
 
-This scenario covers Soda OS 0.4.0 on Fedora 44 bootc for the equal AArch64 and
-x86-64 sibling architectures. Run it independently for each architecture;
-evidence from one does not satisfy the other's gate. Generated images, package
-inventories, RPMs, credentials, logs, databases, and ephemeral registry
-state stay under ignored artifact paths.
+Run every artifact and installation operation independently on matching-native
+x86-64 and AArch64 hardware. Evidence from one sibling does not qualify the
+other.
 
-1. Run `just check`; require each selected sibling's exact Fedora bootc digest,
-   OCI platform, Soda registry name, state schema 4, source-date epoch, and
-   package lock.
-2. Run `just rpm ARCH`; require exactly the selected platform's locked
-   `soda-release`, `soda-runtime`, `soda-cockpit`, and `soda-forgejo` RPM inputs plus their
-   recorded hashes.
-3. Run `just oci ARCH`; require an OCI archive at
-   `.artifacts/images/soda-os-0.4.0-ARCH.oci.tar` and no registry push.
-4. Require the build to verify all locked Fedora and Soda NEVRAs, fixed UID/GID
-   976, enabled SSH/Soda/Avahi services, enabled persistent-state mounts, the
-   masked `bootc-fetch-apply-updates.timer`, the embedded GitHub release index
-   location, and the installed RPM inventory checksum.
-5. Build the architecture-selected `soda-image iso` directly from the local
-   OCI archive. Require a platform-matched `bootc-generic-iso`, ext4, an ISO
-   SHA-256 sidecar, and an embedded payload matching the archive's exact digest.
-   This step must not require a registry, network access, or signing credentials.
-6. Optionally run `soda-image record --archive ... --iso ...`. Require its
-   architecture-named local record to agree with the OCI labels and ISO
-   checksum. If distributing a paired build, require `soda-release` to publish
-   both sibling artifacts and one release index in a single GitHub Release.
-7. On the selected platform's UEFI, complete the stock interactive Anaconda
-   fresh-install flow.
-   Require `bootc status` to report the ISO's exact digest, persistent schema-4
-   Soda state, PAM users, Cockpit certificates, SSH host/device and outbound Git
-   keys, direct
-   project SSH, repositories, worktrees, toolchains, and logs after restart and
-   reboot. Create one project through “Create a new repository on this Soda
-   server” and prove that its Built-in Git repository accepts the project deploy
-   key and each Soda member's generated Git key. Create a second project through
-   “Connect an existing Git repository”, add the displayed bootstrap person's
-   public key to the external Git account, continue setup, and prove personal-UID
-   SSH, direct commands, Git-over-SSH, and SFTP use the selected workspace.
+## Artifact ladder
 
-For repeatable raw-QEMU qualification, run `tests/acceptance/unattended.sh
-prepare`, load the generated `runner.env`, and use
-`tests/acceptance/bootc.sh launch install`. Raw QEMU attaches a per-run
-`OEMDRV` Kickstart ISO containing test-only identity, password, SSH-key,
-one-use Tailscale enrollment, storage, and reboot inputs. The qualified Soda
-installer ISO remains unchanged. The runner removes the secret-bearing
-Kickstart source after creating OEMDRV. Once Anaconda reports that it parsed
-the Kickstart, the runner opens the QEMU tray, removes the medium, deletes its
-host file, and records the QMP evidence; neither secret-bearing input remains
-in the evidence directory for the installed guest.
-The administrator's test key and password stay in the ignored acceptance
-evidence directory for automated SSH, Cockpit, privileged bootc evidence,
-restart, and reboot checks. Post-install SSH and Cockpit checks connect directly
-to `SODA_ACCEPTANCE_GUEST_HOST` on the Tailnet (the Kickstart hostname
-`soda-acceptance` by default), not through QEMU's host-forwarded ports. The
-bootstrap key is installed through Anaconda's native `sshkey` input in the
-administrator's standard `~/.ssh/authorized_keys`. The protected Tailscale key
-file supplied to `prepare` must contain a disposable key for that one run and
-remains outside the generated evidence.
-8. Publish a distinct runtime digest. While a direct SSH workload stays
-   active, require `sodactl os update check` and `stage` to leave the running
-   deployment and services unchanged. Require an ordinary reboot before
-   activation to retain the booted digest; require
-   `sodactl os update activate --confirm-reboot` to boot the staged digest and
-   preserve all host state.
-9. Run `go test ./...` and `go vet ./...` with a writable Go build cache.
+1. Run `just check`.
+2. Run `just rpm ARCH` and require the exact locked `soda-release`,
+   `soda-runtime`, `soda-projects`, and `soda-forgejo` inputs.
+3. Run `just oci ARCH` and inspect the matching-native OCI archive, installed
+   package inventory, image labels, stock Cockpit payload, and absence of the
+   deleted identity/project/dashboard/SSH control-plane payload.
+4. Build the matching ISO from that local archive and verify its checksum and
+   exact embedded image digest.
+5. Install through native raw QEMU and capture the booted digest, native
+   services, RPM inventory, and product scenarios.
 
-The gate excludes automatic updates or reboot, alternate registries or channels,
-and database schema changes.
+## Raw-QEMU preparation
+
+On x86-64, `tests/acceptance/unattended.sh prepare` creates a protected,
+test-only OEMDRV Kickstart input for a disposable installation. It requires a
+protected file containing one disposable Tailscale auth key. The runner removes
+the Kickstart source after creating OEMDRV; after Anaconda confirms parsing it,
+QMP ejects the medium and the host file is removed.
+
+Load the generated `runner.env`, then use:
+
+```sh
+tests/acceptance/bootc.sh launch install
+tests/acceptance/bootc.sh wait
+tests/acceptance/bootc.sh capture installed
+tests/acceptance/bootc.sh stop
+```
+
+The administrator key is installed through Anaconda's native `sshkey` input in
+standard `~/.ssh/authorized_keys`. Post-install checks use the enrolled
+MagicDNS identity over the Tailnet. QEMU host forwards are test plumbing only,
+not product exposure.
+
+## Native workspace slice evidence
+
+Before the supported route switched, a disposable x86-64 guest demonstrated
+stock Cockpit PAM login and Projects package discovery, catalog add/list,
+synchronous setup, deterministic derived-account creation, complete clone
+publication, direct shell/command/SCP/SFTP as the derived UID, and password
+rejection. The route proof used a temporary package overlay on the previous
+installed baseline and a test-only Tailnet-identity shim; it proves the user
+path, not a fresh final image or live Tailnet exposure.
+
+Focused and race tests additionally cover catalog edit validation, missing-key
+preflight, transient Git credential transport, one-time key copying,
+catalog-last project removal, primary-last Soda-aware human deletion, and
+absence assertions for the deleted source and package owners. A fresh-image
+inspection must still confirm removal of copied identity/project/Forgejo
+projection state, the shared project mount, alternate authorized keys, forced
+SSH behavior, standalone web services, and Soda SQLite authority.
+
+The current runner captures installed platform and service evidence. Final
+automation of every architecture-reset scenario, native update/fallback proof,
+and the post-#39 absence inventory remain issue #25 work.

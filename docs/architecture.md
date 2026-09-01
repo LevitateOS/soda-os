@@ -1,123 +1,101 @@
-# Architecture
+# Current Soda OS architecture
 
-> [!IMPORTANT]
-> This document describes the pre-reset implementation currently present in the
-> repository. It is retained as implementation evidence, not as the target
-> architecture or permanent product contract. See the
-> [architectural reset](architecture-reset.md) for the accepted product direction,
-> target ownership boundaries, multi-user model, open decisions, and review
-> issues.
+The product contract and ownership rules live in
+[principles.md](principles.md) and [architecture-reset.md](architecture-reset.md).
+This document describes the current implementation after the native workspace
+vertical slice. It is implementation evidence, not an independent source of
+product requirements.
 
-Soda OS keeps four ownership boundaries:
+## Native ownership
 
-1. Fedora bootc owns the base operating system and standard administration
-   facilities.
-2. TOML specifications own Soda identity, paths, and toolchain source policy.
-3. Go owns privileged orchestration, persistence, project sessions, and image
-   build sequencing.
-4. The Go/HTMX cockpit owns the human-facing management website and calls the
-   Go daemon over a local gRPC Unix socket.
+- Fedora bootc owns the base operating system, packages, systemd, SELinux, PAM,
+  Linux accounts, and immutable-image deployment.
+- Linux and `wheel` own human identity and administrator status.
+- OpenSSH owns interactive shells, direct commands, SCP, SFTP, and key
+  authentication.
+- Forgejo or an external Git host owns repositories, collaboration, access,
+  and repository lifecycle.
+- Stock Cockpit owns browser authentication, sessions, and host administration.
+- Tailscale owns the enrolled node identity and private-network connectivity.
 
-The network-facing `soda-cockpit` process runs as an unprivileged service.
-Linux password checks are delegated over `/run/soda/pam.sock` to the small
-root `soda-authd` helper; only members of the local `soda-api` group can reach
-that socket. The helper has no network listener and performs only PAM
-authentication and password changes.
+Soda owns only the appliance composition, the minimal project catalog, the
+deterministic primary-user/project-to-workspace-account convention, one focused
+Cockpit Projects package, and fixed synchronous local lifecycle operations.
 
-The daemon is the sole writer for Soda's SQLite state and system project
-resources. It is not exposed over TCP. Project service accounts own shared bare
-repositories and unattended built-in repository setup. SSH authenticates a
-person's Linux account with a registered device key; an optional untrusted
-`SODA_PROJECT` selector chooses a project, and the gateway validates membership
-before entering that person's private workspace under their own Unix UID.
+## Accounts and workspaces
 
-Forgejo provides Soda's bundled Git repositories. Soda remains the source of
-truth for people, roles, memberships, SSH device keys, and projects; the daemon
-projects those records into Forgejo and stores only their remote identifiers.
-Creating a repository on this Soda server and connecting an external repository
-both continue through the same project, membership, and workspace lifecycle.
+A primary human is a regular interactive Linux account outside the
+`soda-workspaces` group. Membership in `wheel` is the sole Soda administrator
+fact. A derived workspace is a regular password-disabled Linux account in
+`soda-workspaces`, with a private primary group, private home, Bash shell, and
+a validated Linux account marker that records the primary username and project
+ID. The account name is deterministically derived from that association.
 
-Forgejo starts alongside the daemon but is not a daemon prerequisite. If it is
-unavailable at boot, Soda still reconciles project SSH access and keeps existing
-worktrees and external repositories usable. The daemon logs the failed Forgejo
-reconciliation, and a later successful restart retries it.
+Associations are enumerated from NSS, group membership, and the validated
+marker. There is no person, role, membership, or workspace database. Setup
+copies the primary user's standard `~/.ssh/authorized_keys` once. A derived
+account then receives ordinary OpenSSH behavior and owns its complete clone at
+`$HOME/Projects/<project-id>`.
 
-## Identity model
+## Project catalog and lifecycle
 
-- A person is a normal Linux account plus Soda metadata and an `admin` or
-  `developer` application role. These roles do not create parallel Linux role
-  groups. Every person belongs to `soda-people`, can register multiple named
-  public SSH device keys for inbound access, and receives one server-generated
-  Ed25519 key for outbound Git. Soda persists only that Git key's public key and
-  fingerprint; its protected private key remains in the person's home.
-- A project has a `soda-p-<slug>` service account whose home is
-  `/srv/soda/projects/<slug>`.
-- A membership connects a person to a project and owns exactly one personal
-  workspace at `/srv/soda/projects/<slug>/worktrees/<username>`.
-- Project SSH uses the person's username and sends `SODA_PROJECT=<slug>`. The
-  forced-command gateway derives the person from the authenticated Unix account,
-  validates the selector and membership, and enters the person's workspace.
-- Each project member receives an isolated session home under
-  `/srv/soda/projects/<slug>/.soda/people/<username>/home`, including separate
-  XDG directories and a `~/workspace` link to the checkout.
+The appliance-wide catalog is an atomically replaced, world-readable JSON
+array under `/var/lib/soda/catalog`. Each entry contains exactly:
 
-People are the authentication, attribution, workspace, and process ownership
-boundary. The project service account and its primary group own the shared bare
-repository; members join that group, while personal worktrees and session homes
-remain inaccessible to other members.
+```json
+{
+  "id": "website",
+  "display_name": "Website",
+  "canonical_url": "ssh://git@example.test/team/website.git"
+}
+```
 
-## Runtime state
+The immutable ID selects the local directory and deterministic account. The
+display name and credential-free canonical URL are mutable. Catalog mutation
+is serialized by an ephemeral lock; there is no job, retry, reconciliation, or
+durable operation state.
 
-`sodad` exposes gRPC only through `/run/soda/sodad.sock`. Schema version 4
-stores people, their public Git identities, SSH device keys, projects including
-an external repository's bootstrap person, memberships, worktrees, toolchain
-installations and resolutions, provisioning jobs, and built-in Git mappings in
-`/var/lib/soda/soda.db`. It intentionally requires a fresh database. Cockpit
-certificates also live in `/var/lib/soda/certs`.
+`/usr/libexec/soda/soda-projects` runs as the Cockpit-authenticated primary
+user. It reads the catalog, performs user-authenticated Forgejo or Git network
+operations, and never retains credentials. It invokes
+`/usr/libexec/soda/soda-workspace-helper` through an exact-path polkit action
+only for validated operations requiring privilege. The helper accepts fixed
+JSON requests, derives all accounts and paths internally, binds the caller from
+`PKEXEC_UID`, and exposes no arbitrary command, path, UID, process selector, or
+credential parameter.
 
-Mutable project repositories and toolchain caches physically live at
-`/var/lib/soda/projects` and `/var/lib/soda/toolchains`. Image-owned systemd
-bind mounts retain the stable session paths `/srv/soda/projects` and
-`/opt/soda/toolchains`; the forced SSH gateway and project resources keep using
-those visible paths. `tmpfiles.d` creates the state and mount-point
-directories at boot rather than shipping mutable Soda state in the image.
-Soda service logs are written below `/var/log/soda`.
+Clone staging stays below the caller's `/run/user/<uid>`. Git runs only as that
+caller. The helper validates and publishes the completed tree as the derived
+UID. Project removal deletes validated local workspace accounts and homes
+before removing the catalog entry. Soda-aware human deletion deletes validated
+derived workspaces before deleting the primary account. Neither operation
+deletes Forgejo accounts or canonical repositories.
 
-## Sibling platforms
+## Browser and network surfaces
 
-AArch64 and x86-64 are equal Soda OS sibling architectures. Shared Go code owns
-the product and runtime behavior; platform TOML files select only the upstream
-base, OCI identity, package and tool locks, installer/UEFI inputs, artifact
-names, and test harness that genuinely differ. Neither
-platform is a default, compatibility path, or experimental target.
+Fedora's `cockpit.socket` provides TCP 9090, native PAM sessions, host pages,
+and package discovery. Soda ships branding plus the static
+`soda-projects` package; there is no Soda web server, session store,
+certificate manager, authentication helper, or daemon bridge.
 
-Each sibling produces a single-platform exact-digest artifact. One paired
-release index names both sibling images and their architecture-specific ISO and
-record assets, so publication cannot advance one architecture alone. Both use
-the same non-disruptive staging, explicit reboot activation, rollback
-visibility, persistent-state policy, and equivalent acceptance gates.
+OpenSSH uses TCP 22 and Forgejo uses TCP 30000. Native nftables permits these
+managed ports only on loopback and `tailscale0` and rejects other ingress.
+Projects select their own non-conflicting ports; Soda has no port allocator or
+container/network controller.
 
-Soda-created Linux users and their PAM passwords remain system account state;
-SSH host keys remain under `/etc/ssh`; and per-person authorized-key files
-remain root-owned under `/etc/soda/authorized_keys`. Those paths, the SQLite
-database, certificates, logs, projects, and toolchains are persistent host
-state, not container state.
+## Temporary residual runtime
 
-The daemon samples host health for the status page. Project and account pages
-show current state when requested; the daemon does not poll workspace Git state
-or SSH presence and does not maintain a global browser event stream.
+The architectural reset is issue-ordered. Until their owning later milestones
+land, the reduced `sodad`/`sodactl` surface retains only host telemetry and the
+pre-reset update operations over the local Unix gRPC socket. It has no Soda
+identity, project, repository-projection, provisioning, or SQLite authority.
+Telemetry, the runtime update wrapper, and the image-resident toolchain cleanup
+remain explicit later deletion/replacement milestones. They do not participate
+in the Projects workflow.
 
-The four initial profiles are Web (Node.js and Bun), Python (Python and uv),
-Rust (rustc and Cargo), and Go. A project records exact versions after the first
-successful resolution; retries reuse that resolution instead of silently
-moving the project to a newer stable release.
+## Sibling architectures
 
-## Deliberate scaffold limits
-
-There are no project or person deletion or update endpoints, browser IDE, web
-terminal, containers, profile switching, or Internet-facing management API.
-Trusted-LAN deployment does not remove individual PAM authentication or SSH
-attribution. A host administrator remains an ordinary Linux account until an
-operator explicitly imports it into Soda. External Git uses SSH URLs only; Soda
-does not store HTTPS credentials, broker provider tokens, or export private Git
-keys.
+AArch64 and x86-64 are equal sibling architectures. Shared source owns product
+behavior; platform files select only inputs that genuinely differ. Every RPM,
+image, ISO, installation, inspection, and acceptance claim must be produced on
+matching-native hardware. Evidence from one sibling does not qualify the other.

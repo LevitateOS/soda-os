@@ -26,12 +26,11 @@ or reconciliation system. Podman is available as an optional development tool
 and is not the isolation mechanism.
 
 The [base principles](docs/principles.md) state the product purpose and ownership
-philosophy. The current runtime grew beyond that boundary, and the
-[architectural reset](docs/architecture-reset.md) records the exact accepted
-architecture and issue ownership. Existing implementation documentation remains
-useful evidence, but its custom database, daemon, RPC, dashboard,
-reconciliation, telemetry, toolchain, and update layers are not presumed to be
-permanent product requirements.
+philosophy. The [architectural reset](docs/architecture-reset.md) records the
+accepted architecture and issue ownership. The native workspace slice has
+removed the custom identity, project, repository-projection, dashboard, SSH
+gateway, database, and workflow layers; later reset milestones still own the
+temporary telemetry, update, toolchain, and residual RPC cleanup.
 
 This repository is independent from LevitateOS. It borrows the separation
 between declarative distro specifications, Go orchestration, explicit
@@ -40,9 +39,9 @@ base, kernel, userspace, RPM/DNF, systemd, SELinux, and SSH.
 
 ## Repository layout
 
-- `cmd`: executable-specific daemon, CLI, SSH gateway, and image-builder code
-- `cockpit`: Cockpit and PAM executables, daemon client, and HTTP presentation
-- `internal`: runtime control plus the artifact pipeline under `internal/build`
+- `cmd`: bounded runtime, Projects, helper, and artifact executables
+- `cockpit`: the static stock-Cockpit Projects package
+- `internal`: native Projects behavior, temporary residual runtime, and the artifact pipeline under `internal/build`
 - `distro`: Soda identity, profiles, distribution locks, and Fedora base metadata
 - `packaging`: bootc and RPM inputs grouped by shipped package
 - `assets`: canonical Soda branding sources and rendered assets
@@ -70,7 +69,10 @@ network publication step. Architecture selection is always explicit; neither
 sibling is a default or fallback.
 The package lock pins every Fedora package added to the immutable base, and the
 finished image contains a complete RPM inventory plus its verified SHA-256
-checksum.
+checksum. The x86-64 lock includes the exact stock-Cockpit closure. The AArch64
+lock still requires matching-native Cockpit resolution for this workspace
+slice, so its RPM and OCI commands fail before artifact generation until that
+input is recorded; this is an evidence gap, not a different product target.
 
 Local development does not publish or sign images. Optional release metadata
 records preserve the exact local archive digest, image labels, RPM inventory,
@@ -117,12 +119,8 @@ network namespaces. Linux administrators operate deployments through native
 Linux account state; direct `bootc rollback` is not claimed until verified.
 The automatic update timer remains disabled.
 
-The code still contains the pre-reset runtime while the linked ownership issues
-remove it vertically. The documents labelled pre-reset describe that current
-implementation as evidence, not as the target product contract.
-
 See the [architectural reset](docs/architecture-reset.md), the
-[current pre-reset architecture](docs/architecture.md), the
+[current implementation architecture](docs/architecture.md), the
 [runtime image and installer contract](docs/installer.md), the
 [managed listener contract](docs/networking.md), and the
 [release and operator runbook](docs/release-operations.md).
