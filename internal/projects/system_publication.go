@@ -18,7 +18,7 @@ type publicationTarget struct {
 }
 
 func (platform *NativePlatform) WorkspaceReady(account Account, projectID string) (bool, error) {
-	projectsDirectory, exists, err := openWorkspaceProjects(account)
+	projectsDirectory, exists, err := platform.openWorkspaceProjects(account)
 	if err != nil || !exists {
 		return false, err
 	}
@@ -39,8 +39,8 @@ func (platform *NativePlatform) WorkspaceReady(account Account, projectID string
 	return true, nil
 }
 
-func openWorkspaceProjects(account Account) (*os.File, bool, error) {
-	home, err := openAbsoluteDirectoryNoSymlinks(account.Home)
+func (platform *NativePlatform) openWorkspaceProjects(account Account) (*os.File, bool, error) {
+	home, err := platform.openValidatedAccountHome(account)
 	if err != nil {
 		return nil, false, fmt.Errorf("open workspace home: %w", err)
 	}
@@ -84,7 +84,7 @@ func (platform *NativePlatform) PublishWorkspace(ctx context.Context, primary, w
 		return err
 	}
 	defer checkout.Close()
-	projectsDirectory, err := openWorkspaceProjectsForPublication(workspace)
+	projectsDirectory, err := platform.openWorkspaceProjectsForPublication(workspace)
 	if err != nil {
 		return err
 	}
@@ -122,8 +122,8 @@ func (platform *NativePlatform) validatedStagingCheckout(primary Account, projec
 	return checkout, nil
 }
 
-func openWorkspaceProjectsForPublication(workspace Account) (*os.File, error) {
-	home, err := openAbsoluteDirectoryNoSymlinks(workspace.Home)
+func (platform *NativePlatform) openWorkspaceProjectsForPublication(workspace Account) (*os.File, error) {
+	home, err := platform.openValidatedAccountHome(workspace)
 	if err != nil {
 		return nil, fmt.Errorf("open workspace home: %w", err)
 	}

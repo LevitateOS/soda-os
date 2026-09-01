@@ -36,9 +36,13 @@ func secureTestAccount(t *testing.T) (Account, string) {
 	return Account{Username: "alice", UID: os.Getuid(), GID: os.Getgid(), Home: home}, path
 }
 
+func nativePlatformForAccount(account Account) *NativePlatform {
+	return &NativePlatform{HomeRoot: filepath.Dir(account.Home)}
+}
+
 func TestReadAuthorizedKeysUsesOwnedNoSymlinkFile(t *testing.T) {
 	account, path := secureTestAccount(t)
-	platform := &NativePlatform{}
+	platform := nativePlatformForAccount(account)
 
 	contents, err := platform.ReadAuthorizedKeys(account)
 	require.NoError(t, err)
@@ -55,7 +59,7 @@ func TestReadAuthorizedKeysAcceptsAndPreservesOpenSSHIgnoredLines(t *testing.T) 
 	contents = append(contents, []byte("ssh-ed25519 not-base64 ignored-after\n# retained comment\n")...)
 	require.NoError(t, os.WriteFile(path, contents, 0o600))
 
-	read, err := (&NativePlatform{}).ReadAuthorizedKeys(account)
+	read, err := nativePlatformForAccount(account).ReadAuthorizedKeys(account)
 	require.NoError(t, err)
 	require.Equal(t, contents, read)
 }
@@ -69,7 +73,7 @@ func TestReadAuthorizedKeysRejectsFileWithoutValidKey(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			require.NoError(t, os.WriteFile(path, contents, 0o600))
-			_, err := (&NativePlatform{}).ReadAuthorizedKeys(account)
+			_, err := nativePlatformForAccount(account).ReadAuthorizedKeys(account)
 			require.ErrorContains(t, err, "does not contain a valid public key")
 		})
 	}
@@ -77,7 +81,7 @@ func TestReadAuthorizedKeysRejectsFileWithoutValidKey(t *testing.T) {
 
 func TestReadAuthorizedKeysRejectsSymlinkAndUnexpectedOwner(t *testing.T) {
 	account, path := secureTestAccount(t)
-	platform := &NativePlatform{}
+	platform := nativePlatformForAccount(account)
 	realPath := filepath.Join(filepath.Dir(path), "keys")
 	require.NoError(t, os.Rename(path, realPath))
 	require.NoError(t, os.Symlink(realPath, path))
@@ -96,7 +100,7 @@ func TestReadAuthorizedKeysIsBounded(t *testing.T) {
 	account, path := secureTestAccount(t)
 	require.NoError(t, os.WriteFile(path, bytes.Repeat([]byte{'x'}, (1<<20)+1), 0o600))
 
-	_, err := (&NativePlatform{}).ReadAuthorizedKeys(account)
+	_, err := nativePlatformForAccount(account).ReadAuthorizedKeys(account)
 	require.ErrorContains(t, err, "exceeds the 1048576-byte limit")
 }
 
@@ -106,8 +110,71 @@ func TestReadAuthorizedKeysRejectsSymlinkedHome(t *testing.T) {
 	require.NoError(t, os.Symlink(account.Home, link))
 	account.Home = link
 
-	_, err := (&NativePlatform{}).ReadAuthorizedKeys(account)
+	_, err := nativePlatformForAccount(account).ReadAuthorizedKeys(account)
 	require.Error(t, err)
+}
+
+func TestManagedHomeRootMayBeNativeSymlinkButAccountHomeMayNot(t *testing.T) {
+	root := t.TempDir()
+	realHomeRoot := filepath.Join(root, "var", "home")
+	require.NoError(t, os.MkdirAll(realHomeRoot, 0o755))
+	homeRoot := filepath.Join(root, "home")
+	require.NoError(t, os.Symlink(filepath.Join("var", "home"), homeRoot))
+	realHome := filepath.Join(realHomeRoot, "alice")
+	require.NoError(t, os.Mkdir(realHome, 0o700))
+	require.NoError(t, os.Mkdir(filepath.Join(realHome, ".ssh"), 0o700))
+	keys := testAuthorizedKey(t)
+	require.NoError(t, os.WriteFile(filepath.Join(realHome, ".ssh", "authorized_keys"), keys, 0o600))
+	account := Account{
+		Username: "alice",
+		UID:      os.Getuid(),
+		GID:      os.Getgid(),
+		Home:     filepath.Join(homeRoot, "alice"),
+	}
+	platform := &NativePlatform{HomeRoot: homeRoot}
+
+	contents, err := platform.ReadAuthorizedKeys(account)
+	require.NoError(t, err)
+	require.Equal(t, keys, contents)
+
+	require.NoError(t, os.Rename(realHome, filepath.Join(realHomeRoot, "real-alice")))
+	require.NoError(t, os.Symlink("real-alice", realHome))
+	_, err = platform.ReadAuthorizedKeys(account)
+	require.Error(t, err, "the username component must never be followed as a symlink")
+}
+
+func TestWorkspaceHomeOperationsUseManagedSymlinkRoot(t *testing.T) {
+	root := t.TempDir()
+	realHomeRoot := filepath.Join(root, "var", "home")
+	require.NoError(t, os.MkdirAll(realHomeRoot, 0o755))
+	homeRoot := filepath.Join(root, "home")
+	require.NoError(t, os.Symlink(filepath.Join("var", "home"), homeRoot))
+	username := "soda-w-example"
+	realHome := filepath.Join(realHomeRoot, username)
+	require.NoError(t, os.Mkdir(realHome, 0o700))
+	account := Account{
+		Username: username,
+		UID:      os.Getuid(),
+		GID:      os.Getgid(),
+		Home:     filepath.Join(homeRoot, username),
+	}
+	platform := &NativePlatform{
+		HomeRoot: homeRoot,
+		Runner: commandRunnerFunc(func(request Command) error {
+			require.Equal(t, "/usr/sbin/restorecon", request.Name)
+			return nil
+		}),
+	}
+
+	require.NoError(t, platform.InstallAuthorizedKeys(account, testAuthorizedKey(t)))
+	require.FileExists(t, filepath.Join(realHome, ".ssh", "authorized_keys"))
+	require.NoError(t, os.MkdirAll(filepath.Join(realHome, "Projects", "site", ".git"), 0o700))
+	ready, err := platform.WorkspaceReady(account, "site")
+	require.NoError(t, err)
+	require.True(t, ready)
+	projects, err := platform.openWorkspaceProjectsForPublication(account)
+	require.NoError(t, err)
+	require.NoError(t, projects.Close())
 }
 
 func TestPrepareStagingValidatesOwnershipAndAddsOnlyReadTraversal(t *testing.T) {
@@ -227,11 +294,11 @@ func TestSetupLockSerializesOnePrimaryProject(t *testing.T) {
 
 func TestWorkspaceReadyRejectsSymlinkedCheckoutAndGitDirectory(t *testing.T) {
 	root := t.TempDir()
-	account := Account{Username: "soda-w-example", UID: os.Getuid(), GID: os.Getgid(), Home: filepath.Join(root, "workspace")}
+	account := Account{Username: "soda-w-example", UID: os.Getuid(), GID: os.Getgid(), Home: filepath.Join(root, "soda-w-example")}
 	projects := filepath.Join(account.Home, "Projects")
 	checkout := filepath.Join(projects, "site")
 	require.NoError(t, os.MkdirAll(filepath.Join(checkout, ".git"), 0o700))
-	platform := &NativePlatform{}
+	platform := &NativePlatform{HomeRoot: root}
 	ready, err := platform.WorkspaceReady(account, "site")
 	require.NoError(t, err)
 	require.True(t, ready)
@@ -252,28 +319,29 @@ func TestWorkspaceReadyRejectsSymlinkedCheckoutAndGitDirectory(t *testing.T) {
 
 func TestWorkspaceReadyDoesNotDependOnCurrentAuthorizedKeys(t *testing.T) {
 	root := t.TempDir()
-	account := Account{Username: "soda-w-example", UID: os.Getuid(), GID: os.Getgid(), Home: filepath.Join(root, "workspace")}
+	account := Account{Username: "soda-w-example", UID: os.Getuid(), GID: os.Getgid(), Home: filepath.Join(root, "soda-w-example")}
 	require.NoError(t, os.MkdirAll(filepath.Join(account.Home, "Projects", "site", ".git"), 0o700))
 
-	ready, err := (&NativePlatform{}).WorkspaceReady(account, "site")
+	platform := &NativePlatform{HomeRoot: root}
+	ready, err := platform.WorkspaceReady(account, "site")
 	require.NoError(t, err)
 	require.True(t, ready)
 
 	require.NoError(t, os.MkdirAll(filepath.Join(account.Home, ".ssh"), 0o700))
 	require.NoError(t, os.WriteFile(filepath.Join(account.Home, ".ssh", "authorized_keys"), []byte("user-managed malformed contents\n"), 0o600))
-	ready, err = (&NativePlatform{}).WorkspaceReady(account, "site")
+	ready, err = platform.WorkspaceReady(account, "site")
 	require.NoError(t, err)
 	require.True(t, ready)
 }
 
 func TestInstallAuthorizedKeysIsDescriptorSafeAndOneTime(t *testing.T) {
 	root := t.TempDir()
-	account := Account{Username: "soda-w-example", UID: os.Getuid(), GID: os.Getgid(), Home: filepath.Join(root, "workspace")}
+	account := Account{Username: "soda-w-example", UID: os.Getuid(), GID: os.Getgid(), Home: filepath.Join(root, "soda-w-example")}
 	require.NoError(t, os.Mkdir(account.Home, 0o700))
 	path := filepath.Join(account.Home, ".ssh", "authorized_keys")
 	stagedPath := filepath.Join(account.Home, ".ssh", stagedAuthorizedKeysName)
 	relabelObserved := false
-	platform := &NativePlatform{Runner: commandRunnerFunc(func(request Command) error {
+	platform := &NativePlatform{HomeRoot: root, Runner: commandRunnerFunc(func(request Command) error {
 		require.Equal(t, "/usr/sbin/restorecon", request.Name)
 		require.NoFileExists(t, path)
 		require.FileExists(t, stagedPath)

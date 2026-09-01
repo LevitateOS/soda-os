@@ -253,7 +253,12 @@ func (platform *NativePlatform) openValidatedAccountHome(account Account) (*os.F
 	if account.Home != expectedHome {
 		return nil, fmt.Errorf("Linux account %s has unexpected home %s", account.Username, account.Home)
 	}
-	home, err := openAbsoluteDirectoryNoSymlinks(expectedHome)
+	homeRoot, err := openManagedHomeRoot(platform.homeRoot())
+	if err != nil {
+		return nil, fmt.Errorf("open Linux home root: %w", err)
+	}
+	defer homeRoot.Close()
+	home, err := openDirectoryAt(homeRoot, account.Username)
 	if err != nil {
 		return nil, fmt.Errorf("open Linux account home: %w", err)
 	}

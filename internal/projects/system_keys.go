@@ -22,7 +22,7 @@ var ErrAuthorizedKeysPublished = errors.New("authorized_keys is published or has
 
 func (platform *NativePlatform) ReadAuthorizedKeys(account Account) ([]byte, error) {
 	path := filepath.Join(account.Home, ".ssh", "authorized_keys")
-	keyFile, err := openAuthorizedKeys(account, path)
+	keyFile, err := platform.openAuthorizedKeys(account, path)
 	if err != nil {
 		return nil, err
 	}
@@ -37,8 +37,8 @@ func (platform *NativePlatform) ReadAuthorizedKeys(account Account) ([]byte, err
 	return contents, nil
 }
 
-func openAuthorizedKeys(account Account, path string) (*os.File, error) {
-	home, err := openAbsoluteDirectoryNoSymlinks(account.Home)
+func (platform *NativePlatform) openAuthorizedKeys(account Account, path string) (*os.File, error) {
+	home, err := platform.openValidatedAccountHome(account)
 	if err != nil {
 		return nil, fmt.Errorf("open account home: %w", err)
 	}
@@ -124,7 +124,7 @@ func (platform *NativePlatform) InstallAuthorizedKeys(account Account, contents 
 	if err := validateAuthorizedKeyContents(contents, path); err != nil {
 		return err
 	}
-	home, err := openAbsoluteDirectoryNoSymlinks(account.Home)
+	home, err := platform.openValidatedAccountHome(account)
 	if err != nil {
 		return fmt.Errorf("open workspace home: %w", err)
 	}

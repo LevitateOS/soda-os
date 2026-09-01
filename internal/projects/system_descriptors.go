@@ -38,6 +38,34 @@ func openAbsoluteDirectoryAt(rootDescriptor int, path string) (*os.File, error) 
 	return file, nil
 }
 
+// openManagedHomeRoot follows ordinary symlinks only while resolving the
+// configured home root. Fedora bootc exposes the native home root as
+// /home -> var/home. Account-controlled components are opened separately by
+// openDirectoryAt, which rejects symlinks.
+func openManagedHomeRoot(path string) (*os.File, error) {
+	if !filepath.IsAbs(path) || filepath.Clean(path) != path || path == "/" {
+		return nil, errors.New("home root must be a normalized absolute path below root")
+	}
+	rootDescriptor, err := unix.Open("/", unix.O_RDONLY|unix.O_DIRECTORY|unix.O_CLOEXEC, 0)
+	if err != nil {
+		return nil, err
+	}
+	defer unix.Close(rootDescriptor)
+	descriptor, err := unix.Openat2(rootDescriptor, strings.TrimPrefix(path, "/"), &unix.OpenHow{
+		Flags:   unix.O_RDONLY | unix.O_DIRECTORY | unix.O_CLOEXEC,
+		Resolve: unix.RESOLVE_IN_ROOT | unix.RESOLVE_NO_MAGICLINKS,
+	})
+	if err != nil {
+		return nil, err
+	}
+	file := os.NewFile(uintptr(descriptor), path)
+	if file == nil {
+		_ = unix.Close(descriptor)
+		return nil, errors.New("open home root descriptor")
+	}
+	return file, nil
+}
+
 func openDirectoryAt(parent *os.File, name string) (*os.File, error) {
 	if name == "" || name == "." || name == ".." || strings.ContainsRune(name, '/') {
 		return nil, errors.New("invalid directory component")

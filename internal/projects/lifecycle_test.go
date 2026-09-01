@@ -287,7 +287,7 @@ func TestNativePublicationUsesValidatedStagingCWDAndLabelsBeforeRename(t *testin
 	root := t.TempDir()
 	primary := primaryAccount("alice", primaryRoleUser)
 	primary.UID = os.Getuid()
-	workspace := Account{Username: "soda-w-example", UID: os.Getuid(), GID: os.Getgid(), PrimaryGroup: "soda-w-example", Home: filepath.Join(root, "workspace")}
+	workspace := Account{Username: "soda-w-example", UID: os.Getuid(), GID: os.Getgid(), PrimaryGroup: "soda-w-example", Home: filepath.Join(root, "soda-w-example")}
 	runner := &recordingRunner{}
 	runner.onRun = func(_ string, name string, _ []string, _ []*os.File) error {
 		if name == "/usr/sbin/runuser" {
@@ -295,7 +295,7 @@ func TestNativePublicationUsesValidatedStagingCWDAndLabelsBeforeRename(t *testin
 		}
 		return nil
 	}
-	platform := &NativePlatform{Runner: runner, RuntimeRoot: filepath.Join(root, "run")}
+	platform := &NativePlatform{Runner: runner, HomeRoot: root, RuntimeRoot: filepath.Join(root, "run")}
 	staging := platform.StagingPath(primary, "site")
 	require.NoError(t, os.MkdirAll(filepath.Join(staging, ".git"), 0o700))
 	require.NoError(t, os.MkdirAll(workspace.Home, 0o700))
@@ -320,9 +320,9 @@ func TestNativePublicationRequiresGitDirectoriesAtBothBoundaries(t *testing.T) {
 	root := t.TempDir()
 	primary := primaryAccount("alice", primaryRoleUser)
 	primary.UID = os.Getuid()
-	workspace := Account{Username: "soda-w-example", UID: os.Getuid(), GID: os.Getgid(), PrimaryGroup: "soda-w-example", Home: filepath.Join(root, "workspace")}
+	workspace := Account{Username: "soda-w-example", UID: os.Getuid(), GID: os.Getgid(), PrimaryGroup: "soda-w-example", Home: filepath.Join(root, "soda-w-example")}
 	runner := &recordingRunner{}
-	platform := &NativePlatform{Runner: runner, RuntimeRoot: filepath.Join(root, "run")}
+	platform := &NativePlatform{Runner: runner, HomeRoot: root, RuntimeRoot: filepath.Join(root, "run")}
 	staging := platform.StagingPath(primary, "site")
 	require.NoError(t, os.MkdirAll(staging, 0o700))
 	require.NoError(t, os.MkdirAll(workspace.Home, 0o700))
@@ -344,9 +344,9 @@ func TestNativePublicationReservesTemporaryAndNeverReplacesDestination(t *testin
 	root := t.TempDir()
 	primary := primaryAccount("alice", primaryRoleUser)
 	primary.UID = os.Getuid()
-	workspace := Account{Username: "soda-w-example", UID: os.Getuid(), GID: os.Getgid(), PrimaryGroup: "soda-w-example", Home: filepath.Join(root, "workspace")}
+	workspace := Account{Username: "soda-w-example", UID: os.Getuid(), GID: os.Getgid(), PrimaryGroup: "soda-w-example", Home: filepath.Join(root, "soda-w-example")}
 	runner := &recordingRunner{}
-	platform := &NativePlatform{Runner: runner, RuntimeRoot: filepath.Join(root, "run")}
+	platform := &NativePlatform{Runner: runner, HomeRoot: root, RuntimeRoot: filepath.Join(root, "run")}
 	staging := platform.StagingPath(primary, "site")
 	require.NoError(t, os.MkdirAll(filepath.Join(staging, ".git"), 0o700))
 	require.NoError(t, os.MkdirAll(filepath.Join(workspace.Home, "Projects", ".soda-site.tmp"), 0o700))
