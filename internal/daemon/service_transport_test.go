@@ -7,14 +7,12 @@ import (
 	"os"
 	"os/user"
 	"path/filepath"
-	"strings"
 	"testing"
 	"time"
 
 	"github.com/LevitateOS/soda-os/internal/domain"
 	sodav2 "github.com/LevitateOS/soda-os/internal/gen/soda/v2"
 	"github.com/LevitateOS/soda-os/internal/grpcclient"
-	"github.com/LevitateOS/soda-os/internal/osupdate"
 	"github.com/LevitateOS/soda-os/internal/telemetry"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -22,25 +20,6 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/grpc/test/bufconn"
 )
-
-type fakeOSUpdater struct {
-	status          osupdate.Status
-	candidate       osupdate.Candidate
-	stagedReference string
-	activated       bool
-	err             error
-}
-
-func (u *fakeOSUpdater) Status(context.Context) (osupdate.Status, error)   { return u.status, u.err }
-func (u *fakeOSUpdater) Check(context.Context) (osupdate.Candidate, error) { return u.candidate, u.err }
-func (u *fakeOSUpdater) Stage(_ context.Context, reference string) (osupdate.Status, error) {
-	u.stagedReference = reference
-	return u.status, u.err
-}
-func (u *fakeOSUpdater) Activate(context.Context) error {
-	u.activated = true
-	return u.err
-}
 
 type observeHost struct{}
 
@@ -65,15 +44,13 @@ func (observeHost) SampleHost(context.Context) (domain.HostStatus, error) {
 	}, nil
 }
 
-func TestTemporaryRuntimeRPCsOverBufconn(t *testing.T) {
+func TestHealthAndHostStatusRPCsOverBufconn(t *testing.T) {
 	manager, err := telemetry.NewManager(observeHost{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	manager.RefreshHost(context.Background())
-	digest := "sha256:" + strings.Repeat("b", 64)
-	updates := &fakeOSUpdater{candidate: osupdate.Candidate{ImageReference: osupdate.Repository + "@" + digest, Digest: digest, Available: true}}
-	service := New(Options{Telemetry: NewTelemetryAdapter(manager), OSUpdates: updates})
+	service := New(Options{Telemetry: NewTelemetryAdapter(manager)})
 	listener := bufconn.Listen(1 << 20)
 	server := grpc.NewServer()
 	sodav2.RegisterSodaServiceServer(server, service)
@@ -93,10 +70,6 @@ func TestTemporaryRuntimeRPCsOverBufconn(t *testing.T) {
 	host, err := client.GetHostStatus(context.Background(), &sodav2.GetHostStatusRequest{})
 	if err != nil || host.GetHost().GetOverall() != sodav2.RuntimeState_RUNTIME_STATE_READY {
 		t.Fatalf("host = %#v, %v", host, err)
-	}
-	checked, err := client.CheckOSUpdate(context.Background(), &sodav2.CheckOSUpdateRequest{})
-	if err != nil || checked.GetRelease().GetImageReference() != osupdate.Repository+"@"+digest {
-		t.Fatalf("release = %#v, %v", checked, err)
 	}
 }
 
@@ -138,50 +111,5 @@ func TestUnavailableRuntimeDependenciesUseCanonicalStatus(t *testing.T) {
 	service := New(Options{})
 	if _, err := service.GetHostStatus(context.Background(), &sodav2.GetHostStatusRequest{}); status.Code(err) != codes.Unavailable {
 		t.Fatalf("host status = %s: %v", status.Code(err), err)
-	}
-	if _, err := service.CheckOSUpdate(context.Background(), &sodav2.CheckOSUpdateRequest{}); status.Code(err) != codes.Unavailable {
-		t.Fatalf("update status = %s: %v", status.Code(err), err)
-	}
-}
-
-func exactOSUpdateService() (*Service, *fakeOSUpdater, string) {
-	digest := "sha256:" + strings.Repeat("b", 64)
-	exact := osupdate.Repository + "@" + digest
-	updates := &fakeOSUpdater{
-		status:    osupdate.Status{Booted: &osupdate.Deployment{ImageReference: osupdate.Repository + "@sha256:" + strings.Repeat("a", 64), Architecture: "arm64"}},
-		candidate: osupdate.Candidate{ImageReference: exact, Digest: digest, Version: "0.3.0", StateSchema: 3, Available: true},
-	}
-	return New(Options{OSUpdates: updates}), updates, exact
-}
-
-func TestOSUpdateRPCsPreserveExactIdentity(t *testing.T) {
-	service, updates, exact := exactOSUpdateService()
-	checked, err := service.CheckOSUpdate(context.Background(), &sodav2.CheckOSUpdateRequest{})
-	if err != nil || checked.GetRelease().GetImageReference() != exact || checked.GetRelease().GetStateSchema() != 3 {
-		t.Fatalf("checked release = %#v, %v", checked, err)
-	}
-	if _, err = service.StageOSUpdate(context.Background(), &sodav2.StageOSUpdateRequest{ImageReference: exact}); err != nil || updates.stagedReference != exact {
-		t.Fatalf("staged reference = %q, %v", updates.stagedReference, err)
-	}
-}
-
-func TestOSUpdateActivationRequiresRebootConfirmation(t *testing.T) {
-	service, updates, _ := exactOSUpdateService()
-	ctx := context.Background()
-	_, err := service.ActivateOSUpdate(ctx, &sodav2.ActivateOSUpdateRequest{})
-	if status.Code(err) != codes.InvalidArgument || updates.activated {
-		t.Fatalf("unconfirmed activation = %v, %v", updates.activated, err)
-	}
-	if _, err = service.ActivateOSUpdate(ctx, &sodav2.ActivateOSUpdateRequest{ConfirmReboot: true}); err != nil || !updates.activated {
-		t.Fatalf("activation confirmation = %v, %v", updates.activated, err)
-	}
-}
-
-func TestOSUpdateRejectionUsesCanonicalStatus(t *testing.T) {
-	service, updates, _ := exactOSUpdateService()
-	updates.err = osupdate.ErrRejected
-	_, err := service.CheckOSUpdate(context.Background(), &sodav2.CheckOSUpdateRequest{})
-	if status.Code(err) != codes.FailedPrecondition {
-		t.Fatalf("rejected release status = %v", status.Code(err))
 	}
 }

@@ -9,7 +9,6 @@ import (
 
 	"github.com/LevitateOS/soda-os/internal/config"
 	"github.com/LevitateOS/soda-os/internal/daemon"
-	"github.com/LevitateOS/soda-os/internal/osupdate"
 	"github.com/LevitateOS/soda-os/internal/telemetry"
 )
 
@@ -30,13 +29,8 @@ func run(logger *slog.Logger) error {
 	if err != nil {
 		return err
 	}
-	updates, err := osupdate.New(osupdate.Options{})
-	if err != nil {
-		return err
-	}
 	service := daemon.New(daemon.Options{
 		Telemetry: daemon.NewTelemetryAdapter(observer),
-		OSUpdates: updates,
 	})
 	server, err := daemon.ListenUnix(socket, service, logger)
 	if err != nil {

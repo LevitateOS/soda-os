@@ -17,10 +17,7 @@ import (
 )
 
 const (
-	defaultCommandTimeout    = 2 * time.Second
-	defaultOSReadTimeout     = 30 * time.Second
-	defaultOSStageTimeout    = 2 * time.Hour
-	defaultOSActivateTimeout = 5 * time.Minute
+	defaultCommandTimeout = 2 * time.Second
 )
 
 type dialFunc func(context.Context, string) (sodav2.SodaServiceClient, io.Closer, error)
@@ -51,7 +48,7 @@ func (a *app) command() *cobra.Command {
 		SilenceUsage: true,
 	}
 	root.PersistentFlags().StringVar(&socket, "socket", config.DefaultDaemonSocket, "sodad Unix socket")
-	root.AddCommand(a.healthCommand(&socket), a.osCommand(&socket))
+	root.AddCommand(a.healthCommand(&socket))
 	return root
 }
 

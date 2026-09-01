@@ -6,7 +6,6 @@ import (
 	"io"
 	"net"
 	"path/filepath"
-	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -36,27 +35,6 @@ func (s *recordingServer) record(request any) error {
 
 func (s *recordingServer) Health(_ context.Context, request *sodav2.HealthRequest) (*sodav2.HealthResponse, error) {
 	return &sodav2.HealthResponse{Status: "ready", Service: "sodad", Version: "0.4.0"}, s.record(request)
-}
-
-func (s *recordingServer) GetOSUpdateStatus(_ context.Context, request *sodav2.GetOSUpdateStatusRequest) (*sodav2.GetOSUpdateStatusResponse, error) {
-	return &sodav2.GetOSUpdateStatusResponse{Status: testOSUpdateStatus()}, s.record(request)
-}
-
-func (s *recordingServer) CheckOSUpdate(_ context.Context, request *sodav2.CheckOSUpdateRequest) (*sodav2.CheckOSUpdateResponse, error) {
-	return &sodav2.CheckOSUpdateResponse{Release: &sodav2.OSRelease{ImageReference: "ghcr.io/levitateos/soda-os@sha256:" + strings.Repeat("b", 64), Version: "0.5.0", Digest: "sha256:" + strings.Repeat("b", 64), StateSchema: 4, Available: true}}, s.record(request)
-}
-
-func (s *recordingServer) StageOSUpdate(_ context.Context, request *sodav2.StageOSUpdateRequest) (*sodav2.StageOSUpdateResponse, error) {
-	return &sodav2.StageOSUpdateResponse{Status: testOSUpdateStatus()}, s.record(request)
-}
-
-func (s *recordingServer) ActivateOSUpdate(_ context.Context, request *sodav2.ActivateOSUpdateRequest) (*sodav2.ActivateOSUpdateResponse, error) {
-	return &sodav2.ActivateOSUpdateResponse{RebootRequested: request.GetConfirmReboot()}, s.record(request)
-}
-
-func testOSUpdateStatus() *sodav2.OSUpdateStatus {
-	digest := "sha256:" + strings.Repeat("a", 64)
-	return &sodav2.OSUpdateStatus{ReadOnly: true, Booted: &sodav2.OSDeployment{ImageReference: "ghcr.io/levitateos/soda-os@" + digest, Version: "0.4.0", Digest: digest, Architecture: "amd64"}}
 }
 
 func testApp(t *testing.T, server *recordingServer) (*app, *string) {
@@ -92,22 +70,13 @@ func execute(t *testing.T, application *app, args ...string) (string, error) {
 	return output.String(), err
 }
 
-func TestCommandsUseReducedGRPCContract(t *testing.T) {
+func TestHealthCommandUsesResidualGRPCContract(t *testing.T) {
 	tests := []struct {
 		name  string
 		args  []string
 		check func(*testing.T, any)
 	}{
 		{"health", []string{"--socket", "/tmp/soda.sock", "health"}, func(t *testing.T, got any) { require.IsType(t, &sodav2.HealthRequest{}, got) }},
-		{"update status", []string{"os", "update", "status"}, func(t *testing.T, got any) { require.IsType(t, &sodav2.GetOSUpdateStatusRequest{}, got) }},
-		{"update check", []string{"os", "update", "check"}, func(t *testing.T, got any) { require.IsType(t, &sodav2.CheckOSUpdateRequest{}, got) }},
-		{"update stage", []string{"os", "update", "stage"}, func(t *testing.T, got any) {
-			request := got.(*sodav2.StageOSUpdateRequest)
-			require.Equal(t, "ghcr.io/levitateos/soda-os@sha256:"+strings.Repeat("b", 64), request.GetImageReference())
-		}},
-		{"update activate", []string{"os", "update", "activate", "--confirm-reboot"}, func(t *testing.T, got any) {
-			require.True(t, got.(*sodav2.ActivateOSUpdateRequest).GetConfirmReboot())
-		}},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -117,31 +86,17 @@ func TestCommandsUseReducedGRPCContract(t *testing.T) {
 			require.NoError(t, err)
 			require.Contains(t, output, "\n")
 			test.check(t, server.got)
-			if test.name == "health" {
-				require.Equal(t, "/tmp/soda.sock", *socket)
-			}
+			require.Equal(t, "/tmp/soda.sock", *socket)
 		})
 	}
 }
 
 func TestRemovedControlPlaneCommandsAreUnavailable(t *testing.T) {
 	application := newApp()
-	for _, command := range []string{"people", "projects"} {
+	for _, command := range []string{"people", "projects", "os"} {
 		_, err := execute(t, application, command)
 		require.ErrorContains(t, err, "unknown command")
 	}
-}
-
-func TestOSActivationRequiresExplicitConfirmationBeforeDial(t *testing.T) {
-	application := newApp()
-	dials := 0
-	application.dial = func(context.Context, string) (sodav2.SodaServiceClient, io.Closer, error) {
-		dials++
-		return nil, nil, io.ErrUnexpectedEOF
-	}
-	_, err := execute(t, application, "os", "update", "activate")
-	require.ErrorContains(t, err, "required flag(s) \"confirm-reboot\" not set")
-	require.Zero(t, dials)
 }
 
 func TestCanonicalGRPCErrorsDoNotExposeInternalDetails(t *testing.T) {
@@ -167,14 +122,9 @@ func TestMissingSocketReturnsUnavailableWithinDeadline(t *testing.T) {
 	require.Less(t, time.Since(started), time.Second)
 }
 
-func TestRetainedJSONShapes(t *testing.T) {
+func TestRetainedHealthJSONShape(t *testing.T) {
 	application, _ := testApp(t, &recordingServer{})
 	output, err := execute(t, application, "health")
 	require.NoError(t, err)
 	require.JSONEq(t, `{"status":"ready","service":"sodad","version":"0.4.0"}`, output)
-
-	application, _ = testApp(t, &recordingServer{})
-	output, err = execute(t, application, "os", "update", "status")
-	require.NoError(t, err)
-	require.JSONEq(t, `{"booted":{"image_reference":"ghcr.io/levitateos/soda-os@sha256:`+strings.Repeat("a", 64)+`","version":"0.4.0","digest":"sha256:`+strings.Repeat("a", 64)+`","architecture":"amd64","incompatible":false,"download_only":false},"staged":null,"read_only":true}`, output)
 }
