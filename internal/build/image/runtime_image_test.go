@@ -60,13 +60,17 @@ func TestRuntimeImageBootcContainerContract(t *testing.T) {
 	}
 }
 
-func TestRuntimeImageBootcBuildContextContract(t *testing.T) {
-	contents, err := os.ReadFile(filepath.Join("..", "..", "..", "packaging", "bootc", "Containerfile.dockerignore"))
+func TestImageBuildContextContract(t *testing.T) {
+	contents, err := os.ReadFile(filepath.Join("..", "..", "..", ".dockerignore"))
 	require.NoError(t, err)
 	require.Equal(t, []string{
-		"**",
-		"!.artifacts/",
+		".git",
+		".tailscale_auth_key",
 		".artifacts/*",
+		"!.artifacts/builder/",
+		".artifacts/builder/*",
+		"!.artifacts/builder/packages.lock",
+		"!.artifacts/builder/go.tar.gz",
 		"!.artifacts/rpms/",
 		".artifacts/rpms/*",
 		"!.artifacts/rpms/soda-release-*.rpm",
@@ -78,6 +82,15 @@ func TestRuntimeImageBootcBuildContextContract(t *testing.T) {
 		".artifacts/bootc/*",
 		"!.artifacts/bootc/fedora-packages.txt",
 		"!.artifacts/bootc/expected-packages.txt",
+		"!.artifacts/installer/",
+		".artifacts/installer/*",
+		"!.artifacts/installer/context/",
+		".artifacts/installer/context/*",
+		"!.artifacts/installer/context/installer-packages.txt",
+		"!.artifacts/installer/context/installer-boot-packages.txt",
+		"!.artifacts/installer/context/installer-efi-vendor.txt",
+		"!.artifacts/installer/context/interactive-defaults.ks",
+		"!.artifacts/installer/context/iso.yaml",
 	}, packagingNonCommentLines(string(contents)))
 }
 
