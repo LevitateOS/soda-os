@@ -189,6 +189,7 @@ func TestForgejoTailnetPackagingContract(t *testing.T) {
 	require.Contains(t, string(initUnit), "Wants=tailscaled.service")
 	require.NotContains(t, string(initUnit), "Wants=soda-tailscale-enroll.service")
 	require.Contains(t, string(initUnit), "After=systemd-sysusers.service systemd-tmpfiles-setup.service tailscaled.service soda-tailscale-enroll.service")
+	require.Contains(t, string(initUnit), "ExecStartPre=-/usr/bin/tailscale wait --timeout=30s")
 }
 
 func TestRuntimeImageSystemdResidualContract(t *testing.T) {

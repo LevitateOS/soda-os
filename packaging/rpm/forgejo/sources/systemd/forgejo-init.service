@@ -5,4 +5,5 @@ After=systemd-sysusers.service systemd-tmpfiles-setup.service tailscaled.service
 
 [Service]
 Type=oneshot
+ExecStartPre=-/usr/bin/tailscale wait --timeout=30s
 ExecStart=/usr/libexec/soda/forgejo-init
