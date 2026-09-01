@@ -155,16 +155,19 @@ reboot
 tailscale_auth_key=$tailscale_auth_key
 %end
 
-%pre
+%pre --erroronfail
 scratch_type=$(findmnt -n -o FSTYPE --target /var/tmp)
 scratch_size=$(findmnt -n -b -o SIZE --target /var/tmp)
 if ! { [ "\$scratch_type" = tmpfs ] && [ "\$scratch_size" -ge 4294967296 ]; }; then
     echo "Soda installer scratch is not the required 4 GiB tmpfs" >&2
     exit 1
 fi
-for device in /dev/ttyS0 /dev/ttyAMA0; do
-    test ! -c "\$device" || printf 'soda-acceptance-kickstart-consumed\n' >"\$device"
-done
+oemdrv=/dev/disk/by-label/OEMDRV
+if [ ! -e "\$oemdrv" ]; then
+    echo "The parsed OEMDRV installer input is unavailable for ejection" >&2
+    exit 1
+fi
+/usr/bin/eject "\$oemdrv"
 %end
 EOF
 	chmod 0600 "$kickstart"

@@ -29,10 +29,10 @@ On matching-native x86-64 or AArch64 hardware,
 `tests/acceptance/unattended.sh prepare` creates a protected, test-only OEMDRV
 Kickstart input for a disposable installation. It requires a protected file
 containing one disposable Tailscale auth key. The runner removes the Kickstart
-source after creating OEMDRV; after Anaconda confirms parsing it, QMP ejects the
-medium and the host file is removed. The generated Kickstart writes one fixed
-test marker directly to the architecture's serial device after parsing; it
-never writes an installer value. The native VM uses 8 GiB of memory so the
+source after creating OEMDRV. After Anaconda parses the generated Kickstart,
+its `%pre` section ejects that input in the guest; the host verifies the empty
+drive through QMP and removes the host file. The native VM uses 8 GiB of memory
+so the
 installer's 4 GiB ephemeral `/var/tmp` mount can hold the immutable payload's
 transient import blobs. On x86-64, QEMU keeps the installed disk as the default
 and boots the installer media only once so the completed disk owns the first

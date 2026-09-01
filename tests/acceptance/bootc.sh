@@ -263,10 +263,10 @@ start_installer_input_ejector() {
 		ejected=false
 		eject_tmp=$acceptance_dir/.installer-input-eject.$$.jsonl
 		cleanup_ejector() {
-			rm -f "$installer_input" "$eject_tmp"
 			if [ "$ejected" != true ] && kill -0 "$qemu_pid" 2>/dev/null; then
 				kill -TERM "$qemu_pid" 2>/dev/null || true
 			fi
+			rm -f "$installer_input" "$eject_tmp"
 		}
 		abort_ejector() {
 			trap - 1 2 15
@@ -276,18 +276,33 @@ start_installer_input_ejector() {
 		trap abort_ejector 1 2 15
 
 		deadline=$(( $(date +%s) + 600 ))
-		until grep -a -F -q 'soda-acceptance-kickstart-consumed' "$acceptance_dir/serial.log" 2>/dev/null; do
+		while :; do
 			kill -0 "$qemu_pid" 2>/dev/null || exit 1
-			[ "$(date +%s)" -lt "$deadline" ] || die "Anaconda did not confirm consuming the Kickstart within 600 seconds"
+			[ "$(date +%s)" -lt "$deadline" ] || die "Anaconda did not eject the parsed Kickstart input within 600 seconds"
+			if [ -S "$(qmp_path)" ]; then
+				if qmp '{"execute":"query-block"}' >"$eject_tmp" 2>/dev/null; then
+					if jq -s -e 'any(.[]; has("error"))' "$eject_tmp" >/dev/null; then
+						die "QEMU rejected installer-input inspection"
+					fi
+					if jq -s -e '
+						[ .[]
+						  | .return?
+						  | select(type == "array")
+						  | .[]
+						  | select(
+						      .device == "soda-oemdrv"
+						      and .qdev == "soda-oemdrv-device"
+						    )
+						] as $matches
+						| (($matches | length) == 1
+						   and ($matches[0] | has("inserted") | not))
+					' "$eject_tmp" >/dev/null; then
+						break
+					fi
+				fi
+			fi
 			sleep 1
 		done
-
-		qmp '{"execute":"blockdev-open-tray","arguments":{"id":"soda-oemdrv-device","force":true}}' >"$eject_tmp"
-		qmp '{"execute":"blockdev-remove-medium","arguments":{"id":"soda-oemdrv-device"}}' >>"$eject_tmp"
-		qmp '{"execute":"query-block"}' >>"$eject_tmp"
-		! grep -q '"error"' "$eject_tmp" || die "QEMU rejected removal of the installer input"
-		jq -e 'select((.return? | type) == "array") | .return[] | select(.device == "soda-oemdrv" and (has("inserted") | not))' "$eject_tmp" >/dev/null ||
-			die "QEMU still exposes the installer input"
 
 		rm -f "$installer_input"
 		mv "$eject_tmp" "$acceptance_dir/installer-input-eject.jsonl"

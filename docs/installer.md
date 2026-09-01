@@ -98,8 +98,9 @@ Forgejo password handoff: the password is never a process argument,
 environment value, log field, or retained Soda or target file. Raw-QEMU
 acceptance necessarily carries installer inputs in a protected, transient
 Kickstart and OEMDRV image; it removes the Kickstart source after image
-creation, then uses QMP to eject the OEMDRV and removes its host file after
-Anaconda reports that it parsed the Kickstart.
+creation. After Anaconda parses the generated Kickstart, its `%pre` section
+ejects OEMDRV in the guest. The host verifies through QMP that the exact
+test-only drive is empty before removing its host file.
 
 Forgejo's native PAM source delegates later authentication to the shipped
 `soda-forgejo` PAM policy. The accepted outcome is that a primary human can log
