@@ -259,7 +259,12 @@ func (b *Builder) docker(ctx context.Context, environment []string, name string,
 }
 
 func (b *Builder) dockerCommand(environment []string, name string, args ...string) process.Command {
-	dockerArgs := []string{"run", "--rm", "--platform", b.Spec.Base.Platform, "--volume", b.Root + ":/src", "--workdir", "/src"}
+	owner := fmt.Sprintf("%d:%d", os.Getuid(), os.Getgid())
+	dockerArgs := []string{
+		"run", "--rm", "--platform", b.Spec.Base.Platform,
+		"--user", owner, "--env", "HOME=/tmp",
+		"--volume", b.Root + ":/src", "--workdir", "/src",
+	}
 	for _, pair := range environment {
 		dockerArgs = append(dockerArgs, "--env", pair)
 	}

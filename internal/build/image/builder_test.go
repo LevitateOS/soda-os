@@ -81,7 +81,9 @@ func TestDockerCommandUsesPinnedArm64Builder(t *testing.T) {
 	command := builder.dockerCommand([]string{"SOURCE_DATE_EPOCH=1787825905"}, "rpm", "--version")
 	require.Equal(t, "docker", command.Name)
 	require.Equal(t, []string{
-		"run", "--rm", "--platform", "linux/arm64", "--volume", "/workspace/soda:/src", "--workdir", "/src",
+		"run", "--rm", "--platform", "linux/arm64",
+		"--user", fmt.Sprintf("%d:%d", os.Getuid(), os.Getgid()), "--env", "HOME=/tmp",
+		"--volume", "/workspace/soda:/src", "--workdir", "/src",
 		"--env", "SOURCE_DATE_EPOCH=1787825905", "soda-os-rpm-builder:0.2.0-aarch64", "rpm", "--version",
 	}, command.Args)
 }
