@@ -388,6 +388,7 @@ platform = "linux/arm64"
 	require.NotContains(t, strings.Join(commands, "\n"), "--bootc-installer-payload-ref "+exactReference)
 	require.NotContains(t, strings.Join(commands, "\n"), root+"/.artifacts/installer/containers-storage:/var/lib/containers/storage")
 	require.Contains(t, strings.Join(commands, "\n"), volumeName+":/var/lib/containers/storage")
+	require.Contains(t, strings.Join(commands, "\n"), "--tmpdir /var/lib/containers/storage copy")
 }
 
 func TestBuildRejectsMismatchedHostBeforeValidatingInputs(t *testing.T) {

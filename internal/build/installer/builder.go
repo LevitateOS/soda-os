@@ -344,7 +344,7 @@ func (b *Builder) copyToStorage(ctx context.Context, lock toolLock, volumeName, 
 	args := append([]string{"run", "--rm", "--platform", b.Spec.Base.Platform, "--privileged", "--entrypoint", "skopeo",
 		"--volume", volumeName + ":/var/lib/containers/storage",
 		"--volume", archive + ":/input/image.oci.tar:ro", lock.Reference},
-		"copy", "oci-archive:/input/image.oci.tar", "containers-storage:"+reference)
+		"--tmpdir", "/var/lib/containers/storage", "copy", "oci-archive:/input/image.oci.tar", "containers-storage:"+reference)
 	if err := b.runner.Run(ctx, process.Command{Dir: b.Root, Name: "docker", Args: args}); err != nil {
 		return fmt.Errorf("copy %s into installer container storage: %w", reference, err)
 	}
