@@ -23,7 +23,7 @@ func (b *Builder) inspectISO(ctx context.Context, input isoInspectionInput) erro
 	if err := b.runner.Run(ctx, process.Command{Dir: b.Root, Name: "docker", Args: args}); err != nil {
 		return fmt.Errorf("extract installer squashfs: %w", err)
 	}
-	args = append(append([]string{}, outer...), "unsquashfs", "-f", "-d", "/inspect/root", "/inspect/squashfs.img", ".buildstamp", "usr/lib/os-release", "usr/share/anaconda/interactive-defaults.ks", "etc/anaconda/conf.d/90-soda-storage.conf", "etc/anaconda/profile.d/sodaos.conf", "usr/share/anaconda/pixmaps/soda.css", "usr/share/anaconda/pixmaps/soda-sidebar-logo.png", "usr/share/anaconda/pixmaps/soda-symbol.png", "usr/lib/image-builder/bootc/iso.yaml", "var/lib/containers/storage/overlay-images/images.json")
+	args = append(append([]string{}, outer...), "unsquashfs", "-f", "-d", "/inspect/root", "/inspect/squashfs.img", ".buildstamp", "usr/lib/os-release", "usr/share/anaconda/interactive-defaults.ks", "etc/anaconda/conf.d/90-soda-storage.conf", "etc/anaconda/profile.d/sodaos.conf", "etc/systemd/system/anaconda.target.wants/var-tmp.mount", "usr/share/anaconda/pixmaps/soda.css", "usr/share/anaconda/pixmaps/soda-sidebar-logo.png", "usr/share/anaconda/pixmaps/soda-symbol.png", "usr/lib/image-builder/bootc/iso.yaml", "usr/lib/systemd/system/var-tmp.mount", "var/lib/containers/storage/overlay-images/images.json")
 	if err := b.runner.Run(ctx, process.Command{Dir: b.Root, Name: "docker", Args: args}); err != nil {
 		return fmt.Errorf("inspect installer squashfs: %w", err)
 	}
@@ -72,6 +72,9 @@ func (b *Builder) validateExtractedISO(inspectDir, reference, payloadTag string)
 	if err := b.validateExtractedConfiguration(inspectDir); err != nil {
 		return err
 	}
+	if err := b.validateExtractedInstallerScratch(inspectDir); err != nil {
+		return err
+	}
 	return b.validateExtractedBranding(inspectDir)
 }
 
@@ -113,6 +116,29 @@ func (b *Builder) validateExtractedConfiguration(inspectDir string) error {
 		if !bytes.Equal(actual, expected) {
 			return errors.New(file.mismatch)
 		}
+	}
+	return nil
+}
+
+func (b *Builder) validateExtractedInstallerScratch(inspectDir string) error {
+	actual, err := os.ReadFile(filepath.Join(inspectDir, "root", "usr/lib/systemd/system/var-tmp.mount"))
+	if err != nil {
+		return fmt.Errorf("read ISO installer scratch mount: %w", err)
+	}
+	expected, err := os.ReadFile(filepath.Join(b.Root, "packaging", "installer", "var-tmp.mount"))
+	if err != nil {
+		return fmt.Errorf("read expected installer scratch mount: %w", err)
+	}
+	if !bytes.Equal(actual, expected) {
+		return errors.New("ISO installer scratch mount differs from the Soda installer contract")
+	}
+	wants := filepath.Join(inspectDir, "root", "etc/systemd/system/anaconda.target.wants/var-tmp.mount")
+	target, err := os.Readlink(wants)
+	if err != nil {
+		return fmt.Errorf("read ISO installer scratch mount enablement: %w", err)
+	}
+	if target != "/usr/lib/systemd/system/var-tmp.mount" {
+		return errors.New("ISO installer scratch mount is not enabled for Anaconda")
 	}
 	return nil
 }

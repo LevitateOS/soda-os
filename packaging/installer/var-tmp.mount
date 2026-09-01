@@ -1,0 +1,12 @@
+[Unit]
+Description=Ephemeral Anaconda payload scratch
+Before=anaconda.target anaconda.service
+
+[Mount]
+What=tmpfs
+Where=/var/tmp
+Type=tmpfs
+Options=mode=1777,size=4G
+
+[Install]
+WantedBy=anaconda.target

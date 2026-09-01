@@ -35,7 +35,9 @@ func TestSodaInstallerSpokeUsesNativeAccountsAndFourInputs(t *testing.T) {
 	require.Contains(t, string(containerfile), "COPY packaging/installer/addons/org_fedoraproject_soda /usr/share/anaconda/addons/org_fedoraproject_soda")
 	require.Contains(t, string(containerfile), "org.fedoraproject.Anaconda.Addons.SodaInstaller.service")
 	require.Contains(t, string(containerfile), "org.fedoraproject.Anaconda.Addons.SodaInstaller.conf")
-	require.Contains(t, string(containerfile), "org.fedoraproject.Anaconda.Modules.Payloads.service")
+	require.Contains(t, string(containerfile), "packaging/installer/var-tmp.mount /usr/lib/systemd/system/var-tmp.mount")
+	require.Contains(t, string(containerfile), "anaconda.target.wants/var-tmp.mount")
+	require.NotContains(t, string(containerfile), "org.fedoraproject.Anaconda.Modules.Payloads.service")
 	require.NotContains(t, string(containerfile), "SodaIdentity")
 
 	profile, err := os.ReadFile(filepath.Join(root, "packaging", "installer", "branding", "sodaos.conf"))
@@ -184,6 +186,9 @@ func TestUnattendedInstallerInputsMatchTheFourValueContract(t *testing.T) {
 		"expected_platform=linux/amd64",
 		"export SODA_ACCEPTANCE_ARCHITECTURE=$architecture",
 		"soda-acceptance-kickstart-consumed",
+		`scratch_type=$(findmnt -n -o FSTYPE --target /var/tmp)`,
+		`scratch_size=$(findmnt -n -b -o SIZE --target /var/tmp)`,
+		`[ "\$scratch_type" = tmpfs ] && [ "\$scratch_size" -ge 4294967296 ]`,
 		`rm -f "$kickstart"`,
 		"trap abort_prepare 1 2 15",
 	} {
@@ -201,20 +206,24 @@ func TestUnattendedInstallerInputsMatchTheFourValueContract(t *testing.T) {
 	require.Contains(t, string(bootRunner), "id=soda-oemdrv-device")
 	require.Contains(t, string(bootRunner), `"execute":"blockdev-remove-medium"`)
 	require.Contains(t, string(bootRunner), `rm -f "$installer_input"`)
+	require.Contains(t, string(bootRunner), "start_x86_unattended_boot_selector")
+	require.Contains(t, string(bootRunner), "installer-boot-override.jsonl")
+	require.Contains(t, string(bootRunner), "down down end spc i n s t dot c m d l i n e")
 	require.Contains(t, string(bootRunner), "installer-input-eject.jsonl")
 	require.Contains(t, string(bootRunner), "soda-acceptance-kickstart-consumed")
 	require.Contains(t, string(bootRunner), "-m 8192")
-	require.Contains(t, string(bootRunner), "-boot once=d")
+	require.Contains(t, string(bootRunner), "-boot order=c,once=d")
+	require.Contains(t, string(bootRunner), "-boot order=c")
 	require.Contains(t, string(bootRunner), `"$admin@$guest_host"`)
 	require.Contains(t, string(bootRunner), `https://$guest_host:$guest_cockpit_port/ping`)
 }
 
 func TestInstallerPayloadUsesRAMBackedTemporaryStorage(t *testing.T) {
 	root := filepath.Join("..", "..", "..")
-	servicePath := filepath.Join(root, "packaging", "installer", "org.fedoraproject.Anaconda.Modules.Payloads.service")
-	service, err := os.ReadFile(servicePath)
+	mountPath := filepath.Join(root, "packaging", "installer", "var-tmp.mount")
+	mount, err := os.ReadFile(mountPath)
 	require.NoError(t, err)
-	require.Equal(t, "[D-BUS Service]\nName=org.fedoraproject.Anaconda.Modules.Payloads\nExec=/usr/libexec/anaconda/start-module --env TMPDIR=/tmp pyanaconda.modules.payloads\nUser=root\n", string(service))
-	require.NotContains(t, string(service), "/var/tmp")
-	require.NotContains(t, string(service), "/mnt/sysimage")
+	require.Equal(t, "[Unit]\nDescription=Ephemeral Anaconda payload scratch\nBefore=anaconda.target anaconda.service\n\n[Mount]\nWhat=tmpfs\nWhere=/var/tmp\nType=tmpfs\nOptions=mode=1777,size=4G\n\n[Install]\nWantedBy=anaconda.target\n", string(mount))
+	require.NotContains(t, string(mount), "nosuid")
+	require.NotContains(t, string(mount), "/mnt/sysimage")
 }

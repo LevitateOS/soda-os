@@ -216,6 +216,46 @@ qmp() {
 	fi
 }
 
+qmp_key() {
+	key=$1
+	qmp "{\"execute\":\"send-key\",\"arguments\":{\"keys\":[{\"type\":\"qcode\",\"data\":\"$key\"}]}}"
+}
+
+start_x86_unattended_boot_selector() {
+	qemu_pid=$$
+	(
+		boot_tmp=$acceptance_dir/.installer-boot-override.$$.jsonl
+		cleanup_boot_selector() {
+			rm -f "$boot_tmp"
+			if [ ! -f "$acceptance_dir/installer-boot-override.jsonl" ] && kill -0 "$qemu_pid" 2>/dev/null; then
+				kill -TERM "$qemu_pid" 2>/dev/null || true
+			fi
+		}
+		abort_boot_selector() {
+			trap - 1 2 15
+			exit 1
+		}
+		trap cleanup_boot_selector 0
+		trap abort_boot_selector 1 2 15
+
+		deadline=$(( $(date +%s) + 120 ))
+		until grep -a -F -q 'Press enter to boot the selected OS' "$acceptance_dir/serial.log" 2>/dev/null; do
+			kill -0 "$qemu_pid" 2>/dev/null || exit 1
+			[ "$(date +%s)" -lt "$deadline" ] || die "x86 installer GRUB did not become ready within 120 seconds"
+			sleep 1
+		done
+
+		qmp_key e >"$boot_tmp"
+		for key in down down end spc i n s t dot c m d l i n e; do
+			qmp_key "$key" >>"$boot_tmp"
+		done
+		qmp '{"execute":"send-key","arguments":{"keys":[{"type":"qcode","data":"ctrl"},{"type":"qcode","data":"x"}]}}' >>"$boot_tmp"
+		! grep -q '"error"' "$boot_tmp" || die "QEMU rejected the x86 unattended boot selection"
+		mv "$boot_tmp" "$acceptance_dir/installer-boot-override.jsonl"
+		trap - 0 1 2 15
+	) &
+}
+
 start_installer_input_ejector() {
 	installer_input=$1
 	qemu_pid=$$
@@ -272,7 +312,7 @@ launch() {
 		need_file "$iso"
 		[ ! -e "$disk" ] || die "refusing to install over existing disk $disk"
 		"$qemu_img" create -f qcow2 "$disk" "${SODA_ACCEPTANCE_DISK_SIZE:-40G}"
-		rm -f "$acceptance_dir/serial.log" "$acceptance_dir/installer-input-eject.jsonl"
+		rm -f "$acceptance_dir/serial.log" "$acceptance_dir/installer-boot-override.jsonl" "$acceptance_dir/installer-input-eject.jsonl"
 		if [ "$architecture" = aarch64 ]; then
 			installer_args="-drive file=$iso,media=cdrom,if=virtio,format=raw,readonly=on"
 		else
@@ -342,8 +382,11 @@ launch_x86_64() {
 	fi
 	boot_command=
 	if [ "$mode" = install ]; then
-		set -- -boot once=d "$@"
-		boot_command="-boot once=d"
+		set -- -boot order=c,once=d "$@"
+		boot_command="-boot order=c,once=d"
+	else
+		set -- -boot order=c "$@"
+		boot_command="-boot order=c"
 	fi
 	if [ "$mode" = install ]; then
 		cp "$vars_template" "$vars"
@@ -361,6 +404,7 @@ $boot_command
 EOF
 	# Word splitting is intentional for the fixed, locally constructed installer arguments.
 	# shellcheck disable=SC2086
+	[ "$mode" != install ] || [ -z "${kickstart_iso:-}" ] || start_x86_unattended_boot_selector
 	[ -z "${kickstart_iso:-}" ] || start_installer_input_ejector "$kickstart_iso"
 	exec "$qemu" -machine q35,accel=kvm -cpu host -smp 4 -m 8192 \
 		-drive "if=pflash,format=raw,readonly=on,file=$firmware" \
@@ -696,6 +740,17 @@ capture() {
 			fi
 			echo "$path=absent"
 		done
+		echo "[installer-scratch]"
+		if test -e /usr/lib/systemd/system/var-tmp.mount; then
+			echo "unexpected-path=/usr/lib/systemd/system/var-tmp.mount"
+			exit 1
+		fi
+		if find /var/tmp -maxdepth 1 -name "container_images_*" -print -quit | grep -q .; then
+			echo "unexpected-path=/var/tmp/container_images_*"
+			exit 1
+		fi
+		echo "var-tmp.mount=absent"
+		echo "container-images-scratch=absent"
 		echo "[boot-entries]"; efibootmgr -v 2>/dev/null || true
 		echo "[automatic-update]"
 		for unit in bootc-fetch-apply-updates.timer bootc-fetch-apply-updates.service; do

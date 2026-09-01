@@ -32,10 +32,16 @@ containing one disposable Tailscale auth key. The runner removes the Kickstart
 source after creating OEMDRV; after Anaconda confirms parsing it, QMP ejects the
 medium and the host file is removed. The generated Kickstart writes one fixed
 test marker directly to the architecture's serial device after parsing; it
-never writes an installer value. The native VM uses 8 GiB of memory so Fedora's
-RAM-backed installer `/tmp` can hold the immutable payload's transient import
-blobs. On x86-64, QEMU boots the installer media only once so the completed
-disk owns the first reboot.
+never writes an installer value. The native VM uses 8 GiB of memory so the
+installer's 4 GiB ephemeral `/var/tmp` mount can hold the immutable payload's
+transient import blobs. On x86-64, QEMU keeps the installed disk as the default
+and boots the installer media only once so the completed disk owns the first
+reboot. The shipped x86-64 installer remains graphical; when the protected
+OEMDRV input is present, the runner uses QMP keyboard events to append a
+test-only `inst.cmdline` override to that exact ISO's GRUB entry.
+This lets the unattended Kickstart own the installer mode without changing or
+bypassing the product ISO boot path. The QMP responses are retained as
+`installer-boot-override.jsonl`.
 
 Load the generated `runner.env` in two terminals. `launch` replaces its shell
 with QEMU and remains in the foreground until the VM stops.

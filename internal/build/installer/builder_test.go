@@ -68,6 +68,27 @@ func TestInstallerStorageUsesOnePlainExt4Root(t *testing.T) {
 	require.Contains(t, string(containerfile), "COPY --chmod=0644 packaging/installer/soda-storage.conf /etc/anaconda/conf.d/90-soda-storage.conf")
 }
 
+func TestInstallerScratchMountRequiresExactUnitAndEnablement(t *testing.T) {
+	root := t.TempDir()
+	inspectDir := t.TempDir()
+	expected := []byte("[Mount]\nWhat=tmpfs\nWhere=/var/tmp\n")
+	expectedPath := filepath.Join(root, "packaging", "installer", "var-tmp.mount")
+	actualPath := filepath.Join(inspectDir, "root", "usr", "lib", "systemd", "system", "var-tmp.mount")
+	wantsPath := filepath.Join(inspectDir, "root", "etc", "systemd", "system", "anaconda.target.wants", "var-tmp.mount")
+	require.NoError(t, os.MkdirAll(filepath.Dir(expectedPath), 0o755))
+	require.NoError(t, os.MkdirAll(filepath.Dir(actualPath), 0o755))
+	require.NoError(t, os.MkdirAll(filepath.Dir(wantsPath), 0o755))
+	require.NoError(t, os.WriteFile(expectedPath, expected, 0o644))
+	require.NoError(t, os.WriteFile(actualPath, expected, 0o644))
+	require.NoError(t, os.Symlink("/usr/lib/systemd/system/var-tmp.mount", wantsPath))
+	builder := NewBuilder(root, config.DistroSpec{}, &recordingRunner{})
+	require.NoError(t, builder.validateExtractedInstallerScratch(inspectDir))
+
+	require.NoError(t, os.Remove(wantsPath))
+	require.NoError(t, os.Symlink("/wrong", wantsPath))
+	require.EqualError(t, builder.validateExtractedInstallerScratch(inspectDir), "ISO installer scratch mount is not enabled for Anaconda")
+}
+
 func TestStorageConfigRequiresExactPlainExt4RootOnlyContract(t *testing.T) {
 	expected := []byte("[Storage]\nfile_system_type = ext4\ndefault_scheme = PLAIN\ndefault_partitioning =\n    / (min 1 GiB)\n")
 	root := t.TempDir()

@@ -156,6 +156,12 @@ tailscale_auth_key=$tailscale_auth_key
 %end
 
 %pre
+scratch_type=$(findmnt -n -o FSTYPE --target /var/tmp)
+scratch_size=$(findmnt -n -b -o SIZE --target /var/tmp)
+if ! { [ "\$scratch_type" = tmpfs ] && [ "\$scratch_size" -ge 4294967296 ]; }; then
+    echo "Soda installer scratch is not the required 4 GiB tmpfs" >&2
+    exit 1
+fi
 for device in /dev/ttyS0 /dev/ttyAMA0; do
     test ! -c "\$device" || printf 'soda-acceptance-kickstart-consumed\n' >"\$device"
 done
