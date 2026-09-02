@@ -18,7 +18,6 @@ cmdline
 lang en_US.UTF-8
 keyboard us
 timezone UTC --utc
-network --bootproto=dhcp --device=link --activate --onboot=on --hostname=soda-acceptance
 zerombr
 clearpart --all --initlabel
 autopart --type=plain --fstype=ext4

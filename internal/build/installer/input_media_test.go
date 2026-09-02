@@ -63,12 +63,13 @@ func TestInstallerInputUnattendedModeAddsOnlyFixedNonSecretAutomation(t *testing
 		"cmdline\n",
 		"clearpart --all --initlabel\n",
 		"autopart --type=plain --fstype=ext4\n",
-		"network --bootproto=dhcp --device=link --activate --onboot=on --hostname=soda-acceptance\n",
 		"eula --agreed\n",
 		"reboot\n",
 	} {
 		require.Contains(t, kickstart, expected)
 	}
+	require.NotContains(t, kickstart, "soda-acceptance")
+	require.NotContains(t, kickstart, "network --bootproto=dhcp")
 	require.NotContains(t, kickstart, "correct horse battery staple")
 	require.NotContains(t, kickstart, "tskey-auth-test-secret")
 }

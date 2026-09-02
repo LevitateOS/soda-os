@@ -52,6 +52,10 @@ media only once so the completed disk owns the first reboot.
 
 Load the generated `runner.env` in two terminals. `launch` replaces its shell
 with QEMU and remains in the foreground until the VM stops.
+The file defaults the enrolled guest identity to the product hostname `soda`.
+If the matching-native host does not resolve Tailnet short names, export the
+guest's enrolled MagicDNS name or Tailnet IP as `SODA_ACCEPTANCE_GUEST_HOST`
+after loading `runner.env`.
 
 In terminal 1:
 
