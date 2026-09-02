@@ -763,8 +763,10 @@ forgejo_pid=$(systemctl show forgejo.service --property=MainPID --value)
 test "$forgejo_pid" -gt 0
 grep -E "^Groups:.*[[:space:]]$shadow_gid([[:space:]]|$)" "/proc/$forgejo_pid/status" >/dev/null
 test "$(getenforce)" = Enforcing
-grep -Fx 'auth       required     pam_usertype.so isregular' /etc/pam.d/forgejo >/dev/null
-grep -Fx 'auth       required     pam_succeed_if.so quiet user notingroup soda-workspaces' /etc/pam.d/forgejo >/dev/null
+semodule -l | grep -Fx soda_forgejo_shadow >/dev/null
+grep -Eq '^auth[[:space:]]+include[[:space:]]+system-auth$' /etc/pam.d/soda-forgejo
+grep -Eq '^account[[:space:]]+requisite[[:space:]]+pam_usertype\.so[[:space:]]+isregular$' /etc/pam.d/soda-forgejo
+grep -Eq '^account[[:space:]]+requisite[[:space:]]+pam_succeed_if\.so[[:space:]]+quiet[[:space:]]+user[[:space:]]+notingroup[[:space:]]+soda-workspaces$' /etc/pam.d/soda-forgejo
 echo "forgejo-shadow-boundary=service-only"
 EOF
 }
@@ -1462,11 +1464,13 @@ test "$forgejo_pid" -gt 0
 grep -E "^Groups:.*[[:space:]]$shadow_gid([[:space:]]|$)" "/proc/$forgejo_pid/status" >/dev/null
 selinux=$(getenforce)
 test "$selinux" = Enforcing
-pam_sha=$(sha256sum /etc/pam.d/forgejo | awk '{print $1}')
+policy_module=$(semodule -l | awk '$1 == "soda_forgejo_shadow" { print $1 }')
+test "$policy_module" = soda_forgejo_shadow
+pam_sha=$(sha256sum /etc/pam.d/soda-forgejo | awk '{print $1}')
 shadow_access=$(jq -cn --arg file "$shadow_state" --arg service_group "$service_groups" \
-	--arg selinux "$selinux" --arg pam_sha "$pam_sha" \
+	--arg selinux "$selinux" --arg policy_module "$policy_module" --arg pam_sha "$pam_sha" \
 	'{file:$file,service_supplementary_group:$service_group,nss_members:[],service_process_has_group:true,
-	  selinux:$selinux,pam_sha256:$pam_sha}')
+	  selinux:$selinux,policy_module:$policy_module,pam_sha256:$pam_sha}')
 
 jq -cn --argjson accounts "$accounts" --argjson workspace_assertions "$workspace_assertions" \
 	--argjson workspaces "$workspaces" --argjson tailnet "$tailnet" \
