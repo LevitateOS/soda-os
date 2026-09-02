@@ -35,7 +35,7 @@ Additional fallback environment:
 
 Additional launch install environment:
   SODA_ACCEPTANCE_ISO              Exact-digest Soda installer ISO
-  SODA_ACCEPTANCE_KICKSTART_ISO    Optional test-only OEMDRV automation ISO
+  SODA_ACCEPTANCE_KICKSTART_ISO    Protected generated OEMDRV installer input
 
 Additional workspace/toolset environment:
   SODA_ACCEPTANCE_WORKSPACE_TARGET Derived Linux workspace username
@@ -216,46 +216,6 @@ qmp() {
 	fi
 }
 
-qmp_key() {
-	key=$1
-	qmp "{\"execute\":\"send-key\",\"arguments\":{\"keys\":[{\"type\":\"qcode\",\"data\":\"$key\"}]}}"
-}
-
-start_x86_unattended_boot_selector() {
-	qemu_pid=$$
-	(
-		boot_tmp=$acceptance_dir/.installer-boot-override.$$.jsonl
-		cleanup_boot_selector() {
-			rm -f "$boot_tmp"
-			if [ ! -f "$acceptance_dir/installer-boot-override.jsonl" ] && kill -0 "$qemu_pid" 2>/dev/null; then
-				kill -TERM "$qemu_pid" 2>/dev/null || true
-			fi
-		}
-		abort_boot_selector() {
-			trap - 1 2 15
-			exit 1
-		}
-		trap cleanup_boot_selector 0
-		trap abort_boot_selector 1 2 15
-
-		deadline=$(( $(date +%s) + 120 ))
-		until grep -a -F -q 'Press enter to boot the selected OS' "$acceptance_dir/serial.log" 2>/dev/null; do
-			kill -0 "$qemu_pid" 2>/dev/null || exit 1
-			[ "$(date +%s)" -lt "$deadline" ] || die "x86 installer GRUB did not become ready within 120 seconds"
-			sleep 1
-		done
-
-		qmp_key e >"$boot_tmp"
-		for key in down down end spc i n s t dot c m d l i n e; do
-			qmp_key "$key" >>"$boot_tmp"
-		done
-		qmp '{"execute":"send-key","arguments":{"keys":[{"type":"qcode","data":"ctrl"},{"type":"qcode","data":"x"}]}}' >>"$boot_tmp"
-		! grep -q '"error"' "$boot_tmp" || die "QEMU rejected the x86 unattended boot selection"
-		mv "$boot_tmp" "$acceptance_dir/installer-boot-override.jsonl"
-		trap - 0 1 2 15
-	) &
-}
-
 start_installer_input_ejector() {
 	installer_input=$1
 	qemu_pid=$$
@@ -363,18 +323,17 @@ launch() {
 		need_file "$iso"
 		[ ! -e "$disk" ] || die "refusing to install over existing disk $disk"
 		"$qemu_img" create -f qcow2 "$disk" "${SODA_ACCEPTANCE_DISK_SIZE:-40G}"
-		rm -f "$acceptance_dir/serial.log" "$acceptance_dir/installer-boot-override.jsonl" "$acceptance_dir/installer-input-eject.jsonl"
+		rm -f "$acceptance_dir/serial.log" "$acceptance_dir/installer-input-eject.jsonl"
 		if [ "$architecture" = aarch64 ]; then
 			installer_args="-drive file=$iso,media=cdrom,if=virtio,format=raw,readonly=on"
 		else
 			installer_args="-drive file=$iso,media=cdrom,format=raw,readonly=on"
 		fi
 		kickstart_iso=${SODA_ACCEPTANCE_KICKSTART_ISO:-}
-		if [ -n "$kickstart_iso" ]; then
-			need_file "$kickstart_iso"
-			need jq
-			installer_args="$installer_args -drive if=none,file=$kickstart_iso,format=raw,readonly=on,id=soda-oemdrv -device virtio-scsi-pci,id=soda-oemdrv-scsi -device scsi-cd,drive=soda-oemdrv,id=soda-oemdrv-device"
-		fi
+		[ -n "$kickstart_iso" ] || die "SODA_ACCEPTANCE_KICKSTART_ISO is required for launch install"
+		need_file "$kickstart_iso"
+		need jq
+		installer_args="$installer_args -drive if=none,file=$kickstart_iso,format=raw,readonly=on,id=soda-oemdrv -device virtio-scsi-pci,id=soda-oemdrv-scsi -device scsi-cd,drive=soda-oemdrv,id=soda-oemdrv-device"
 	else
 		need_file "$disk"
 	fi
@@ -455,7 +414,6 @@ $boot_command
 EOF
 	# Word splitting is intentional for the fixed, locally constructed installer arguments.
 	# shellcheck disable=SC2086
-	[ "$mode" != install ] || [ -z "${kickstart_iso:-}" ] || start_x86_unattended_boot_selector
 	[ -z "${kickstart_iso:-}" ] || start_installer_input_ejector "$kickstart_iso"
 	exec "$qemu" -machine q35,accel=kvm -cpu host -smp 4 -m 8192 \
 		-drive "if=pflash,format=raw,readonly=on,file=$firmware" \
@@ -686,6 +644,32 @@ echo "toolset-smoke=ok"
 SODA_TOOLSET_SMOKE
 }
 
+emit_installer_provisioning_absence() {
+	cat <<'SODA_INSTALLER_PROVISIONING_ABSENCE'
+set -eu
+
+for path in \
+	/root/anaconda-ks.cfg \
+	/root/original-ks.cfg \
+	/run/soda-installer \
+	/var/lib/soda-install \
+	/usr/libexec/soda/soda-installer-finalize \
+	/usr/libexec/soda/soda-installer-input \
+	/usr/share/anaconda/addons/org_fedoraproject_soda \
+	/usr/share/anaconda/dbus/confs/org.fedoraproject.Anaconda.Addons.SodaInstaller.conf \
+	/usr/share/anaconda/dbus/services/org.fedoraproject.Anaconda.Addons.SodaInstaller.service; do
+	if test -e "$path"; then
+		echo "unexpected-path=$path"
+		exit 1
+	fi
+	echo "$path=absent"
+done
+enrollment_state=$(systemctl is-enabled soda-tailscale-enroll.service 2>/dev/null || true)
+test "$enrollment_state" = disabled
+echo "soda-tailscale-enroll.service=disabled"
+SODA_INSTALLER_PROVISIONING_ABSENCE
+}
+
 capture() {
 	name=${1:-}
 	valid_name "$name" || die "capture requires a lowercase name containing only letters, digits, and hyphens"
@@ -824,6 +808,13 @@ capture() {
 	if [ "$verify_workspace_toolset" = 1 ]; then
 		emit_toolset_smoke | workspace_ssh /bin/sh -s \
 			>"$checkpoint/workspace-toolset.txt" 2>"$checkpoint/workspace-toolset.stderr"
+	fi
+	if [ -n "$password_file" ]; then
+		run_privileged_script emit_installer_provisioning_absence \
+			>"$checkpoint/installer-provisioning.txt" 2>"$checkpoint/installer-provisioning.stderr"
+	else
+		emit_installer_provisioning_absence | admin_ssh 'sudo -n /bin/sh -s' \
+			>"$checkpoint/installer-provisioning.txt" 2>"$checkpoint/installer-provisioning.stderr"
 	fi
 	if [ -n "$password_file" ]; then
 		admin_ssh "sudo -k -S -p '' /usr/bin/sodactl health" <"$password_file" \

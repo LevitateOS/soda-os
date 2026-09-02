@@ -50,7 +50,7 @@ prepare() {
 			;;
 		*) die "unattended acceptance requires matching native AArch64 or x86-64 hardware" ;;
 	esac
-	for command in jq openssl ssh-keygen sha256sum xorriso; do
+	for command in go jq openssl ssh-keygen sha256sum xorriso; do
 		need "$command"
 	done
 	acceptance_dir=${SODA_ACCEPTANCE_DIR:-}
@@ -114,17 +114,9 @@ PY
 		printf '\n' >>"$password_file"
 	fi
 	chmod 0600 "$admin_key" "$password_file"
-	password=$(tr -d '\r\n' <"$password_file")
-	[ -n "$password" ] || die "administrator password file is empty"
-	public_key=$(awk 'NF >= 2 {print $1 " " $2; exit}' "$admin_key.pub")
-	tailscale_auth_key=$(tr -d '\r\n' <"$tailscale_auth_key_file")
-	[ -n "$tailscale_auth_key" ] || die "Tailscale auth key file is empty"
-
-	kickstart=$acceptance_dir/ks.cfg
 	kickstart_iso=$acceptance_dir/oemdrv.iso
 	prepared=false
 	cleanup_prepare() {
-		rm -f "$kickstart"
 		[ "$prepared" = true ] || rm -f "$kickstart_iso"
 	}
 	abort_prepare() {
@@ -133,55 +125,15 @@ PY
 	}
 	trap cleanup_prepare 0
 	trap abort_prepare 1 2 15
-	cat >"$kickstart" <<EOF
-# Generated test-only Soda OS unattended installation under raw QEMU.
-cmdline
-lang en_US.UTF-8
-keyboard us
-timezone UTC --utc
-network --bootproto=dhcp --device=link --activate --onboot=on --hostname=soda-acceptance
-zerombr
-clearpart --all --initlabel
-autopart --type=plain --fstype=ext4
-rootpw --lock
-user --name=$admin --groups=wheel --password="$password" --plaintext
-sshkey --username=$admin "$public_key"
-firstboot --disable
-eula --agreed
-bootc --source-imgref="containers-storage:$image_reference" --target-imgref="$image_reference"
-reboot
-
-%addon org_fedoraproject_soda
-tailscale_auth_key=$tailscale_auth_key
-%end
-
-%pre --erroronfail
-scratch_type=\$(findmnt -n -o FSTYPE --target /var/tmp)
-scratch_size=\$(findmnt -n -b -o SIZE --target /var/tmp)
-if ! { [ "\$scratch_type" = tmpfs ] && [ "\$scratch_size" -ge 4294967296 ]; }; then
-    echo "Soda installer scratch is not the required 4 GiB tmpfs" >&2
-    exit 1
-fi
-oemdrv=/dev/disk/by-label/OEMDRV
-if [ ! -e "\$oemdrv" ]; then
-    echo "The parsed OEMDRV installer input is unavailable for ejection" >&2
-    exit 1
-fi
-eject_attempts=0
-while [ -e "\$oemdrv" ]; do
-    if [ "\$eject_attempts" -ge 120 ]; then
-        echo "The parsed OEMDRV installer input was not removed after guest ejection" >&2
-        exit 1
-    fi
-    /usr/bin/eject "\$oemdrv" || [ ! -e "\$oemdrv" ] || exit 1
-    eject_attempts=\$((eject_attempts + 1))
-    sleep 1
-done
-%end
-EOF
-	chmod 0600 "$kickstart"
-	xorriso -as mkisofs -quiet -V OEMDRV -o "$kickstart_iso" "$kickstart"
-	rm -f "$kickstart"
+	go run ./cmd/soda-image --architecture "$architecture" installer-input \
+		--unattended \
+		--iso "$iso" \
+		--release-record "$record" \
+		--username "$admin" \
+		--password-file "$password_file" \
+		--ssh-public-key-file "$admin_key.pub" \
+		--tailscale-auth-key-file "$tailscale_auth_key_file" \
+		--output "$kickstart_iso"
 
 	image_digest=$(printf '%s\n' "$image_reference" | sed 's/.*@//')
 	cat >"$acceptance_dir/runner.env" <<EOF
