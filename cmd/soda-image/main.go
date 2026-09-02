@@ -37,10 +37,49 @@ func main() {
 	root.AddCommand(oci)
 	root.AddCommand(releaseCommand(builder))
 	root.AddCommand(installerCommand(builder))
+	root.AddCommand(installerInputCommand(builder))
 	if err := root.Execute(); err != nil {
 		fmt.Fprintln(os.Stderr, "soda-image:", err)
 		os.Exit(1)
 	}
+}
+
+func installerInputCommand(builder func() (*image.Builder, error)) *cobra.Command {
+	var options installer.InstallerInputOptions
+	command := &cobra.Command{
+		Use:   "installer-input",
+		Short: "create protected Soda installer answer media",
+		Args:  cobra.NoArgs,
+		RunE: func(command *cobra.Command, _ []string) error {
+			imageBuilder, err := builder()
+			if err != nil {
+				return err
+			}
+			inputBuilder := installer.NewInstallerInputBuilder(
+				imageBuilder.Spec,
+				process.OSRunner{Stdout: os.Stdout, Stderr: os.Stderr},
+				nil,
+			)
+			output, err := inputBuilder.Build(command.Context(), options)
+			if err != nil {
+				return err
+			}
+			fmt.Printf("Built installer input: %s\n", output)
+			return nil
+		},
+	}
+	command.Flags().StringVar(&options.ISOPath, "iso", "", "exact Soda installer ISO")
+	command.Flags().StringVar(&options.ReleaseRecordPath, "release-record", "", "release record for the selected installer ISO")
+	command.Flags().StringVar(&options.Username, "username", "", "initial administrator Linux username")
+	command.Flags().StringVar(&options.SSHPublicKeyPath, "ssh-public-key-file", "", "administrator SSH public key file")
+	command.Flags().StringVar(&options.TailscaleAuthKeyPath, "tailscale-auth-key-file", "", "protected Tailscale auth key file")
+	command.Flags().StringVar(&options.PasswordPath, "password-file", "", "protected administrator password file; omit to prompt securely")
+	command.Flags().StringVar(&options.OutputPath, "output", "", "new OEMDRV installer input ISO")
+	command.Flags().BoolVar(&options.Unattended, "unattended", false, "use fixed destructive storage automation for a disposable acceptance VM")
+	for _, name := range []string{"iso", "release-record", "username", "ssh-public-key-file", "tailscale-auth-key-file", "output"} {
+		_ = command.MarkFlagRequired(name)
+	}
+	return command
 }
 
 func installerCommand(builder func() (*image.Builder, error)) *cobra.Command {
