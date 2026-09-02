@@ -17,13 +17,14 @@ custom host-administration backend.
 ## Immutable development tools
 
 The reviewed development-tool collection is installed in this image through
-exact architecture-owned Fedora package locks plus a checksum-locked Bun RPM.
-`/usr/share/soda/toolset-commands.txt` lists the command contract, with one
-command per line. The same system commands are available to primary and derived
-workspace accounts through ordinary `PATH`; user packages, caches, and project
-dependencies remain in their homes. Soda has no runtime toolchain profiles,
-downloader, readiness state, persistent toolchain directory, or toolchain
-mount.
+exact architecture-owned Fedora package locks plus checksum-locked Bun and Tea
+RPMs. `/usr/share/soda/toolset-commands.txt` lists the command contract, with
+one command per line. The same system commands, including `gh` and the
+Forgejo-compatible `tea`, are available to primary and derived workspace
+accounts through ordinary `PATH`; user packages, caches, project dependencies,
+and CLI authentication remain in their homes. Soda has no shared forge login,
+runtime toolchain profiles, downloader, readiness state, persistent toolchain
+directory, or toolchain mount.
 
 ## Manual image lifecycle
 

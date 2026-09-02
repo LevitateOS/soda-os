@@ -1,0 +1,15 @@
+version = "0.15.1"
+license_url = "https://gitea.com/gitea/tea/raw/tag/v0.15.1/LICENSE"
+license_sha256 = "a804f8028d201e1e36e44372674025f74c71f67a28c58f09991c1069726f1fd2"
+checksum_manifest_url = "https://gitea.com/gitea/tea/releases/download/v0.15.1/checksums.txt"
+checksum_manifest_sha256 = "295347169dacd180fd920d78079e770a829f338c6bb0ae26493baa0ff4e8ac61"
+
+[asset.x86_64]
+archive = "tea-0.15.1-linux-amd64.xz"
+url = "https://gitea.com/gitea/tea/releases/download/v0.15.1/tea-0.15.1-linux-amd64.xz"
+sha256 = "cd4dc38e2dd051577e434ee9649793c80f1e5b3266efa901ba64b72f8d8e53a8"
+
+[asset.aarch64]
+archive = "tea-0.15.1-linux-arm64.xz"
+url = "https://gitea.com/gitea/tea/releases/download/v0.15.1/tea-0.15.1-linux-arm64.xz"
+sha256 = "cd7db63fd4319045b842af7843ff0bfbc247cd73b8e6b482a067cc4e3ce1d404"

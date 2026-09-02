@@ -13,7 +13,8 @@ other.
 
 1. Run `just check`.
 2. Run `just rpm ARCH` and require the exact locked `soda-release`,
-   `soda-runtime`, `soda-projects`, `soda-forgejo`, and `soda-bun` inputs.
+   `soda-runtime`, `soda-projects`, `soda-forgejo`, `soda-bun`, and `soda-tea`
+   inputs.
 3. Run `just oci ARCH` and inspect the matching-native OCI archive, installed
    package inventory, image labels, complete stock Cockpit host payload,
    immutable tool manifest, and absence of the deleted identity, project,
@@ -153,6 +154,14 @@ temporary directory. It also exercises representative Git/SSH, build, archive,
 editor, and data tools plus rootless `podman info` and `podman unshare`. The
 Podman checks use only native per-user state and do not add a Soda container
 fixture or control path.
+
+The same primary and derived smoke runs resolve and invoke both `gh` and `tea`.
+They prove only immutable command availability and harmless version/help
+behavior; acceptance does not log either user into a forge or create shared
+credentials. The `soda-tea` RPM owns only its executable and license, and the
+installed-system capture rejects Soda- or system-managed `gh` and Tea
+configuration, credential, and state paths while allowing each user to keep
+ordinary CLI configuration below their own home.
 
 The capture must fail if `/opt/soda/toolchains`,
 `/var/lib/soda/toolchains`, `opt-soda-toolchains.mount`, or

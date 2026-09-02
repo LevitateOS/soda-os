@@ -1,9 +1,10 @@
 # Soda OS artifact operations
 
 > [!IMPORTANT]
-> Publication remains a later architectural-reset milestone. Installed Soda
-> systems do not consume the paired release index at runtime; administrators
-> select exact published image digests through native `bootc` operations.
+> `soda-release` is an operator-side boundary around Git, `gh`, and GitHub
+> Releases. It is not installed in Soda OS, and installed systems consume no
+> release index. Administrators select exact published image digests through
+> native `bootc` operations.
 
 Local development produces platform-specific OCI archives and installer ISOs
 without publishing or signing them. Architecture selection is explicit and
@@ -32,9 +33,10 @@ It does not contact GHCR, push an image, invoke Cosign, or require any signing
 key, passphrase, signature, or registry credentials.
 
 The OCI build also verifies the architecture-owned package lock, the fixed
-Forgejo and Bun source inputs, and every command in the installed immutable
-tool manifest. Bun source and RPM construction occur only on matching-native
-hardware. There is no runtime source lookup or tool download path.
+Forgejo, Bun, and Tea source inputs, and every command in the installed
+immutable tool manifest. Bun and Tea source and RPM construction occur only on
+matching-native hardware. There is no runtime source lookup or tool download
+path.
 
 The metadata command independently inspects the completed ISO and writes an
 unsigned local record containing the image labels, exact local digest, RPM
@@ -96,31 +98,102 @@ Production releases use these two distribution services:
   now that installed systems do not consume it. The marketing website may link
   to these releases, but is not an update authority.
 
-Published release data is append-only. Publication must fail before changing
-GitHub if the Git tag, GitHub Release, or any intended asset name already
-exists. It must never replace a published version asset or move a published
-version to different bytes or digests.
+Published release data is append-only. Draft creation fails before mutation if
+the version tag or release already exists; each architecture upload fails
+before mutation if any of its intended asset names exists. The workflow never
+replaces a published version asset or moves a published version to different
+bytes or digests.
 
-GitHub CLI is the selected maintained boundary for GitHub Release publication.
-Issue #23 owns replacing the current custom HTTP implementation with fixed,
-operator-driven `gh` operations and retaining only release records or metadata
-with an independent product consumer. Registry transfer and artifact signing
-remain owned by their maintained upstream tools. No GitHub Actions workflow,
-OIDC identity, or protected-environment mechanism is selected by the current
-architecture.
+GitHub CLI is the maintained GitHub Release boundary. `soda-release` constructs
+only fixed `gh` operations and leaves authentication, transport, tags, drafts,
+assets, and releases under GitHub and GitHub CLI ownership. Authenticate the
+operator beforehand with native `gh auth`; Soda does not accept, read, copy, or
+store a GitHub token.
 
-The current `soda-release` command is pre-reset implementation evidence. It
-creates a paired index, creates a GitHub draft through a custom HTTP client,
-uploads and re-download-verifies assets, and publishes the draft using a token
-from the environment. Installed Soda systems no longer consume the paired
-index. This implementation is not the accepted GitHub CLI boundary and remains
-a deletion target.
+Production publication starts from one clean checkout whose full `HEAD` is the
+intended release tag target. The architecture-specific release records must
+name that same source revision. This is a publication restriction, not an
+artifact-construction rule: local installer work may still reuse a validated
+runtime OCI whose image revision predates an installer-only change, but that
+candidate cannot be published through the current command until its provenance
+is represented without ambiguity.
 
-Publication, signing, image push, and release deployment are always separately
-authorized operations. The repository may construct and test fixed command
-arguments without performing them. Matching-native artifact production and
-verification remain required on each architecture regardless of which machine
-coordinates the later operator-driven publication.
+Prepare a regular release-notes file, then create the absent tag and empty
+draft:
+
+```sh
+go run ./cmd/soda-release --spec distro/soda.toml draft \
+  --notes-file /path/to/release-notes.md
+```
+
+The command requires a clean tracked worktree, verifies that `HEAD` exists in
+the configured GitHub repository, and fails before mutation if the version tag
+or release already exists. Untracked operator notes or ignored build artifacts
+do not affect source identity. It creates the tag at that exact revision and
+then creates an empty draft named `Soda OS <version>`.
+
+Each matching-native builder uploads only its own three validated assets. Run
+this once on AArch64 and once on x86-64, from the same source revision:
+
+```sh
+ARCH=x86_64 # use aarch64 only on matching-native AArch64 hardware
+go run ./cmd/soda-release --spec distro/soda.toml upload \
+  --architecture "$ARCH" \
+  --iso ".artifacts/images/SodaOS-0.4.0-${ARCH}.iso" \
+  --record ".artifacts/releases/soda-os-0.4.0-${ARCH}.release.json"
+```
+
+The checksum sidecar is derived as `<ISO>.sha256`. Before upload, the command
+validates the exact filenames, regular-file boundaries, release record, source
+revision, image reference, ISO bytes, and sidecar. It refuses an existing
+architecture-owned asset and invokes `gh release upload` without `--clobber`.
+GitHub's returned asset name, size, uploaded state, and SHA-256 digest must then
+match the local input.
+
+The complete draft contains these six required base assets:
+
+```text
+SodaOS-<version>-aarch64.iso
+SodaOS-<version>-aarch64.iso.sha256
+soda-os-<version>-aarch64.release.json
+SodaOS-<version>-x86_64.iso
+SodaOS-<version>-x86_64.iso.sha256
+soda-os-<version>-x86_64.release.json
+```
+
+Independently produced signature material may coexist with these assets. It is
+not generated or interpreted by `soda-release`.
+
+> [!CAUTION]
+> `soda-release publish` is not a signing boundary. It neither signs GHCR
+> images or GitHub assets nor proves that the product's separate production
+> signing requirement has been satisfied. The release owner must complete and
+> verify the separately authorized maintained-tool signing process before
+> invoking `publish`. Source completion or a six-asset draft alone is not a
+> signed production release.
+
+After that external signing gate has passed, publish the complete draft:
+
+```sh
+go run ./cmd/soda-release --spec distro/soda.toml publish
+```
+
+The command requires the same clean source revision, exact tag and draft, both
+architectures' six base assets, and valid GitHub SHA-256 metadata for every
+asset. It publishes with `gh release edit --verify-tag --draft=false`, then
+verifies that the release state changed without changing its assets.
+
+Published release data is never replaced. If tag creation, draft creation, or
+an upload partly succeeds, Soda reports the GitHub-owned state and performs no
+retry, deletion, compensation, or reconciliation. Any inspection or cleanup is
+a separately authorized native `gh` operation; a fresh publication attempt may
+begin only after the operator has deliberately resolved that state.
+
+Publication, signing, image push, and release deployment are separate
+operational authorizations. Repository tests exercise validation and fixed
+command construction without contacting or changing GitHub. No GitHub Actions
+workflow, OIDC identity, or protected-environment mechanism is selected by the
+current architecture.
 
 ## Installed-system image lifecycle
 
