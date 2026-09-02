@@ -607,9 +607,10 @@ outcomes above.
 
 Issue #44 now composes administrator-only primary-account creation, native PAM
 user creation, and a user-owned Tea login without adding identity or credential
-authority. Its source implementation and focused tests are complete; installed
-x86-64 and matching-native AArch64 evidence remain required before claiming the
-milestone complete.
+authority. Its source implementation, focused tests, and matching-native x86-64
+RPM, OCI, installer ISO, and release-record construction pass at commit
+`cfe646f`; installed x86-64 and matching-native AArch64 evidence remain required
+before claiming the milestone complete.
 
 Issue #33 owns stable primary identity, Linux-native account classification,
 and supported cascading human deletion. Issue #38 owns account behavior across
