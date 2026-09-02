@@ -1,17 +1,32 @@
 # Soda OS architectural reset
 
-**Status:** Accepted product architecture and governing ownership constraints;
-account-preserving OS fallback remains a blocking verification in issue #38.
+**Status:** Accepted product architecture and governing ownership constraints.
+Native x86-64 evidence has proved the current account-preserving fallback;
+matching-native AArch64 repetition remains required before release completion.
 
 **Recorded:** 2026-08-31
 
-**Implementation snapshot reviewed:** `7f2c60b`
+**Initial implementation snapshot reviewed:** `7f2c60b`
+
+**Current implementation checkpoint documented:** `2d2a359`
 
 **Initial architecture record:** `e992e22`
 
 The [base principles](principles.md) state the product purpose and ownership
 philosophy in human terms. This record defines the exact accepted architecture,
 governing constraints, and issue boundaries.
+
+At the current checkpoint, the protected stock-Anaconda/Kickstart, native
+workspace, direct-SSH, stock-Cockpit, immutable-toolset, telemetry-deletion,
+and runtime-updater-deletion slices are present. One fresh native x86-64
+installation has exercised those slices together, and native x86-64
+A→B→A→B image selection has preserved current mutable state. These are
+implementation and test facts, not additional product authority. The current
+protected installer and fallback still require matching-native AArch64
+installed-system evidence. Later-primary Forgejo PAM authentication remains
+stopped at an explicit password-verifier privilege decision. The custom
+publication client, final acceptance-runner migration, and residual Health-only
+gRPC shell remain later deletion or replacement work.
 
 ## Product contract
 
@@ -138,11 +153,11 @@ primary human account + immutable catalog project id -> derived workspace accoun
 
 The primary-human/workspace distinction must be represented through ordinary
 Linux-native account state or a deterministic account convention with concrete
-authorization meaning. It must not require a Soda person database. The exact
-group, account property, or convention remains bounded verification in #33 and
-#35. It must allow the Projects package and helper to recognize primary humans,
-allow Forgejo PAM to reject workspace accounts, and validate derived-account
-operations.
+authorization meaning. It must not require a Soda person database. The current
+implementation's group and account marker are verified implementation choices,
+not permanent product requirements. Any mechanism must allow the Projects
+package and helper to recognize primary humans, allow Forgejo PAM to reject
+workspace accounts, and validate derived-account operations.
 
 Primary Linux usernames are stable identifiers for the initial Soda release.
 The supported Soda workflow does not rename a primary username while derived
@@ -230,17 +245,20 @@ reconciliation record.
 
 The architecture intentionally does not claim that Cockpit supplies a
 particular Git prompt, that one command completes every host flow, or that every
-external provider is supported. The exact authenticated clone path and safe
-placement of the resulting checkout remain bounded proof in #35 and #37.
+external provider is supported. The current implementation keeps Git
+unprivileged and publishes a completed checkout through the fixed local
+workspace boundary; its exact credential transport and staging path remain
+implementation choices.
 
 When no URL is supplied, Soda creates a native empty repository in the
 initiating human's Forgejo namespace. Soda creates no README, artificial first
 commit, environment file, or local branch merely to make creation work. A
 credential-free canonical URL is then stored in the catalog.
 
-The exact user-authenticated Forgejo creation interface remains verification in
-#37. It must not use a Soda-global administrator token, credential broker,
-repository projection, or push-to-create assumption.
+The current implementation uses the pinned Forgejo user's native repository
+endpoint and verifies that the repository is empty. That exact endpoint is an
+implementation choice. The operation must not use a Soda-global administrator
+token, credential broker, repository projection, or push-to-create assumption.
 
 ## Destructive local lifecycle
 
@@ -369,18 +387,22 @@ state is not owned by the replaceable image layer.
 
 Supported fallback to an earlier Soda image must preserve the current primary
 accounts, derived accounts, passwords, groups, and administrator membership.
-Direct `bootc rollback` is not a supported fallback path unless issue #38 proves
-that it satisfies this invariant. Upstream currently documents that direct
-rollback restores the previous deployment's `/etc`, while creating a new
-deployment through native switch/upgrade preserves current `/etc` and `/var`:
+Direct `bootc rollback` is not a supported fallback path. Upstream documents
+that direct rollback restores the previous deployment's `/etc`, while creating
+a new deployment through native switch/upgrade preserves current `/etc` and
+`/var`:
 [bootc rollback](https://bootc.dev/bootc/man/bootc-rollback.8.html) and
 [bootc upgrades](https://bootc.dev/bootc/upgrades.html).
 
-Testing an earlier immutable Soda reference through native bootc is an
-implementation hypothesis assigned to #38, not an accepted command sequence.
-If no upstream-native path satisfies the persistence invariant, the product
-fallback decision returns to architectural review. Soda must not respond with
-an account database or reconciliation service.
+The current native x86-64 implementation has proved the accepted invariant by
+selecting an earlier exact Soda reference through `bootc switch
+--download-only`, `bootc switch --from-downloaded`, and a controlled reboot,
+then recovering forward the same way. The command sequence remains an
+implementation result rather than a new Soda subsystem; matching-native
+AArch64 evidence is still required. If a supported architecture cannot satisfy
+the invariant through an upstream-native path, the product fallback decision
+returns to architectural review. Soda must not respond with an account
+database or reconciliation service.
 
 Linux administrators control update checks, staging, activation, and supported
 fallback through native bootc operations. The automatic update timer is
@@ -390,11 +412,12 @@ translated deployment state, API, CLI wrapper, or custom update page.
 ## Development tools and conflict isolation
 
 Soda ships a broad reviewed collection of language runtimes and developer tools
-as immutable image composition on both architectures. The exact package list is
-owned by #24. Soda does not resolve or install latest toolchains at runtime,
-persist toolchain profiles or readiness state, or reconcile versions. Users and
-projects may use additional ecosystem tooling in their own homes and
-repositories.
+as immutable image composition on both architectures. The approved command
+contract is recorded in `distro/toolset-commands.txt`; exact architecture-owned
+package closures remain implementation evidence. Soda does not resolve or
+install latest toolchains at runtime, persist toolchain profiles or readiness
+state, or reconcile versions. Users and projects may use additional ecosystem
+tooling in their own homes and repositories.
 
 Derived UIDs and homes isolate ordinary development conflicts in files,
 dependencies, caches, project-local data, and process ownership. They do not
@@ -460,9 +483,11 @@ promise hostile-tenant isolation.
 - Deleting accepted Soda catalog or workspace outcomes merely because upstream
   tools expose their individual primitives.
 
-## Bounded implementation verification
+## Implementation-specific boundaries
 
-The following are engineering verification, not new product domains:
+The following are engineering verification, not new product domains. Several
+have a proved current implementation, but remain subject to exact-version and
+matching-native re-verification rather than becoming permanent mechanisms:
 
 1. Exact declarative catalog syntax and persistent path.
 2. Stable project-ID and derived-username encoding.
@@ -534,11 +559,11 @@ The reset is complete only when the resulting product demonstrates:
     workflow engine, credential service, runtime updater, or runtime toolchain
     manager remains.
 
-## Issue ownership and order
+## Issue ownership and implementation order
 
-Resolve and implement the existing issues in this order:
+The accepted dependency order is:
 
-1. [#40: installer: provision the first administrator and Tailnet enrollment](https://github.com/LevitateOS/soda-os/issues/40)
+1. [#40: installer: provision the first administrator and Tailnet enrollment](https://github.com/LevitateOS/soda-os/issues/40), with [#41](https://github.com/LevitateOS/soda-os/issues/41) retaining Anaconda unless the bounded next-generation comparison triggers replacement
 2. [#33: architecture(identity): make Linux identity and administrator status authoritative](https://github.com/LevitateOS/soda-os/issues/33) together with [#38: architecture(updates): verify account-preserving native bootc fallback](https://github.com/LevitateOS/soda-os/issues/38)
 3. [#37: architecture(git-host): preserve native repository-host ownership](https://github.com/LevitateOS/soda-os/issues/37)
 4. [#35: architecture(workspaces): provide catalogued derived workspace accounts](https://github.com/LevitateOS/soda-os/issues/35)
@@ -548,6 +573,15 @@ Resolve and implement the existing issues in this order:
 8. [#23: release: replace the custom GitHub publication client](https://github.com/LevitateOS/soda-os/issues/23) after #38 determines which release metadata remains
 9. [#25: test(acceptance): collapse raw-QEMU test orchestration](https://github.com/LevitateOS/soda-os/issues/25) around the resulting outcomes
 10. [#39: architecture(control-plane): remove residual runtime infrastructure](https://github.com/LevitateOS/soda-os/issues/39) as the capstone
+
+At the current implementation checkpoint, #33, #37's initial-admin repository
+path, #35, #36, #32, #34, and the source-side #24 replacement are locally
+implemented. The protected #40 path, #24 installed toolset, and #38 fallback
+have native x86-64 evidence but still need current matching-native AArch64
+repetition. The later-primary portion of #37 is stopped at its explicit
+Forgejo password-verifier privilege decision. Issues #23, #25, and #39 remain
+substantive later milestones. These status facts do not let issue text redefine
+the outcomes above.
 
 Issue #33 owns stable primary identity, Linux-native account classification,
 and supported cascading human deletion. Issue #38 owns account behavior across

@@ -277,7 +277,29 @@ Soda ships no runtime release-index client, translated update state, update
 API, CLI wrapper, polling, download service, activation service, retry, or
 recovery process.
 
-The local release record binds Soda version and source revision, the Fedora
-base reference, exact Soda image reference, platform, RPM inventory checksum,
-and installer ISO checksum. Artifact construction does not require the record;
-protected OEMDRV creation does.
+The local release record binds the runtime image's Soda version, source
+revision, Fedora base reference, exact image reference, platform, RPM inventory
+checksum, and installer ISO checksum. It does not independently record the
+installer-environment source revision. When a validated runtime OCI is reused
+for an installer-only change, identify the installer candidate by the
+repository commit and exact ISO checksum while recording the embedded runtime
+digest separately. Artifact construction does not require the record; protected
+OEMDRV creation does.
+
+## Current verification status
+
+The protected installer path was exercised end to end on a fresh native x86-64
+guest from installer source commit `2e5c596`. The run proved OEMDRV protection,
+guest ejection and exact host removal, stock-Anaconda installation, Linux and
+same-named Forgejo administrator creation, password and public-key SSH, correct
+home and key SELinux labels, one-attempt Tailscale enrollment and handoff
+deletion, stock Cockpit authentication and workspace rejection, Projects setup,
+direct derived-account SSH, the immutable toolset, rootless Podman, obsolete-
+state absence, the residual Health RPC, and the exact installed runtime digest.
+The artifact hashes and failure history are recorded in
+[bug-notes.md](bug-notes.md); they are local evidence, not a published release.
+
+The latest protected-Kickstart installer path still requires independent
+matching-native AArch64 construction, installation, and installed-system
+verification. Earlier AArch64 evidence for the removed add-on does not qualify
+this implementation.

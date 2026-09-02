@@ -84,57 +84,43 @@ incomplete target, correct the input, generate a new OEMDRV image, and perform
 a fresh installation. On a failed Tailscale attempt, use native local recovery
 or reinstall with a fresh one-use key.
 
-## Distribution infrastructure decision
+## Distribution and publication boundary
 
 Production releases use these two distribution services:
 
 - GHCR stores each architecture-specific Soda OS OCI image. The exact OCI
   manifest digest, never a mutable tag, is the update authority.
 - GitHub Releases stores the paired AArch64 and x86-64 installer ISOs, their
-  SHA-256 files, architecture-specific release records, the paired release
-  index, and the release index's Sigstore bundle. The marketing website may
-  link to these releases, but is not an update authority.
+  SHA-256 files, and independently justified release records and signature
+  material. The pre-reset paired release index is not a preservation contract
+  now that installed systems do not consume it. The marketing website may link
+  to these releases, but is not an update authority.
 
-Published release data is append-only. A production publisher must fail before
-publishing if the Git tag, GitHub Release, or any intended asset name already
+Published release data is append-only. Publication must fail before changing
+GitHub if the Git tag, GitHub Release, or any intended asset name already
 exists. It must never replace a published version asset or move a published
 version to different bytes or digests.
 
-One future protected GitHub Actions workflow owns production publication:
+GitHub CLI is the selected maintained boundary for GitHub Release publication.
+Issue #23 owns replacing the current custom HTTP implementation with fixed,
+operator-driven `gh` operations and retaining only release records or metadata
+with an independent product consumer. Registry transfer and artifact signing
+remain owned by their maintained upstream tools. No GitHub Actions workflow,
+OIDC identity, or protected-environment mechanism is selected by the current
+architecture.
 
-- workflow: `.github/workflows/release.yml`;
-- OIDC issuer: `https://token.actions.githubusercontent.com`;
-- certificate identity:
-  `https://github.com/LevitateOS/soda-os/.github/workflows/release.yml@refs/tags/v<VERSION>`,
-  expanded to the exact release tag being verified;
-- protected GitHub environment: `production-release`, with required human
-  approval.
+The current `soda-release` command is pre-reset implementation evidence. It
+creates a paired index, creates a GitHub draft through a custom HTTP client,
+uploads and re-download-verifies assets, and publishes the draft using a token
+from the environment. Installed Soda systems no longer consume the paired
+index. This implementation is not the accepted GitHub CLI boundary and remains
+a deletion target.
 
-The workflow must run architecture-owned build, inspection, signing, and
-publication jobs on native AArch64 and x86-64 runners. A coordinating job may
-create and publish the paired index only after both architecture records report
-the same Soda version and source revision.
-
-For each architecture, the future workflow pushes the image to GHCR, resolves
-its exact manifest digest, and signs that digest with Sigstore keyless signing.
-It then generates the paired release index, signs the index as a blob with
-Sigstore keyless signing, retains the bundle beside the index, and publishes
-both architectures' ISOs, SHA-256 files, and release records in one GitHub
-Release. The index continues to identify images by exact GHCR digest.
-
-Verification must require both the exact workflow certificate identity for the
-release tag and the GitHub Actions OIDC issuer. The retained blob bundle carries
-the signature, signing certificate, and transparency-log proof required to
-verify the paired release index.
-
-The current `soda-release` command can assemble a paired index and GitHub draft,
-but it is not the production publisher described above until the protected
-workflow, collision checks, GHCR publication, and Sigstore verification are
-implemented.
-
-This release cycle records the infrastructure decision only. It does not add
-the workflow, configure the GitHub environment or runners, provision a service,
-push an image, sign an artifact, upload an asset, or publish a release.
+Publication, signing, image push, and release deployment are always separately
+authorized operations. The repository may construct and test fixed command
+arguments without performing them. Matching-native artifact production and
+verification remain required on each architecture regardless of which machine
+coordinates the later operator-driven publication.
 
 ## Installed-system image lifecycle
 
@@ -154,8 +140,8 @@ Direct `bootc rollback` is unsupported because current account state must be
 preserved. Soda does not discover releases, poll, download, activate, or reboot
 automatically.
 
-Local development artifacts and records remain unsigned. Production signing and
-publication belong only to the protected workflow defined above.
+Local development artifacts and records remain unsigned. Production signing
+and publication use the separately authorized maintained-tool boundaries above.
 
 ## Acceptance evidence
 

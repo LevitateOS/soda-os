@@ -50,6 +50,13 @@ The native VM uses 8 GiB of memory so the installer's 4 GiB ephemeral
 x86-64, QEMU keeps the installed disk as the default and boots the installer
 media only once so the completed disk owns the first reboot.
 
+The current AArch64 launcher is specifically implemented for Apple Silicon
+macOS: it selects HVF, Cocoa display support, and the Homebrew QEMU firmware
+path. That is a temporary harness fact, not a Soda architecture requirement.
+A matching-native Linux AArch64 host needs an explicit KVM, firmware, and
+display launch boundary before this runner can validate it; evidence must not
+be inferred from the x86-64 launcher.
+
 Load the generated `runner.env` in two terminals. `launch` replaces its shell
 with QEMU and remains in the foreground until the VM stops.
 The file defaults the enrolled guest identity to the product hostname `soda`.
@@ -91,25 +98,30 @@ credentials for retry.
 
 ## Native workspace slice evidence
 
-Before the supported route switched, a disposable x86-64 guest demonstrated
-stock Cockpit PAM login and Projects package discovery, catalog add/list,
-synchronous setup, deterministic derived-account creation, complete clone
-publication, direct shell/command/SCP/SFTP as the derived UID, and password
-rejection. The route proof used a temporary package overlay on the previous
-installed baseline and a test-only Tailnet-identity shim; it proves the user
-path, not a fresh final image or live Tailnet exposure.
+A fresh native x86-64 installation from installer source commit `2e5c596`
+demonstrated stock Cockpit authentication and Projects discovery, native empty
+Forgejo repository creation, synchronous setup, deterministic derived-account
+creation, complete clone publication, key-based direct workspace command
+execution, correct primary and workspace SELinux home labels, the immutable
+toolset, rootless Podman, and absence of the deleted identity, project,
+dashboard, forced-SSH, telemetry, and toolchain-control paths. The same run
+observed successful primary Cockpit authentication and workspace-account
+rejection. Exact artifact hashes and the boundary-by-boundary result are in
+[bug-notes.md](../../docs/bug-notes.md).
 
-Focused and race tests additionally cover catalog edit validation, missing-key
-preflight, transient Git credential transport, one-time key copying,
-catalog-last project removal, primary-last Soda-aware human deletion, and
-absence assertions for the deleted source and package owners. A fresh-image
-inspection must still confirm removal of copied identity/project/Forgejo
-projection state, the shared project mount, alternate authorized keys, forced
-SSH behavior, standalone web services, and Soda SQLite authority.
+An earlier focused route proof additionally exercised direct shell, command,
+SCP, SFTP, and password rejection. Focused and race tests cover catalog edit
+validation, missing-key preflight, transient Git credential transport, one-time
+key copying, catalog-last project removal, primary-last Soda-aware human
+deletion, and absence assertions for deleted source and package owners. Final
+installed automation must still cover the complete multi-user, destructive-
+failure, and transport scenario set rather than treating those focused proofs
+as final product acceptance.
 
-The current runner captures installed platform and service evidence. Final
-automation of every architecture-reset scenario and the post-#39 absence
-inventory remain issue #25 work.
+Matching-native AArch64 must repeat the latest protected-Kickstart installer
+and installed-product path. The current runner captures installed platform and
+service evidence, but final single-workflow automation of every architecture-
+reset scenario and the post-#39 absence inventory remain issue #25 work.
 
 ## Native host and immutable-toolset evidence
 

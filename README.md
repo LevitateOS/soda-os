@@ -29,13 +29,23 @@ development tool and is not the isolation mechanism.
 
 The [base principles](docs/principles.md) state the product purpose and ownership
 philosophy. The [architectural reset](docs/architecture-reset.md) records the
-accepted architecture and issue ownership. The native workspace and
-image-lifecycle slices have removed the custom identity, project,
-repository-projection, dashboard, SSH gateway, database, workflow, and
-runtime-update layers. The native host and immutable-toolset slice has also
-removed Soda telemetry and runtime toolchain management. Only the temporary
-health-only daemon, local socket, and protobuf/gRPC shell remain for the final
-control-plane deletion milestone.
+accepted architecture and issue ownership. The protected-Kickstart installer,
+native workspace, and image-lifecycle slices have removed the custom Anaconda
+add-on, identity, project, repository-projection, dashboard, SSH gateway,
+database, workflow, and runtime-update layers. The native host and immutable-
+toolset slice has also removed Soda telemetry and runtime toolchain management.
+Only the temporary health-only daemon, local socket, and protobuf/gRPC shell
+remain for the final control-plane deletion milestone.
+
+At implementation snapshot `2d2a359`, one fresh native x86-64 installation of
+the protected OEMDRV and stock-Anaconda path passed the initial administrator,
+Forgejo, Tailscale, stock Cockpit, Projects, direct workspace SSH, immutable
+toolset, rootless Podman, obsolete-state absence, and installed-digest checks.
+Native x86-64 A→B→A→B image selection also preserved current mutable state.
+The current protected installer and fallback still require matching-native
+AArch64 installed-system evidence before release-level completion. Initial
+Forgejo administration works; later-primary Forgejo PAM login remains disabled
+until its password-verifier privilege boundary receives an explicit decision.
 
 This repository is independent from LevitateOS. It borrows the separation
 between declarative distro specifications, Go orchestration, explicit
@@ -81,11 +91,11 @@ listed command is ordinary immutable image content available through `PATH`.
 
 Local development does not publish or sign images. Optional release metadata
 records preserve the exact local archive digest, image labels, RPM inventory,
-and ISO checksum. The paired GitHub publisher can distribute completed sibling
-artifacts, but it does not participate in local OCI or ISO construction. See the
-[release and operator runbook](docs/release-operations.md) for the exact
-commands and [runtime image and installer contract](docs/installer.md) for the
-artifact boundary.
+and ISO checksum. The current paired GitHub HTTP publisher is pre-reset
+implementation pending replacement by fixed GitHub CLI operations; it does not
+participate in local OCI or ISO construction. See the [release and operator
+runbook](docs/release-operations.md) for the exact commands and [runtime image
+and installer contract](docs/installer.md) for the artifact boundary.
 
 ## Target operating model
 
@@ -100,10 +110,13 @@ continue. Soda ships no custom Anaconda spoke, and no bootstrap service,
 credential store, or private bootstrap state remains active after the one
 Tailscale attempt; the disabled one-shot unit contains no credential.
 
-Every primary human Linux account is a Cockpit identity and may become a native
-Forgejo PAM user. Primary usernames remain stable while derived workspaces
-exist. Derived workspace accounts are identified through Linux-native state,
-are Linux-only development identities, and never become Forgejo users.
+Every primary human Linux account is a Cockpit identity. The accepted later-user
+Forgejo path is native PAM login, but the exact pinned Forgejo process cannot
+currently read Linux password verifiers without a new privilege grant, so that
+path remains deliberately disabled. Primary usernames remain stable while
+derived workspaces exist. Derived workspace accounts are identified through
+Linux-native state, are Linux-only development identities, and never become
+Forgejo users.
 
 Any primary human may publish, edit, or destructively remove a catalog entry
 containing exactly an immutable `id`, mutable `display_name`, and credential-

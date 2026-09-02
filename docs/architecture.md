@@ -2,8 +2,9 @@
 
 The product contract and ownership rules live in
 [principles.md](principles.md) and [architecture-reset.md](architecture-reset.md).
-This document describes the current implementation after the native workspace,
-native host-administration, and immutable-toolset slices. It is implementation
+This document describes the current implementation after the protected
+stock-Anaconda installer, native workspace, native image-lifecycle, native
+host-administration, and immutable-toolset slices. It is implementation
 evidence, not an independent source of product requirements.
 
 ## Native ownership
@@ -24,6 +25,24 @@ Soda owns only the appliance composition, the minimal project catalog, the
 deterministic primary-user/project-to-workspace-account convention, one focused
 Cockpit Projects package, and fixed synchronous local lifecycle operations.
 
+## Installation boundary
+
+The product ISO uses stock graphical Anaconda for storage, networking,
+bootloader setup, bootc deployment, and native Linux-account creation. A
+protected removable OEMDRV medium supplies the four installation inputs through
+a secret-free Kickstart composition. One fixed installer-only `%pre` hook emits
+native `user` and `sshkey` directives; one fixed `%post --nochroot` finalizer
+performs only the initial Forgejo-administrator handoff and publication of the
+one-attempt Tailscale key. The medium must be ejected and removed before
+installation continues.
+
+The former Soda Anaconda spoke, GTK/Glade UI, D-Bus service, private task
+objects, custom account mutation, deployment-tree discovery, and custom `/var`
+mounting have been deleted. The two hooks are absent from the installed runtime.
+The installer image carries one exact-version- and source-hash-guarded Fedora
+Anaconda correction that exposes SELinuxFS to Anaconda's own final relabel pass;
+Anaconda still owns the relabel and the installed image remains enforcing.
+
 ## Accounts and workspaces
 
 A primary human is a regular interactive Linux account outside the
@@ -38,6 +57,14 @@ marker. There is no person, role, membership, or workspace database. Setup
 copies the primary user's standard `~/.ssh/authorized_keys` once. A derived
 account then receives ordinary OpenSSH behavior and owns its complete clone at
 `$HOME/Projects/<project-id>`.
+
+The installer-created same-named Forgejo administrator is a Forgejo-local
+account. Later primary humans are intended to enter Forgejo through its native
+PAM source, but that path is currently disabled: the exact pinned Forgejo
+process cannot read the Linux password verifier without a new `/etc/shadow`
+privilege grant. A narrow technical mechanism was demonstrated, but enabling it
+would change a privilege boundary and therefore remains a user decision.
+Workspace-account rejection is already represented in the shipped PAM policy.
 
 ## Project catalog and lifecycle
 
@@ -130,3 +157,12 @@ AArch64 and x86-64 are equal sibling architectures. Shared source owns product
 behavior; platform files select only inputs that genuinely differ. Every RPM,
 image, ISO, installation, inspection, and acceptance claim must be produced on
 matching-native hardware. Evidence from one sibling does not qualify the other.
+
+At implementation checkpoint `2d2a359`, a fresh native x86-64 installation has
+proved the protected installer, initial Linux and Forgejo administrator,
+Tailscale enrollment and credential deletion, stock Cockpit, Projects setup,
+direct workspace SSH, immutable toolset, rootless Podman, obsolete-state
+absence, residual Health RPC, and exact installed image digest together. The
+current protected installer and full installed-product path still require
+matching-native AArch64 repetition. Final multi-user destructive scenarios and
+the post-residual-control-plane acceptance run also remain outstanding.
