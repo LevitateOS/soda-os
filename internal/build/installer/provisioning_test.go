@@ -193,13 +193,14 @@ func TestAcceptanceExposesOnePublicWorkflow(t *testing.T) {
 		`fallback compare b-current a-selected`,
 		`fallback compare b-current b-restored`,
 		`scenario product`,
-		`capture final-pre-capstone`,
+		`capture final`,
 	} {
 		require.Contains(t, runner, expected)
 	}
 	for _, obsolete := range []string{"runner.env", "VNC", "vnc", "two terminals"} {
 		require.NotContains(t, runner, obsolete)
 	}
+	require.NotContains(t, runner, "final-pre-capstone")
 	for _, relative := range []string{
 		"tests/acceptance/registry-image.txt",
 		"tests/acceptance/skopeo-image.txt",

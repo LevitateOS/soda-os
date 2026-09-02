@@ -49,3 +49,18 @@ func TestResidualControlPlaneIsAbsent(t *testing.T) {
 	require.NoError(t, err)
 	require.False(t, strings.Contains(string(justfile), "protobuf"))
 }
+
+func TestAcceptanceRequiresZeroResidualControlPlane(t *testing.T) {
+	root := filepath.Join("..", "..", "..")
+	helper, err := os.ReadFile(filepath.Join(root, "tests", "acceptance", "internal", "bootc.sh"))
+	require.NoError(t, err)
+	for _, expected := range []string{"sodad.service=absent", "/usr/libexec/soda/sodad", "/usr/bin/sodactl", "/run/soda/sodad.sock", "soda-api=absent", "/var/log/soda", "soda-runtime-control-plane-ownership=absent"} {
+		require.Contains(t, string(helper), expected)
+	}
+	require.NotContains(t, string(helper), "sodactl health")
+
+	runner, err := os.ReadFile(filepath.Join(root, "tests", "acceptance", "unattended.sh"))
+	require.NoError(t, err)
+	require.Contains(t, string(runner), `capture final`)
+	require.NotContains(t, string(runner), "final-pre-capstone")
+}

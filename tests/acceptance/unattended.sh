@@ -372,7 +372,7 @@ run() {
 	export SODA_ACCEPTANCE_WORKSPACE_KEY=$admin_key
 	export SODA_ACCEPTANCE_REQUIRE_WORKSPACE_TOOLSET=1
 	sh "$helper" scenario product
-	sh "$helper" capture final-pre-capstone
+	sh "$helper" capture final
 	sh "$helper" stop
 	wait_for_exit "$qemu_pid"
 	qemu_pid=

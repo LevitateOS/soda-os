@@ -764,7 +764,7 @@ capture() {
 		echo "[boot-id]"; cat /proc/sys/kernel/random/boot_id
 		echo "[kernel]"; uname -a
 		echo "[services]"
-		for unit in sodad sshd cockpit.socket forgejo tailscaled; do
+		for unit in sshd cockpit.socket forgejo tailscaled; do
 			printf "%s=" "$unit"; systemctl is-active "$unit" 2>/dev/null || true
 		done
 		echo "[failed-units]"; systemctl --failed --no-legend --plain || true
@@ -815,6 +815,29 @@ capture() {
 			exit 1
 		fi
 		echo "soda-people=absent"
+		echo "[deleted-residual-control-plane]"
+		if systemctl cat sodad.service >/dev/null 2>&1; then
+			echo "unexpected-unit=sodad.service"
+			exit 1
+		fi
+		echo "sodad.service=absent"
+		for path in /usr/libexec/soda/sodad /usr/bin/sodactl /run/soda/sodad.sock /var/log/soda; do
+			if test -e "$path"; then
+				echo "unexpected-path=$path"
+				exit 1
+			fi
+			echo "$path=absent"
+		done
+		if getent group soda-api >/dev/null; then
+			echo "unexpected-group=soda-api"
+			exit 1
+		fi
+		echo "soda-api=absent"
+		if rpm -ql soda-runtime | grep -E "(^|/)(sodad|sodactl)(/|$)|soda-api|^/var/log/soda(/|$)" >/dev/null; then
+			echo "unexpected-runtime-control-plane-ownership"
+			exit 1
+		fi
+		echo "soda-runtime-control-plane-ownership=absent"
 		echo "[deleted-toolchain-control-plane]"
 		for unit in soda-state-directories.service opt-soda-toolchains.mount; do
 			if systemctl cat "$unit" >/dev/null 2>&1; then
@@ -875,15 +898,6 @@ capture() {
 		emit_installed_ownership_checks | admin_ssh 'sudo -n /bin/sh -s' \
 			>"$checkpoint/native-ownership.txt" 2>"$checkpoint/native-ownership.stderr"
 	fi
-	if [ -n "$password_file" ]; then
-		admin_ssh "sudo -k -S -p '' /usr/bin/sodactl health" <"$password_file" \
-			>"$checkpoint/sodactl-health.json" 2>"$checkpoint/sodactl-health.stderr"
-	else
-		admin_ssh "sudo -n /usr/bin/sodactl health" \
-			>"$checkpoint/sodactl-health.json" 2>"$checkpoint/sodactl-health.stderr"
-	fi
-	jq -e '.status == "ok" and .service == "sodad" and (.version | type == "string" and length > 0)' \
-		"$checkpoint/sodactl-health.json" >/dev/null
 	curl --fail --silent --show-error --insecure "https://$guest_host:$guest_cockpit_port/ping" >"$checkpoint/cockpit-health.txt"
 
 	for artifact in "${SODA_ACCEPTANCE_RELEASE_RECORD:-}" "${SODA_ACCEPTANCE_ISO:-}"; do
