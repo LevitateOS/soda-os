@@ -38,13 +38,12 @@ RUN dnf -y --setopt=install_weak_deps=False --enablerepo=updates-testing install
       /var/log/dnf5.log \
       /run/dnf \
       /var/tmp/soda-rpms \
-    && systemd-sysusers /usr/lib/sysusers.d/soda.conf /usr/lib/sysusers.d/soda-projects.conf \
-    && getent group soda-api \
+    && systemd-sysusers /usr/lib/sysusers.d/soda-projects.conf \
     && getent group soda-workspaces \
     && install -o root -g root -m 0644 /usr/lib/soda/pam/cockpit /etc/pam.d/cockpit \
     && restorecon -F /etc/pam.d/cockpit \
-    && systemctl preset sshd.service sodad.service soda-tailscale-enroll.service cockpit.socket forgejo.service tailscaled.service nftables.service \
-    && systemctl enable sshd.service sodad.service soda-tailscale-enroll.service cockpit.socket forgejo.service tailscaled.service nftables.service \
+    && systemctl preset sshd.service soda-tailscale-enroll.service cockpit.socket forgejo.service tailscaled.service nftables.service \
+    && systemctl enable sshd.service soda-tailscale-enroll.service cockpit.socket forgejo.service tailscaled.service nftables.service \
     && getent passwd git \
     && systemctl mask bootc-fetch-apply-updates.timer \
     && cp -f /usr/lib/soda/os-release /etc/os-release \
@@ -54,7 +53,6 @@ RUN dnf -y --setopt=install_weak_deps=False --enablerepo=updates-testing install
     && cp -f /usr/lib/soda/system-release /etc/system-release \
     && rm -f /etc/redhat-release \
     && semanage fcontext -a -t var_lib_t '/var/lib/soda(/.*)?' \
-    && semanage fcontext -a -t var_log_t '/var/log/soda(/.*)?' \
     && semanage fcontext -a -t ssh_home_t '/var/lib/forgejo/.ssh(/.*)?' \
     && restorecon -RF /var/lib/forgejo/.ssh \
     && ssh-keygen -q -t ed25519 -N '' -f /run/soda-sshd-hostkey \

@@ -8,7 +8,7 @@ matching-native AArch64 repetition remains required before release completion.
 
 **Initial implementation snapshot reviewed:** `7f2c60b`
 
-**Current implementation checkpoint documented:** `2d2a359`
+**Current implementation checkpoint documented:** `75206ec`
 
 **Initial architecture record:** `e992e22`
 
@@ -18,15 +18,16 @@ governing constraints, and issue boundaries.
 
 At the current checkpoint, the protected stock-Anaconda/Kickstart, native
 workspace, direct-SSH, stock-Cockpit, immutable-toolset, telemetry-deletion,
-and runtime-updater-deletion slices are present. One fresh native x86-64
-installation has exercised those slices together, and native x86-64
-A→B→A→B image selection has preserved current mutable state. These are
+runtime-updater-deletion, native-publication, and residual-control-plane
+deletion slices are present. One earlier fresh native x86-64 installation has
+exercised the retained product slices, and native x86-64 A→B→A→B image
+selection has preserved current mutable state. These are
 implementation and test facts, not additional product authority. The current
 protected installer and fallback still require matching-native AArch64
-installed-system evidence. Later-primary Forgejo PAM authentication remains
-stopped at an explicit password-verifier privilege decision. The custom
-publication client, final acceptance-runner migration, and residual Health-only
-gRPC shell remain later deletion or replacement work.
+installed-system evidence. The post-control-plane x86-64 installed run is also
+pending. Later-primary Forgejo PAM authentication remains stopped at an
+explicit password-verifier privilege decision. Final matching-native
+installed-product acceptance remains later verification work.
 
 ## Product contract
 

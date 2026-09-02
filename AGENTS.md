@@ -184,8 +184,8 @@ Use the present tree as a navigation aid, not an immutable architecture:
 - `cmd`: executable-specific construction and command behavior
 - `cockpit`: the static stock-Cockpit Projects package and its presentation assets
 - `internal/build`: image, installer, and release production
-- `internal`: native Projects behavior, the temporary health-only runtime, host
-  integration, and process execution
+- `internal`: native Projects behavior, host integration, process execution,
+  and artifact construction
 - `distro`: current distribution specification, immutable tool manifest, locks,
   and base inputs
 - `packaging`: files grouped by the artifact or package that ships them
@@ -240,7 +240,6 @@ For implementation work:
 - run the relevant race tests for concurrent runtime or persistence changes;
 - run artifact or acceptance checks when those areas change and prerequisites
   are available;
-- keep generated protobuf files generated rather than editing them manually;
 - do not weaken, suppress, or bypass a gate merely to finish a change.
 
 The gates themselves may evolve through an explicit tooling decision. Their

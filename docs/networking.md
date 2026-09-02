@@ -11,8 +11,8 @@ services provide the listeners; Soda only composes their private ingress.
 | Tailscale | UDP 41641 | Fedora's packaged `tailscaled` default. |
 
 Forgejo advertises SSH clone URLs on port 22; its embedded SSH server is
-disabled, so OpenSSH remains the only TCP 22 owner. The temporary reduced
-`sodad` surface uses a local Unix socket and is never exposed over TCP.
+disabled, so OpenSSH remains the only TCP 22 owner. Soda has no runtime API,
+daemon, TCP control listener, or local control socket.
 
 Derived workspace accounts use the same host network namespace as other Linux
 users. Projects select non-conflicting host ports themselves and may use

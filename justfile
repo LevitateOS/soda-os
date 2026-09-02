@@ -17,7 +17,6 @@ check:
     sh -n tests/acceptance/unattended.sh
     sh -n tests/acceptance/internal/bootc.sh
     tests/acceptance/unattended.sh --help >/dev/null
-    ./scripts/protobuf-verify.sh
     ./scripts/check-complexity.sh
     node --test cockpit/soda-projects/*.test.mjs
     go vet ./...

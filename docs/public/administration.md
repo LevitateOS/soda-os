@@ -106,6 +106,6 @@ PAM login is currently disabled pending a privilege decision. Administrators
 must not treat Linux account creation as current proof that the new user can
 also sign in to Forgejo.
 
-A temporary health-only `sodad` service and `sodactl health` command remain in
-the current image. Cockpit and Projects do not use them. They are not an
-administration surface or part of the Soda OS user workflow.
+Soda has no runtime administration daemon, general control CLI, or health API.
+Use stock Cockpit, `systemctl`, `journalctl`, and ordinary Linux tools for host
+inspection.

@@ -141,15 +141,14 @@ Soda reference through the same switch path, preserving current `/etc` and
 Soda ships no runtime release-discovery client, translated deployment state,
 update API, CLI wrapper, background updater, retry, or recovery service.
 
-## Temporary residual runtime
+## No Soda runtime control plane
 
-The architectural reset is issue-ordered. Until the final control-plane
-deletion milestone lands, the reduced `sodad`/`sodactl` surface retains only a
-`Health` RPC over the local Unix gRPC socket. It has no Soda identity, project,
-repository-projection, provisioning, update, telemetry, toolchain, or SQLite
-authority and does not participate in the Projects workflow. The daemon,
-socket, generated protobuf code, gRPC transport, and health CLI are temporary
-residual infrastructure, not accepted product architecture.
+Soda ships no runtime daemon, general administration CLI, local control socket,
+protobuf/gRPC API, generated protocol code, or protocol-generation toolchain.
+Stock Cockpit, systemd, and ordinary Linux commands expose native host state.
+The surviving `soda-runtime` RPM owns only cohesive host composition: Tailnet
+enrollment and guidance, OpenSSH and nftables integration, console behavior,
+and upstream service enablement.
 
 ## Sibling architectures
 
@@ -158,11 +157,15 @@ behavior; platform files select only inputs that genuinely differ. Every RPM,
 image, ISO, installation, inspection, and acceptance claim must be produced on
 matching-native hardware. Evidence from one sibling does not qualify the other.
 
-At implementation checkpoint `2d2a359`, a fresh native x86-64 installation has
-proved the protected installer, initial Linux and Forgejo administrator,
+At historical implementation checkpoint `2d2a359`, a fresh native x86-64
+installation proved the protected installer, initial Linux and Forgejo
+administrator,
 Tailscale enrollment and credential deletion, stock Cockpit, Projects setup,
 direct workspace SSH, immutable toolset, rootless Podman, obsolete-state
-absence, residual Health RPC, and exact installed image digest together. The
-current protected installer and full installed-product path still require
+absence and exact installed image digest together. That installed image still
+contained the now-deleted residual Health RPC. The post-control-plane source
+and package boundary is implemented at `75206ec`; its complete installed
+x86-64 and matching-native AArch64 evidence remains pending. The current
+protected installer and full installed-product path still require
 matching-native AArch64 repetition. Final multi-user destructive scenarios and
 the post-residual-control-plane acceptance run also remain outstanding.

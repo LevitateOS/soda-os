@@ -96,6 +96,6 @@ state-preservation exercise. Direct `bootc rollback` remains unsupported on
 both architectures.
 
 Production publication is not ready. Local unsigned candidate artifacts and
-test records are development evidence only. The remaining temporary
-health-only `sodad` and `sodactl health` surface does not participate in update
-checks, image selection, activation, fallback, or recovery.
+test records are development evidence only. Soda ships no runtime daemon or
+control CLI for update checks, image selection, activation, fallback, or
+recovery.

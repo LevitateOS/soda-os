@@ -15,7 +15,6 @@ func TestLoadDistro(t *testing.T) {
 	require.Equal(t, "0.2.0", spec.Identity.Version)
 	require.Equal(t, "aarch64", spec.Identity.Architecture)
 	require.Equal(t, "linux/arm64", spec.Base.Platform)
-	require.Equal(t, DefaultDaemonSocket, spec.Paths.DaemonSocket)
 	require.Equal(t, "LevitateOS/soda-os", spec.Distribution.GitHubRepository)
 }
 
@@ -25,6 +24,8 @@ func TestDistroHasNoRuntimeUpdateDiscoveryMetadata(t *testing.T) {
 		require.NoError(t, err)
 		require.NotContains(t, string(contents), "index_url")
 		require.NotContains(t, string(contents), "state_schema")
+		require.NotContains(t, string(contents), "daemon_socket")
+		require.NotContains(t, string(contents), "[paths]")
 		require.Equal(t, 1, strings.Count(string(contents), "github_repository"))
 	}
 }
