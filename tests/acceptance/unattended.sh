@@ -114,6 +114,34 @@ wait_for_exit() {
 	wait "$pid" || die "raw QEMU exited unsuccessfully"
 }
 
+discover_tailnet_address() {
+	before=$1
+	deadline=$(( $(date +%s) + 1200 ))
+	current=$evidence_dir/.host-tailnet-current.json
+	candidates=$evidence_dir/.new-soda-peers.tsv
+	while :; do
+		tailscale status --json >"$current"
+		: >"$candidates"
+		for id in $(jq -r '.Peer[]? | select(.Online == true and .HostName == "soda") | .ID' "$current"); do
+			if ! jq -e --arg id "$id" '.Peer[]? | select(.Online == true and .ID == $id)' "$before" >/dev/null; then
+				jq -r --arg id "$id" '.Peer[]? | select(.ID == $id) | [.ID, .TailscaleIPs[0]] | @tsv' "$current" >>"$candidates"
+			fi
+		done
+		case "$(wc -l <"$candidates" | tr -d ' ')" in
+			0) ;;
+			1)
+				cp "$current" "$evidence_dir/host-tailnet-enrolled.json"
+				cut -f2 "$candidates"
+				rm -f "$current" "$candidates"
+				return
+				;;
+			*) die "multiple newly enrolled Soda peers make the Tailnet endpoint ambiguous" ;;
+		esac
+		[ "$(date +%s)" -lt "$deadline" ] || die "newly enrolled Soda peer did not become visible within 1200 seconds"
+		sleep 5
+	done
+}
+
 run() {
 	evidence_dir=
 	candidate_iso=
@@ -149,7 +177,7 @@ run() {
 	[ -n "$fallback_oci" ] || die "--fallback-oci is required"
 	[ -n "$tailscale_key" ] || die "--tailscale-auth-key-file is required"
 
-	for command in curl docker go jq openssl qemu-img sha256sum ssh ssh-keygen sudo tar xorriso; do need "$command"; done
+	for command in curl docker go jq openssl qemu-img sha256sum ssh ssh-keygen sudo tailscale tar xorriso; do need "$command"; done
 	select_docker
 	set -- $(native_architecture)
 	architecture=$1
@@ -287,9 +315,8 @@ run() {
 	export SODA_ACCEPTANCE_SSH_PORT=${SODA_ACCEPTANCE_SSH_PORT:-2222}
 	export SODA_ACCEPTANCE_COCKPIT_PORT=${SODA_ACCEPTANCE_COCKPIT_PORT:-19090}
 	requested_guest_host=${SODA_ACCEPTANCE_GUEST_HOST:-}
-	export SODA_ACCEPTANCE_GUEST_HOST=127.0.0.1
-	export SODA_ACCEPTANCE_GUEST_SSH_PORT=$SODA_ACCEPTANCE_SSH_PORT
-	export SODA_ACCEPTANCE_GUEST_COCKPIT_PORT=$SODA_ACCEPTANCE_COCKPIT_PORT
+	export SODA_ACCEPTANCE_GUEST_SSH_PORT=22
+	export SODA_ACCEPTANCE_GUEST_COCKPIT_PORT=9090
 	export SODA_ACCEPTANCE_IMAGE_DIGEST=$b_digest
 	export SODA_ACCEPTANCE_IMAGE_A_REFERENCE=10.0.2.2:$registry_port/soda-os@${a_digest}
 	export SODA_ACCEPTANCE_IMAGE_B_REFERENCE=10.0.2.2:$registry_port/soda-os@${b_digest}
@@ -297,20 +324,22 @@ run() {
 	export SODA_ACCEPTANCE_ISO=$candidate_iso
 	export SODA_ACCEPTANCE_KICKSTART_ISO=$oemdrv
 	export SODA_ACCEPTANCE_DISK_SIZE=${SODA_ACCEPTANCE_DISK_SIZE:-40G}
+	tailscale status --json >"$evidence_dir/host-tailnet-before.json"
 
 	printf 'installing candidate image B through raw QEMU\n'
 	sh "$helper" launch install >"$evidence_dir/qemu.stdout" 2>"$evidence_dir/qemu.stderr" &
 	qemu_pid=$!
-	sh "$helper" wait
-	tailnet_address=$(sh "$helper" tailnet-address)
+	if [ -n "$requested_guest_host" ]; then
+		tailnet_address=$requested_guest_host
+	else
+		tailnet_address=$(discover_tailnet_address "$evidence_dir/host-tailnet-before.json")
+	fi
 	case "$tailnet_address" in
-		100.*) ;;
-		*) die "installed guest reported invalid Tailnet IPv4 address: $tailnet_address" ;;
+		''|*[!A-Za-z0-9:._-]*) die "invalid Tailnet endpoint: $tailnet_address" ;;
+		*) ;;
 	esac
 	printf '%s\n' "$tailnet_address" >"$evidence_dir/tailnet-address.txt"
-	export SODA_ACCEPTANCE_GUEST_HOST=${requested_guest_host:-$tailnet_address}
-	export SODA_ACCEPTANCE_GUEST_SSH_PORT=22
-	export SODA_ACCEPTANCE_GUEST_COCKPIT_PORT=9090
+	export SODA_ACCEPTANCE_GUEST_HOST=$tailnet_address
 	sh "$helper" wait
 	sh "$helper" fallback registry-enable
 	sh "$helper" fallback seed-b

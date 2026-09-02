@@ -52,10 +52,11 @@ One process owns the complete lifecycle:
 4. Create one fresh qcow2 disk and install candidate B through raw QEMU.
 5. Require the guest-requested OEMDRV ejection, remove the medium from its open
    QMP tray, and delete only that exact answer image.
-6. Reach the installed guest through QEMU's loopback forwards, read its native
-   Tailscale IPv4 address, then reconnect through the Tailnet and prove direct
-   administrator SSH and stock Cockpit. `SODA_ACCEPTANCE_GUEST_HOST` may require
-   a specific Tailnet IP or MagicDNS name; no unclaimed hostname is assumed.
+6. Compare host-visible Tailnet peers before and after installation, identify
+   the single newly enrolled Soda node, then prove direct administrator SSH and
+   stock Cockpit through its Tailnet address. `SODA_ACCEPTANCE_GUEST_HOST` may
+   instead require a specific Tailnet IP or MagicDNS name; no unclaimed hostname
+   is assumed and QEMU's loopback forwards are not used as product evidence.
 7. Seed current authoritative Linux, catalog, workspace, Forgejo, Tailscale,
    password, group, home, key, and host-key state on B.
 8. Select exact A with native `bootc switch --download-only` followed by
