@@ -148,6 +148,9 @@ func TestAcceptanceUsesTheProtectedAnswerMediaBoundary(t *testing.T) {
 		`--tailscale-auth-key-file "$tailscale_key"`,
 		`--password-file "$password_file"`,
 		`--output "$oemdrv"`,
+		`work_dir=$(mktemp -d "${TMPDIR:-/tmp}/soda-acceptance-run.XXXXXX")`,
+		`export SODA_ACCEPTANCE_DISK=$disk`,
+		`sanitize_evidence`,
 	} {
 		require.Contains(t, runner, expected)
 	}
@@ -158,15 +161,25 @@ func TestAcceptanceUsesTheProtectedAnswerMediaBoundary(t *testing.T) {
 		"start_x86_unattended_boot_selector",
 		"runner.env",
 		"prepare)",
+		`admin_key=$evidence_dir/admin`,
+		`password_file=$evidence_dir/admin-password`,
+		`stat -c %a "$oemdrv"`,
 	} {
 		require.NotContains(t, runner, obsolete)
 	}
+	require.Contains(t, runner, `'.Peer[]? | select(.ID == $id)'`)
+	require.Contains(t, runner, `wait_for_exit "$qemu_pid" 120`)
 
 	bootRunner := readInstallerFixture(t, root, "tests/acceptance/internal/bootc.sh")
 	require.Contains(t, bootRunner, "SODA_ACCEPTANCE_KICKSTART_ISO is required for launch install")
 	require.Contains(t, bootRunner, "start_installer_input_ejector")
 	require.Contains(t, bootRunner, "while kill -0 \"$qemu_pid\" 2>/dev/null; do")
+	require.Contains(t, bootRunner, `kill -KILL "$qemu_pid"`)
 	require.Contains(t, bootRunner, `"execute":"blockdev-remove-medium"`)
+	require.Contains(t, bootRunner, `failed_units=$(systemctl --failed --no-legend --plain)`)
+	require.Contains(t, bootRunner, `test -z "$failed_units"`)
+	require.Contains(t, bootRunner, `/etc/ssh/sshd_config.d/41-soda-project-accounts.conf`)
+	require.Contains(t, bootRunner, `/usr/libexec/soda/soda-cockpit`)
 	require.NotContains(t, bootRunner, "start_x86_unattended_boot_selector")
 	require.NotContains(t, bootRunner, `"execute":"send-key"`)
 }

@@ -231,7 +231,12 @@ start_installer_input_ejector() {
 		cleanup_ejector() {
 			if [ "$ejected" != true ] && kill -0 "$qemu_pid" 2>/dev/null; then
 				kill -TERM "$qemu_pid" 2>/dev/null || true
+				deadline=$(( $(date +%s) + 10 ))
 				while kill -0 "$qemu_pid" 2>/dev/null; do
+					if [ "$(date +%s)" -ge "$deadline" ]; then
+						kill -KILL "$qemu_pid" 2>/dev/null || true
+						break
+					fi
 					sleep 1
 				done
 			fi
@@ -765,9 +770,14 @@ capture() {
 		echo "[kernel]"; uname -a
 		echo "[services]"
 		for unit in sodad sshd cockpit.socket forgejo tailscaled; do
-			printf "%s=" "$unit"; systemctl is-active "$unit" 2>/dev/null || true
+			state=$(systemctl is-active "$unit")
+			test "$state" = active
+			printf "%s=%s\n" "$unit" "$state"
 		done
-		echo "[failed-units]"; systemctl --failed --no-legend --plain || true
+		echo "[failed-units]"
+		failed_units=$(systemctl --failed --no-legend --plain)
+		test -z "$failed_units"
+		echo none
 		echo "[stock-cockpit]"
 		rpm -q cockpit-ws cockpit-system cockpit-storaged cockpit-networkmanager
 		for manifest in \
@@ -796,14 +806,29 @@ capture() {
 		getent passwd git
 		test -s /etc/forgejo/app.ini && echo configuration=present
 		echo "[deleted-workspace-control-plane]"
-		for unit in soda-authd.service soda-cockpit.service var-srv-soda-projects.mount; do
+		for unit in soda-authd.service soda-cockpit.service avahi-daemon.service var-srv-soda-projects.mount; do
 			if systemctl cat "$unit" >/dev/null 2>&1; then
 				echo "unexpected-unit=$unit"
 				exit 1
 			fi
 			echo "$unit=absent"
 		done
-		for path in /var/lib/soda/soda.db /var/lib/soda/built-in-git-token /var/lib/soda/projects /var/srv/soda/projects /srv/soda/projects /etc/soda/authorized_keys /usr/libexec/soda/soda-ssh; do
+		for path in \
+			/var/lib/soda/soda.db \
+			/var/lib/soda/built-in-git-token \
+			/var/lib/soda/projects \
+			/var/lib/soda/certs \
+			/var/srv/soda/projects \
+			/srv/soda/projects \
+			/etc/soda/authorized_keys \
+			/etc/ssh/sshd_config.d/41-soda-project-accounts.conf \
+			/etc/avahi/services/soda-cockpit.service \
+			/etc/pam.d/soda-cockpit \
+			/usr/libexec/soda/soda-ssh \
+			/usr/libexec/soda/soda-authd \
+			/usr/libexec/soda/soda-cockpit \
+			/var/log/soda/soda-authd \
+			/var/log/soda/soda-cockpit; do
 			if test -e "$path"; then
 				echo "unexpected-path=$path"
 				exit 1
@@ -843,9 +868,11 @@ capture() {
 		echo "container-images-scratch=absent"
 		echo "[boot-entries]"; efibootmgr -v 2>/dev/null || true
 		echo "[automatic-update]"
-		for unit in bootc-fetch-apply-updates.timer bootc-fetch-apply-updates.service; do
-			printf "%s=" "$unit"; systemctl is-enabled "$unit" 2>/dev/null || true
-		done
+		timer_state=$(systemctl is-enabled bootc-fetch-apply-updates.timer 2>/dev/null || true)
+		test "$timer_state" = masked
+		printf "bootc-fetch-apply-updates.timer=%s\n" "$timer_state"
+		printf "bootc-fetch-apply-updates.service="
+		systemctl is-enabled bootc-fetch-apply-updates.service 2>/dev/null || true
 		echo "[soda-state-filesystem]"
 		findmnt /var/lib/soda 2>/dev/null || true
 		echo "[host-keys]"
@@ -884,6 +911,8 @@ capture() {
 	fi
 	jq -e '.status == "ok" and .service == "sodad" and (.version | type == "string" and length > 0)' \
 		"$checkpoint/sodactl-health.json" >/dev/null
+	admin_ssh 'set -eu; help=$(/usr/bin/sodactl --help); printf "%s\n" "$help"; ! printf "%s\n" "$help" | grep -Eq "^  host([[:space:]]|$)"' \
+		>"$checkpoint/sodactl-health-only.txt" 2>"$checkpoint/sodactl-health-only.stderr"
 	curl --fail --silent --show-error --insecure "https://$guest_host:$guest_cockpit_port/ping" >"$checkpoint/cockpit-health.txt"
 
 	for artifact in "${SODA_ACCEPTANCE_RELEASE_RECORD:-}" "${SODA_ACCEPTANCE_ISO:-}"; do
