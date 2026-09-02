@@ -1,335 +1,377 @@
 package release
 
 import (
-	"bytes"
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
-	"net/http"
-	"net/url"
-	"os"
-	"path/filepath"
+	"runtime"
 	"strings"
+
+	"github.com/LevitateOS/soda-os/internal/config"
+	"github.com/LevitateOS/soda-os/internal/process"
 )
 
-const releaseIndexAsset = "soda-os-release-index.json"
+const repositoryStateQuery = `query($owner:String!,$name:String!,$revision:String!,$ref:String!,$tag:String!){repository(owner:$owner,name:$name){viewerPermission object(expression:$revision){oid} ref(qualifiedName:$ref){target{oid}} release(tagName:$tag){tagName isDraft}}}`
 
-type PairedPublicationOptions struct {
-	AArch64     ReleaseArtifact
-	X8664       ReleaseArtifact
-	GitHubToken string
-	OutputDir   string
+var ghEnvironment = []string{"GH_PROMPT_DISABLED=1", "GH_NO_UPDATE_NOTIFIER=1", "NO_COLOR=1"}
+
+type DraftOptions struct{ NotesPath string }
+
+type UploadOptions struct {
+	Architecture string
+	ISOPath      string
+	RecordPath   string
 }
 
-type ReleaseArtifact struct {
-	ISOPath    string
-	RecordPath string
+type PublicationResult struct {
+	Tag      string
+	Revision string
+	Assets   []string
 }
 
-type PairedResult struct {
-	Tag       string
-	IndexPath string
+type releasePhase string
+
+const (
+	draftRelease     releasePhase = "draft"
+	publishedRelease releasePhase = "published"
+)
+
+// Publication is the stateless operator boundary around Git, gh, and GitHub
+// Releases. GitHub remains authoritative for tags, drafts, assets, and releases.
+type Publication struct {
+	root             string
+	specs            map[string]config.DistroSpec
+	runner           process.Runner
+	hostArchitecture string
+	repository       string
+	version          string
 }
 
-type releaseIndex struct {
-	SchemaVersion  uint32         `json:"schema_version"`
-	SodaVersion    string         `json:"soda_version"`
-	SourceRevision string         `json:"source_revision"`
-	Releases       []indexRelease `json:"releases"`
-}
-
-type indexRelease struct {
-	Architecture   string `json:"architecture"`
-	ImageReference string `json:"image_reference"`
-	ISOAsset       string `json:"iso_asset"`
-	ISOChecksum    string `json:"iso_sha256"`
-	RecordAsset    string `json:"record_asset"`
-	RecordChecksum string `json:"record_sha256"`
-}
-
-type githubReleaseClient interface {
-	CreateDraft(context.Context, string, string, string) (githubDraft, error)
-	Upload(context.Context, githubDraft, string) error
-	VerifyAssets(context.Context, githubDraft, []string) error
-	Publish(context.Context, githubDraft) error
-}
-
-type githubDraft struct {
-	ID        int64
-	UploadURL string
-}
-
-func (p *Publisher) PublishPaired(ctx context.Context, options PairedPublicationOptions) (PairedResult, error) {
-	if options.GitHubToken == "" {
-		return PairedResult{}, errors.New("GitHub token is required to publish a Soda release")
+func NewPublication(root string, aarch64, x86 config.DistroSpec, runner process.Runner) (*Publication, error) {
+	if runner == nil {
+		runner = process.OSRunner{}
 	}
-	if p.spec.Distribution.GitHubRepository == "" {
-		return PairedResult{}, errors.New("Soda distribution has no GitHub release repository")
+	if err := validatePublicationSpecs(aarch64, x86); err != nil {
+		return nil, err
 	}
-	artifacts := map[string]ReleaseArtifact{"aarch64": options.AArch64, "x86_64": options.X8664}
-	index, paths, err := p.releaseIndex(artifacts)
-	if err != nil {
-		return PairedResult{}, err
-	}
-	if options.OutputDir == "" {
-		options.OutputDir = ".artifacts/releases"
-	}
-	if err := os.MkdirAll(options.OutputDir, 0o755); err != nil {
-		return PairedResult{}, fmt.Errorf("create paired release output: %w", err)
-	}
-	indexPath := filepath.Join(options.OutputDir, releaseIndexAsset)
-	encoded, err := json.Marshal(index)
-	if err != nil {
-		return PairedResult{}, err
-	}
-	if err := os.WriteFile(indexPath, append(encoded, '\n'), 0o644); err != nil {
-		return PairedResult{}, fmt.Errorf("write release index: %w", err)
-	}
-	paths = append(paths, indexPath)
-	tag := "v" + index.SodaVersion
-	client := githubAPI{token: options.GitHubToken, client: http.DefaultClient}
-	return publishPaired(ctx, client, pairedUpload{repository: p.spec.Distribution.GitHubRepository, tag: tag, indexPath: indexPath, paths: paths})
+	return &Publication{
+		root:             root,
+		specs:            map[string]config.DistroSpec{"aarch64": aarch64, "x86_64": x86},
+		runner:           runner,
+		hostArchitecture: runtime.GOARCH,
+		repository:       aarch64.Distribution.GitHubRepository,
+		version:          aarch64.Identity.Version,
+	}, nil
 }
 
-func (p *Publisher) releaseIndex(artifacts map[string]ReleaseArtifact) (releaseIndex, []string, error) {
-	index := releaseIndex{SchemaVersion: 1, Releases: make([]indexRelease, 0, 2)}
-	paths := make([]string, 0, 4)
-	for _, architecture := range []string{"aarch64", "x86_64"} {
-		indexed, err := p.releaseIndexEntry(architecture, artifacts[architecture])
-		if err != nil {
-			return releaseIndex{}, nil, err
+func validatePublicationSpecs(aarch64, x86 config.DistroSpec) error {
+	for architecture, spec := range map[string]config.DistroSpec{"aarch64": aarch64, "x86_64": x86} {
+		if spec.Platform.Architecture.Name != architecture {
+			return fmt.Errorf("%s publication specification has architecture %q", architecture, spec.Platform.Architecture.Name)
 		}
-		if index.SodaVersion == "" {
-			index.SodaVersion, index.SourceRevision = indexed.record.SodaVersion, indexed.record.SourceRevision
-		} else if indexed.record.SourceRevision != index.SourceRevision {
-			return releaseIndex{}, nil, errors.New("paired release records have different source revisions")
+		if spec.Image.Registry != Repository {
+			return fmt.Errorf("%s release repository must be %s", architecture, Repository)
 		}
-		index.Releases = append(index.Releases, indexed.release)
-		paths = append(paths, indexed.paths...)
-	}
-	return index, paths, nil
-}
-
-type indexedArtifact struct {
-	release indexRelease
-	record  Record
-	paths   []string
-}
-
-func (p *Publisher) releaseIndexEntry(architecture string, artifact ReleaseArtifact) (indexedArtifact, error) {
-	if !regularFile(artifact.ISOPath) || !regularFile(artifact.RecordPath) {
-		return indexedArtifact{}, fmt.Errorf("%s paired release artifacts must be regular files", architecture)
-	}
-	record, contents, err := p.readReleaseRecord(architecture, artifact)
-	if err != nil {
-		return indexedArtifact{}, err
-	}
-	isoDigest, err := fileSHA256(artifact.ISOPath)
-	if err != nil {
-		return indexedArtifact{}, err
-	}
-	if record.ISOChecksum != isoDigest {
-		return indexedArtifact{}, fmt.Errorf("%s installer ISO checksum differs from its release record", architecture)
-	}
-	digest := sha256.Sum256(contents)
-	entry := indexRelease{Architecture: architecture, ImageReference: record.SodaImageReference, ISOAsset: filepath.Base(artifact.ISOPath), ISOChecksum: isoDigest, RecordAsset: filepath.Base(artifact.RecordPath), RecordChecksum: hex.EncodeToString(digest[:])}
-	return indexedArtifact{release: entry, record: record, paths: []string{artifact.ISOPath, artifact.RecordPath}}, nil
-}
-
-func (p *Publisher) readReleaseRecord(architecture string, artifact ReleaseArtifact) (Record, []byte, error) {
-	contents, err := os.ReadFile(artifact.RecordPath)
-	if err != nil {
-		return Record{}, nil, err
-	}
-	var record Record
-	if err := json.Unmarshal(contents, &record); err != nil {
-		return Record{}, nil, fmt.Errorf("decode %s release record: %w", architecture, err)
-	}
-	if record.SodaVersion != p.spec.Identity.Version || record.SourceRevision == "" || !isSodaDigestReference(record.SodaImageReference) {
-		return Record{}, nil, fmt.Errorf("%s release record does not match the Soda release contract", architecture)
-	}
-	return record, contents, nil
-}
-
-type pairedUpload struct {
-	repository, tag, indexPath string
-	paths                      []string
-}
-
-func publishPaired(ctx context.Context, client githubReleaseClient, upload pairedUpload) (PairedResult, error) {
-	draft, err := client.CreateDraft(ctx, upload.repository, upload.tag, "Soda OS "+strings.TrimPrefix(upload.tag, "v"))
-	if err != nil {
-		return PairedResult{}, fmt.Errorf("create GitHub draft release: %w", err)
-	}
-	for _, path := range upload.paths {
-		if err := client.Upload(ctx, draft, path); err != nil {
-			return PairedResult{}, fmt.Errorf("upload GitHub release asset %s: %w", filepath.Base(path), err)
+		if spec.Distribution.GitHubRepository == "" {
+			return fmt.Errorf("%s Soda distribution has no GitHub release repository", architecture)
 		}
 	}
-	if err := client.VerifyAssets(ctx, draft, upload.paths); err != nil {
-		return PairedResult{}, fmt.Errorf("verify uploaded GitHub release assets: %w", err)
-	}
-	if err := client.Publish(ctx, draft); err != nil {
-		return PairedResult{}, fmt.Errorf("publish GitHub release: %w", err)
-	}
-	return PairedResult{Tag: upload.tag, IndexPath: upload.indexPath}, nil
-}
-
-func fileSHA256(path string) (string, error) {
-	contents, err := os.ReadFile(path)
-	if err != nil {
-		return "", err
-	}
-	digest := sha256.Sum256(contents)
-	return hex.EncodeToString(digest[:]), nil
-}
-
-func isSodaDigestReference(reference string) bool {
-	prefix := Repository + "@sha256:"
-	if !strings.HasPrefix(reference, prefix) || len(reference) != len(prefix)+64 {
-		return false
-	}
-	_, err := hex.DecodeString(strings.TrimPrefix(reference, prefix))
-	return err == nil
-}
-
-type githubAPI struct {
-	token  string
-	client *http.Client
-}
-
-func (g githubAPI) CreateDraft(ctx context.Context, repository, tag, title string) (githubDraft, error) {
-	var response struct {
-		ID        int64  `json:"id"`
-		UploadURL string `json:"upload_url"`
-	}
-	if err := g.requestJSON(ctx, http.MethodPost, "https://api.github.com/repos/"+repository+"/releases", map[string]any{"tag_name": tag, "name": title, "draft": true}, &response); err != nil {
-		return githubDraft{}, err
-	}
-	return githubDraft{ID: response.ID, UploadURL: strings.Split(response.UploadURL, "{")[0]}, nil
-}
-
-func (g githubAPI) Upload(ctx context.Context, draft githubDraft, path string) error {
-	contents, err := os.ReadFile(path)
-	if err != nil {
-		return err
-	}
-	u, err := url.Parse(draft.UploadURL)
-	if err != nil {
-		return err
-	}
-	query := u.Query()
-	query.Set("name", filepath.Base(path))
-	u.RawQuery = query.Encode()
-	request, err := http.NewRequestWithContext(ctx, http.MethodPost, u.String(), bytes.NewReader(contents))
-	if err != nil {
-		return err
-	}
-	request.Header.Set("Authorization", "Bearer "+g.token)
-	request.Header.Set("Accept", "application/vnd.github+json")
-	request.Header.Set("Content-Type", "application/octet-stream")
-	response, err := g.client.Do(request)
-	if err != nil {
-		return err
-	}
-	defer response.Body.Close()
-	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		return githubError(response)
+	if aarch64.Identity.Version != x86.Identity.Version || aarch64.Distribution.GitHubRepository != x86.Distribution.GitHubRepository {
+		return errors.New("architecture specifications disagree on Soda release identity")
 	}
 	return nil
 }
 
-func (g githubAPI) VerifyAssets(ctx context.Context, draft githubDraft, paths []string) error {
-	var assets []struct {
-		Name       string `json:"name"`
-		BrowserURL string `json:"browser_download_url"`
+func (p *Publication) Draft(ctx context.Context, options DraftOptions) (PublicationResult, error) {
+	if err := requireRegularFile("release notes", options.NotesPath); err != nil {
+		return PublicationResult{}, err
 	}
-	if err := g.requestJSON(ctx, http.MethodGet, fmt.Sprintf("https://api.github.com/releases/%d/assets", draft.ID), nil, &assets); err != nil {
-		return err
+	revision, err := p.cleanRevision(ctx)
+	if err != nil {
+		return PublicationResult{}, err
 	}
-	byName := make(map[string]string, len(assets))
-	for _, asset := range assets {
-		byName[asset.Name] = asset.BrowserURL
+	if err := p.authenticate(ctx); err != nil {
+		return PublicationResult{}, err
 	}
-	for _, path := range paths {
-		if err := g.verifyAsset(ctx, byName[filepath.Base(path)], path); err != nil {
-			return err
-		}
+	state, err := p.repositoryState(ctx, revision)
+	if err != nil {
+		return PublicationResult{}, err
+	}
+	if err := requireAbsentReleaseState(state, revision); err != nil {
+		return PublicationResult{}, err
+	}
+	if err := p.createTag(ctx, revision); err != nil {
+		return PublicationResult{}, fmt.Errorf("create GitHub release tag: %w", err)
+	}
+	if err := p.createDraft(ctx, options.NotesPath); err != nil {
+		return PublicationResult{}, fmt.Errorf("create GitHub draft release: %w", err)
+	}
+	view, err := p.requireRelease(ctx, revision, draftRelease)
+	if err != nil {
+		return PublicationResult{}, fmt.Errorf("verify GitHub draft release: %w", err)
+	}
+	if len(view.Assets) != 0 {
+		return PublicationResult{}, errors.New("new GitHub draft release is not empty")
+	}
+	return PublicationResult{Tag: p.tag(), Revision: revision}, nil
+}
+
+func (p *Publication) Upload(ctx context.Context, options UploadOptions) (PublicationResult, error) {
+	spec, err := p.nativeSpec(options.Architecture)
+	if err != nil {
+		return PublicationResult{}, err
+	}
+	revision, err := p.cleanRevision(ctx)
+	if err != nil {
+		return PublicationResult{}, err
+	}
+	artifacts, err := validateUploadArtifacts(spec, revision, options)
+	if err != nil {
+		return PublicationResult{}, err
+	}
+	if err := p.authenticate(ctx); err != nil {
+		return PublicationResult{}, err
+	}
+	view, err := p.requireRelease(ctx, revision, draftRelease)
+	if err != nil {
+		return PublicationResult{}, err
+	}
+	if err := requireUploadNamesAbsent(view.Assets, artifacts); err != nil {
+		return PublicationResult{}, err
+	}
+	if err := p.runner.Run(ctx, p.gh("release", "upload", p.tag(), artifacts[0].Path, artifacts[1].Path, artifacts[2].Path, "--repo", p.repository)); err != nil {
+		return PublicationResult{}, fmt.Errorf("upload GitHub release assets: %w", err)
+	}
+	view, err = p.requireRelease(ctx, revision, draftRelease)
+	if err != nil {
+		return PublicationResult{}, fmt.Errorf("verify uploaded GitHub release assets: %w", err)
+	}
+	if err := verifyUploadedAssets(view.Assets, artifacts); err != nil {
+		return PublicationResult{}, err
+	}
+	return PublicationResult{Tag: p.tag(), Revision: revision, Assets: artifactNames(artifacts)}, nil
+}
+
+func (p *Publication) nativeSpec(architecture string) (config.DistroSpec, error) {
+	spec, ok := p.specs[architecture]
+	if !ok {
+		return config.DistroSpec{}, fmt.Errorf("unsupported Soda architecture %q", architecture)
+	}
+	if err := config.RequireNativeHostArchitecture(architecture, p.hostArchitecture); err != nil {
+		return config.DistroSpec{}, err
+	}
+	return spec, nil
+}
+
+func (p *Publication) Publish(ctx context.Context) (PublicationResult, error) {
+	revision, err := p.cleanRevision(ctx)
+	if err != nil {
+		return PublicationResult{}, err
+	}
+	if err := p.authenticate(ctx); err != nil {
+		return PublicationResult{}, err
+	}
+	view, err := p.requireRelease(ctx, revision, draftRelease)
+	if err != nil {
+		return PublicationResult{}, err
+	}
+	if err := requirePublishableAssets(view.Assets, p.version); err != nil {
+		return PublicationResult{}, err
+	}
+	before := assetIdentities(view.Assets)
+	if err := p.runner.Run(ctx, p.gh("release", "edit", p.tag(), "--repo", p.repository, "--verify-tag", "--draft=false")); err != nil {
+		return PublicationResult{}, fmt.Errorf("publish GitHub release: %w", err)
+	}
+	view, err = p.requireRelease(ctx, revision, publishedRelease)
+	if err != nil {
+		return PublicationResult{}, fmt.Errorf("verify published GitHub release: %w", err)
+	}
+	if after := assetIdentities(view.Assets); !equalStrings(before, after) {
+		return PublicationResult{}, errors.New("GitHub release assets changed while publishing")
+	}
+	return PublicationResult{Tag: p.tag(), Revision: revision, Assets: before}, nil
+}
+
+func (p *Publication) authenticate(ctx context.Context) error {
+	if err := p.runner.Run(ctx, p.gh("auth", "status", "--active", "--hostname", "github.com")); err != nil {
+		return fmt.Errorf("verify GitHub CLI authentication: %w", err)
 	}
 	return nil
 }
 
-func (g githubAPI) verifyAsset(ctx context.Context, remoteURL, path string) error {
-	if remoteURL == "" {
-		return fmt.Errorf("missing asset %s", filepath.Base(path))
-	}
-	request, err := http.NewRequestWithContext(ctx, http.MethodGet, remoteURL, nil)
+func (p *Publication) cleanRevision(ctx context.Context) (string, error) {
+	status, err := p.runner.Output(ctx, process.Command{Dir: p.root, Name: "git", Args: []string{"status", "--porcelain=v1", "--untracked-files=no"}})
 	if err != nil {
+		return "", fmt.Errorf("inspect release worktree: %w", err)
+	}
+	if strings.TrimSpace(status) != "" {
+		return "", errors.New("release publication requires clean tracked and staged Git state")
+	}
+	revision, err := p.runner.Output(ctx, process.Command{Dir: p.root, Name: "git", Args: []string{"rev-parse", "HEAD"}})
+	if err != nil {
+		return "", fmt.Errorf("resolve release source revision: %w", err)
+	}
+	revision = strings.TrimSpace(revision)
+	if !validHexadecimal(revision, 40) {
+		return "", fmt.Errorf("source revision %q is not a full Git commit ID", revision)
+	}
+	return revision, nil
+}
+
+func (p *Publication) repositoryState(ctx context.Context, revision string) (repositoryState, error) {
+	owner, name, _ := strings.Cut(p.repository, "/")
+	output, err := p.runner.Output(ctx, p.gh(
+		"api", "graphql",
+		"--raw-field", "query="+repositoryStateQuery,
+		"--raw-field", "owner="+owner,
+		"--raw-field", "name="+name,
+		"--raw-field", "revision="+revision,
+		"--raw-field", "ref=refs/tags/"+p.tag(),
+		"--raw-field", "tag="+p.tag(),
+	))
+	if err != nil {
+		return repositoryState{}, fmt.Errorf("inspect GitHub release state: %w", err)
+	}
+	var response repositoryStateResponse
+	if err := json.Unmarshal([]byte(output), &response); err != nil {
+		return repositoryState{}, fmt.Errorf("decode GitHub release state: %w", err)
+	}
+	if len(response.Errors) > 0 || response.Data.Repository == nil {
+		return repositoryState{}, errors.New("GitHub did not return the configured release repository")
+	}
+	return *response.Data.Repository, nil
+}
+
+func (p *Publication) requireRelease(ctx context.Context, revision string, phase releasePhase) (releaseView, error) {
+	state, err := p.repositoryState(ctx, revision)
+	if err != nil {
+		return releaseView{}, err
+	}
+	if err := validateExistingReleaseState(state, revision, p.tag(), phase); err != nil {
+		return releaseView{}, err
+	}
+	view, err := p.releaseView(ctx)
+	if err != nil {
+		return releaseView{}, err
+	}
+	if view.TagName != p.tag() || view.IsDraft != phase.isDraft() {
+		return releaseView{}, errors.New("GitHub release view differs from the intended tag or draft state")
+	}
+	return view, nil
+}
+
+func (p *Publication) releaseView(ctx context.Context) (releaseView, error) {
+	output, err := p.runner.Output(ctx, p.gh("release", "view", p.tag(), "--repo", p.repository, "--json", "tagName,isDraft,assets"))
+	if err != nil {
+		return releaseView{}, fmt.Errorf("inspect GitHub release: %w", err)
+	}
+	var view releaseView
+	if err := json.Unmarshal([]byte(output), &view); err != nil {
+		return releaseView{}, fmt.Errorf("decode GitHub release: %w", err)
+	}
+	return view, nil
+}
+
+func (p *Publication) createTag(ctx context.Context, revision string) error {
+	return p.runner.Run(ctx, p.gh(
+		"api", "repos/"+p.repository+"/git/refs",
+		"--method", "POST",
+		"--raw-field", "ref=refs/tags/"+p.tag(),
+		"--raw-field", "sha="+revision,
+		"--silent",
+	))
+}
+
+func (p *Publication) createDraft(ctx context.Context, notesPath string) error {
+	return p.runner.Run(ctx, p.gh(
+		"release", "create", p.tag(),
+		"--repo", p.repository,
+		"--verify-tag",
+		"--draft",
+		"--title", "Soda OS "+p.version,
+		"--notes-file", notesPath,
+	))
+}
+
+func (p *Publication) gh(args ...string) process.Command {
+	return process.Command{Dir: p.root, Env: append([]string(nil), ghEnvironment...), Name: "gh", Args: args}
+}
+
+func (p *Publication) tag() string { return "v" + p.version }
+
+type repositoryStateResponse struct {
+	Data struct {
+		Repository *repositoryState `json:"repository"`
+	} `json:"data"`
+	Errors []json.RawMessage `json:"errors"`
+}
+
+type repositoryState struct {
+	ViewerPermission string `json:"viewerPermission"`
+	Object           *struct {
+		OID string `json:"oid"`
+	} `json:"object"`
+	Ref *struct {
+		Target struct {
+			OID string `json:"oid"`
+		} `json:"target"`
+	} `json:"ref"`
+	Release *struct {
+		TagName string `json:"tagName"`
+		IsDraft bool   `json:"isDraft"`
+	} `json:"release"`
+}
+
+type releaseView struct {
+	TagName string        `json:"tagName"`
+	IsDraft bool          `json:"isDraft"`
+	Assets  []remoteAsset `json:"assets"`
+}
+
+type remoteAsset struct {
+	Name   string `json:"name"`
+	Size   int64  `json:"size"`
+	State  string `json:"state"`
+	Digest string `json:"digest"`
+}
+
+func requireAbsentReleaseState(state repositoryState, revision string) error {
+	if err := validateRepositoryAccess(state, revision); err != nil {
 		return err
 	}
-	response, err := g.client.Do(request)
-	if err != nil {
-		return err
+	if state.Ref != nil {
+		return errors.New("GitHub release tag already exists")
 	}
-	contents, readErr := io.ReadAll(response.Body)
-	response.Body.Close()
-	if readErr != nil {
-		return readErr
-	}
-	if response.StatusCode != http.StatusOK {
-		return fmt.Errorf("download %s: %s", filepath.Base(path), response.Status)
-	}
-	local, err := os.ReadFile(path)
-	if err != nil {
-		return err
-	}
-	if !bytes.Equal(local, contents) {
-		return fmt.Errorf("uploaded bytes differ for %s", filepath.Base(path))
+	if state.Release != nil {
+		return errors.New("GitHub release or draft already exists")
 	}
 	return nil
 }
 
-func (g githubAPI) Publish(ctx context.Context, draft githubDraft) error {
-	return g.requestJSON(ctx, http.MethodPatch, fmt.Sprintf("https://api.github.com/releases/%d", draft.ID), map[string]any{"draft": false}, nil)
-}
-
-func (g githubAPI) requestJSON(ctx context.Context, method, endpoint string, body any, result any) error {
-	var reader io.Reader
-	if body != nil {
-		encoded, err := json.Marshal(body)
-		if err != nil {
-			return err
-		}
-		reader = bytes.NewReader(encoded)
-	}
-	request, err := http.NewRequestWithContext(ctx, method, endpoint, reader)
-	if err != nil {
+func validateExistingReleaseState(state repositoryState, revision, tag string, phase releasePhase) error {
+	if err := validateRepositoryAccess(state, revision); err != nil {
 		return err
 	}
-	request.Header.Set("Authorization", "Bearer "+g.token)
-	request.Header.Set("Accept", "application/vnd.github+json")
-	if body != nil {
-		request.Header.Set("Content-Type", "application/json")
+	if state.Ref == nil || state.Ref.Target.OID != revision {
+		return errors.New("GitHub release tag does not target the clean source revision")
 	}
-	response, err := g.client.Do(request)
-	if err != nil {
-		return err
+	if state.Release == nil || state.Release.TagName != tag || state.Release.IsDraft != phase.isDraft() {
+		return errors.New("GitHub release differs from the intended tag or draft state")
 	}
-	defer response.Body.Close()
-	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		return githubError(response)
-	}
-	if result == nil {
-		return nil
-	}
-	return json.NewDecoder(response.Body).Decode(result)
+	return nil
 }
 
-func githubError(response *http.Response) error {
-	contents, _ := io.ReadAll(io.LimitReader(response.Body, 4096))
-	return fmt.Errorf("GitHub API %s: %s", response.Status, strings.TrimSpace(string(contents)))
+func (p releasePhase) isDraft() bool { return p == draftRelease }
+
+func validateRepositoryAccess(state repositoryState, revision string) error {
+	switch state.ViewerPermission {
+	case "WRITE", "MAINTAIN", "ADMIN":
+	default:
+		return fmt.Errorf("GitHub release publication requires write permission; repository returned %q", state.ViewerPermission)
+	}
+	if state.Object == nil || state.Object.OID != revision {
+		return errors.New("clean source revision is not present in the GitHub repository")
+	}
+	return nil
 }
