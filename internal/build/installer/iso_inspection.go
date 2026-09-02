@@ -17,13 +17,15 @@ type isoInspectionInput struct {
 	reference, payloadTag                         string
 }
 
+const anacondaBootcInstallationPath = "usr/lib64/python3.14/site-packages/pyanaconda/modules/payloads/payload/rpm_ostree/installation.py"
+
 func (b *Builder) inspectISO(ctx context.Context, input isoInspectionInput) error {
 	outer := []string{"run", "--rm", "--platform", b.Spec.Base.Platform, "--privileged", "--entrypoint", "podman", "--volume", input.volumeName + ":/var/lib/containers/storage", "--volume", input.isoPath + ":/input/soda.iso:ro", "--volume", input.inspectDir + ":/inspect", input.lock.Reference, "run", "--rm", "--privileged", "--security-opt", "label=disable", "--volume", "/input/soda.iso:/input/soda.iso:ro", "--volume", "/inspect:/inspect", input.installerTag}
 	args := append(append([]string{}, outer...), "xorriso", "-osirrox", "on", "-indev", "/input/soda.iso", "-extract", "/LiveOS/squashfs.img", "/inspect/squashfs.img")
 	if err := b.runner.Run(ctx, process.Command{Dir: b.Root, Name: "docker", Args: args}); err != nil {
 		return fmt.Errorf("extract installer squashfs: %w", err)
 	}
-	args = append(append([]string{}, outer...), "unsquashfs", "-f", "-d", "/inspect/root", "/inspect/squashfs.img", ".buildstamp", "usr/lib/os-release", "usr/share/anaconda/interactive-defaults.ks", "etc/anaconda/conf.d/90-soda-storage.conf", "etc/anaconda/profile.d/sodaos.conf", "etc/systemd/system/anaconda.target.wants/var-tmp.mount", "usr/share/anaconda/pixmaps/soda.css", "usr/share/anaconda/pixmaps/soda-sidebar-logo.png", "usr/share/anaconda/pixmaps/soda-symbol.png", "usr/lib/image-builder/bootc/iso.yaml", "usr/lib/systemd/system/var-tmp.mount", "usr/libexec/soda/soda-installer-input", "usr/libexec/soda/soda-installer-finalize", "usr/share/anaconda/addons", "usr/share/anaconda/dbus/confs", "usr/share/anaconda/dbus/services", "var/lib/containers/storage/overlay-images/images.json")
+	args = append(append([]string{}, outer...), "unsquashfs", "-f", "-d", "/inspect/root", "/inspect/squashfs.img", ".buildstamp", "usr/lib/os-release", "usr/share/anaconda/interactive-defaults.ks", "etc/anaconda/conf.d/90-soda-storage.conf", "etc/anaconda/profile.d/sodaos.conf", "etc/systemd/system/anaconda.target.wants/var-tmp.mount", "usr/share/anaconda/pixmaps/soda.css", "usr/share/anaconda/pixmaps/soda-sidebar-logo.png", "usr/share/anaconda/pixmaps/soda-symbol.png", "usr/lib/image-builder/bootc/iso.yaml", "usr/lib/systemd/system/var-tmp.mount", "usr/libexec/soda/soda-installer-input", "usr/libexec/soda/soda-installer-finalize", anacondaBootcInstallationPath, "usr/share/anaconda/addons", "usr/share/anaconda/dbus/confs", "usr/share/anaconda/dbus/services", "var/lib/containers/storage/overlay-images/images.json")
 	if err := b.runner.Run(ctx, process.Command{Dir: b.Root, Name: "docker", Args: args}); err != nil {
 		return fmt.Errorf("inspect installer squashfs: %w", err)
 	}
@@ -160,6 +162,14 @@ func (b *Builder) validateExtractedInstallerProvisioning(inspectDir string) erro
 		if _, err := os.Lstat(filepath.Join(inspectDir, "root", obsolete)); !errors.Is(err, os.ErrNotExist) {
 			return fmt.Errorf("obsolete Soda Anaconda add-on path remains in ISO: %s", obsolete)
 		}
+	}
+	anacondaBootc, err := os.ReadFile(filepath.Join(inspectDir, "root", anacondaBootcInstallationPath))
+	if err != nil {
+		return fmt.Errorf("read ISO Anaconda bootc mount implementation: %w", err)
+	}
+	if bytes.Count(anacondaBootc, []byte(`for path in ("/proc", "/sys", "/sys/fs/selinux"):`)) != 1 ||
+		bytes.Contains(anacondaBootc, []byte(`for path in ("/proc", "/sys"):`)) {
+		return errors.New("ISO Anaconda bootc mount implementation lacks the reviewed SELinuxFS correction")
 	}
 	return nil
 }

@@ -20,6 +20,14 @@ RUN dnf -y install --setopt=install_weak_deps=False \
     && rpm -q $(cat /usr/share/soda-installer/boot-packages.txt) \
     && test -f /usr/lib/grub/i386-pc/boot_hybrid.img
 
+# Fedora Anaconda 44.30 bind-mounts /sys non-recursively into bootc targets,
+# hiding the nested SELinuxFS mount from its own final SetContextsTask. Keep
+# relabeling and mount teardown Anaconda-owned while failing closed on drift.
+RUN --mount=type=bind,source=packaging/installer/patch-anaconda-bootc-selinuxfs.py,target=/run/patch-anaconda-bootc-selinuxfs.py,readonly \
+    /usr/bin/python3 /run/patch-anaconda-bootc-selinuxfs.py \
+    && /usr/bin/python3 -m py_compile /usr/lib64/python3.14/site-packages/pyanaconda/modules/payloads/payload/rpm_ostree/installation.py \
+    && /usr/bin/python3 -O -m py_compile /usr/lib64/python3.14/site-packages/pyanaconda/modules/payloads/payload/rpm_ostree/installation.py
+
 RUN mkdir -p /boot/efi /usr/lib/image-builder/bootc /usr/lib/systemd/logind.conf.d \
     && mkdir -p "$(realpath /root)" \
     && cp -ra /usr/lib/efi/*/*/EFI /boot/efi \

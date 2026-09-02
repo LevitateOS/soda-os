@@ -50,6 +50,20 @@ func TestInstallerEnvironmentUsesProtectedKickstartComposition(t *testing.T) {
 	}
 }
 
+func TestInstallerEnvironmentCorrectsAnacondaBootcSELinuxFSMount(t *testing.T) {
+	root := filepath.Join("..", "..", "..")
+	containerfile := readInstallerFixture(t, root, "packaging/installer/Containerfile")
+	patcher := readInstallerFixture(t, root, "packaging/installer/patch-anaconda-bootc-selinuxfs.py")
+
+	require.Contains(t, containerfile, "RUN --mount=type=bind,source=packaging/installer/patch-anaconda-bootc-selinuxfs.py")
+	require.Contains(t, containerfile, "/usr/bin/python3 /run/patch-anaconda-bootc-selinuxfs.py")
+	require.Contains(t, patcher, `ANACONDA_CORE_NEVR = "anaconda-core-0:44.30-2.fc44"`)
+	require.Contains(t, patcher, `SOURCE_SHA256 = "614ac3f3061d959144e0a2e80919012c7254d44b1fab04daea35b2bef52f3f86"`)
+	require.Contains(t, patcher, `PATCHED_SHA256 = "de1400f91d39bcdba5f34d17b4173ef779c9d890e3ac404565d0c781026163de"`)
+	require.Contains(t, patcher, `OLD = b'        for path in ("/proc", "/sys"):\n'`)
+	require.Contains(t, patcher, `NEW = b'        for path in ("/proc", "/sys", "/sys/fs/selinux"):\n'`)
+}
+
 func TestInstallerOnlyExecutablesAreFixedAndParse(t *testing.T) {
 	root := filepath.Join("..", "..", "..")
 	inputPath := filepath.Join(root, "packaging", "installer", "soda-installer-input")

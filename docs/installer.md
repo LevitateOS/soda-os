@@ -201,14 +201,14 @@ Soda image, which retains enforcing SELinux.
 
 Anaconda creates the administrator through the standard Kickstart `user` and
 `sshkey` commands. Fedora bootc exposes `/home` through the image-owned
-`/home -> var/home` symlink. The installed-target finalizer therefore validates
-that the logical home resolves to the exact `/var/home/<administrator>`
-directory and restores SELinux contexts only on that fixed physical path. This
-installer-only correction is necessary because the native fresh-install proof
-showed that Anaconda's stock context passes did not leave the physical home,
-SSH directory, and authorized-key inode labels correct. The finalizer verifies
-the corrected labels against Fedora's installed SELinux policy. It creates no
-runtime relabel service or second home authority.
+`/home -> var/home` symlink. Fedora Anaconda 44.30's bootc mount preparation
+binds the host `/sys` non-recursively, which otherwise hides its nested
+SELinuxFS mount from Anaconda's own final context pass. The installer image
+carries one exact-version- and source-hash-guarded correction that also binds
+`/sys/fs/selinux` and tracks it for Anaconda's normal reverse teardown. Anaconda
+therefore remains responsible for applying the installed policy to
+`/var/home`, including the administrator's SSH files. Soda runs no relabel
+command and creates no runtime relabel service or second home authority.
 
 The ISO embeds the local OCI payload under its exact digest in container
 storage. Fedora 44's `bootc` Kickstart command installs from that ISO-local
