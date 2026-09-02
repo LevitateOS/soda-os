@@ -148,6 +148,9 @@ func TestAcceptanceUsesTheProtectedAnswerMediaBoundary(t *testing.T) {
 		`--tailscale-auth-key-file "$tailscale_key"`,
 		`--password-file "$password_file"`,
 		`--output "$oemdrv"`,
+		`work_dir=$(mktemp -d "${TMPDIR:-/tmp}/soda-acceptance-run.XXXXXX")`,
+		`export SODA_ACCEPTANCE_DISK=$disk`,
+		`sanitize_evidence`,
 	} {
 		require.Contains(t, runner, expected)
 	}
@@ -158,15 +161,34 @@ func TestAcceptanceUsesTheProtectedAnswerMediaBoundary(t *testing.T) {
 		"start_x86_unattended_boot_selector",
 		"runner.env",
 		"prepare)",
+		`admin_key=$evidence_dir/admin`,
+		`password_file=$evidence_dir/admin-password`,
+		`stat -c %a "$oemdrv"`,
 	} {
 		require.NotContains(t, runner, obsolete)
 	}
+	require.Contains(t, runner, `'.Peer[]? | select(.ID == $id)'`)
+	require.Contains(t, runner, `wait_for_exit "$qemu_pid" 120`)
+	require.Contains(t, runner, `tailscale_command=/Applications/Tailscale.app/Contents/MacOS/Tailscale`)
+	require.Contains(t, runner, `TAILSCALE_BE_CLI=1 "$tailscale_command" "$@"`)
+	require.Contains(t, runner, `host_tailscale status --json`)
+	require.NotContains(t, runner, "\n\t\ttailscale status --json")
 
 	bootRunner := readInstallerFixture(t, root, "tests/acceptance/internal/bootc.sh")
 	require.Contains(t, bootRunner, "SODA_ACCEPTANCE_KICKSTART_ISO is required for launch install")
 	require.Contains(t, bootRunner, "start_installer_input_ejector")
 	require.Contains(t, bootRunner, "while kill -0 \"$qemu_pid\" 2>/dev/null; do")
+	require.Contains(t, bootRunner, `kill -KILL "$qemu_pid"`)
 	require.Contains(t, bootRunner, `"execute":"blockdev-remove-medium"`)
+	require.Contains(t, bootRunner, `failed_units=$(systemctl --failed --no-legend --plain || true)`)
+	require.Contains(t, bootRunner, `if test -n "$failed_units"; then`)
+	require.Contains(t, bootRunner, `printf "%s\n" "$failed_units"`)
+	require.Contains(t, bootRunner, `systemctl status --no-pager --full -- "$failed_unit"`)
+	require.Contains(t, bootRunner, `journalctl --boot --no-pager --unit "$failed_unit" --lines 100`)
+	require.Contains(t, bootRunner, `uid=$(id -u nokey)`)
+	require.Contains(t, bootRunner, `Keyless fixture still owns processes after native logind termination`)
+	require.Contains(t, bootRunner, `/etc/ssh/sshd_config.d/41-soda-project-accounts.conf`)
+	require.Contains(t, bootRunner, `/usr/libexec/soda/soda-cockpit`)
 	require.NotContains(t, bootRunner, "start_x86_unattended_boot_selector")
 	require.NotContains(t, bootRunner, `"execute":"send-key"`)
 }
@@ -195,6 +217,8 @@ func TestAcceptanceExposesOnePublicWorkflow(t *testing.T) {
 		`scenario product`,
 		`capture final`,
 		`SODA_ACCEPTANCE_LATER_PRIMARY_PASSWORD_FILE`,
+		`registry_data=$work_dir/registry`,
+		`--volume "$registry_data:/var/lib/registry"`,
 	} {
 		require.Contains(t, runner, expected)
 	}

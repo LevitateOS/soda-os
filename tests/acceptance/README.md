@@ -47,7 +47,9 @@ One process owns the complete lifecycle:
    files, and protected credential input.
 2. Generate a fresh administrator password and key and create protected OEMDRV
    answer media through `soda-image installer-input`.
-3. Start one exact disposable registry, copy A and B with preserved manifest
+3. Create generated administrator credentials, OEMDRV media, and the qcow2 disk
+   in one protected disposable host directory outside the evidence tree. Start
+   one exact disposable registry, copy A and B with preserved manifest
    digests, and expose it only to QEMU's host endpoint.
 4. Create one fresh qcow2 disk and install candidate B through raw QEMU.
 5. Require the guest-requested OEMDRV ejection, remove the medium from its open
@@ -65,7 +67,9 @@ One process owns the complete lifecycle:
 9. Select exact B the same way, reboot, compare again, and remove the disposable
    guest registry configuration.
 10. Exercise product behavior and capture the final installed-product evidence.
-11. Shut down QEMU cleanly and remove only the exact disposable registry.
+11. Shut down QEMU cleanly, scan retained evidence for the generated password,
+    private key, and Tailscale key, then remove the exact disposable runtime
+    directory and registry.
 
 The private non-executable scripts below `tests/acceptance/internal/` are
 implementation details. They are not alternative public workflows, do not
@@ -116,8 +120,10 @@ evidence.
 
 Known collisions and invalid inputs fail before mutation. The runner does not
 retry, repair, compensate, reconcile, or keep durable workflow state. A failed
-run retains its evidence directory for diagnosis and requires a fresh directory,
-disk, OEMDRV image, and Tailscale key for repetition.
+run retains redacted evidence for diagnosis, but removes its generated
+credentials, OEMDRV image, and qcow2 disk; repetition requires a fresh evidence
+directory and runtime inputs. Any credential material detected in retained
+evidence is redacted and makes the run fail.
 
 Normalized fallback manifests deliberately exclude boot IDs, timestamps, PIDs,
 logs, WAL bytes, and deployment selection. They include current account fields,

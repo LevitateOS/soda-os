@@ -51,6 +51,20 @@ select_docker() {
 	fi
 }
 
+select_tailscale() {
+	if command -v tailscale >/dev/null 2>&1; then
+		tailscale_command=$(command -v tailscale)
+	elif [ "$(uname -s)" = Darwin ] && [ -x /Applications/Tailscale.app/Contents/MacOS/Tailscale ]; then
+		tailscale_command=/Applications/Tailscale.app/Contents/MacOS/Tailscale
+	else
+		die "Tailscale is unavailable on PATH and no macOS app CLI was found"
+	fi
+}
+
+host_tailscale() {
+	TAILSCALE_BE_CLI=1 "$tailscale_command" "$@"
+}
+
 host_docker() {
 	case "$docker_access" in
 		direct) docker "$@" ;;
@@ -110,8 +124,27 @@ validate_artifact_set() {
 
 wait_for_exit() {
 	pid=$1
-	while kill -0 "$pid" 2>/dev/null; do sleep 1; done
+	timeout=$2
+	deadline=$(( $(date +%s) + timeout ))
+	while kill -0 "$pid" 2>/dev/null; do
+		[ "$(date +%s)" -lt "$deadline" ] || die "raw QEMU did not exit within $timeout seconds"
+		sleep 1
+	done
 	wait "$pid" || die "raw QEMU exited unsuccessfully"
+}
+
+terminate_process() {
+	pid=$1
+	kill -TERM "$pid" 2>/dev/null || true
+	deadline=$(( $(date +%s) + 10 ))
+	while kill -0 "$pid" 2>/dev/null; do
+		if [ "$(date +%s)" -ge "$deadline" ]; then
+			kill -KILL "$pid" 2>/dev/null || true
+			break
+		fi
+		sleep 1
+	done
+	wait "$pid" 2>/dev/null || true
 }
 
 discover_tailnet_address() {
@@ -120,10 +153,10 @@ discover_tailnet_address() {
 	current=$evidence_dir/.host-tailnet-current.json
 	candidates=$evidence_dir/.new-soda-peers.tsv
 	while :; do
-		tailscale status --json >"$current"
+		host_tailscale status --json >"$current"
 		: >"$candidates"
 		for id in $(jq -r '.Peer[]? | select(.Online == true and .HostName == "soda") | .ID' "$current"); do
-			if ! jq -e --arg id "$id" '.Peer[]? | select(.Online == true and .ID == $id)' "$before" >/dev/null; then
+			if ! jq -e --arg id "$id" '.Peer[]? | select(.ID == $id)' "$before" >/dev/null; then
 				jq -r --arg id "$id" '.Peer[]? | select(.ID == $id) | [.ID, .TailscaleIPs[0]] | @tsv' "$current" >>"$candidates"
 			fi
 		done
@@ -177,8 +210,9 @@ run() {
 	[ -n "$fallback_oci" ] || die "--fallback-oci is required"
 	[ -n "$tailscale_key" ] || die "--tailscale-auth-key-file is required"
 
-	for command in curl docker go jq openssl qemu-img sha256sum ssh ssh-keygen sudo tailscale tar xorriso; do need "$command"; done
+	for command in curl docker go jq openssl qemu-img sha256sum ssh ssh-keygen sudo tar xorriso; do need "$command"; done
 	select_docker
+	select_tailscale
 	set -- $(native_architecture)
 	architecture=$1
 	expected_platform=$2
@@ -207,10 +241,16 @@ run() {
 	chmod 0700 "$evidence_dir"
 	evidence_dir=$(CDPATH= cd -- "$evidence_dir" && pwd)
 	admin=${SODA_ACCEPTANCE_ADMIN:-soda-test}
-	admin_key=$evidence_dir/admin
-	password_file=$evidence_dir/admin-password
-	later_primary_password_file=$evidence_dir/later-primary-password
-	oemdrv=$evidence_dir/oemdrv.iso
+	work_dir=$(mktemp -d "${TMPDIR:-/tmp}/soda-acceptance-run.XXXXXX")
+	work_dir=$(CDPATH= cd -- "$work_dir" && pwd)
+	chmod 0700 "$work_dir"
+	admin_key=$work_dir/admin
+	password_file=$work_dir/admin-password
+	later_primary_password_file=$work_dir/later-primary-password
+	oemdrv=$work_dir/oemdrv.iso
+	disk=$work_dir/soda-system.qcow2
+	registry_data=$work_dir/registry
+	mkdir -p "$registry_data"
 	registry_port=${SODA_ACCEPTANCE_REGISTRY_PORT:-5001}
 	printf '%s\n' "$registry_port" | LC_ALL=C grep -Eq '^[0-9]{1,5}$' || die "registry port must be numeric"
 	[ "$registry_port" -ge 1 ] && [ "$registry_port" -le 65535 ] || die "registry port is outside the TCP range"
@@ -225,18 +265,77 @@ run() {
 	qemu_pid=
 	registry_started=false
 	completed=false
+	inputs_retired=false
+
+	sanitize_evidence() {
+		[ -e "$evidence_dir/secret-absence.txt" ] && return
+		python3 - "$evidence_dir" "$tailscale_key" "$password_file" "$later_primary_password_file" "$admin_key" <<'PY'
+import pathlib
+import sys
+
+evidence = pathlib.Path(sys.argv[1])
+labels = ("tailscale-auth-key", "administrator-password", "later-primary-password", "administrator-private-key")
+secrets = []
+for label, raw_path in zip(labels, sys.argv[2:]):
+    path = pathlib.Path(raw_path)
+    if not path.is_file():
+        continue
+    value = path.read_bytes()
+    for candidate in (value, value.rstrip(b"\r\n")):
+        if candidate and all(candidate != existing[1] for existing in secrets):
+            secrets.append((label, candidate))
+
+redacted = []
+for path in evidence.rglob("*"):
+    if not path.is_file() or path.is_symlink() or path.name == "secret-absence.txt":
+        continue
+    contents = path.read_bytes()
+    original = contents
+    matched = []
+    for label, secret in secrets:
+        if secret in contents:
+            contents = contents.replace(secret, b"[REDACTED]")
+            matched.append(label)
+    if contents != original:
+        path.write_bytes(contents)
+        redacted.append((str(path.relative_to(evidence)), sorted(set(matched))))
+
+report = evidence / "secret-absence.txt"
+with report.open("w", encoding="utf-8") as output:
+    if redacted:
+        output.write("result=fail-redacted\n")
+        for relative, matched in redacted:
+            output.write(f"redacted={relative}:{','.join(matched)}\n")
+    else:
+        output.write("result=pass\n")
+        for label in labels:
+            output.write(f"{label}=absent\n")
+if redacted:
+    raise SystemExit("credential material reached evidence and was redacted")
+PY
+	}
+
+	retire_run_inputs() {
+		[ "$inputs_retired" = true ] && return
+		sanitize_evidence
+		rm -rf -- "$work_dir"
+		inputs_retired=true
+	}
 
 	cleanup() {
 		status=$?
 		trap - 0 1 2 15
-		if [ -n "$qemu_pid" ] && kill -0 "$qemu_pid" 2>/dev/null; then
-			kill -TERM "$qemu_pid" 2>/dev/null || true
-			wait "$qemu_pid" 2>/dev/null || true
+		set +e
+		if [ -n "$qemu_pid" ]; then
+			terminate_process "$qemu_pid"
 		fi
 		if [ "$registry_started" = true ]; then
 			host_docker rm -f "$registry_name" >/dev/null 2>&1 || true
 		fi
-		rm -f "$oemdrv"
+		if [ "$inputs_retired" != true ]; then
+			sanitize_evidence >/dev/null 2>&1 || true
+			rm -rf -- "$work_dir"
+		fi
 		if [ "$completed" != true ]; then
 			printf 'acceptance stopped; evidence retained in %s\n' "$evidence_dir" >&2
 		fi
@@ -260,9 +359,10 @@ run() {
 			--tailscale-auth-key-file "$tailscale_key" \
 			--output "$oemdrv"
 	)
-	[ "$(stat -c %a "$oemdrv")" = 600 ] || die "generated OEMDRV is not mode 0600"
+	protected_secret_file "$oemdrv" >/dev/null
 
-	host_docker run --detach --name "$registry_name" --publish "127.0.0.1:$registry_port:5000" "$registry_image" \
+	host_docker run --detach --name "$registry_name" --publish "127.0.0.1:$registry_port:5000" \
+		--volume "$registry_data:/var/lib/registry" "$registry_image" \
 		>"$evidence_dir/registry-container-id.txt"
 	registry_started=true
 	registry_deadline=$(( $(date +%s) + 30 ))
@@ -326,8 +426,9 @@ run() {
 	export SODA_ACCEPTANCE_RELEASE_RECORD=$candidate_record
 	export SODA_ACCEPTANCE_ISO=$candidate_iso
 	export SODA_ACCEPTANCE_KICKSTART_ISO=$oemdrv
+	export SODA_ACCEPTANCE_DISK=$disk
 	export SODA_ACCEPTANCE_DISK_SIZE=${SODA_ACCEPTANCE_DISK_SIZE:-40G}
-	tailscale status --json >"$evidence_dir/host-tailnet-before.json"
+	host_tailscale status --json >"$evidence_dir/host-tailnet-before.json"
 
 	printf 'installing candidate image B through raw QEMU\n'
 	sh "$helper" launch install >"$evidence_dir/qemu.stdout" 2>"$evidence_dir/qemu.stderr" &
@@ -353,7 +454,7 @@ run() {
 		sh "$helper" fallback stage "$target"
 		sh "$helper" fallback unlock
 		sh "$helper" stop
-		wait_for_exit "$qemu_pid"
+		wait_for_exit "$qemu_pid" 120
 		qemu_pid=
 		sh "$helper" launch installed >>"$evidence_dir/qemu.stdout" 2>>"$evidence_dir/qemu.stderr" &
 		qemu_pid=$!
@@ -377,18 +478,25 @@ run() {
 	sh "$helper" scenario product
 	sh "$helper" capture final
 	sh "$helper" stop
-	wait_for_exit "$qemu_pid"
+	wait_for_exit "$qemu_pid" 120
 	qemu_pid=
+	retire_run_inputs
 
 	jq -n \
 		--arg architecture "$architecture" \
+		--arg candidate_source_revision "$(record_value "$candidate_record" '.source_revision')" \
+		--arg fallback_source_revision "$(record_value "$fallback_record" '.source_revision')" \
+		--arg candidate_oci_sha256 "$(sha256sum "$candidate_oci" | awk '{print $1}')" \
+		--arg fallback_oci_sha256 "$(sha256sum "$fallback_oci" | awk '{print $1}')" \
 		--arg candidate_record_sha256 "$(sha256sum "$candidate_record" | awk '{print $1}')" \
 		--arg candidate_iso_sha256 "$actual_iso" \
 		--arg fallback_record_sha256 "$(sha256sum "$fallback_record" | awk '{print $1}')" \
 		--arg image_a_digest "$a_digest" \
 		--arg image_b_digest "$b_digest" \
 		--arg workspace_username "$workspace_target" \
-		'{result:"pass",architecture:$architecture,candidate_record_sha256:$candidate_record_sha256,
+		'{result:"pass",architecture:$architecture,candidate_source_revision:$candidate_source_revision,
+		  fallback_source_revision:$fallback_source_revision,candidate_oci_sha256:$candidate_oci_sha256,
+		  fallback_oci_sha256:$fallback_oci_sha256,candidate_record_sha256:$candidate_record_sha256,
 		  candidate_iso_sha256:$candidate_iso_sha256,fallback_record_sha256:$fallback_record_sha256,
 		  image_a_digest:$image_a_digest,image_b_digest:$image_b_digest,
 		  workspace_username:$workspace_username}' >"$evidence_dir/summary.json"

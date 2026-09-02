@@ -299,7 +299,12 @@ start_installer_input_ejector() {
 		cleanup_ejector() {
 			if [ "$ejected" != true ] && kill -0 "$qemu_pid" 2>/dev/null; then
 				kill -TERM "$qemu_pid" 2>/dev/null || true
+				deadline=$(( $(date +%s) + 10 ))
 				while kill -0 "$qemu_pid" 2>/dev/null; do
+					if [ "$(date +%s)" -ge "$deadline" ]; then
+						kill -KILL "$qemu_pid" 2>/dev/null || true
+						break
+					fi
 					sleep 1
 				done
 			fi
@@ -847,9 +852,21 @@ capture() {
 		echo "[kernel]"; uname -a
 		echo "[services]"
 		for unit in sshd cockpit.socket forgejo tailscaled; do
-			printf "%s=" "$unit"; systemctl is-active "$unit" 2>/dev/null || true
+			state=$(systemctl is-active "$unit")
+			test "$state" = active
+			printf "%s=%s\n" "$unit" "$state"
 		done
-		echo "[failed-units]"; systemctl --failed --no-legend --plain || true
+		echo "[failed-units]"
+		failed_units=$(systemctl --failed --no-legend --plain || true)
+		if test -n "$failed_units"; then
+			printf "%s\n" "$failed_units"
+			printf "%s\n" "$failed_units" | while read -r failed_unit _; do
+				systemctl status --no-pager --full -- "$failed_unit" || true
+				journalctl --boot --no-pager --unit "$failed_unit" --lines 100 || true
+			done
+			exit 1
+		fi
+		echo none
 		echo "[stock-cockpit]"
 		rpm -q cockpit-ws cockpit-system cockpit-storaged cockpit-networkmanager
 		for manifest in \
@@ -878,14 +895,29 @@ capture() {
 		getent passwd git
 		test -s /etc/forgejo/app.ini && echo configuration=present
 		echo "[deleted-workspace-control-plane]"
-		for unit in soda-authd.service soda-cockpit.service var-srv-soda-projects.mount; do
+		for unit in soda-authd.service soda-cockpit.service avahi-daemon.service var-srv-soda-projects.mount; do
 			if systemctl cat "$unit" >/dev/null 2>&1; then
 				echo "unexpected-unit=$unit"
 				exit 1
 			fi
 			echo "$unit=absent"
 		done
-		for path in /var/lib/soda/soda.db /var/lib/soda/built-in-git-token /var/lib/soda/projects /var/srv/soda/projects /srv/soda/projects /etc/soda/authorized_keys /usr/libexec/soda/soda-ssh; do
+		for path in \
+			/var/lib/soda/soda.db \
+			/var/lib/soda/built-in-git-token \
+			/var/lib/soda/projects \
+			/var/lib/soda/certs \
+			/var/srv/soda/projects \
+			/srv/soda/projects \
+			/etc/soda/authorized_keys \
+			/etc/ssh/sshd_config.d/41-soda-project-accounts.conf \
+			/etc/avahi/services/soda-cockpit.service \
+			/etc/pam.d/soda-cockpit \
+			/usr/libexec/soda/soda-ssh \
+			/usr/libexec/soda/soda-authd \
+			/usr/libexec/soda/soda-cockpit \
+			/var/log/soda/soda-authd \
+			/var/log/soda/soda-cockpit; do
 			if test -e "$path"; then
 				echo "unexpected-path=$path"
 				exit 1
@@ -948,9 +980,11 @@ capture() {
 		echo "container-images-scratch=absent"
 		echo "[boot-entries]"; efibootmgr -v 2>/dev/null || true
 		echo "[automatic-update]"
-		for unit in bootc-fetch-apply-updates.timer bootc-fetch-apply-updates.service; do
-			printf "%s=" "$unit"; systemctl is-enabled "$unit" 2>/dev/null || true
-		done
+		timer_state=$(systemctl is-enabled bootc-fetch-apply-updates.timer 2>/dev/null || true)
+		test "$timer_state" = masked
+		printf "bootc-fetch-apply-updates.timer=%s\n" "$timer_state"
+		printf "bootc-fetch-apply-updates.service="
+		systemctl is-enabled bootc-fetch-apply-updates.service 2>/dev/null || true
 		echo "[soda-state-filesystem]"
 		findmnt /var/lib/soda 2>/dev/null || true
 		echo "[host-keys]"
@@ -1709,6 +1743,16 @@ EOF
 emit_keyless_delete() {
 	cat <<'EOF'
 test "$(id -u)" -eq 0
+uid=$(id -u nokey)
+/usr/bin/loginctl terminate-user nokey >/dev/null 2>&1 || true
+deadline=$(( $(date +%s) + 10 ))
+while /usr/bin/pgrep -u "$uid" >/dev/null 2>&1; do
+	[ "$(date +%s)" -lt "$deadline" ] || {
+		echo "Keyless fixture still owns processes after native logind termination" >&2
+		exit 1
+	}
+	sleep 1
+done
 /usr/sbin/userdel --remove -- nokey
 ! getent passwd nokey >/dev/null
 test ! -e /home/nokey
