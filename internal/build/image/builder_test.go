@@ -48,8 +48,8 @@ func TestBootcContractForEqualSiblingArchitectures(t *testing.T) {
 	root, err := filepath.Abs(filepath.Join("..", "..", ".."))
 	require.NoError(t, err)
 	for architecture, expected := range map[string][6]string{
-		"aarch64": {testArmBootcNEVRA, "soda-forgejo-0:15.0.7-2.fc44.aarch64", "distro/locks/runtime-packages-aarch64.toml", "distro/locks/builder-packages-aarch64.toml", "distro/locks/installer-image-builder-aarch64.toml", "packaging/installer/iso-aarch64.yaml"},
-		"x86_64":  {"bootc-0:1.16.10-1.fc44.x86_64", "soda-forgejo-0:15.0.7-2.fc44.x86_64", "distro/locks/runtime-packages-x86_64.toml", "distro/locks/builder-packages-x86_64.toml", "distro/locks/installer-image-builder-x86_64.toml", "packaging/installer/iso-x86_64.yaml"},
+		"aarch64": {testArmBootcNEVRA, "soda-forgejo-0:15.0.7-3.fc44.aarch64", "distro/locks/runtime-packages-aarch64.toml", "distro/locks/builder-packages-aarch64.toml", "distro/locks/installer-image-builder-aarch64.toml", "packaging/installer/iso-aarch64.yaml"},
+		"x86_64":  {"bootc-0:1.16.10-1.fc44.x86_64", "soda-forgejo-0:15.0.7-3.fc44.x86_64", "distro/locks/runtime-packages-x86_64.toml", "distro/locks/builder-packages-x86_64.toml", "distro/locks/installer-image-builder-x86_64.toml", "packaging/installer/iso-x86_64.yaml"},
 	} {
 		t.Run(architecture, func(t *testing.T) {
 			builder, err := NewBuilder(root, "distro/soda.toml", architecture, &recordingRunner{})

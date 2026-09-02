@@ -49,6 +49,10 @@ func TestForgejoPAMHasOnlyTheDedicatedShadowReadBoundary(t *testing.T) {
 	require.Contains(t, string(unit), "After=forgejo-init.service network.target systemd-tmpfiles-setup.service")
 	require.Equal(t, 1, strings.Count(string(unit), "SupplementaryGroups=soda-forgejo-shadow"))
 
+	initUnit, err := os.ReadFile(filepath.Join(root, "systemd", "forgejo-init.service"))
+	require.NoError(t, err)
+	require.Equal(t, 1, strings.Count(string(initUnit), "ExecStartPre=/usr/bin/systemd-tmpfiles --create forgejo.conf"))
+
 	tmpfiles, err := os.ReadFile(filepath.Join(root, "tmpfiles", "forgejo.conf"))
 	require.NoError(t, err)
 	require.Contains(t, nonCommentLines(string(tmpfiles)), "z /etc/shadow 0040 root soda-forgejo-shadow - -")
