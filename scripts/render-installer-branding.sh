@@ -31,7 +31,7 @@ install_asset() {
     generated=$1
     tracked=$2
     if [ "$mode" = "--check" ]; then
-        if ! cmp -s "$generated" "$tracked"; then
+        if ! go run ./tools/png-equal "$generated" "$tracked"; then
             echo "$tracked is missing or stale; run scripts/render-installer-branding.sh" >&2
             return 1
         fi
