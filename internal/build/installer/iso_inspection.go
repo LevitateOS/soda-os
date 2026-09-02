@@ -23,7 +23,7 @@ func (b *Builder) inspectISO(ctx context.Context, input isoInspectionInput) erro
 	if err := b.runner.Run(ctx, process.Command{Dir: b.Root, Name: "docker", Args: args}); err != nil {
 		return fmt.Errorf("extract installer squashfs: %w", err)
 	}
-	args = append(append([]string{}, outer...), "unsquashfs", "-f", "-d", "/inspect/root", "/inspect/squashfs.img", ".buildstamp", "usr/lib/os-release", "usr/share/anaconda/interactive-defaults.ks", "etc/anaconda/conf.d/90-soda-storage.conf", "etc/anaconda/profile.d/sodaos.conf", "etc/systemd/system/anaconda.target.wants/var-tmp.mount", "usr/share/anaconda/pixmaps/soda.css", "usr/share/anaconda/pixmaps/soda-sidebar-logo.png", "usr/share/anaconda/pixmaps/soda-symbol.png", "usr/lib/image-builder/bootc/iso.yaml", "usr/lib/systemd/system/var-tmp.mount", "var/lib/containers/storage/overlay-images/images.json")
+	args = append(append([]string{}, outer...), "unsquashfs", "-f", "-d", "/inspect/root", "/inspect/squashfs.img", ".buildstamp", "usr/lib/os-release", "usr/share/anaconda/interactive-defaults.ks", "etc/anaconda/conf.d/90-soda-storage.conf", "etc/anaconda/profile.d/sodaos.conf", "etc/systemd/system/anaconda.target.wants/var-tmp.mount", "usr/share/anaconda/pixmaps/soda.css", "usr/share/anaconda/pixmaps/soda-sidebar-logo.png", "usr/share/anaconda/pixmaps/soda-symbol.png", "usr/lib/image-builder/bootc/iso.yaml", "usr/lib/systemd/system/var-tmp.mount", "usr/libexec/soda/soda-installer-input", "usr/libexec/soda/soda-installer-finalize", "usr/share/anaconda/addons", "usr/share/anaconda/dbus/confs", "usr/share/anaconda/dbus/services", "var/lib/containers/storage/overlay-images/images.json")
 	if err := b.runner.Run(ctx, process.Command{Dir: b.Root, Name: "docker", Args: args}); err != nil {
 		return fmt.Errorf("inspect installer squashfs: %w", err)
 	}
@@ -73,6 +73,9 @@ func (b *Builder) validateExtractedISO(inspectDir, reference, payloadTag string)
 		return err
 	}
 	if err := b.validateExtractedInstallerScratch(inspectDir); err != nil {
+		return err
+	}
+	if err := b.validateExtractedInstallerProvisioning(inspectDir); err != nil {
 		return err
 	}
 	return b.validateExtractedBranding(inspectDir)
@@ -139,6 +142,44 @@ func (b *Builder) validateExtractedInstallerScratch(inspectDir string) error {
 	}
 	if target != "/usr/lib/systemd/system/var-tmp.mount" {
 		return errors.New("ISO installer scratch mount is not enabled for Anaconda")
+	}
+	return nil
+}
+
+func (b *Builder) validateExtractedInstallerProvisioning(inspectDir string) error {
+	for _, name := range []string{"soda-installer-input", "soda-installer-finalize"} {
+		if err := b.validateExtractedInstallerExecutable(inspectDir, name); err != nil {
+			return err
+		}
+	}
+	for _, obsolete := range []string{
+		"usr/share/anaconda/addons/org_fedoraproject_soda",
+		"usr/share/anaconda/dbus/confs/org.fedoraproject.Anaconda.Addons.SodaInstaller.conf",
+		"usr/share/anaconda/dbus/services/org.fedoraproject.Anaconda.Addons.SodaInstaller.service",
+	} {
+		if _, err := os.Lstat(filepath.Join(inspectDir, "root", obsolete)); !errors.Is(err, os.ErrNotExist) {
+			return fmt.Errorf("obsolete Soda Anaconda add-on path remains in ISO: %s", obsolete)
+		}
+	}
+	return nil
+}
+
+func (b *Builder) validateExtractedInstallerExecutable(inspectDir, name string) error {
+	actualPath := filepath.Join(inspectDir, "root", "usr", "libexec", "soda", name)
+	actual, err := os.ReadFile(actualPath)
+	if err != nil {
+		return fmt.Errorf("read ISO installer provisioning executable: %w", err)
+	}
+	expected, err := os.ReadFile(filepath.Join(b.Root, "packaging", "installer", name))
+	if err != nil {
+		return fmt.Errorf("read expected installer provisioning executable: %w", err)
+	}
+	if !bytes.Equal(actual, expected) {
+		return errors.New("ISO installer provisioning executable differs from the Soda contract")
+	}
+	info, err := os.Stat(actualPath)
+	if err != nil || info.Mode().Perm() != 0o755 {
+		return errors.New("ISO installer provisioning executable is not mode 0755")
 	}
 	return nil
 }

@@ -11,6 +11,12 @@ RUN dnf -y install --setopt=install_weak_deps=False \
     && dnf clean all \
     && test "$(find /usr/lib/modules -mindepth 1 -maxdepth 1 -type d | wc -l)" -eq 1 \
     && test "$(find /usr/lib/efi/shim -mindepth 3 -maxdepth 3 -type d ! -name BOOT | wc -l)" -eq 1 \
+    && test -x /usr/bin/eject \
+    && test -x /usr/bin/mount \
+    && test -x /usr/bin/openssl \
+    && test -x /usr/bin/ssh-keygen \
+    && test -x /usr/bin/umount \
+    && test -x /usr/sbin/chroot \
     && rpm -q $(cat /usr/share/soda-installer/boot-packages.txt) \
     && test -f /usr/lib/grub/i386-pc/boot_hybrid.img
 
@@ -39,9 +45,8 @@ COPY --chmod=0644 .artifacts/installer/context/iso.yaml /usr/lib/image-builder/b
 COPY --chmod=0644 packaging/installer/anaconda-shell.conf /usr/lib/systemd/logind.conf.d/anaconda-shell.conf
 COPY --chmod=0644 packaging/installer/pipewire-allow-root.conf /etc/systemd/user/pipewire.service.d/allowroot.conf
 COPY --chmod=0644 packaging/installer/pipewire-allow-root.conf /etc/systemd/user/pipewire.socket.d/allowroot.conf
-COPY packaging/installer/addons/org_fedoraproject_soda /usr/share/anaconda/addons/org_fedoraproject_soda
-COPY --chmod=0644 packaging/installer/addons/org.fedoraproject.Anaconda.Addons.SodaInstaller.conf /usr/share/anaconda/dbus/confs/org.fedoraproject.Anaconda.Addons.SodaInstaller.conf
-COPY --chmod=0644 packaging/installer/addons/org.fedoraproject.Anaconda.Addons.SodaInstaller.service /usr/share/anaconda/dbus/services/org.fedoraproject.Anaconda.Addons.SodaInstaller.service
+COPY --chmod=0755 packaging/installer/soda-installer-input /usr/libexec/soda/soda-installer-input
+COPY --chmod=0755 packaging/installer/soda-installer-finalize /usr/libexec/soda/soda-installer-finalize
 COPY --chmod=0644 packaging/installer/var-tmp.mount /usr/lib/systemd/system/var-tmp.mount
 
 RUN mkdir -p /etc/systemd/system/anaconda.target.wants \

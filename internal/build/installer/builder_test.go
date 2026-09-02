@@ -153,7 +153,7 @@ func TestInstallerEnvironmentUsesCurrentSodaAnacondaBranding(t *testing.T) {
 	root := filepath.Join("..", "..", "..")
 	profile, err := os.ReadFile(filepath.Join(root, "packaging", "installer", "branding", "sodaos.conf"))
 	require.NoError(t, err)
-	require.Equal(t, "# Soda OS Anaconda profile layered on Fedora's installer defaults.\n\n[Profile]\nprofile_id = sodaos\nbase_profile = fedora\n\n[Anaconda]\noptional_modules =\n    org.fedoraproject.Anaconda.Modules.Subscription\n    org.fedoraproject.Anaconda.Addons.Kdump\n\n[Profile Detection]\nos_id = sodaos\n\n[Installation Target]\ncan_copy_input_kickstart = False\n\n[User Interface]\ncustom_stylesheet = /usr/share/anaconda/pixmaps/soda.css\nhidden_spokes = UserSpoke PasswordSpoke\n", string(profile))
+	require.Equal(t, "# Soda OS Anaconda profile layered on Fedora's installer defaults.\n\n[Profile]\nprofile_id = sodaos\nbase_profile = fedora\n\n[Anaconda]\noptional_modules =\n    org.fedoraproject.Anaconda.Modules.Subscription\n    org.fedoraproject.Anaconda.Addons.Kdump\n\n[Profile Detection]\nos_id = sodaos\n\n[Installation Target]\ncan_copy_input_kickstart = False\ncan_save_output_kickstart = False\n\n[User Interface]\ncustom_stylesheet = /usr/share/anaconda/pixmaps/soda.css\nhidden_spokes = UserSpoke PasswordSpoke\n", string(profile))
 	release, err := os.ReadFile(filepath.Join(root, "packaging", "installer", "branding", "os-release"))
 	require.NoError(t, err)
 	require.Contains(t, string(release), "VERSION=\"0.4\"")
@@ -306,7 +306,7 @@ func TestValidateEmbeddedPayloadRequiresStagingTagAndOriginalManifestDigest(t *t
 }
 
 func TestISOConfigRequiresExactStage2KernelAndInitrdContract(t *testing.T) {
-	expected := []byte("label: \"SodaOS-Installer\"\ngrub2:\n  default: 0\n  timeout: 10\n  entries:\n    - name: \"Install Soda OS\"\n      linux: \"/images/pxeboot/vmlinuz inst.stage2=hd:LABEL=SodaOS-Installer console=tty0 inst.graphical enforcing=0\"\n      initrd: \"/images/pxeboot/initrd.img\"\n")
+	expected := []byte("label: \"SodaOS-Installer\"\ngrub2:\n  default: 0\n  timeout: 10\n  entries:\n    - name: \"Install Soda OS\"\n      linux: \"/images/pxeboot/vmlinuz inst.stage2=hd:LABEL=SodaOS-Installer inst.ks=hd:LABEL=OEMDRV:/ks.cfg inst.nosave=all_ks console=tty0 inst.graphical enforcing=0\"\n      initrd: \"/images/pxeboot/initrd.img\"\n")
 	root := t.TempDir()
 	inspectDir := t.TempDir()
 	expectedDir := filepath.Join(root, "packaging", "installer")
