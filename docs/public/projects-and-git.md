@@ -1,52 +1,124 @@
-A Soda project is an appliance-wide invitation to set up a canonical Git
-repository. It is not a copy of repository permissions, membership, or runtime
-status.
+The Soda **Projects** page is the shared menu of repositories that developers
+can turn into personal workspaces. It makes projects discoverable on the
+machine without taking ownership away from Git or the repository host.
+
+Owners and developers encounter this page in **Cockpit**, Fedora's browser
+administration interface, when they add a repository, create one in
+**Forgejo**, the bundled Git hosting and collaboration service, or select
+**Set up for me**. They also use it for destructive local project removal.
 
 ## Product contract
 
-The project catalog stores exactly three fields:
+### The project catalog is an invitation, not a permission system
 
-- immutable `id`;
-- mutable `display_name`; and
-- mutable, credential-free `canonical_url`.
+The **project catalog** is one appliance-wide list visible to every primary
+account—the ordinary Linux identity for one human. Each entry contains
+exactly:
 
-Every primary human can discover, add, edit, or remove catalog entries. A
-project can begin with an existing Git repository URL or as a native empty
-repository in the initiating person's bundled Forgejo namespace. Soda creates
-no README, artificial first commit, or initial branch merely to make an empty
+- an immutable `id`, used as the stable local identity;
+- a mutable `display_name`, shown to people; and
+- a mutable, credential-free `canonical_url`, identifying the authoritative
+  Git repository.
+
+The canonical URL may contain a transport username such as `git@host`, but it
+must not contain a password or access token.
+
+The catalog does not record who created a project, who may access its
+repository, which branches exist, whether a clone is current, or what is
+running. Forgejo or the external Git provider remains authoritative for
+repository access, collaborators, branches, reviews, issues, releases, and
+repository deletion.
+
+Every primary user may add, edit, or remove a catalog entry. Soda adds no
+owner-approval or project-membership workflow, so the trusted team is
+responsible for coordinating those actions.
+
+### Add an existing repository
+
+Use **Add repository** when the canonical repository already exists in Forgejo
+or another Git host. Supply a stable project ID, a display name, and the
+credential-free clone URL.
+
+Adding the entry only makes the project discoverable on this Soda machine. It
+does not clone anything yet, grant repository access, or change the Git host.
+Each developer separately selects **Set up for me**.
+
+### Start a project in bundled Forgejo
+
+Use **New Forgejo project** when a repository does not exist yet.
+
+The intended outcome is a native empty repository in the initiating person's
+Forgejo namespace and a corresponding catalog entry. Soda does not add a
+README, create an artificial first commit, or invent a branch to make the
 repository appear populated.
 
-Selecting **Set up for me** leaves a complete clone in that person's derived
-workspace account. Public and SSH remotes need no password prompt from Soda.
-HTTP credentials may be supplied for the single clone operation, but Soda does
-not retain them. Afterward, each developer manages ordinary Git authentication
-inside their own workflow.
+Forgejo owns that repository from then on. Repository settings, access, keys,
+collaboration, and eventual deletion happen in Forgejo, not in the Soda
+catalog.
 
-Forgejo or the external Git provider owns repository access, collaborators,
-branches, reviews, issues, releases, and deletion. Removing a project from Soda
-permanently deletes its local workspace accounts, homes, clones, dependencies,
-and uncommitted work, but never deletes the canonical repository.
+### Set up a personal workspace
+
+Before setup, make sure the primary account has a valid SSH public key in
+`~/.ssh/authorized_keys`. Then select **Set up for me** beside the project.
+
+Soda performs the Git operation as the signed-in primary user. Public and SSH
+remotes use their ordinary Git authentication paths. When an HTTP remote needs
+a username and password or token for this one clone, the operation may accept
+them without retaining them.
+
+Success means all of the following are ready before the action returns:
+
+- a derived workspace Linux account for this person and project;
+- the primary account's current public keys copied once; and
+- a complete clone owned by the workspace below
+  `$HOME/Projects/<repository>`.
+
+The Projects page then shows the workspace username and direct SSH command.
+After setup, repository authentication and Git work are ordinary developer
+choices inside that workspace.
+
+### Edit without rewriting existing workspaces
+
+Use **Edit** to change the display name or canonical URL. The project ID stays
+the same. An edit affects future setup only: Soda does not rename existing
+accounts, move existing clones, or rewrite their Git remotes.
+
+### Remove a project from Soda
+
+**Remove** is destructive. It permanently deletes every local workspace
+account for that project, including homes, complete clones, dependencies,
+project-local data, and uncommitted or unpushed work. The catalog entry is
+removed only after the local workspace deletions succeed.
+
+Removal never deletes the canonical Forgejo or external repository and does
+not archive or transfer local work. The team must preserve anything valuable
+before confirming the action. There is no Soda approval, rollback, or recovery
+workflow for the deleted local data.
 
 ## Current implementation
 
-The stock Cockpit Projects page exposes **Add repository**, **New Forgejo
-project**, **Edit**, **Set up for me**, and **Remove** actions. It shows the
-canonical URL and the direct SSH command for each person's generated workspace.
+The current Cockpit page exposes these labels: **Add repository**, **New
+Forgejo project**, **Edit**, **Set up for me**, and **Remove**. Destructive
+removal requires the user to type the project ID exactly and explicitly warns
+that the canonical repository will remain.
 
-Catalog changes are serialized and atomically replace a JSON file containing
-only the three accepted fields. Setup clones as the unprivileged primary user,
-uses anonymous sealed memory only when transient HTTP credentials are supplied,
-and invokes a narrowly authorized helper only to publish the completed tree and
-perform validated Linux mutations.
+For an existing repository, the UI accepts HTTP, HTTPS, SSH, and SCP-style Git
+remotes after rejecting embedded credentials and local-file paths. For setup,
+the optional **Git username** and **Git password or token** fields are used only
+for the synchronous clone request and cleared from the page afterward. Focused
+tests verify that supplied HTTP credentials do not enter the privileged
+workspace operation or Git arguments, environment values, and stored remotes.
 
-The current bundled Forgejo flow can create a truly empty repository as the
-initiating user. The installer-created first administrator can authenticate to
-that flow. Later primary users' intended native Forgejo PAM login remains
-disabled pending the password-verifier privilege decision. External Git hosts,
-public repositories, and user-managed SSH authentication remain ordinary Git
-paths rather than provider integrations.
+The bundled Forgejo path currently asks for the signed-in user's **Forgejo
+password**, creates a truly empty repository as that user, and adds the clone
+URL to the catalog. The installer-created first Forgejo administrator can use
+this path. Later-created primary users cannot currently sign in through the
+intended Forgejo PAM source, so they cannot yet use the same flow with their
+Linux credentials.
 
-Focused tests cover exact catalog persistence, credential boundaries,
-repository ownership, setup, edits that affect only future workspaces, and
-catalog-last removal. Complete installed multi-user destructive acceptance is
-still pending.
+Code-level verification covers exact three-field catalog storage, edits that
+affect only future setup, one-user workspace creation, credential boundaries,
+native empty repository ownership, setup-versus-removal coordination, and
+catalog-last deletion. Final installed multi-user destructive and failure
+coverage remains incomplete, and the complete installed path still needs
+matching-native AArch64 verification.
