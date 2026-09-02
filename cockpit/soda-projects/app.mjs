@@ -32,6 +32,7 @@ document.querySelector("#refresh-projects").addEventListener("click", loadProjec
 document.querySelector("#open-add-existing").addEventListener("click", () => openDialog("add-existing-dialog"));
 document.querySelector("#open-create-forgejo").addEventListener("click", () => openDialog("create-forgejo-dialog"));
 document.querySelector("#open-delete-human").addEventListener("click", () => openDialog("delete-human-dialog"));
+document.querySelector("#open-add-person").addEventListener("click", () => openDialog("add-person-dialog"));
 document.querySelectorAll("[data-action-form]").forEach(form => form.addEventListener("submit", submitAction));
 document.querySelectorAll("[data-dialog-close]").forEach(button => button.addEventListener("click", () => {
   button.closest("dialog").close();
@@ -206,7 +207,7 @@ async function submitAction(event) {
 
 function setBusy(busy) {
   state.busy = busy;
-  document.querySelectorAll("button, input").forEach(element => {
+  document.querySelectorAll("button, input, textarea").forEach(element => {
     element.disabled = busy;
   });
   document.body.setAttribute("aria-busy", String(busy));

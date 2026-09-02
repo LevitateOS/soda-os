@@ -281,6 +281,38 @@ class InstallerExecutableTests(unittest.TestCase):
                         "soda-test", canonical_key
                     )
 
+    def test_installer_tea_login_uses_stdin_and_verifies_identity(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            sysroot = pathlib.Path(temporary) / "sysroot"
+            uid = os.getuid()
+            gid = os.getgid()
+            write_text(
+                sysroot / "etc/passwd",
+                f"soda-test:x:{uid}:{gid}::/home/soda-test:/bin/bash\n",
+            )
+            config = sysroot / "home/soda-test/.config/tea/config.yml"
+            write_text(config, "opaque native Tea configuration\n", 0o600)
+            results = [
+                types.SimpleNamespace(returncode=0, stdout=""),
+                types.SimpleNamespace(returncode=0, stdout='{"login":"soda-test"}'),
+            ]
+            with (
+                mock.patch.object(self.finalizer, "SYSROOT", sysroot),
+                mock.patch.object(
+                    self.finalizer.subprocess, "run", side_effect=results
+                ) as run,
+            ):
+                self.finalizer._configure_tea_administrator(
+                    "soda-test", "installer secret"
+                )
+
+            login_call, identity_call = run.call_args_list
+            self.assertEqual(login_call.kwargs["input"], "installer secret")
+            self.assertNotIn("installer secret", " ".join(login_call.args[0]))
+            self.assertIn("--password-stdin", login_call.args[0])
+            self.assertIn("soda-os-tea", login_call.args[0])
+            self.assertEqual(identity_call.kwargs["stdin"], subprocess.DEVNULL)
+
     def test_tailscale_handoff_is_atomic_and_mode_restricted(self):
         with tempfile.TemporaryDirectory() as temporary:
             sysroot = pathlib.Path(temporary) / "sysroot"

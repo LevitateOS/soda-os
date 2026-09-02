@@ -39,6 +39,12 @@ type DeleteHumanRequest struct {
 	Username string `json:"username"`
 }
 
+type AddPersonRequest struct {
+	Username      string `json:"username"`
+	Password      string `json:"password"`
+	AuthorizedKey string `json:"authorized_key"`
+}
+
 type ProjectView struct {
 	CatalogEntry
 	WorkspaceUsername string `json:"workspace_username"`
@@ -75,6 +81,16 @@ type HelperWorkspaceRequest struct {
 
 type HelperHumanRequest struct {
 	Username string `json:"username"`
+}
+
+type HelperHumanCreateRequest struct {
+	Username string `json:"username"`
+	Password string `json:"password"`
+}
+
+type HelperHumanPublishRequest struct {
+	Username      string `json:"username"`
+	AuthorizedKey string `json:"authorized_key"`
 }
 
 // DecodeRequest accepts exactly one flat JSON object, rejects duplicate and

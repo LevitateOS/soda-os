@@ -460,15 +460,15 @@ file = "soda-runtime-0.4.0-1.fc44.x86_64.rpm"
 
 [[package]]
 name = "soda-projects"
-nevra = "soda-projects-0:0.4.0-1.fc44.x86_64"
+nevra = "soda-projects-0:0.4.0-2.fc44.x86_64"
 source = "local-rpm"
-file = "soda-projects-0.4.0-1.fc44.x86_64.rpm"
+file = "soda-projects-0.4.0-2.fc44.x86_64.rpm"
 
 [[package]]
 name = "soda-forgejo"
-nevra = "soda-forgejo-0:15.0.7-4.fc44.x86_64"
+nevra = "soda-forgejo-0:15.0.7-5.fc44.x86_64"
 source = "local-rpm"
-file = "soda-forgejo-15.0.7-4.fc44.x86_64.rpm"
+file = "soda-forgejo-15.0.7-5.fc44.x86_64.rpm"
 
 [[package]]
 name = "soda-bun"
@@ -478,6 +478,6 @@ file = "soda-bun-1.4.0-1.fc44.x86_64.rpm"
 
 [[package]]
 name = "soda-tea"
-nevra = "soda-tea-0:0.15.1-1.fc44.x86_64"
+nevra = "soda-tea-0:0.15.1-2.fc44.x86_64"
 source = "local-rpm"
-file = "soda-tea-0.15.1-1.fc44.x86_64.rpm"
+file = "soda-tea-0.15.1-2.fc44.x86_64.rpm"

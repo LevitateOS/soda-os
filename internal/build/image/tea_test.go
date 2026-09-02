@@ -7,115 +7,67 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/LevitateOS/soda-os/internal/config"
 	"github.com/stretchr/testify/require"
 )
 
-func TestStageTeaSourceUsesLockedNativeAsset(t *testing.T) {
-	for _, test := range []struct {
-		architecture string
-		archive      string
-	}{
-		{architecture: "x86_64", archive: "tea-0.15.1-linux-amd64.xz"},
-		{architecture: "aarch64", archive: "tea-0.15.1-linux-arm64.xz"},
-	} {
-		t.Run(test.architecture, func(t *testing.T) {
-			root := t.TempDir()
-			for _, directory := range []string{
-				filepath.Join(root, "distro", "locks"),
-				filepath.Join(root, "packaging", "rpm", "tea", "sources"),
-				filepath.Join(root, ".artifacts", "tools"),
-			} {
-				require.NoError(t, os.MkdirAll(directory, 0o755))
-			}
-			license := []byte("pinned Tea license\n")
-			licenseDigest := sha256.Sum256(license)
-			require.NoError(t, os.WriteFile(filepath.Join(root, "packaging", "rpm", "tea", "sources", "LICENSE"), license, 0o644))
-			archive := []byte("native Tea xz fixture")
-			archiveDigest := sha256.Sum256(archive)
-			require.NoError(t, os.WriteFile(filepath.Join(root, ".artifacts", "tools", test.archive), archive, 0o644))
-			lock := testTeaSourceLock(test.architecture, test.archive, licenseDigest, archiveDigest, "")
-			require.NoError(t, os.WriteFile(filepath.Join(root, "distro", "locks", "tea-source.toml"), []byte(lock), 0o644))
-
-			sources := t.TempDir()
-			builder := &Builder{Root: root, Spec: config.DistroSpec{Platform: config.PlatformSpec{Architecture: config.PlatformArchitecture{Name: test.architecture}}}}
-			require.NoError(t, builder.stageTeaSource(sources))
-			contents, err := os.ReadFile(filepath.Join(sources, "tea.xz"))
-			require.NoError(t, err)
-			require.Equal(t, archive, contents)
-			contents, err = os.ReadFile(filepath.Join(sources, "tea-LICENSE"))
-			require.NoError(t, err)
-			require.Equal(t, license, contents)
-
-			require.NoError(t, os.WriteFile(filepath.Join(root, ".artifacts", "tools", test.archive), []byte("corrupted"), 0o644))
-			require.ErrorContains(t, builder.stageTeaSource(sources), "SHA-256 checksum mismatch")
-		})
-	}
-}
-
-func TestStageTeaSourceRejectsUnknownFieldsAndLicenseChanges(t *testing.T) {
+func TestStageTeaSourceUsesBuiltPatchedBinary(t *testing.T) {
 	root := t.TempDir()
 	for _, directory := range []string{
 		filepath.Join(root, "distro", "locks"),
 		filepath.Join(root, "packaging", "rpm", "tea", "sources"),
-		filepath.Join(root, ".artifacts", "tools"),
+		filepath.Join(root, ".artifacts", "build"),
 	} {
 		require.NoError(t, os.MkdirAll(directory, 0o755))
 	}
 	license := []byte("pinned Tea license\n")
 	licenseDigest := sha256.Sum256(license)
-	archive := []byte("native Tea xz fixture")
-	archiveDigest := sha256.Sum256(archive)
+	patch := []byte("pinned Tea patch\n")
+	patchDigest := sha256.Sum256(patch)
 	require.NoError(t, os.WriteFile(filepath.Join(root, "packaging", "rpm", "tea", "sources", "LICENSE"), license, 0o644))
-	require.NoError(t, os.WriteFile(filepath.Join(root, ".artifacts", "tools", "tea-0.15.1-linux-amd64.xz"), archive, 0o644))
-	lock := testTeaSourceLock("x86_64", "tea-0.15.1-linux-amd64.xz", licenseDigest, archiveDigest, "unexpected = true\n")
-	require.NoError(t, os.WriteFile(filepath.Join(root, "distro", "locks", "tea-source.toml"), []byte(lock), 0o644))
-	builder := &Builder{Root: root, Spec: config.DistroSpec{Platform: config.PlatformSpec{Architecture: config.PlatformArchitecture{Name: "x86_64"}}}}
-	require.ErrorContains(t, builder.stageTeaSource(t.TempDir()), "unknown fields")
+	require.NoError(t, os.WriteFile(filepath.Join(root, "packaging", "rpm", "tea", "sources", "0001-secret-safe-deterministic-login.patch"), patch, 0o644))
+	binary := []byte("native patched Tea fixture")
+	require.NoError(t, os.WriteFile(filepath.Join(root, ".artifacts", "build", "tea"), binary, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(root, "distro", "locks", "tea-source.toml"), []byte(testTeaSourceLock(licenseDigest, patchDigest, "")), 0o644))
 
-	lock = testTeaSourceLock("x86_64", "tea-0.15.1-linux-amd64.xz", licenseDigest, archiveDigest, "")
-	require.NoError(t, os.WriteFile(filepath.Join(root, "distro", "locks", "tea-source.toml"), []byte(lock), 0o644))
-	require.NoError(t, os.WriteFile(filepath.Join(root, "packaging", "rpm", "tea", "sources", "LICENSE"), []byte("changed"), 0o644))
-	require.ErrorContains(t, builder.stageTeaSource(t.TempDir()), "verify Tea license")
+	sources := t.TempDir()
+	builder := &Builder{Root: root}
+	require.NoError(t, builder.stageTeaSource(sources))
+	contents, err := os.ReadFile(filepath.Join(sources, "tea"))
+	require.NoError(t, err)
+	require.Equal(t, binary, contents)
+	contents, err = os.ReadFile(filepath.Join(sources, "tea-LICENSE"))
+	require.NoError(t, err)
+	require.Equal(t, license, contents)
 }
 
-func TestTeaSourceAssetsRequireBothNativeArchitectures(t *testing.T) {
-	assets := map[string]teaSourceAsset{
-		"aarch64": {Archive: "tea-linux-arm64.xz", URL: "https://example.invalid/arm64", SHA256: fmt.Sprintf("%064x", 1)},
-		"x86_64":  {Archive: "tea-linux-amd64.xz", URL: "https://example.invalid/amd64", SHA256: fmt.Sprintf("%064x", 2)},
-	}
-	require.True(t, validTeaAssets(assets))
+func TestTeaSourceLockRejectsUnknownFieldsAndSourceChanges(t *testing.T) {
+	root := t.TempDir()
+	lockPath := filepath.Join(root, "tea-source.toml")
+	digest := sha256.Sum256([]byte("fixture"))
+	require.NoError(t, os.WriteFile(lockPath, []byte(testTeaSourceLock(digest, digest, "unexpected = true\n")), 0o644))
+	_, err := readTeaSourceLock(lockPath)
+	require.ErrorContains(t, err, "unknown fields")
 
-	delete(assets, "aarch64")
-	assets["unsupported"] = teaSourceAsset{Archive: "tea.xz", URL: "https://example.invalid/tea", SHA256: fmt.Sprintf("%064x", 3)}
-	require.False(t, validTeaAssets(assets))
+	require.NoError(t, os.WriteFile(lockPath, []byte(testTeaSourceLock(digest, digest, "")), 0o644))
+	lock, err := readTeaSourceLock(lockPath)
+	require.NoError(t, err)
+	require.Equal(t, "tea-src-0.15.1.tar.gz", lock.SourceArchive)
 
-	delete(assets, "unsupported")
-	assets["aarch64"] = teaSourceAsset{Archive: "../tea.xz", URL: "https://example.invalid/tea", SHA256: fmt.Sprintf("%064x", 3)}
-	require.False(t, validTeaAssets(assets))
+	contents := []byte(testTeaSourceLock(digest, digest, ""))
+	contents = []byte(fmt.Sprintf("%s\nsource_sha256 = \"bad\"\n", contents))
+	require.NoError(t, os.WriteFile(lockPath, contents, 0o644))
+	_, err = readTeaSourceLock(lockPath)
+	require.Error(t, err)
 }
 
-func testTeaSourceLock(architecture, archive string, licenseDigest, archiveDigest [sha256.Size]byte, extra string) string {
-	siblingArchitecture := "aarch64"
-	siblingArchive := "tea-0.15.1-linux-arm64.xz"
-	if architecture == "aarch64" {
-		siblingArchitecture = "x86_64"
-		siblingArchive = "tea-0.15.1-linux-amd64.xz"
-	}
+func testTeaSourceLock(licenseDigest, patchDigest [sha256.Size]byte, extra string) string {
 	return fmt.Sprintf(`version = "0.15.1"
+commit = "f34697c5ed65928e265d6f48e16928819ce0f332"
+source_archive = "tea-src-0.15.1.tar.gz"
+source_url = "https://example.invalid/tea.tar.gz"
+source_sha256 = "%064x"
+patch_sha256 = "%x"
 license_url = "https://example.invalid/LICENSE"
 license_sha256 = "%x"
-checksum_manifest_url = "https://example.invalid/checksums.txt"
-checksum_manifest_sha256 = "%064x"
-%s
-[asset.%s]
-archive = "%s"
-url = "https://example.invalid/%s"
-sha256 = "%x"
-
-[asset.%s]
-archive = "%s"
-url = "https://example.invalid/%s"
-sha256 = "%064x"
-`, licenseDigest, 1, extra, architecture, archive, archive, archiveDigest, siblingArchitecture, siblingArchive, siblingArchive, 2)
+%s`, 1, patchDigest, licenseDigest, extra)
 }

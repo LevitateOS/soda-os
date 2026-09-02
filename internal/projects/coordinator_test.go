@@ -27,6 +27,7 @@ func (endpoints fakeEndpoints) Endpoints(context.Context) (string, string, error
 
 type fakePrivileged struct {
 	action            string
+	actions           []string
 	request           any
 	err               error
 	workspaceUsername string
@@ -34,6 +35,7 @@ type fakePrivileged struct {
 
 func (privileged *fakePrivileged) record(action string, request any) error {
 	privileged.action, privileged.request = action, request
+	privileged.actions = append(privileged.actions, action)
 	return privileged.err
 }
 
@@ -62,6 +64,42 @@ func (privileged *fakePrivileged) HumanDelete(_ context.Context, request HelperH
 	return privileged.record("human-delete", request)
 }
 
+func (privileged *fakePrivileged) HumanCreate(_ context.Context, request HelperHumanCreateRequest) error {
+	return privileged.record("human-create", request)
+}
+
+func (privileged *fakePrivileged) HumanPublish(_ context.Context, request HelperHumanPublishRequest) error {
+	return privileged.record("human-publish", request)
+}
+
+type fakeTea struct {
+	preflight []string
+	verified  []string
+	staged    []string
+	cleaned   []string
+	err       error
+}
+
+func (tea *fakeTea) Preflight(_ Account, username string) error {
+	tea.preflight = append(tea.preflight, username)
+	return tea.err
+}
+
+func (tea *fakeTea) StageLogin(_ context.Context, _ Account, username, _, _ string) error {
+	tea.staged = append(tea.staged, username)
+	return tea.err
+}
+
+func (tea *fakeTea) VerifyLogin(_ context.Context, _ Account, username string) error {
+	tea.verified = append(tea.verified, username)
+	return tea.err
+}
+
+func (tea *fakeTea) CleanupStaging(_ Account, username string) error {
+	tea.cleaned = append(tea.cleaned, username)
+	return tea.err
+}
+
 type fakeCloner struct {
 	remote      string
 	credentials CloneCredentials
@@ -77,6 +115,7 @@ type coordinatorFixture struct {
 	platform    *fakePlatform
 	privileged  *fakePrivileged
 	cloner      *fakeCloner
+	tea         *fakeTea
 }
 
 func testCoordinator(t *testing.T) coordinatorFixture {
@@ -86,13 +125,54 @@ func testCoordinator(t *testing.T) coordinatorFixture {
 	platform.accounts["alice"] = primaryAccount("alice", primaryRoleAdministrator)
 	privileged := &fakePrivileged{}
 	cloner := &fakeCloner{}
+	tea := &fakeTea{}
 	lifecycle := Lifecycle{Catalog: catalog, Platform: platform}
 	return coordinatorFixture{
-		coordinator: Coordinator{Catalog: catalog, Lifecycle: lifecycle, Platform: platform, Privileged: privileged, Forgejo: ForgejoClient{}, Cloner: cloner, Endpoints: fakeEndpoints{}},
+		coordinator: Coordinator{Catalog: catalog, Lifecycle: lifecycle, Platform: platform, Privileged: privileged, Forgejo: ForgejoClient{}, Cloner: cloner, Endpoints: fakeEndpoints{}, Tea: tea},
 		platform:    platform,
 		privileged:  privileged,
 		cloner:      cloner,
+		tea:         tea,
 	}
+}
+
+func TestCoordinatorAddPersonKeepsTeaSecretOutOfPublishRequest(t *testing.T) {
+	fixture := testCoordinator(t)
+	key := strings.TrimSpace(string(testAuthorizedKey(t)))
+	response, err := fixture.coordinator.Execute(context.Background(), "alice", "add-person", strings.NewReader(
+		`{"username":"bob","password":"initial secret","authorized_key":`+fmt.Sprintf("%q", key)+`}`,
+	))
+	require.NoError(t, err)
+	require.Equal(t, MutationResponse{OK: true}, response)
+	require.Equal(t, []string{"human-create", "human-publish"}, fixture.privileged.actions)
+	require.Equal(t, []string{"bob"}, fixture.tea.preflight)
+	require.Equal(t, []string{"bob"}, fixture.tea.staged)
+	require.Equal(t, []string{"bob"}, fixture.tea.cleaned)
+	encoded, err := json.Marshal(fixture.privileged.request)
+	require.NoError(t, err)
+	require.NotContains(t, string(encoded), "initial secret")
+	require.NotContains(t, string(encoded), "token")
+}
+
+func TestCoordinatorAddPersonChecksTeaStagingBeforeLinuxMutation(t *testing.T) {
+	fixture := testCoordinator(t)
+	fixture.tea.err = errors.New("staging conflict")
+	key := strings.TrimSpace(string(testAuthorizedKey(t)))
+	_, err := fixture.coordinator.Execute(context.Background(), "alice", "add-person", strings.NewReader(
+		`{"username":"bob","password":"initial secret","authorized_key":`+fmt.Sprintf("%q", key)+`}`,
+	))
+	require.ErrorContains(t, err, "staging conflict")
+	require.Empty(t, fixture.privileged.actions)
+}
+
+func TestCoordinatorAddPersonRequiresAdministratorBeforeMutation(t *testing.T) {
+	fixture := testCoordinator(t)
+	fixture.platform.accounts["alice"] = primaryAccount("alice", primaryRoleUser)
+	_, err := fixture.coordinator.Execute(context.Background(), "alice", "add-person", strings.NewReader(
+		`{"username":"bob","password":"initial secret","authorized_key":"bad"}`,
+	))
+	require.ErrorContains(t, err, "administrator")
+	require.Empty(t, fixture.privileged.actions)
 }
 
 func configureForgejo(t *testing.T, coordinator *Coordinator, calls *int, password *string) *httptest.Server {

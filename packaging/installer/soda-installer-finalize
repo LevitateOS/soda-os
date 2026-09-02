@@ -2,6 +2,7 @@
 
 import fcntl
 import http.client
+import json
 import os
 import re
 import stat
@@ -232,6 +233,23 @@ def _target_user_command(command):
     ]
 
 
+def _target_primary_command(username, command):
+    home = f"/home/{username}"
+    return [
+        "/usr/sbin/chroot",
+        f"--userspec={username}:{username}",
+        str(SYSROOT),
+        "/usr/bin/env",
+        f"HOME={home}",
+        f"XDG_CONFIG_HOME={home}/.config",
+        f"USER={username}",
+        f"LOGNAME={username}",
+        "PATH=/usr/bin:/bin",
+        "LANG=C.UTF-8",
+        *command,
+    ]
+
+
 def _run_target_root(command):
     result = subprocess.run(
         ["/usr/sbin/chroot", str(SYSROOT), *command],
@@ -376,6 +394,65 @@ def _submit_forgejo_signup(username, password):
         raise RuntimeError("Forgejo rejected administrator creation")
 
 
+def _configure_tea_administrator(username, password):
+    login = subprocess.run(
+        _target_primary_command(username, [
+            "/usr/bin/tea",
+            "logins",
+            "add",
+            "--name",
+            "soda",
+            "--url",
+            f"http://{FORGEJO_HOST}:{FORGEJO_PORT}",
+            "--user",
+            username,
+            "--password-stdin",
+            "--token-name",
+            "soda-os-tea",
+            "--scopes",
+            "read:user,write:repository,write:issue",
+        ]),
+        input=password,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        text=True,
+        check=False,
+    )
+    if login.returncode != 0:
+        raise RuntimeError("Tea could not create the administrator Forgejo login")
+
+    identity = subprocess.run(
+        _target_primary_command(username, [
+            "/usr/bin/tea", "api", "--login", "soda", "user",
+        ]),
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+        text=True,
+        check=False,
+    )
+    try:
+        login_name = json.loads(identity.stdout)["login"]
+    except (KeyError, TypeError, ValueError, json.JSONDecodeError):
+        login_name = ""
+    if identity.returncode != 0 or login_name != username:
+        raise RuntimeError("Tea did not verify the administrator Forgejo identity")
+
+    config_path = SYSROOT / f"home/{username}/.config/tea/config.yml"
+    try:
+        metadata = config_path.lstat()
+        account = _find_account_record("etc/passwd", username, 7)
+        if (
+            not stat.S_ISREG(metadata.st_mode)
+            or config_path.is_symlink()
+            or metadata.st_uid != int(account[2])
+            or stat.S_IMODE(metadata.st_mode) != 0o600
+        ):
+            raise RuntimeError("Tea administrator configuration is invalid")
+    except OSError:
+        raise RuntimeError("Tea administrator configuration is unavailable") from None
+
+
 def _stop_process(process):
     if process is None or process.poll() is not None:
         return
@@ -421,8 +498,6 @@ def _create_forgejo_administrator(username, password):
         )
         _wait_for_forgejo(process)
         _submit_forgejo_signup(username, password)
-        _stop_process(process)
-        process = None
 
         try:
             if config_path.read_bytes() != durable_config:
@@ -431,6 +506,9 @@ def _create_forgejo_administrator(username, password):
             raise RuntimeError("Forgejo durable configuration is unavailable") from None
         if _forgejo_users(admin_only=True) != [(username, True, True)]:
             raise RuntimeError("Forgejo did not create the requested site administrator")
+        _configure_tea_administrator(username, password)
+        _stop_process(process)
+        process = None
     finally:
         cleanup_failed = False
         try:

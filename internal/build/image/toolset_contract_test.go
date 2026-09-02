@@ -63,8 +63,8 @@ func TestTeaIsOneLockedImmutableRPMPerArchitecture(t *testing.T) {
 			lock, lockErr := builder.packageLock()
 			require.NoError(t, lockErr)
 			require.Contains(t, lock.Package, lockedPackage{
-				Name: "soda-tea", NEVRA: "soda-tea-0:0.15.1-1.fc44." + architecture,
-				Source: "local-rpm", File: "soda-tea-0.15.1-1.fc44." + architecture + ".rpm",
+				Name: "soda-tea", NEVRA: "soda-tea-0:0.15.1-2.fc44." + architecture,
+				Source: "local-rpm", File: "soda-tea-0.15.1-2.fc44." + architecture + ".rpm",
 			})
 		})
 	}
@@ -75,19 +75,21 @@ func TestTeaIsOneLockedImmutableRPMPerArchitecture(t *testing.T) {
 	require.Contains(t, string(spec), `%check`)
 	require.Contains(t, string(spec), `tea --version`)
 	require.Contains(t, string(spec), `tea --help`)
+	require.Contains(t, string(spec), `--password-stdin`)
+	require.Contains(t, string(spec), `--token-name`)
 	require.NotContains(t, string(spec), "%post")
 	require.NotContains(t, string(spec), "curl")
 
 	sourceLock, err := os.ReadFile(filepath.Join(root, "distro", "locks", "tea-source.toml"))
 	require.NoError(t, err)
 	require.Contains(t, string(sourceLock), `version = "0.15.1"`)
-	require.Contains(t, string(sourceLock), `checksum_manifest_sha256 = "295347169dacd180fd920d78079e770a829f338c6bb0ae26493baa0ff4e8ac61"`)
+	require.Contains(t, string(sourceLock), `commit = "f34697c5ed65928e265d6f48e16928819ce0f332"`)
+	require.Contains(t, string(sourceLock), `source_sha256 = "e242dd3589c31a36320d75e0de9eefa3fa429bd9b0af89d35af8585c7f514b9c"`)
+	require.Contains(t, string(sourceLock), `patch_sha256 = "5eb194f220aabdf8ff230413c077286e0a4a34e28121d7affb4806f34e5c92bc"`)
 	require.Contains(t, string(sourceLock), `license_sha256 = "a804f8028d201e1e36e44372674025f74c71f67a28c58f09991c1069726f1fd2"`)
-	require.Contains(t, string(sourceLock), `sha256 = "cd4dc38e2dd051577e434ee9649793c80f1e5b3266efa901ba64b72f8d8e53a8"`)
-	require.Contains(t, string(sourceLock), `sha256 = "cd7db63fd4319045b842af7843ff0bfbc247cd73b8e6b482a067cc4e3ce1d404"`)
 }
 
-func TestBuilderBunAndTeaInputsAreSelectedForTheNativeArchitecture(t *testing.T) {
+func TestBuilderBunAndTeaInputsRemainPinned(t *testing.T) {
 	root := filepath.Join("..", "..", "..")
 	builderFetcher, err := os.ReadFile(filepath.Join(root, "scripts", "fetch-builder-tools.sh"))
 	require.NoError(t, err)
@@ -97,10 +99,10 @@ func TestBuilderBunAndTeaInputsAreSelectedForTheNativeArchitecture(t *testing.T)
 	require.NotContains(t, string(builderFetcher), "fetch_toolchain arm64 ")
 	teaFetcher, err := os.ReadFile(filepath.Join(root, "scripts", "fetch-tea-source.sh"))
 	require.NoError(t, err)
-	require.Contains(t, string(teaFetcher), `case "$(uname -m)" in`)
-	require.Contains(t, string(teaFetcher), `architecture=x86_64`)
-	require.Contains(t, string(teaFetcher), `architecture=aarch64`)
-	require.Contains(t, string(teaFetcher), `xz --test "$archive_temporary"`)
+	require.Contains(t, string(teaFetcher), `source_sha256`)
+	require.Contains(t, string(teaFetcher), `patch_sha256`)
+	require.Contains(t, string(teaFetcher), `tar -tzf "$temporary"`)
+	require.NotContains(t, string(teaFetcher), `latest`)
 
 	justfile, err := os.ReadFile(filepath.Join(root, "justfile"))
 	require.NoError(t, err)

@@ -2,6 +2,7 @@ package projects
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"strings"
 	"testing"
@@ -49,6 +50,34 @@ func TestHelperRejectsPKExecUIDAccountMismatch(t *testing.T) {
 	identity := PKExecIdentity{Username: "alice", UID: 2000}
 	_, err := helper.Execute(context.Background(), identity, "catalog-add", strings.NewReader(`{"id":"site","display_name":"Site","canonical_url":"https://git.example.test/site.git"}`))
 	require.ErrorContains(t, err, "no longer matches")
+}
+
+func TestHelperHumanCreateAndPublishRequireWheelAndFixedRequests(t *testing.T) {
+	helper, platform := testHelper(t)
+	actor := platform.accounts["alice"]
+	identity := PKExecIdentity{Username: actor.Username, UID: actor.UID}
+	_, err := helper.Execute(context.Background(), identity, "human-create", strings.NewReader(`{"username":"bob","password":"secret"}`))
+	require.ErrorContains(t, err, "administrator")
+
+	actor.Groups["wheel"] = true
+	platform.accounts["alice"] = actor
+	_, err = helper.Execute(context.Background(), identity, "human-create", strings.NewReader(`{"username":"bob","password":"secret","command":"shell"}`))
+	require.ErrorContains(t, err, "unknown field")
+	response, err := helper.Execute(context.Background(), identity, "human-create", strings.NewReader(`{"username":"bob","password":"secret"}`))
+	require.NoError(t, err)
+	require.True(t, response.OK)
+	require.Equal(t, []string{"bob"}, platform.calls.createdPrimary)
+	key := strings.TrimSpace(string(testAuthorizedKey(t)))
+	_, err = helper.Execute(context.Background(), identity, "human-publish", strings.NewReader(
+		`{"username":"bob","authorized_key":`+fmt.Sprintf("%q", `command="bad" `+key)+`}`,
+	))
+	require.ErrorContains(t, err, "authorized key")
+	response, err = helper.Execute(context.Background(), identity, "human-publish", strings.NewReader(
+		`{"username":"bob","authorized_key":`+fmt.Sprintf("%q", key)+`}`,
+	))
+	require.NoError(t, err)
+	require.True(t, response.OK)
+	require.Equal(t, []string{"bob"}, platform.calls.publishedHuman)
 }
 
 func TestPKExecCallerRequiresThePrivilegedBoundary(t *testing.T) {

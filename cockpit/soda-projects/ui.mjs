@@ -5,6 +5,7 @@ export const formActions = Object.freeze([
   "setup",
   "remove",
   "delete-human",
+  "add-person",
 ]);
 
 const formActionSet = new Set(formActions);
@@ -32,6 +33,17 @@ export function payloadFor(action, data, reportInvalid) {
       id: data.get("id"),
       git_username: data.get("git_username"),
       git_password: data.get("git_password"),
+    };
+  }
+  if (action === "add-person") {
+    if (data.get("password_confirmation") !== data.get("password")) {
+      reportInvalid("The password confirmation does not match.");
+      return null;
+    }
+    return {
+      username: data.get("username"),
+      password: data.get("password"),
+      authorized_key: data.get("authorized_key"),
     };
   }
   if (action === "remove") {
@@ -66,11 +78,14 @@ export function successMessage(action, payload, result) {
   if (action === "remove") {
     return `${payload.id} and its local workspaces were removed. The canonical repository was not deleted.`;
   }
+  if (action === "add-person") {
+    return `${payload.username} was added as an ordinary Soda OS user with a private Forgejo login.`;
+  }
   return `${payload.username} and their local Soda workspaces were removed. Forgejo was not changed.`;
 }
 
 export function clearSecrets(form) {
-  for (const name of ["password", "git_password"]) {
+  for (const name of ["password", "password_confirmation", "git_password"]) {
     const input = form.elements.namedItem(name);
     if (input) {
       input.value = "";

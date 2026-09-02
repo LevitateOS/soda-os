@@ -139,6 +139,12 @@ func (lifecycle Lifecycle) createAndPublishWorkspace(ctx context.Context, target
 		}
 		return "", lifecycle.deleteNewWorkspace(ctx, workspace, err)
 	}
+	if err = lifecycle.Platform.InstallWorkspaceTea(target.primary, workspace); err != nil {
+		if safetyErr := lifecycle.Platform.SafeToRemoveIncomplete(workspace, target.entry.ID); safetyErr != nil {
+			return "", errors.Join(err, fmt.Errorf("incomplete workspace was retained: %w", safetyErr))
+		}
+		return "", lifecycle.deleteNewWorkspace(ctx, workspace, err)
+	}
 	if err = lifecycle.Platform.InstallAuthorizedKeys(workspace, keys); err != nil {
 		return "", lifecycle.handleKeyInstallFailure(ctx, workspace, target.entry.ID, err)
 	}

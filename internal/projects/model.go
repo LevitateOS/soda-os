@@ -25,6 +25,13 @@ const (
 
 var projectIDPattern = regexp.MustCompile(`^[a-z][a-z0-9-]{0,23}$`)
 
+func ValidatePrimaryUsername(username string) error {
+	if !projectIDPattern.MatchString(username) {
+		return errors.New("username must match [a-z][a-z0-9-]{0,23}")
+	}
+	return nil
+}
+
 // CatalogEntry is the complete durable Soda project representation.
 type CatalogEntry struct {
 	ID           string `json:"id"`

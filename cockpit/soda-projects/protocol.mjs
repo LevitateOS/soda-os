@@ -8,6 +8,7 @@ export const actions = Object.freeze([
   "setup",
   "remove",
   "delete-human",
+  "add-person",
 ]);
 
 const actionSet = new Set(actions);

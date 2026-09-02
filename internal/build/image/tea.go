@@ -4,30 +4,28 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
-	"strings"
 
 	"github.com/BurntSushi/toml"
 )
 
-const teaVersion = "0.15.1"
+const (
+	teaVersion = "0.15.1"
+	teaCommit  = "f34697c5ed65928e265d6f48e16928819ce0f332"
+)
 
 type teaSourceLock struct {
-	Version                string                    `toml:"version"`
-	LicenseURL             string                    `toml:"license_url"`
-	LicenseSHA256          string                    `toml:"license_sha256"`
-	ChecksumManifestURL    string                    `toml:"checksum_manifest_url"`
-	ChecksumManifestSHA256 string                    `toml:"checksum_manifest_sha256"`
-	Asset                  map[string]teaSourceAsset `toml:"asset"`
-}
-
-type teaSourceAsset struct {
-	Archive string `toml:"archive"`
-	URL     string `toml:"url"`
-	SHA256  string `toml:"sha256"`
+	Version       string `toml:"version"`
+	Commit        string `toml:"commit"`
+	SourceArchive string `toml:"source_archive"`
+	SourceURL     string `toml:"source_url"`
+	SourceSHA256  string `toml:"source_sha256"`
+	PatchSHA256   string `toml:"patch_sha256"`
+	LicenseURL    string `toml:"license_url"`
+	LicenseSHA256 string `toml:"license_sha256"`
 }
 
 func (b *Builder) stageTeaSource(sources string) error {
-	lock, asset, err := readTeaSourceLock(b.path("distro/locks/tea-source.toml"), b.Spec.Platform.Architecture.Name)
+	lock, err := readTeaSourceLock(b.path("distro/locks/tea-source.toml"))
 	if err != nil {
 		return err
 	}
@@ -35,57 +33,38 @@ func (b *Builder) stageTeaSource(sources string) error {
 	if err := verifyFileSHA256(license, lock.LicenseSHA256); err != nil {
 		return fmt.Errorf("verify Tea license: %w", err)
 	}
-	archive := b.artifactPath("tools", asset.Archive)
-	if err := verifyFileSHA256(archive, asset.SHA256); err != nil {
-		return fmt.Errorf("verify Tea source; run just tea-source on matching-native %s: %w", b.Spec.Platform.Architecture.Name, err)
+	binary := b.artifactPath("build", "tea")
+	if !isFile(binary) {
+		return errors.New("built Tea binary is missing")
 	}
-	if err := copyFile(archive, filepath.Join(sources, "tea.xz")); err != nil {
+	if err := copyFile(binary, filepath.Join(sources, "tea")); err != nil {
 		return fmt.Errorf("stage Tea source: %w", err)
 	}
 	return copyFile(license, filepath.Join(sources, "tea-LICENSE"))
 }
 
-func readTeaSourceLock(path, architecture string) (teaSourceLock, teaSourceAsset, error) {
+func readTeaSourceLock(path string) (teaSourceLock, error) {
 	var lock teaSourceLock
 	metadata, err := toml.DecodeFile(path, &lock)
 	if err != nil {
-		return teaSourceLock{}, teaSourceAsset{}, fmt.Errorf("read Tea source lock: %w", err)
+		return teaSourceLock{}, fmt.Errorf("read Tea source lock: %w", err)
 	}
 	if len(metadata.Undecoded()) != 0 {
-		return teaSourceLock{}, teaSourceAsset{}, errors.New("Tea source lock contains unknown fields")
+		return teaSourceLock{}, errors.New("Tea source lock contains unknown fields")
 	}
-	asset, err := lock.assetFor(architecture)
-	return lock, asset, err
+	if err := lock.validate(); err != nil {
+		return teaSourceLock{}, err
+	}
+	return lock, nil
 }
 
-func (lock teaSourceLock) assetFor(architecture string) (teaSourceAsset, error) {
-	asset, selected := lock.Asset[architecture]
-	if lock.Version != teaVersion || lock.LicenseURL == "" || !validSHA256(lock.LicenseSHA256) {
-		return teaSourceAsset{}, errors.New("Tea source lock differs from the selected architecture contract")
+func (lock teaSourceLock) validate() error {
+	valid := lock.Version == teaVersion && lock.Commit == teaCommit &&
+		filepath.Base(lock.SourceArchive) == lock.SourceArchive && filepath.Ext(lock.SourceArchive) == ".gz" &&
+		lock.SourceURL != "" && validSHA256(lock.SourceSHA256) && validSHA256(lock.PatchSHA256) &&
+		lock.LicenseURL != "" && validSHA256(lock.LicenseSHA256)
+	if !valid {
+		return errors.New("Tea source lock differs from the selected source contract")
 	}
-	if lock.ChecksumManifestURL == "" || !validSHA256(lock.ChecksumManifestSHA256) {
-		return teaSourceAsset{}, errors.New("Tea source lock differs from the selected architecture contract")
-	}
-	if !validTeaAssets(lock.Asset) || !selected {
-		return teaSourceAsset{}, errors.New("Tea source lock differs from the selected architecture contract")
-	}
-	return asset, nil
-}
-
-func validTeaAssets(assets map[string]teaSourceAsset) bool {
-	if len(assets) != 2 {
-		return false
-	}
-	for _, architecture := range []string{"aarch64", "x86_64"} {
-		asset, present := assets[architecture]
-		if !present || !validTeaAsset(asset) {
-			return false
-		}
-	}
-	return true
-}
-
-func validTeaAsset(asset teaSourceAsset) bool {
-	return filepath.Base(asset.Archive) == asset.Archive && strings.HasSuffix(asset.Archive, ".xz") &&
-		asset.URL != "" && validSHA256(asset.SHA256)
+	return nil
 }

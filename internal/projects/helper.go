@@ -38,9 +38,53 @@ func (helper Helper) Execute(ctx context.Context, actor PKExecIdentity, action s
 		return helper.projectRemove(ctx, actor.Username, input)
 	case "human-delete":
 		return helper.humanDelete(ctx, actor.Username, input)
+	case "human-create":
+		return helper.humanCreate(ctx, account, input)
+	case "human-publish":
+		return helper.humanPublish(ctx, account, input)
 	default:
 		return MutationResponse{}, fmt.Errorf("unsupported workspace helper action %q", action)
 	}
+}
+
+func (helper Helper) humanCreate(ctx context.Context, actor Account, input io.Reader) (MutationResponse, error) {
+	uidMin, err := helper.Lifecycle.Platform.UIDMin()
+	if err != nil {
+		return MutationResponse{}, err
+	}
+	if !actor.IsAdministrator(uidMin) {
+		return MutationResponse{}, errors.New("administrator status is required")
+	}
+	var request HelperHumanCreateRequest
+	if err = DecodeRequest(input, &request); err != nil {
+		return MutationResponse{}, err
+	}
+	if _, err = helper.Lifecycle.Platform.CreatePrimary(ctx, request.Username, request.Password); err != nil {
+		return MutationResponse{}, err
+	}
+	return MutationResponse{OK: true}, nil
+}
+
+func (helper Helper) humanPublish(ctx context.Context, actor Account, input io.Reader) (MutationResponse, error) {
+	uidMin, err := helper.Lifecycle.Platform.UIDMin()
+	if err != nil {
+		return MutationResponse{}, err
+	}
+	if !actor.IsAdministrator(uidMin) {
+		return MutationResponse{}, errors.New("administrator status is required")
+	}
+	var request HelperHumanPublishRequest
+	if err = DecodeRequest(input, &request); err != nil {
+		return MutationResponse{}, err
+	}
+	key, err := canonicalAuthorizedKey(request.AuthorizedKey)
+	if err != nil {
+		return MutationResponse{}, err
+	}
+	if err = helper.Lifecycle.Platform.PublishHuman(ctx, actor, request.Username, []byte(key)); err != nil {
+		return MutationResponse{}, err
+	}
+	return MutationResponse{OK: true}, nil
 }
 
 func (helper Helper) catalogAdd(input io.Reader) (MutationResponse, error) {

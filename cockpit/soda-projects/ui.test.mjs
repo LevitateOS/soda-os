@@ -32,15 +32,25 @@ test("form payloads keep secrets only in the synchronous request object", () => 
     ["git_password", "one-use"],
   ]), assert.fail);
   assert.deepEqual(setup, { id: "site", git_username: "alice", git_password: "one-use" });
+
+  const person = payloadFor("add-person", new Map([
+    ["username", "bob"],
+    ["password", "initial secret"],
+    ["password_confirmation", "initial secret"],
+    ["authorized_key", "ssh-ed25519 AAAA"],
+  ]), assert.fail);
+  assert.deepEqual(person, { username: "bob", password: "initial secret", authorized_key: "ssh-ed25519 AAAA" });
 });
 
 test("secret clearing covers form controls and request objects", () => {
   const controls = {
     password: { value: "forgejo-secret" },
+    password_confirmation: { value: "forgejo-secret" },
     git_password: { value: "git-secret" },
   };
   clearSecrets({ elements: { namedItem: name => controls[name] ?? null } });
   assert.equal(controls.password.value, "");
+  assert.equal(controls.password_confirmation.value, "");
   assert.equal(controls.git_password.value, "");
 
   const payload = { password: "forgejo-secret", git_password: "git-secret", id: "site" };
@@ -70,11 +80,27 @@ test("human deletion presentation is wheel-status driven", () => {
   assert.equal(humanDeletionHidden({}), true);
 });
 
+test("add person requires matching password confirmation", () => {
+  const messages = [];
+  const payload = payloadFor("add-person", new Map([
+    ["username", "bob"],
+    ["password", "one"],
+    ["password_confirmation", "two"],
+    ["authorized_key", "ssh-ed25519 AAAA"],
+  ]), message => messages.push(message));
+  assert.equal(payload, null);
+  assert.deepEqual(messages, ["The password confirmation does not match."]);
+});
+
 test("native synchronous diagnostics and outcomes remain visible", () => {
   assert.equal(errorMessage(new Error("native Git authentication failed")), "native Git authentication failed");
   assert.equal(errorMessage({}), "The operation failed without a diagnostic message.");
   assert.equal(
     successMessage("remove", { id: "site" }, { ok: true }),
     "site and its local workspaces were removed. The canonical repository was not deleted.",
+  );
+  assert.equal(
+    successMessage("add-person", { username: "bob" }, { ok: true }),
+    "bob was added as an ordinary Soda OS user with a private Forgejo login.",
   );
 });

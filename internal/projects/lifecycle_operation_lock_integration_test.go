@@ -92,6 +92,7 @@ func TestSetupOperationLockBlocksProjectAndHumanRemoval(t *testing.T) {
 		Privileged: &fakePrivileged{},
 		Cloner:     blockingSetupCloner{started: cloneStarted, release: releaseClone},
 		Endpoints:  fakeEndpoints{},
+		Tea:        &fakeTea{},
 	}
 
 	setupResult := make(chan error, 1)

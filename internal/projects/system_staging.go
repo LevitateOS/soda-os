@@ -188,6 +188,24 @@ func (platform *NativePlatform) openStagingRoot(account Account) (*os.File, bool
 	return openOptionalOwnedDirectory(userRuntime, "soda-projects", account.UID, "workspace staging root")
 }
 
+func (platform *NativePlatform) ensurePeopleStaging(account Account) (*os.File, error) {
+	root, err := platform.ensureStagingRoot(account)
+	if err != nil {
+		return nil, err
+	}
+	defer root.Close()
+	return ensureCallerOwnedDirectoryAt(root, "people", account, "human onboarding staging root")
+}
+
+func (platform *NativePlatform) openPeopleStaging(account Account) (*os.File, bool, error) {
+	root, exists, err := platform.openStagingRoot(account)
+	if err != nil || !exists {
+		return nil, false, err
+	}
+	defer root.Close()
+	return openOptionalOwnedDirectory(root, "people", account.UID, "human onboarding staging root")
+}
+
 func (platform *NativePlatform) openRuntimeUserDirectory(account Account) (*os.File, error) {
 	runtimeRoot, err := openAbsoluteDirectoryNoSymlinks(platform.RuntimeRoot)
 	if err != nil {

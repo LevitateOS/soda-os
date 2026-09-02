@@ -105,6 +105,9 @@ func TestInstallerOnlyExecutablesAreFixedAndParse(t *testing.T) {
 		`["/usr/libexec/soda/forgejo-init"]`,
 		`"POST",`,
 		`"/user/sign_up"`,
+		`"--password-stdin"`,
+		`"--token-name"`,
+		`"soda-os-tea"`,
 		`os.replace(temporary, destination)`,
 	} {
 		require.Contains(t, finalizer, expected)
@@ -118,7 +121,7 @@ func TestInstallerOnlyExecutablesAreFixedAndParse(t *testing.T) {
 	}
 	require.NotContains(t, finalizer, `"/usr/sbin/restorecon"`)
 	require.NotContains(t, finalizer, `"/usr/sbin/matchpathcon"`)
-	require.NotContains(t, finalizer, "--password")
+	require.NotContains(t, finalizer, `"--password",`)
 }
 
 func TestTailscaleEnrollmentRemainsOneAttemptAndAlwaysCleansSecrets(t *testing.T) {

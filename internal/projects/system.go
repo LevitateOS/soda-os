@@ -18,11 +18,12 @@ type CommandResult struct {
 }
 
 type Command struct {
-	Directory  string
-	Name       string
-	Args       []string
-	Input      io.Reader
-	ExtraFiles []*os.File
+	Directory   string
+	Name        string
+	Args        []string
+	Input       io.Reader
+	ExtraFiles  []*os.File
+	Environment []string
 }
 
 type CommandRunner interface {
@@ -36,6 +37,7 @@ func (ExecCommandRunner) Run(ctx context.Context, request Command) (CommandResul
 	command.Dir = request.Directory
 	command.Stdin = request.Input
 	command.ExtraFiles = request.ExtraFiles
+	command.Env = request.Environment
 	var stdout, stderr bytes.Buffer
 	command.Stdout, command.Stderr = &stdout, &stderr
 	err := command.Run()
@@ -66,6 +68,9 @@ type Platform interface {
 	WorkspaceReady(Account, string) (bool, error)
 	ValidatePasswordLocked(context.Context, Account) error
 	CreateWorkspace(context.Context, Account, string) (Account, error)
+	CreatePrimary(context.Context, string, string) (Account, error)
+	PublishHuman(context.Context, Account, string, []byte) error
+	InstallWorkspaceTea(Account, Account) error
 	InstallAuthorizedKeys(Account, []byte) error
 	PublishWorkspace(context.Context, Account, Account, string) error
 	SafeToRemoveIncomplete(Account, string) error

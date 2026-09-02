@@ -38,6 +38,9 @@ type fakePlatformCalls struct {
 	locks          []string
 	installedKeys  map[string][]byte
 	preflights     []string
+	createdPrimary []string
+	installedTea   []string
+	publishedHuman []string
 }
 
 type fakeSetupLock struct {
@@ -161,6 +164,28 @@ func (platform *fakePlatform) CreateWorkspace(_ context.Context, primary Account
 	}
 	platform.accounts[username] = account
 	return account, nil
+}
+
+func (platform *fakePlatform) CreatePrimary(_ context.Context, username, _ string) (Account, error) {
+	if account, found := platform.accounts[username]; found {
+		return account, nil
+	}
+	account := primaryAccount(username, primaryRoleUser)
+	account.UID = 1000 + len(platform.accounts)
+	account.GID = account.UID
+	platform.accounts[username] = account
+	platform.calls.createdPrimary = append(platform.calls.createdPrimary, username)
+	return account, nil
+}
+
+func (platform *fakePlatform) PublishHuman(_ context.Context, _ Account, username string, _ []byte) error {
+	platform.calls.publishedHuman = append(platform.calls.publishedHuman, username)
+	return nil
+}
+
+func (platform *fakePlatform) InstallWorkspaceTea(primary, workspace Account) error {
+	platform.calls.installedTea = append(platform.calls.installedTea, primary.Username+":"+workspace.Username)
+	return nil
 }
 
 func (platform *fakePlatform) InstallAuthorizedKeys(workspace Account, keys []byte) error {

@@ -33,6 +33,15 @@ type PrivilegedProjects interface {
 	WorkspacePublish(context.Context, HelperWorkspaceRequest) (MutationResponse, error)
 	ProjectRemove(context.Context, ProjectRequest) error
 	HumanDelete(context.Context, HelperHumanRequest) error
+	HumanCreate(context.Context, HelperHumanCreateRequest) error
+	HumanPublish(context.Context, HelperHumanPublishRequest) error
+}
+
+type HumanTea interface {
+	Preflight(Account, string) error
+	StageLogin(context.Context, Account, string, string, string) error
+	VerifyLogin(context.Context, Account, string) error
+	CleanupStaging(Account, string) error
 }
 
 type PKExecInvoker struct {
@@ -61,6 +70,16 @@ func (invoker PKExecInvoker) ProjectRemove(ctx context.Context, request ProjectR
 
 func (invoker PKExecInvoker) HumanDelete(ctx context.Context, request HelperHumanRequest) error {
 	_, err := invoker.mutation(ctx, "human-delete", request)
+	return err
+}
+
+func (invoker PKExecInvoker) HumanCreate(ctx context.Context, request HelperHumanCreateRequest) error {
+	_, err := invoker.mutation(ctx, "human-create", request)
+	return err
+}
+
+func (invoker PKExecInvoker) HumanPublish(ctx context.Context, request HelperHumanPublishRequest) error {
+	_, err := invoker.mutation(ctx, "human-publish", request)
 	return err
 }
 
@@ -118,6 +137,7 @@ type Coordinator struct {
 	Forgejo    ForgejoClient
 	Cloner     Cloner
 	Endpoints  EndpointSource
+	Tea        HumanTea
 }
 
 func (coordinator Coordinator) Execute(ctx context.Context, actorUsername, action string, input io.Reader) (any, error) {
@@ -140,9 +160,22 @@ func (coordinator Coordinator) Execute(ctx context.Context, actorUsername, actio
 		return coordinator.executeRemove(ctx, input)
 	case "delete-human":
 		return coordinator.executeDeleteHuman(ctx, input)
+	case "add-person":
+		return coordinator.executeAddPerson(ctx, primary, uidMin, input)
 	default:
 		return nil, fmt.Errorf("unsupported soda-projects action %q", action)
 	}
+}
+
+func (coordinator Coordinator) executeAddPerson(ctx context.Context, actor Account, uidMin int, input io.Reader) (any, error) {
+	var request AddPersonRequest
+	if err := DecodeRequest(input, &request); err != nil {
+		return nil, err
+	}
+	if !actor.IsAdministrator(uidMin) {
+		return nil, errors.New("administrator status is required")
+	}
+	return coordinator.addPerson(ctx, actor, request)
 }
 
 func (coordinator Coordinator) executeList(ctx context.Context, primary Account, uidMin int, input io.Reader) (any, error) {
@@ -302,6 +335,12 @@ func (coordinator Coordinator) setupWithOperationLock(ctx context.Context, prima
 }
 
 func (coordinator Coordinator) setupLocked(ctx context.Context, primary Account, request SetupRequest) (MutationResponse, error) {
+	if coordinator.Tea == nil {
+		return MutationResponse{}, errors.New("Tea login boundary is unavailable")
+	}
+	if err := coordinator.Tea.VerifyLogin(ctx, primary, primary.Username); err != nil {
+		return MutationResponse{}, fmt.Errorf("verify primary Tea login: %w", err)
+	}
 	entry, err := coordinator.Catalog.Get(request.ID)
 	if err != nil {
 		return MutationResponse{}, err

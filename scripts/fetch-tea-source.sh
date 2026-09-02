@@ -6,26 +6,12 @@ if [ "$#" -ne 0 ]; then
   exit 2
 fi
 
-case "$(uname -m)" in
-  x86_64)
-    architecture=x86_64
-    ;;
-  aarch64|arm64)
-    architecture=aarch64
-    ;;
-  *)
-    echo "unsupported native architecture: $(uname -m)" >&2
-    exit 1
-    ;;
-esac
-
 repo_root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd -P)
 lock="$repo_root/distro/locks/tea-source.toml"
 
-root_value() {
+lock_value() {
   key=$1
   awk -v key="$key" '
-    /^\[/ { exit }
     $0 ~ "^" key "[[:space:]]*=" {
       sub(/^[^=]*=[[:space:]]*"/, "")
       sub(/"[[:space:]]*$/, "")
@@ -35,30 +21,16 @@ root_value() {
   ' "$lock"
 }
 
-asset_value() {
-  key=$1
-  awk -v section="asset.$architecture" -v key="$key" '
-    $0 == "[" section "]" { selected = 1; next }
-    selected && /^\[/ { exit }
-    selected && $0 ~ "^" key "[[:space:]]*=" {
-      sub(/^[^=]*=[[:space:]]*"/, "")
-      sub(/"[[:space:]]*$/, "")
-      print
-      exit
-    }
-  ' "$lock"
-}
+archive=$(lock_value source_archive)
+url=$(lock_value source_url)
+expected=$(lock_value source_sha256)
+commit=$(lock_value commit)
+license_sha256=$(lock_value license_sha256)
+patch_sha256=$(lock_value patch_sha256)
 
-license_sha256=$(root_value license_sha256)
-manifest_url=$(root_value checksum_manifest_url)
-manifest_sha256=$(root_value checksum_manifest_sha256)
-archive=$(asset_value archive)
-url=$(asset_value url)
-expected=$(asset_value sha256)
-
-for value in "$license_sha256" "$manifest_url" "$manifest_sha256" "$archive" "$url" "$expected"; do
+for value in "$archive" "$url" "$expected" "$commit" "$license_sha256" "$patch_sha256"; do
   if [ -z "$value" ]; then
-    echo "Tea source lock is incomplete for $architecture" >&2
+    echo "Tea source lock is incomplete" >&2
     exit 1
   fi
 done
@@ -70,12 +42,20 @@ validate_digest() {
   fi
 }
 
-validate_digest "$license_sha256"
-validate_digest "$manifest_sha256"
 validate_digest "$expected"
+if ! printf '%s\n' "$commit" | grep -Eq '^[0-9a-f]{40}$'; then
+  echo "Tea source lock contains an invalid tagged commit" >&2
+  exit 1
+fi
+validate_digest "$license_sha256"
+validate_digest "$patch_sha256"
 
 case "$archive" in
-  ''|*/*) echo "Tea source lock contains an invalid archive name" >&2; exit 1 ;;
+  *.tar.gz) ;;
+  *) echo "Tea source lock contains an invalid archive name" >&2; exit 1 ;;
+esac
+case "$archive" in
+  */*) echo "Tea source lock contains an invalid archive name" >&2; exit 1 ;;
 esac
 
 checksum() {
@@ -90,41 +70,32 @@ checksum() {
 }
 
 license="$repo_root/packaging/rpm/tea/sources/LICENSE"
+patch="$repo_root/packaging/rpm/tea/sources/0001-secret-safe-deterministic-login.patch"
 if [ "$(checksum "$license")" != "$license_sha256" ]; then
   echo "Tea license checksum differs from the pinned upstream license" >&2
+  exit 1
+fi
+if [ "$(checksum "$patch")" != "$patch_sha256" ]; then
+  echo "Tea login patch checksum differs from the source lock" >&2
   exit 1
 fi
 
 output_directory="$repo_root/.artifacts/tools"
 mkdir -p "$output_directory"
 output="$output_directory/$archive"
-if [ -f "$output" ] && [ "$(checksum "$output")" = "$expected" ] && xz --test "$output"; then
+if [ -f "$output" ] && [ "$(checksum "$output")" = "$expected" ] && tar -tzf "$output" >/dev/null; then
   exit 0
 fi
 
-manifest_temporary=$(mktemp "$output_directory/tea-checksums.XXXXXX")
-archive_temporary=$(mktemp "$output_directory/tea-archive.XXXXXX")
-trap 'rm -f "$manifest_temporary" "$archive_temporary"' 0 1 2 15
+temporary=$(mktemp "$output_directory/tea-source.XXXXXX")
+trap 'rm -f "$temporary"' 0 1 2 15
 
-curl --fail --location --output "$manifest_temporary" "$manifest_url"
-if [ "$(checksum "$manifest_temporary")" != "$manifest_sha256" ]; then
-  echo "Tea checksum manifest differs from the pinned upstream manifest" >&2
-  exit 1
-fi
-if ! awk -v archive="$archive" -v expected="$expected" \
-  '$1 == expected && $2 == archive { found = 1 } END { exit found ? 0 : 1 }' \
-  "$manifest_temporary"; then
-  echo "Tea checksum manifest does not bind $archive to its pinned digest" >&2
-  exit 1
-fi
-
-curl --fail --location --output "$archive_temporary" "$url"
-actual=$(checksum "$archive_temporary")
+curl --fail --location --output "$temporary" "$url"
+actual=$(checksum "$temporary")
 if [ "$actual" != "$expected" ]; then
   echo "Tea source checksum mismatch: got $actual, expected $expected" >&2
   exit 1
 fi
-xz --test "$archive_temporary"
-mv "$archive_temporary" "$output"
+tar -tzf "$temporary" >/dev/null
+mv "$temporary" "$output"
 trap - 0 1 2 15
-rm -f "$manifest_temporary"

@@ -82,12 +82,16 @@ func (b *Builder) buildProductBinaries(ctx context.Context, revision string) err
 	if err := b.buildGoBinaries(ctx, revision); err != nil {
 		return err
 	}
-	return b.buildForgejo(ctx)
+	if err := b.buildForgejo(ctx); err != nil {
+		return err
+	}
+	return b.buildTea(ctx)
 }
 
 const (
 	forgejoVersion      = "15.0.7"
 	forgejoSourceSHA256 = "e11490f52542104651d81cfa7a23376a4c005397499e6dc1a7850e2fb8176ad6"
+	forgejoPatchSHA256  = "a4920d964f9a32ffc950dfbaeea8120dbd21d04f0a0f6cc77f8d0e75cd5cbd9e"
 )
 
 func (b *Builder) buildForgejo(ctx context.Context) error {
@@ -100,12 +104,19 @@ func (b *Builder) buildForgejo(ctx context.Context) error {
 	if hex.EncodeToString(hash[:]) != forgejoSourceSHA256 {
 		return errors.New("Forgejo source archive checksum differs from the distribution contract")
 	}
+	patch := b.path("packaging/rpm/forgejo/sources/patches/0001-pam-do-not-retain-password.patch")
+	if err = verifyFileSHA256(patch, forgejoPatchSHA256); err != nil {
+		return fmt.Errorf("verify Forgejo PAM patch: %w", err)
+	}
 	script := strings.Join([]string{
 		"set -eu",
 		"rm -rf /src/.artifacts/build/forgejo-source",
 		"mkdir -p /src/.artifacts/build/forgejo-source /src/.artifacts/build/forgejo-go-cache /src/.artifacts/build/forgejo-go-tmp",
 		"tar -xzf /src/.artifacts/tools/forgejo-src-" + forgejoVersion + ".tar.gz -C /src/.artifacts/build/forgejo-source --strip-components=1",
 		"cd /src/.artifacts/build/forgejo-source",
+		"git apply --unidiff-zero /src/packaging/rpm/forgejo/sources/patches/0001-pam-do-not-retain-password.patch",
+		"! grep -F 'Passwd:      password' services/auth/source/pam/source_authenticate.go",
+		"go test ./services/auth/source/pam",
 		"TAGS='bindata timetzdata sqlite sqlite_unlock_notify pam' make backend",
 		"install -m 0755 gitea /src/.artifacts/build/forgejo",
 		"/src/.artifacts/build/forgejo --version | grep -F ': bindata, timetzdata, sqlite, sqlite_unlock_notify, pam'",
@@ -115,6 +126,41 @@ func (b *Builder) buildForgejo(ctx context.Context) error {
 		"EXTRA_GOFLAGS=-buildvcs=false",
 		"GOCACHE=/src/.artifacts/build/forgejo-go-cache",
 		"GOTMPDIR=/src/.artifacts/build/forgejo-go-tmp",
+		"SOURCE_DATE_EPOCH=" + fmt.Sprint(b.Spec.Build.SourceDateEpoch),
+	}, "sh", "-c", script)
+}
+
+func (b *Builder) buildTea(ctx context.Context) error {
+	lock, err := readTeaSourceLock(b.path("distro/locks/tea-source.toml"))
+	if err != nil {
+		return err
+	}
+	archive := b.artifactPath("tools", lock.SourceArchive)
+	if err = verifyFileSHA256(archive, lock.SourceSHA256); err != nil {
+		return fmt.Errorf("verify Tea source; run just tea-source: %w", err)
+	}
+	patch := b.path("packaging/rpm/tea/sources/0001-secret-safe-deterministic-login.patch")
+	if err = verifyFileSHA256(patch, lock.PatchSHA256); err != nil {
+		return fmt.Errorf("verify Tea login patch: %w", err)
+	}
+	script := strings.Join([]string{
+		"set -eu",
+		"rm -rf /src/.artifacts/build/tea-source /src/.artifacts/build/tea-go-cache /src/.artifacts/build/tea-go-tmp",
+		"mkdir -p /src/.artifacts/build/tea-source /src/.artifacts/build/tea-go-cache /src/.artifacts/build/tea-go-tmp",
+		"tar -xzf /src/.artifacts/tools/" + lock.SourceArchive + " -C /src/.artifacts/build/tea-source --strip-components=1",
+		"cd /src/.artifacts/build/tea-source",
+		"git apply --unidiff-zero /src/packaging/rpm/tea/sources/0001-secret-safe-deterministic-login.patch",
+		"go test ./cmd/login ./modules/task ./modules/config",
+		"TEA_VERSION=" + lock.Version + " make build",
+		"install -m 0755 tea /src/.artifacts/build/tea",
+		"/src/.artifacts/build/tea --version | grep -F '" + lock.Version + "'",
+		"/src/.artifacts/build/tea logins add --help | grep -F -- '--password-stdin'",
+		"/src/.artifacts/build/tea logins add --help | grep -F -- '--token-name'",
+	}, "\n")
+	return b.docker(ctx, []string{
+		"CGO_ENABLED=0",
+		"GOCACHE=/src/.artifacts/build/tea-go-cache",
+		"GOTMPDIR=/src/.artifacts/build/tea-go-tmp",
 		"SOURCE_DATE_EPOCH=" + fmt.Sprint(b.Spec.Build.SourceDateEpoch),
 	}, "sh", "-c", script)
 }
