@@ -96,8 +96,9 @@ The single run proves:
   Node, Bun, C, and C++ execution, and rootless Podman for primary and derived
   accounts;
 - native Linux/Cockpit ownership and absence of the removed installer add-on,
-  dashboard, forced SSH, telemetry, updater, and runtime toolchain state; and
-- the intentional pre-#39 health-only Soda daemon boundary.
+  dashboard, forced SSH, telemetry, updater, runtime toolchain state, daemon,
+  general CLI, control socket, API group, daemon logs, and protobuf/gRPC
+  boundary.
 
 The stopped later-primary Forgejo PAM `/etc/shadow` privilege decision is not
 implemented or claimed by this runner. The installer-created administrator is
@@ -117,10 +118,10 @@ and Git state, native Forgejo facts, Tailscale identity and Fedora-owned state
 path, SSH host keys, and automatic-update timer state. Raw password hashes and
 credentials are never written to evidence.
 
-Before issue #39, final capture requires `sudo sodactl health` to prove the
-intentional health-only shell. The #39 capstone changes that assertion to
-installed absence; final issue #25 closure occurs only after that post-capstone
-run passes on both matching-native architectures.
+Final capture requires installed absence of the deleted control plane and
+proves that `soda-runtime` owns no daemon or API artifacts. Final issue #25
+closure occurs only after this post-capstone run passes on both matching-native
+architectures.
 
 ## Architecture notes
 

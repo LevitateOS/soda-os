@@ -34,16 +34,18 @@ native workspace, and image-lifecycle slices have removed the custom Anaconda
 add-on, identity, project, repository-projection, dashboard, SSH gateway,
 database, workflow, and runtime-update layers. The native host and immutable-
 toolset slice has also removed Soda telemetry and runtime toolchain management.
-Only the temporary health-only daemon, local socket, and protobuf/gRPC shell
-remain for the final control-plane deletion milestone.
+The final control-plane deletion removed Soda's runtime daemon, general CLI,
+local control socket, and protobuf/gRPC API without introducing a replacement.
 
-At implementation snapshot `2d2a359`, one fresh native x86-64 installation of
-the protected OEMDRV and stock-Anaconda path passed the initial administrator,
+At historical implementation snapshot `2d2a359`, one fresh native x86-64
+installation of the protected OEMDRV and stock-Anaconda path passed the initial administrator,
 Forgejo, Tailscale, stock Cockpit, Projects, direct workspace SSH, immutable
 toolset, rootless Podman, obsolete-state absence, and installed-digest checks.
 Native x86-64 A→B→A→B image selection also preserved current mutable state.
 The current protected installer and fallback still require matching-native
-AArch64 installed-system evidence before release-level completion. Initial
+AArch64 installed-system evidence before release-level completion. The
+post-control-plane source and package boundary is implemented at `75206ec`;
+its final installed-system acceptance remains to be recorded. Initial
 Forgejo administration works; later-primary Forgejo PAM login remains disabled
 until its password-verifier privilege boundary receives an explicit decision.
 
@@ -54,9 +56,9 @@ base, kernel, userspace, RPM/DNF, systemd, SELinux, and SSH.
 
 ## Repository layout
 
-- `cmd`: bounded runtime, Projects, helper, and artifact executables
+- `cmd`: bounded Projects, helper, host-guidance, and artifact executables
 - `cockpit`: the static stock-Cockpit Projects package
-- `internal`: native Projects behavior, the temporary health-only runtime, and the artifact pipeline under `internal/build`
+- `internal`: native Projects behavior, host integration, process execution, and the artifact pipeline under `internal/build`
 - `distro`: Soda identity, immutable tool manifest, distribution locks, and Fedora base metadata
 - `packaging`: bootc and RPM inputs grouped by shipped package
 - `assets`: canonical Soda branding sources and rendered assets

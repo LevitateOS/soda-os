@@ -123,6 +123,5 @@ scenarios is incomplete. Individual catalog, workspace, credential, and
 deletion rules have code-level coverage, but that is not a substitute for the
 final installed-system evidence.
 
-A temporary health-only `sodad` service and `sodactl health` command remain in
-the image. They are not part of installation, Projects, development,
-administration, or updates, and they are not a user workflow.
+Soda ships no runtime daemon, general control CLI, local control socket, or API.
+Stock Cockpit and ordinary Linux tools expose native host status.

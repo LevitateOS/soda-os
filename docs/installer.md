@@ -28,11 +28,10 @@ During `just oci ARCH`, the Go builder:
    `soda-forgejo`, `soda-bun`, and `soda-tea` with the configured version,
    source revision, and source date;
 3. installs the exact locked transaction into the pinned Fedora bootc base;
-4. creates the temporary `soda-api` group and the Linux-native
-   `soda-workspaces` classification group;
+4. creates the Linux-native `soda-workspaces` classification group;
 5. composes stock Cockpit's PAM policy and host packages and enables SSH,
    `cockpit.socket`, the one-attempt Tailscale enrollment unit, Forgejo, native
-   nftables, and the reduced health-only Soda service;
+   nftables;
 6. masks the automatic bootc update timer while retaining manual bootc
    operations;
 7. records the complete installed RPM inventory and verifies its SHA-256; and
@@ -298,7 +297,9 @@ same-named Forgejo administrator creation, password and public-key SSH, correct
 home and key SELinux labels, one-attempt Tailscale enrollment and handoff
 deletion, stock Cockpit authentication and workspace rejection, Projects setup,
 direct derived-account SSH, the immutable toolset, rootless Podman, obsolete-
-state absence, the residual Health RPC, and the exact installed runtime digest.
+state absence, and the exact installed runtime digest. That historical image
+also proved the Health RPC which has since been deleted; post-control-plane
+installed-system verification remains pending.
 The artifact hashes and failure history are recorded in
 [bug-notes.md](bug-notes.md); they are local evidence, not a published release.
 
