@@ -79,8 +79,15 @@ class InstallerExecutableTests(unittest.TestCase):
             with (
                 mock.patch.object(self.input, "MEDIA_INPUT_DIR", media),
                 mock.patch.object(self.input, "RUNTIME_DIR", runtime),
+                mock.patch.object(
+                    self.input,
+                    "_password_hash",
+                    return_value="$6$fixture$digest",
+                ) as password_hash,
             ):
                 self.input._materialize_inputs()
+
+            password_hash.assert_called_once_with(password)
 
             self.assertEqual(stat.S_IMODE(runtime.stat().st_mode), 0o700)
             for name in (
@@ -133,8 +140,9 @@ class InstallerExecutableTests(unittest.TestCase):
             (root / "mnt").symlink_to(root / "var" / "mnt", target_is_directory=True)
             sysroot_alias = root / "mnt" / "sysroot"
             mountinfo = root / "mountinfo"
+            resolved_target_var = pathlib.Path(os.path.realpath(target_var))
             mountinfo.write_text(
-                f"40 30 0:40 / {target_var} rw,relatime - ext4 /dev/test rw\n",
+                f"40 30 0:40 / {resolved_target_var} rw,relatime - ext4 /dev/test rw\n",
                 encoding="utf-8",
             )
 
