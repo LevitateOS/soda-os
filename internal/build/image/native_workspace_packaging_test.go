@@ -85,8 +85,7 @@ func TestNativeWorkspaceSourcesAreStagedForRPMBuild(t *testing.T) {
 	build := t.TempDir()
 	sources := t.TempDir()
 	for _, name := range []string{
-		"sodad", "sodactl", "soda-projects", "soda-workspace-helper",
-		"soda-tailnet", "soda-forgejo-tailnet", "forgejo",
+		"soda-projects", "soda-workspace-helper", "soda-tailnet", "soda-forgejo-tailnet", "forgejo",
 	} {
 		require.NoError(t, os.WriteFile(filepath.Join(build, name), []byte(name), 0o755))
 	}
@@ -196,11 +195,8 @@ func TestNativeWorkspaceRPMOwnsTheStockCockpitProjectsSurface(t *testing.T) {
 		"f /run/lock/soda/workspace-operations.lock 0444 root root -",
 	}, packagingNonCommentLines(string(tmpfiles)))
 
-	runtimeTmpfiles, err := os.ReadFile(filepath.Join(root, "packaging", "rpm", "runtime", "sources", "tmpfiles", "soda.conf"))
-	require.NoError(t, err)
-	require.NotContains(t, string(runtimeTmpfiles), "d /var/lib/soda ")
-	require.NotContains(t, string(runtimeTmpfiles), "/var/lib/soda/catalog")
-	require.NotContains(t, string(runtimeTmpfiles), "/var/lib/soda/projects")
+	_, err = os.Stat(filepath.Join(root, "packaging", "rpm", "runtime", "sources", "tmpfiles", "soda.conf"))
+	require.ErrorIs(t, err, os.ErrNotExist)
 }
 
 func specRequires(contents string) map[string]bool {

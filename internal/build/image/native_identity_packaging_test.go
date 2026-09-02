@@ -11,15 +11,10 @@ import (
 
 func TestNativeIdentitySysusersContract(t *testing.T) {
 	root := filepath.Join("..", "..", "..", "packaging", "rpm")
-	contents, err := os.ReadFile(filepath.Join(root, "runtime", "sources", "sysusers", "soda.conf"))
-	require.NoError(t, err)
+	_, err := os.Stat(filepath.Join(root, "runtime", "sources", "sysusers", "soda.conf"))
+	require.ErrorIs(t, err, os.ErrNotExist)
 
-	lines := nonCommentLines(string(contents))
-	require.Equal(t, []string{"g soda-api -"}, lines)
-	require.NotContains(t, lines, "g soda-people -")
-	require.NotContains(t, string(contents), "soda-cockpit")
-
-	contents, err = os.ReadFile(filepath.Join(root, "projects", "sources", "sysusers", "soda-projects.conf"))
+	contents, err := os.ReadFile(filepath.Join(root, "projects", "sources", "sysusers", "soda-projects.conf"))
 	require.NoError(t, err)
 	require.Equal(t, []string{"g soda-workspaces -"}, nonCommentLines(string(contents)))
 }

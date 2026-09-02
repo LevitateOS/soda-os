@@ -7,10 +7,6 @@ import (
 	"github.com/BurntSushi/toml"
 )
 
-const (
-	DefaultDaemonSocket = "/run/soda/sodad.sock"
-)
-
 type DistroSpec struct {
 	SchemaVersion uint32           `toml:"schema_version"`
 	Identity      IdentitySpec     `toml:"identity"`
@@ -18,7 +14,6 @@ type DistroSpec struct {
 	Image         ImageSpec        `toml:"image"`
 	Distribution  DistributionSpec `toml:"distribution"`
 	Build         BuildSpec        `toml:"build"`
-	Paths         PathSpec         `toml:"paths"`
 	Platform      PlatformSpec     `toml:"-"`
 }
 
@@ -88,10 +83,6 @@ type PlatformRelease struct {
 
 type BuildSpec struct {
 	SourceDateEpoch int64 `toml:"source_date_epoch"`
-}
-
-type PathSpec struct {
-	DaemonSocket string `toml:"daemon_socket"`
 }
 
 func LoadDistro(path, architecture string) (DistroSpec, error) {

@@ -128,8 +128,6 @@ func (b *Builder) buildGoBinaries(ctx context.Context, revision string) error {
 		"-X github.com/LevitateOS/soda-os/internal/version.BuildDate=" + buildDate,
 	}, " ")
 	for _, target := range []struct{ output, pkg string }{
-		{"sodad", "./cmd/sodad"},
-		{"sodactl", "./cmd/sodactl"},
 		{"soda-projects", "./cmd/soda-projects"},
 		{"soda-workspace-helper", "./cmd/soda-workspace-helper"},
 		{"soda-tailnet", "./cmd/soda-tailnet"},
@@ -154,21 +152,16 @@ func (b *Builder) stageRPMSources(build, sources string) error {
 
 func (b *Builder) stageNonBunRPMSources(build, sources string) error {
 	files := [][2]string{
-		{filepath.Join(build, "sodad"), filepath.Join(sources, "sodad")},
-		{filepath.Join(build, "sodactl"), filepath.Join(sources, "sodactl")},
 		{filepath.Join(build, "soda-projects"), filepath.Join(sources, "soda-projects")},
 		{filepath.Join(build, "soda-workspace-helper"), filepath.Join(sources, "soda-workspace-helper")},
 		{filepath.Join(build, "soda-tailnet"), filepath.Join(sources, "soda-tailnet")},
 		{filepath.Join(build, "forgejo"), filepath.Join(sources, "forgejo")},
-		{b.path("packaging/rpm/runtime/sources/systemd/sodad.service"), filepath.Join(sources, "sodad.service")},
 		{b.path("packaging/rpm/runtime/sources/systemd/soda-tailscale-enroll.service"), filepath.Join(sources, "soda-tailscale-enroll.service")},
 		{b.path("packaging/rpm/runtime/sources/systemd/90-soda.preset"), filepath.Join(sources, "90-soda.preset")},
 		{b.path("packaging/rpm/runtime/sources/nftables/soda-ingress.nft"), filepath.Join(sources, "soda-ingress.nft")},
 		{b.path("packaging/rpm/runtime/sources/systemd/nftables.service.d/10-soda-ingress.conf"), filepath.Join(sources, "10-soda-ingress.conf")},
 		{b.path("packaging/rpm/runtime/sources/systemd/getty@tty1.service.d/10-soda-console.conf"), filepath.Join(sources, "10-soda-console.conf")},
-		{b.path("packaging/rpm/runtime/sources/tmpfiles/soda.conf"), filepath.Join(sources, "soda.conf")},
 		{b.path("packaging/rpm/runtime/sources/sysctl/60-soda-console.conf"), filepath.Join(sources, "60-soda-console.conf")},
-		{b.path("packaging/rpm/runtime/sources/sysusers/soda.conf"), filepath.Join(sources, "soda.sysusers")},
 		{b.path("packaging/rpm/runtime/sources/console/soda-console-welcome"), filepath.Join(sources, "soda-console-welcome")},
 		{b.path("packaging/rpm/runtime/sources/profile.d/soda-console-welcome.sh"), filepath.Join(sources, "soda-console-welcome.sh")},
 		{b.path("packaging/rpm/projects/sources/pam/cockpit-stock"), filepath.Join(sources, "cockpit-stock.pam")},
