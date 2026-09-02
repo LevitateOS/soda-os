@@ -193,48 +193,6 @@ def _validate_installed_linux_account(username, ssh_key):
         raise RuntimeError("the installed administrator SSH key does not match")
 
 
-def _restore_installed_linux_account_contexts(username):
-    logical_home = SYSROOT / "home" / username
-    physical_home = SYSROOT / "var/home" / username
-    try:
-        metadata = physical_home.lstat()
-        if (
-            not stat.S_ISDIR(metadata.st_mode)
-            or physical_home.is_symlink()
-            or not logical_home.samefile(physical_home)
-        ):
-            raise RuntimeError(
-                "the installed administrator home does not use the expected physical path"
-            )
-    except OSError:
-        raise RuntimeError(
-            "the installed administrator home does not use the expected physical path"
-        ) from None
-
-    target_home = f"/var/home/{username}"
-    for command in (
-        ["/usr/sbin/restorecon", "-RF", target_home],
-        [
-            "/usr/sbin/matchpathcon",
-            "-V",
-            target_home,
-            f"{target_home}/.ssh",
-            f"{target_home}/.ssh/authorized_keys",
-        ],
-    ):
-        result = subprocess.run(
-            ["/usr/sbin/chroot", str(SYSROOT), *command],
-            stdin=subprocess.DEVNULL,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            check=False,
-        )
-        if result.returncode != 0:
-            raise RuntimeError(
-                "the installed administrator SELinux contexts could not be restored"
-            )
-
-
 def _bind_target_mount(source, relative_target):
     target = SYSROOT / relative_target
     target.mkdir(parents=True, exist_ok=True)
@@ -553,7 +511,6 @@ def _run():
         username, password, ssh_key, tailscale_key = _read_and_unlink_inputs()
         _validate_persistent_target_var()
         _validate_installed_linux_account(username, ssh_key)
-        _restore_installed_linux_account_contexts(username)
         _create_forgejo_administrator(username, password)
         password = ""
         _write_tailscale_auth_key(tailscale_key)
