@@ -170,6 +170,7 @@ func TestAcceptanceUsesTheProtectedAnswerMediaBoundary(t *testing.T) {
 	require.Contains(t, runner, `'.Peer[]? | select(.ID == $id)'`)
 	require.Contains(t, runner, `wait_for_exit "$qemu_pid" 120`)
 	require.Contains(t, runner, `tailscale_command=/Applications/Tailscale.app/Contents/MacOS/Tailscale`)
+	require.Contains(t, runner, `open -gj -a Tailscale >/dev/null`)
 	require.Contains(t, runner, `host_tailscale status --json`)
 	require.NotContains(t, runner, "\n\t\ttailscale status --json")
 
