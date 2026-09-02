@@ -1585,6 +1585,16 @@ EOF
 emit_keyless_delete() {
 	cat <<'EOF'
 test "$(id -u)" -eq 0
+uid=$(id -u nokey)
+/usr/bin/loginctl terminate-user nokey >/dev/null 2>&1 || true
+deadline=$(( $(date +%s) + 10 ))
+while /usr/bin/pgrep -u "$uid" >/dev/null 2>&1; do
+	[ "$(date +%s)" -lt "$deadline" ] || {
+		echo "Keyless fixture still owns processes after native logind termination" >&2
+		exit 1
+	}
+	sleep 1
+done
 /usr/sbin/userdel --remove -- nokey
 ! getent passwd nokey >/dev/null
 test ! -e /home/nokey

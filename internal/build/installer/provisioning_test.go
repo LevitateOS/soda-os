@@ -182,6 +182,8 @@ func TestAcceptanceUsesTheProtectedAnswerMediaBoundary(t *testing.T) {
 	require.Contains(t, bootRunner, `"execute":"blockdev-remove-medium"`)
 	require.Contains(t, bootRunner, `failed_units=$(systemctl --failed --no-legend --plain)`)
 	require.Contains(t, bootRunner, `test -z "$failed_units"`)
+	require.Contains(t, bootRunner, `uid=$(id -u nokey)`)
+	require.Contains(t, bootRunner, `Keyless fixture still owns processes after native logind termination`)
 	require.Contains(t, bootRunner, `/etc/ssh/sshd_config.d/41-soda-project-accounts.conf`)
 	require.Contains(t, bootRunner, `/usr/libexec/soda/soda-cockpit`)
 	require.NotContains(t, bootRunner, "start_x86_unattended_boot_selector")
