@@ -500,6 +500,7 @@ pkg-config
 git
 git-lfs
 gh
+tea
 ssh
 scp
 sftp
@@ -597,6 +598,8 @@ g++ --version | sed -n '1p'
 git --version
 git-lfs version
 gh --version | sed -n '1p'
+tea --version | sed -n '1p'
+tea --help >/dev/null
 ssh -V 2>&1
 cmake --version | sed -n '1p'
 ninja --version
@@ -761,7 +764,18 @@ capture() {
 		test -s /usr/share/cockpit/branding/sodaos/branding.css
 		echo "/usr/share/cockpit/branding/sodaos/branding.css=present"
 		echo "[native-git-host]"
-		rpm -q soda-release soda-runtime soda-projects soda-forgejo soda-bun
+		rpm -q soda-release soda-runtime soda-projects soda-forgejo soda-bun soda-tea
+		expected_tea_files="/usr/bin/tea
+/usr/share/licenses/soda-tea/LICENSE"
+		test "$(rpm -ql soda-tea)" = "$expected_tea_files"
+		echo "soda-tea-ownership=executable-and-license-only"
+		for path in /etc/gh /var/lib/gh /etc/soda/gh /var/lib/soda/gh /etc/tea /var/lib/tea /etc/soda/tea /var/lib/soda/tea; do
+			if test -e "$path"; then
+				echo "unexpected-forge-cli-state=$path"
+				exit 1
+			fi
+			echo "$path=absent"
+		done
 		forgejo --version
 		getent passwd git
 		test -s /etc/forgejo/app.ini && echo configuration=present

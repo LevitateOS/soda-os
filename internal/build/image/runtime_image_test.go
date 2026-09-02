@@ -21,6 +21,7 @@ func TestRuntimeImageBootcContainerContract(t *testing.T) {
 		"COPY --from=rpm-inputs /soda-projects-*.rpm /var/tmp/soda-rpms/",
 		"COPY --from=rpm-inputs /soda-forgejo-*.rpm /var/tmp/soda-rpms/",
 		"COPY --from=rpm-inputs /soda-bun-*.rpm /var/tmp/soda-rpms/",
+		"COPY --from=rpm-inputs /soda-tea-*.rpm /var/tmp/soda-rpms/",
 		"COPY --from=lock-inputs /fedora-packages.txt /var/tmp/soda-lock/fedora-packages.txt",
 		"COPY --from=lock-inputs /expected-packages.txt /var/tmp/soda-lock/expected-packages.txt",
 		"getent group soda-workspaces",
