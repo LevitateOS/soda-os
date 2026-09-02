@@ -85,7 +85,7 @@ func TestTeaIsOneLockedImmutableRPMPerArchitecture(t *testing.T) {
 	require.Contains(t, string(sourceLock), `version = "0.15.1"`)
 	require.Contains(t, string(sourceLock), `commit = "f34697c5ed65928e265d6f48e16928819ce0f332"`)
 	require.Contains(t, string(sourceLock), `source_sha256 = "e242dd3589c31a36320d75e0de9eefa3fa429bd9b0af89d35af8585c7f514b9c"`)
-	require.Contains(t, string(sourceLock), `patch_sha256 = "5eb194f220aabdf8ff230413c077286e0a4a34e28121d7affb4806f34e5c92bc"`)
+	require.Contains(t, string(sourceLock), `patch_sha256 = "cb0b10ead27cefaa47531097aec338774bf0bf9fb9e001f45127ea3c15a1f167"`)
 	require.Contains(t, string(sourceLock), `license_sha256 = "a804f8028d201e1e36e44372674025f74c71f67a28c58f09991c1069726f1fd2"`)
 }
 
@@ -103,6 +103,9 @@ func TestBuilderBunAndTeaInputsRemainPinned(t *testing.T) {
 	require.Contains(t, string(teaFetcher), `patch_sha256`)
 	require.Contains(t, string(teaFetcher), `tar -tzf "$temporary"`)
 	require.NotContains(t, string(teaFetcher), `latest`)
+	buildSource, err := os.ReadFile(filepath.Join(root, "internal", "build", "image", "rpm.go"))
+	require.NoError(t, err)
+	require.Contains(t, string(buildSource), `"GOFLAGS=-buildvcs=false"`)
 
 	justfile, err := os.ReadFile(filepath.Join(root, "justfile"))
 	require.NoError(t, err)

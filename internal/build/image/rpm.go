@@ -159,6 +159,7 @@ func (b *Builder) buildTea(ctx context.Context) error {
 	}, "\n")
 	return b.docker(ctx, []string{
 		"CGO_ENABLED=0",
+		"GOFLAGS=-buildvcs=false",
 		"GOCACHE=/src/.artifacts/build/tea-go-cache",
 		"GOTMPDIR=/src/.artifacts/build/tea-go-tmp",
 		"SOURCE_DATE_EPOCH=" + fmt.Sprint(b.Spec.Build.SourceDateEpoch),
