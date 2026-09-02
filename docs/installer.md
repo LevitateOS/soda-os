@@ -150,15 +150,15 @@ Forgejo credential service.
 Forgejo's native PAM source delegates later authentication to the shipped
 `soda-forgejo` PAM policy. The accepted outcome is that a primary human can log
 in with their Linux username and password, after which Forgejo creates its own
-ordinary native user record. The exact pinned Forgejo service cannot currently
-read the password verifier required by PAM without a new `/etc/shadow`
-privilege boundary, so later-user PAM login remains deliberately unenabled
-pending that decision. Linux account creation performs no Forgejo operation,
-and later `wheel` membership has no Forgejo effect. Derived workspace accounts
-are Linux-only development identities that use their installed authorized
-public keys for direct OpenSSH access; the shipped account rule rejects the
-`soda-workspaces` group so they cannot become Forgejo users once the primary
-login boundary is resolved.
+ordinary native user record. The authorized read boundary is limited to the
+Forgejo service process: `/etc/shadow` is `root:soda-forgejo-shadow` mode
+`0040`, the `git` account is not an NSS member of that dedicated group, and
+`forgejo.service` receives it through `SupplementaryGroups`. Linux account
+creation performs no Forgejo operation, and later `wheel` membership has no
+Forgejo effect. Derived workspace accounts are Linux-only development
+identities that use their installed authorized public keys for direct OpenSSH
+access; the shipped PAM account rule rejects the `soda-workspaces` group so
+they cannot become Forgejo users.
 
 Soda may set the PAM source's email domain to the fixed packaging convention
 `localhost`, allowing Forgejo to initialize `<username>@localhost`. The setting

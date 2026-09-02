@@ -101,10 +101,10 @@ its Fedora-owned administration pages, Projects discovery and setup, and
 workspace-account rejection. Matching-native AArch64 installed-system evidence
 for the same current path is pending.
 
-Later-created primary users can sign in to Cockpit, but the intended Forgejo
-PAM login is currently disabled pending a privilege decision. Administrators
-must not treat Linux account creation as current proof that the new user can
-also sign in to Forgejo.
+Later-created primary users sign in to Forgejo through native PAM with their
+Linux username and password. Forgejo creates its ordinary native user on the
+first successful login. Linux `wheel` membership has no effect on Forgejo
+administration, and workspace accounts are rejected by the PAM policy.
 
 Soda has no runtime administration daemon, general control CLI, or health API.
 Use stock Cockpit, `systemctl`, `journalctl`, and ordinary Linux tools for host

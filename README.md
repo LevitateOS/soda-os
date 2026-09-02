@@ -46,8 +46,9 @@ deleted runtime control plane. Native x86-64 B→A→B selection between two
 post-control-plane images also preserved current mutable state. The same final
 workflow still requires matching-native AArch64 evidence before release-level
 completion. Initial Forgejo administration works; later-primary Forgejo PAM
-login remains disabled until its password-verifier privilege boundary receives
-an explicit decision.
+login now uses Linux/PAM through a dedicated service-only shadow-read group.
+The final post-change installed workflow still requires native x86-64 and
+matching-native AArch64 evidence before release completion.
 
 This repository is independent from LevitateOS. It borrows the separation
 between declarative distro specifications, Go orchestration, explicit
@@ -116,12 +117,12 @@ credential store, or private bootstrap state remains active after the one
 Tailscale attempt; the disabled one-shot unit contains no credential.
 
 Every primary human Linux account is a Cockpit identity. The accepted later-user
-Forgejo path is native PAM login, but the exact pinned Forgejo process cannot
-currently read Linux password verifiers without a new privilege grant, so that
-path remains deliberately disabled. Primary usernames remain stable while
-derived workspaces exist. Derived workspace accounts are identified through
-Linux-native state, are Linux-only development identities, and never become
-Forgejo users.
+Forgejo path is native PAM login. A dedicated image-owned group grants only the
+Forgejo service process read access to Linux password verifiers; the service
+creates an ordinary native Forgejo user on the first successful login. Primary
+usernames remain stable while derived workspaces exist. Derived workspace
+accounts are identified through Linux-native state, are Linux-only development
+identities, and are rejected by the Forgejo PAM policy.
 
 Any primary human may publish, edit, or destructively remove a catalog entry
 containing exactly an immutable `id`, mutable `display_name`, and credential-

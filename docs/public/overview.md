@@ -113,11 +113,11 @@ Matching-native AArch64 construction, installation, and installed-product
 evidence for the same current path are still pending. Evidence from x86-64 does
 not qualify AArch64.
 
-Later-created primary users cannot currently use the intended Forgejo PAM
-login. PAM is the standard Linux authentication path that Forgejo is intended
-to use; enabling the current pinned Forgejo process to verify Linux passwords
-still requires an unresolved privilege decision. The installer-created first
-Forgejo administrator does work.
+Later-created primary users use Forgejo's native PAM source with their Linux
+username and password. The first successful login creates an ordinary Forgejo
+user; Linux `wheel` membership does not make that user a Forgejo administrator.
+Only the Forgejo service process receives the dedicated read group needed for
+PAM password verification, and workspace accounts remain rejected.
 
 The complete multi-user, destructive-ordering, and native-failure scenarios
 have installed x86-64 evidence. Matching-native AArch64 repetition remains the

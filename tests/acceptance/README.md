@@ -83,6 +83,10 @@ The single run proves:
 - the exact sorted three-field catalog and edit-without-reconciliation behavior;
 - missing-key failure before workspace-account mutation;
 - native empty Forgejo creation and canonical-repository preservation;
+- wrong-password rejection followed by native first-login Forgejo creation for
+  later primary humans, with `wheel` changes remaining non-administrative;
+- workspace-account Forgejo PAM rejection and independent Forgejo-user
+  persistence after Linux account deletion;
 - one complete clone and derived Linux account per selected human-project pair;
 - distinct Alice and Bob UIDs, homes, checkouts, local files, and processes for
   the same project;
@@ -100,9 +104,13 @@ The single run proves:
   general CLI, control socket, API group, daemon logs, and protobuf/gRPC
   boundary.
 
-The stopped later-primary Forgejo PAM `/etc/shadow` privilege decision is not
-implemented or claimed by this runner. The installer-created administrator is
-used for native Forgejo operations.
+The runner proves the authorized Forgejo password-verifier boundary directly:
+`/etc/shadow` has the dedicated group and exact mode, `git` is not an NSS group
+member, only `forgejo.service` receives the supplementary group, the PAM rules
+retain primary/workspace classification, and SELinux remains enforcing. A
+protected later-primary password fixture reaches `chpasswd` and Forgejo only on
+stdin; it is never placed in argv, environment values, logs, or normalized
+evidence.
 
 ## Failure and evidence
 
@@ -114,9 +122,9 @@ disk, OEMDRV image, and Tailscale key for repetition.
 Normalized fallback manifests deliberately exclude boot IDs, timestamps, PIDs,
 logs, WAL bytes, and deployment selection. They include current account fields,
 hashed shadow records, groups, home and key facts, the catalog, workspace trees
-and Git state, native Forgejo facts, Tailscale identity and Fedora-owned state
-path, SSH host keys, and automatic-update timer state. Raw password hashes and
-credentials are never written to evidence.
+and Git state, native Forgejo user facts, the shadow-access contract, Tailscale
+identity and Fedora-owned state path, SSH host keys, and automatic-update timer
+state. Raw password hashes and credentials are never written to evidence.
 
 Final capture requires installed absence of the deleted control plane and
 proves that `soda-runtime` owns no daemon or API artifacts. Final issue #25

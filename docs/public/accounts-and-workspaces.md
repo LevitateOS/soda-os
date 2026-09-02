@@ -18,7 +18,7 @@ It is used for:
 - discovering and managing entries on the **Projects** page;
 - setting up personal project workspaces;
 - signing in to **Forgejo**, the bundled Git hosting and collaboration service,
-  through Linux authentication when that path is available; and
+  through native Linux PAM authentication; and
 - holding Linux administrator status when it belongs to `wheel`.
 
 Linux is the source of truth for the account, password, groups, home, and
@@ -29,7 +29,9 @@ exist is not a supported Soda workflow.
 An owner or administrator creates and manages later primary accounts with
 ordinary Linux and stock Cockpit account tools. Making someone an
 administrator means changing Linux `wheel` membership; it does not change that
-person's role in Forgejo.
+person's role in Forgejo. Forgejo creates its own ordinary native user on that
+person's first successful PAM login; Soda does not proactively synchronize an
+identity record.
 
 ### Workspace accounts represent development environments
 

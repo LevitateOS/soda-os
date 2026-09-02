@@ -59,12 +59,14 @@ account then receives ordinary OpenSSH behavior and owns its complete clone at
 `$HOME/Projects/<project-id>`.
 
 The installer-created same-named Forgejo administrator is a Forgejo-local
-account. Later primary humans are intended to enter Forgejo through its native
-PAM source, but that path is currently disabled: the exact pinned Forgejo
-process cannot read the Linux password verifier without a new `/etc/shadow`
-privilege grant. A narrow technical mechanism was demonstrated, but enabling it
-would change a privilege boundary and therefore remains a user decision.
-Workspace-account rejection is already represented in the shipped PAM policy.
+account. Later primary humans enter Forgejo through its native PAM source, which
+creates an ordinary Forgejo user on the first successful Linux-password login.
+The image owns a dedicated `soda-forgejo-shadow` group, keeps the `git` account
+out of that group in NSS, and grants the group only to `forgejo.service` through
+systemd's `SupplementaryGroups`. Tmpfiles maintains `/etc/shadow` as
+`root:soda-forgejo-shadow` mode `0040`. The PAM policy accepts regular Linux
+users, rejects `soda-workspaces`, and applies normal account checks. Soda copies
+no verifier, authentication result, role, token, or identity record.
 
 ## Project catalog and lifecycle
 

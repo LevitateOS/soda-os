@@ -8,7 +8,7 @@ matching-native AArch64 repetition remains required before release completion.
 
 **Initial implementation snapshot reviewed:** `7f2c60b`
 
-**Current implementation checkpoint documented:** `3df4431`
+**Current implementation checkpoint documented:** `699a326`
 
 **Initial architecture record:** `e992e22`
 
@@ -25,7 +25,9 @@ absence of the deleted control plane, and B→A→B preservation between two
 post-control-plane images. These are implementation and test facts, not
 additional product authority. Matching-native AArch64 must repeat that final
 workflow before release completion. Later-primary Forgejo PAM authentication
-remains stopped at an explicit password-verifier privilege decision.
+now has the authorized service-only password-verifier boundary in source and
+package evidence; final installed x86-64 and matching-native AArch64 evidence
+remain required.
 
 ## Product contract
 
@@ -576,10 +578,13 @@ The accepted dependency order is:
 At the current implementation checkpoint, #40, #33, #35, #36, #32, #34, #24,
 #23, and #39 are implemented, and their retained outcomes passed the final
 native x86-64 installed workflow. Issue #38's account-preserving fallback and
-#25's complete post-capstone runner have also passed on x86-64; matching-native
-AArch64 repetition remains their release-level gate. The later-primary portion
-of #37 remains stopped at its explicit Forgejo password-verifier privilege
-decision. These status facts do not let issue text redefine the outcomes above.
+#25's complete post-capstone runner have also passed on x86-64. The remaining
+#37 path now uses an explicitly authorized, dedicated group to grant only the
+Forgejo service process read access to `/etc/shadow`; Linux/PAM remain password
+authority and the existing PAM classification rejects `soda-workspaces`.
+Focused source and package checks pass, while the complete post-#37 installed
+workflow remains to run on x86-64 and matching-native AArch64. These status
+facts do not let issue text redefine the outcomes above.
 
 Issue #33 owns stable primary identity, Linux-native account classification,
 and supported cascading human deletion. Issue #38 owns account behavior across
