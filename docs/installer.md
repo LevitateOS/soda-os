@@ -136,16 +136,20 @@ removes the file after the single attempt, and disables itself whether the
 attempt succeeds or fails. Tailscale retains its own node identity in its
 upstream state location; Soda no longer relocates that state.
 
-The same installation creates the only proactive Forgejo user: a same-named
-Forgejo-local site administrator through Forgejo's native first-user signup.
+The same installation proactively creates a same-named Forgejo-local site
+administrator through Forgejo's native first-user signup.
 The installer-only finalizer initializes the target's package-owned Forgejo
 state, starts pinned Forgejo on loopback with a sealed in-memory configuration
 that temporarily permits registration, submits the password only in the
-loopback HTTP body, verifies the active administrator, and stops the transient
-process. Forgejo's durable configuration remains registration-disabled. The
-password is never a process argument, environment value, log field, or retained
-Soda or target file. This is a bounded installation handoff, not a runtime
-Forgejo credential service.
+loopback HTTP body, and verifies the active administrator. While that transient
+process is running, the finalizer runs Tea as the installed administrator,
+passes the password only on standard input, creates the fixed `soda` login and
+`soda-os-tea` token, verifies the native identity, and leaves Tea's mode-`0600`
+configuration in the administrator's home. It then stops the transient process.
+Forgejo's durable configuration remains registration-disabled. The password is
+never a process argument, environment value, log field, or retained Soda or
+target file. This is a bounded installation handoff, not a runtime Forgejo
+credential service.
 
 Forgejo's native PAM source delegates later authentication to the shipped
 `soda-forgejo` PAM policy. The accepted outcome is that a primary human can log
@@ -159,10 +163,15 @@ configuration before service startup, so an unrelated failure in the global
 tmpfiles pass cannot silently remove the authorized read boundary. A narrow
 SELinux rule allows the tmpfiles domain only the `getattr` and `setattr`
 metadata permissions on `shadow_t` proven by the installed denial; it does not
-grant shadow-content access. Linux account creation performs no Forgejo
-operation, and later `wheel` membership has no Forgejo effect. Derived
-workspace accounts are Linux-only development identities that use their
-installed authorized public keys for direct OpenSSH access; the shipped PAM
+grant shadow-content access. The supported Projects **Add person** operation
+creates an ordinary primary Linux account and then uses unprivileged Tea to
+perform that person's first PAM login and create a Forgejo-owned token. The
+patched Forgejo PAM path retains no local password verifier for that user.
+Direct Linux account creation performs no Forgejo or Tea operation, and later
+`wheel` membership has no Forgejo effect. Derived workspace accounts are
+Linux-only development identities that use their one-time-copied Tea
+configuration and installed authorized public keys for direct OpenSSH access;
+the shipped PAM
 account rule rejects the `soda-workspaces` group so they cannot become Forgejo
 users.
 
@@ -253,9 +262,9 @@ Image construction fails when any listed command is unavailable through
 ordinary system `PATH`.
 
 Bun and Tea source acquisition are bounded build inputs: each matching-native
-builder fetches only the selected official architecture assets, verifies their
-locked checksums and licenses, and builds the local RPMs without network
-access. Soda performs no runtime tool discovery or download. Primary and
+builder fetches the selected Bun architecture asset and Tea tagged source,
+verifies their locked checksums, patches, and licenses, and builds the local
+RPMs without network access. Soda performs no runtime tool discovery or download. Primary and
 derived accounts use the same immutable commands while retaining their own
 ecosystem caches, virtual environments, project-local dependencies, and
 Git-host CLI authentication in their ordinary homes.

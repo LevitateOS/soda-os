@@ -297,9 +297,13 @@ external account, or external repository.
 
 Generic stock-Cockpit account deletion or direct `userdel` changes only the
 explicitly selected Linux account. It is out-of-band and non-cascading. Soda
-does not watch for or reconcile such deletion. Normal primary-account creation,
+does not watch for or reconcile such deletion. Direct primary-account creation,
 password changes, and `wheel` administration remain stock Cockpit/Linux
-behavior.
+behavior and trigger no Soda reconciliation. The supported Soda-aware
+onboarding path is the administrator-only **Add person** action in Projects. It
+creates one ordinary, non-`wheel` primary Linux account, installs that human's
+supplied public key, and composes the native Forgejo and Tea boundaries below.
+Stock Cockpit may promote the account later.
 
 ## Forgejo and canonical Git-host boundaries
 
@@ -308,18 +312,26 @@ releases, application users, roles, sessions, tokens, and keys. External hosts
 own the equivalent facts for externally hosted repositories. Soda stores none
 of those facts in the catalog and does not probe or cache provider capabilities.
 
-Installation creates the only proactive Forgejo user: a same-named local site
-administrator for the first primary Linux administrator, through Forgejo's
-native administrative interface. The selected initial password may be handed
-off only through a bounded installer path that leaves no Soda credential state.
-If that exact path is unavailable, the password outcome returns to review
-rather than justifying credential machinery.
+Installation proactively creates a same-named local site administrator for the
+first primary Linux administrator through Forgejo's native administrative
+interface. The supported **Add person** composition creates a same-named
+ordinary Forgejo PAM user by performing that human's first native PAM login.
+The selected initial password may pass transiently to Linux account tooling and
+separately to unprivileged Tea, but it leaves no Soda credential state.
 
-Later primary human accounts authenticate through the shipped Forgejo PAM
-source. Forgejo creates its native user on first successful login. Derived
-workspace accounts must be rejected using the Linux-native classification.
-Later `wheel` changes do not affect Forgejo roles; Forgejo administrators manage
-Forgejo roles in Forgejo.
+Forgejo's PAM source remains authoritative for every later password login. A
+narrow patch prevents a PAM-created Forgejo user from retaining the supplied
+Linux password verifier. Derived workspace accounts are rejected through the
+Linux-native classification. Later `wheel` changes do not affect Forgejo roles;
+Forgejo administrators manage Forgejo roles in Forgejo.
+
+Each supported human onboarding creates one Forgejo-owned personal access token
+through Tea. Tea stores it in its normal private configuration in that primary
+user's home. Soda treats the configuration as an opaque file and copies it once
+into each new derived workspace home, after verifying the primary Tea identity
+and before activating workspace SSH keys. Token lifecycle, scopes, revocation,
+and later configuration changes remain Forgejo/Tea and user-owned; Soda keeps
+no shared token, parsed token, credential store, synchronization, or backfill.
 
 The initial Linux and Forgejo accounts become independent after installation.
 Linux disablement blocks later PAM authentication but does not claim to revoke
@@ -592,6 +604,12 @@ Focused source and package checks pass, while fresh post-policy artifacts and
 the complete post-#37 installed workflow remain to run on x86-64 and
 matching-native AArch64. These status facts do not let issue text redefine the
 outcomes above.
+
+Issue #44 now composes administrator-only primary-account creation, native PAM
+user creation, and a user-owned Tea login without adding identity or credential
+authority. Its source implementation and focused tests are complete; installed
+x86-64 and matching-native AArch64 evidence remain required before claiming the
+milestone complete.
 
 Issue #33 owns stable primary identity, Linux-native account classification,
 and supported cascading human deletion. Issue #38 owns account behavior across

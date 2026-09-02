@@ -79,7 +79,7 @@ just iso "$ARCH" ".artifacts/images/soda-os-0.4.0-${ARCH}.oci.tar"
 
 Build artifacts are written under `.artifacts/` and are never committed.
 `just rpm` builds the locked local Soda RPM inputs, including the narrowly
-packaged Bun and Tea binaries. `just oci` builds those RPMs and emits
+packaged Bun binary and source-built Tea CLI. `just oci` builds those RPMs and emits
 `.artifacts/images/soda-os-0.4.0-${ARCH}.oci.tar` without loading or publishing
 the image. `just iso` derives the exact image digest from that local archive and
 embeds it in a platform-matched installer without a registry, signing key, or
@@ -109,20 +109,27 @@ Installation uses stock graphical Anaconda and a protected, removable OEMDRV
 answer medium bound to the exact installer ISO. Anaconda and Kickstart create
 the first primary human Linux administrator and install that human's SSH public
 key. One fixed installer-only finalizer creates the initial same-named Forgejo
-administrator through Forgejo's native interface, and one bounded first-boot
+administrator and that human's private Tea login through native interfaces,
+and one bounded first-boot
 invocation enrolls the machine in Tailscale. The installer requires the
 secret-bearing OEMDRV medium to be ejected and removed before installation can
 continue. Soda ships no custom Anaconda spoke, and no bootstrap service,
 credential store, or private bootstrap state remains active after the one
 Tailscale attempt; the disabled one-shot unit contains no credential.
 
-Every primary human Linux account is a Cockpit identity. The accepted later-user
-Forgejo path is native PAM login. A dedicated image-owned group grants only the
-Forgejo service process read access to Linux password verifiers; the service
-creates an ordinary native Forgejo user on the first successful login. Primary
+Every primary human Linux account is a Cockpit identity. Administrators may use
+Projects **Add person** to create an ordinary non-administrator primary Linux
+account, invoke that human's first native Forgejo PAM login through unprivileged
+Tea, and publish the supplied SSH key. A dedicated image-owned group grants only
+the Forgejo service process read access to Linux password verifiers; a narrow
+Forgejo patch ensures the resulting PAM user retains no local password verifier.
+Primary
 usernames remain stable while derived workspaces exist. Derived workspace
 accounts are identified through Linux-native state, are Linux-only development
-identities, and are rejected by the Forgejo PAM policy.
+identities, and are rejected by the Forgejo PAM policy. Each human owns one
+Forgejo token in Tea's private home configuration; Soda copies that opaque
+configuration once to each new workspace and never synchronizes or stores the
+token separately.
 
 Any primary human may publish, edit, or destructively remove a catalog entry
 containing exactly an immutable `id`, mutable `display_name`, and credential-

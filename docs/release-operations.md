@@ -33,7 +33,8 @@ It does not contact GHCR, push an image, invoke Cosign, or require any signing
 key, passphrase, signature, or registry credentials.
 
 The OCI build also verifies the architecture-owned package lock, the fixed
-Forgejo, Bun, and Tea source inputs, and every command in the installed
+Forgejo, Bun, and Tea source inputs, their narrowly carried authentication
+patches, and every command in the installed
 immutable tool manifest. Bun and Tea source and RPM construction occur only on
 matching-native hardware. There is no runtime source lookup or tool download
 path.

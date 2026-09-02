@@ -54,13 +54,19 @@ ID. The account name is deterministically derived from that association.
 
 Associations are enumerated from NSS, group membership, and the validated
 marker. There is no person, role, membership, or workspace database. Setup
-copies the primary user's standard `~/.ssh/authorized_keys` once. A derived
+copies the primary user's private Tea configuration and standard
+`~/.ssh/authorized_keys` once, with the public key installed last. A derived
 account then receives ordinary OpenSSH behavior and owns its complete clone at
 `$HOME/Projects/<project-id>`.
 
 The installer-created same-named Forgejo administrator is a Forgejo-local
-account. Later primary humans enter Forgejo through its native PAM source, which
-creates an ordinary Forgejo user on the first successful Linux-password login.
+account and receives a private Tea login during installation. The
+administrator-only Projects **Add person** action creates an ordinary,
+non-`wheel` primary Linux account, then uses that human's supplied password
+through unprivileged Tea to trigger Forgejo's native PAM user creation and
+personal access-token creation. A narrow Forgejo patch leaves PAM-created users
+with no local Forgejo password verifier, so Linux/PAM remains password
+authority.
 The image owns a dedicated `soda-forgejo-shadow` group, keeps the `git` account
 out of that group in NSS, and grants the group only to `forgejo.service` through
 systemd's `SupplementaryGroups`. Tmpfiles maintains `/etc/shadow` as
@@ -72,8 +78,11 @@ image-owned SELinux rule permits `systemd_tmpfiles_t` only `getattr` and
 `setattr` on `shadow_t`, which are the exact permissions observed to be needed
 for that metadata rule. It grants neither file-content read nor write access.
 The PAM policy accepts regular Linux users, rejects `soda-workspaces`, and
-applies normal account checks. Soda copies no verifier, authentication result,
-role, token, or identity record.
+applies normal account checks. Tea stores the Forgejo-owned token in the new
+human's private home. Soda neither parses nor separately stores it. Workspace
+setup verifies that native Tea identity, copies the opaque Tea configuration
+once into the derived home, and does not synchronize later changes. Soda copies
+no verifier, authentication result, role, token record, or identity record.
 
 ## Project catalog and lifecycle
 
@@ -126,10 +135,11 @@ container/network controller.
 The reviewed development-tool collection is installed into the bootc image
 from exact architecture-owned package locks. Fedora RPMs supply the language
 runtimes, compilers, build systems, Git and SSH clients, container tools,
-utilities, archives, editors, and GitHub CLI. Bun and the Forgejo-compatible
-Tea CLI are installed from architecture-specific checksum-locked upstream
-artifacts through narrow local RPMs. Those RPMs own only their executable and
-license; they have no downloader, updater, configuration, or service.
+utilities, archives, editors, and GitHub CLI. Bun is installed from its
+architecture-specific checksum-locked upstream artifact. The Forgejo-compatible
+Tea CLI is built natively from its exact checksum-locked tagged source with the
+narrow secret-input patch. Their local RPMs own only the executable and license;
+they have no downloader, updater, configuration, or service.
 
 `/usr/share/soda/toolset-commands.txt` records the approved command-level
 contract. Every listed command is available through ordinary system `PATH` to

@@ -21,10 +21,13 @@ exact architecture-owned Fedora package locks plus checksum-locked Bun and Tea
 RPMs. `/usr/share/soda/toolset-commands.txt` lists the command contract, with
 one command per line. The same system commands, including `gh` and the
 Forgejo-compatible `tea`, are available to primary and derived workspace
-accounts through ordinary `PATH`; user packages, caches, project dependencies,
-and CLI authentication remain in their homes. Soda has no shared forge login,
-runtime toolchain profiles, downloader, readiness state, persistent toolchain
-directory, or toolchain mount.
+accounts through ordinary `PATH`. Supported human onboarding creates a private
+Tea login in the primary home; workspace setup copies that opaque configuration
+once into the new derived home. Token lifecycle and later changes remain
+user/Forgejo-owned. User packages, caches, project dependencies, and CLI
+authentication remain in their homes. Soda has no shared forge login, parsed
+token store, synchronization, runtime toolchain profiles, downloader, readiness
+state, persistent toolchain directory, or toolchain mount.
 
 ## Manual image lifecycle
 

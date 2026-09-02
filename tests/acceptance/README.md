@@ -87,8 +87,15 @@ The single run proves:
 - the exact sorted three-field catalog and edit-without-reconciliation behavior;
 - missing-key failure before workspace-account mutation;
 - native empty Forgejo creation and canonical-repository preservation;
-- wrong-password rejection followed by native first-login Forgejo creation for
-  later primary humans, with `wheel` changes remaining non-administrative;
+- administrator-only Add person creation of ordinary primary accounts, followed
+  by native PAM Forgejo creation and private Tea login publication;
+- wrong-password rejection and correct-password PAM authentication for later
+  primary humans, with no local Forgejo password verifier and with `wheel`
+  changes remaining non-administrative;
+- installer-administrator, primary-human, and derived-workspace Tea identity,
+  including one-time opaque configuration copying and distinct human tokens;
+- Tea-authenticated repository, issue, pull-request, and release creation under
+  the fixed human-owned token scopes;
 - workspace-account Forgejo PAM rejection and independent Forgejo-user
   persistence after Linux account deletion;
 - one complete clone and derived Linux account per selected human-project pair;
