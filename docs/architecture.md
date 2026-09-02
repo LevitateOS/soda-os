@@ -117,18 +117,18 @@ container/network controller.
 The reviewed development-tool collection is installed into the bootc image
 from exact architecture-owned package locks. Fedora RPMs supply the language
 runtimes, compilers, build systems, Git and SSH clients, container tools,
-utilities, archives, and editors. The one tool without a Fedora package, Bun,
-is installed from an architecture-specific checksum-locked upstream artifact
-through a narrow local RPM. That RPM owns only the executable and its license;
-it has no downloader or updater.
+utilities, archives, editors, and GitHub CLI. Bun and the Forgejo-compatible
+Tea CLI are installed from architecture-specific checksum-locked upstream
+artifacts through narrow local RPMs. Those RPMs own only their executable and
+license; they have no downloader, updater, configuration, or service.
 
 `/usr/share/soda/toolset-commands.txt` records the approved command-level
 contract. Every listed command is available through ordinary system `PATH` to
 primary and derived accounts. Language packages, caches, virtual environments,
-and project-local dependencies remain user-owned state in ordinary homes and
-workspaces. Soda has no runtime toolchain profiles, resolver, readiness state,
-download service, version reconciliation, toolchain mount, or persistent
-toolchain directory.
+project-local dependencies, and `gh` or `tea` authentication profiles remain
+user-owned state in ordinary homes and workspaces. Soda has no shared forge
+login, runtime toolchain profiles, resolver, readiness state, download service,
+version reconciliation, toolchain mount, or persistent toolchain directory.
 
 ## Native image lifecycle
 

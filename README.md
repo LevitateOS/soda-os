@@ -76,7 +76,7 @@ just iso "$ARCH" ".artifacts/images/soda-os-0.4.0-${ARCH}.oci.tar"
 
 Build artifacts are written under `.artifacts/` and are never committed.
 `just rpm` builds the locked local Soda RPM inputs, including the narrowly
-packaged Bun binary. `just oci` builds those RPMs and emits
+packaged Bun and Tea binaries. `just oci` builds those RPMs and emits
 `.artifacts/images/soda-os-0.4.0-${ARCH}.oci.tar` without loading or publishing
 the image. `just iso` derives the exact image digest from that local archive and
 embeds it in a platform-matched installer without a registry, signing key, or
@@ -88,12 +88,15 @@ checksum. Both sibling locks include their independently resolved
 matching-native stock-Cockpit and development-tool closures. The installed
 command contract is recorded at `/usr/share/soda/toolset-commands.txt`; every
 listed command is ordinary immutable image content available through `PATH`.
+That includes GitHub's `gh` and the Forgejo-compatible `tea` client. Their
+authentication and configuration remain private user-home state; Soda creates
+no shared login, token, or credential store.
 
 Local development does not publish or sign images. Optional release metadata
 records preserve the exact local archive digest, image labels, RPM inventory,
-and ISO checksum. The current paired GitHub HTTP publisher is pre-reset
-implementation pending replacement by fixed GitHub CLI operations; it does not
-participate in local OCI or ISO construction. See the [release and operator
+and ISO checksum. Host-side release coordination uses fixed GitHub CLI
+operations; it does not participate in local OCI or ISO construction and it
+does not retain a paired runtime index. See the [release and operator
 runbook](docs/release-operations.md) for the exact commands and [runtime image
 and installer contract](docs/installer.md) for the artifact boundary.
 
@@ -139,9 +142,11 @@ Projects choose non-conflicting host ports themselves. They may use Podman or
 other ordinary tools when useful; Soda does not allocate ports or manage
 network namespaces. The broad reviewed Go, Python, Rust, JavaScript, native
 build, Git, container, data, archive, and editor toolset is installed in the
-image. Users keep language packages, caches, and project-local dependencies in
-their ordinary homes and workspaces; Soda has no runtime toolchain resolver,
-profile, readiness database, downloader, or update service.
+image. `gh` and `tea` expose their GitHub and Forgejo-compatible native
+interfaces without a Soda forge abstraction. Users keep CLI authentication,
+language packages, caches, and project-local dependencies in their ordinary
+homes and workspaces; Soda has no shared forge credential, runtime toolchain
+resolver, profile, readiness database, downloader, or update service.
 
 Linux administrators operate deployments through native
 `bootc status`, `bootc switch --download-only <exact-reference>`, and
