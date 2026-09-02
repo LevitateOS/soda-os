@@ -51,18 +51,67 @@ does not push to GHCR, access GHCR, use Cosign, require signing credentials, or
 verify a signature. The ISO and checksum are architecture-named so sibling
 artifacts cannot overwrite one another.
 
-The installer is for fresh installation only. It uses graphical Anaconda with
-DHCP, a default hostname of `soda`, and the normal interactive choices for
-storage, networking, hostname, and the first administrator. Its sidebar and
-product-mark PNGs are generated from the approved Soda v3 SVG masters; the
-surrounding navy and cyan visual treatment uses the same established palette in
-the Anaconda stylesheet.
+The installer is for fresh installation only. It uses stock graphical Anaconda
+with DHCP, a default hostname of `soda`, and Anaconda's normal storage and
+installation workflow. Soda supplies branding, immutable-image composition,
+and two fixed installer-only hooks; it does not ship a custom Anaconda spoke,
+module, D-Bus service, or alternate installer UI. The administrator inputs come
+from the mandatory protected OEMDRV medium described below, so the stock User
+and Password spokes are hidden. The sidebar and product-mark PNGs are generated
+from the approved Soda v3 SVG masters; the surrounding navy and cyan visual
+treatment uses the same established palette in the Anaconda stylesheet.
+
+### Protected OEMDRV installer input
+
+Create a new answer medium on the matching-native architecture after building
+the ISO and its release record:
+
+```sh
+ARCH=x86_64
+go run ./cmd/soda-image --architecture "$ARCH" installer-input \
+  --iso ".artifacts/images/SodaOS-0.4.0-${ARCH}.iso" \
+  --release-record ".artifacts/releases/soda-os-0.4.0-${ARCH}.release.json" \
+  --username soda-admin \
+  --ssh-public-key-file "$HOME/.ssh/id_ed25519.pub" \
+  --tailscale-auth-key-file /secure/path/tailscale-auth-key \
+  --output /secure/path/soda-installer-input.iso
+```
+
+Without `--password-file`, the command reads and confirms the administrator
+password from the controlling terminal. Automation may instead pass a
+root-owned or user-owned mode-`0600` regular file with `--password-file`; the
+Tailscale key must likewise be supplied through a mode-`0600` regular file.
+Secret files cannot be symlinks. Never place either secret in an argument,
+environment value, repository file, or log.
+
+The command verifies the selected native architecture, release-record
+platform, and exact installer-ISO checksum. It refuses to overwrite an output
+and publishes a mode-`0600` ISO labelled `OEMDRV`. That medium contains a
+secret-free Kickstart composition plus exactly the administrator username,
+password, authorized public key, and one-use Tailscale key. The medium itself
+therefore contains secrets: attach it only as removable installation media,
+keep it protected, and destroy its host copy after the installer ejects it.
+Normal installations omit `--unattended` and retain Anaconda's interactive
+storage workflow. The repository acceptance harness alone uses that explicit
+flag to add a fixed destructive partitioning recipe for its disposable VM.
+
+The product ISO's boot entry selects `/ks.cfg` from `OEMDRV` and tells Anaconda
+not to save input or output Kickstart. During `%pre`, the fixed installer input
+hook mounts OEMDRV read-only with `nodev`, `nosuid`, and `noexec`, validates the
+four values, creates only root-owned transient files below
+`/run/soda-installer`, and emits native Kickstart `user` and `sshkey`
+directives. It then unmounts and ejects the answer medium and waits for that
+device to disappear. Ejection and removal are mandatory: if the medium remains
+present, the hook removes its transient files and stops installation.
+
+After Anaconda has created the Linux account, the fixed `%post --nochroot`
+finalizer consumes and unlinks the transient inputs, validates the installed
+account, and performs the bounded Forgejo handoff. It retains no plaintext
+password in the target; the only transient secret handoff it writes is the
+one-use Tailscale key for first boot. Both hooks exist only in the installer
+environment; neither is installed in the Soda runtime image.
 
 ## Accepted initial provisioning outcome
-
-This section records the issue #40 implementation boundary. Final installed
-Tailnet-to-stock-Cockpit and workspace-account integration evidence remains
-deferred to the dependent reset milestones and issue #25.
 
 The Linux administrator and Tailnet portion of the first supported installation
 path requires four values:
@@ -74,12 +123,12 @@ administrator SSH public key
 one-use Tailscale auth key
 ```
 
-The required Soda Anaconda spoke composes native Anaconda user and SSH-key data:
-Anaconda creates the ordinary Linux account, adds it to `wheel`, sets its Linux
-password, and installs its SSH public key in standard
-`~/.ssh/authorized_keys`. The native Users module holds the password only for
-the bounded installation operation; the Soda task replaces that in-memory
-value with an Anaconda-generated hash before output Kickstart is written.
+The installer input hook hashes the password through `openssl passwd` on
+standard input and emits native Kickstart `user` and `sshkey` directives into
+the installer-only runtime directory. Anaconda remains authoritative for
+creating the ordinary Linux account, adding it to `wheel`, setting its Linux
+password, and installing its SSH public key in standard
+`~/.ssh/authorized_keys`.
 
 A minimal first-boot systemd oneshot passes the enrollment credential to
 `tailscale up` from root-owned `/var/lib/soda-install/tailscale-auth-key`,
@@ -89,20 +138,14 @@ upstream state location; Soda no longer relocates that state.
 
 The same installation creates the only proactive Forgejo user: a same-named
 Forgejo-local site administrator through Forgejo's native first-user signup.
-The task initializes the target's package-owned Forgejo state, starts pinned
-Forgejo on loopback with a sealed in-memory configuration that temporarily
-permits registration, submits the password only in the loopback HTTP body,
-verifies the active administrator, and stops the transient process. Forgejo's
-durable configuration remains registration-disabled. Soda creates no separate
-Forgejo password handoff: the password is never a process argument,
-environment value, log field, or retained Soda or target file. Raw-QEMU
-acceptance necessarily carries installer inputs in a protected, transient
-Kickstart and OEMDRV image; it removes the Kickstart source after image
-creation. After Anaconda parses the generated Kickstart, its `%pre` section
-asks the guest to eject OEMDRV. The host requires the exact QEMU device to
-report an open, unlocked tray before removing the medium from that already-open
-device, verifies the empty drive through QMP, and removes its host file. It
-never forces or initiates the tray opening from the host.
+The installer-only finalizer initializes the target's package-owned Forgejo
+state, starts pinned Forgejo on loopback with a sealed in-memory configuration
+that temporarily permits registration, submits the password only in the
+loopback HTTP body, verifies the active administrator, and stops the transient
+process. Forgejo's durable configuration remains registration-disabled. The
+password is never a process argument, environment value, log field, or retained
+Soda or target file. This is a bounded installation handoff, not a runtime
+Forgejo credential service.
 
 Forgejo's native PAM source delegates later authentication to the shipped
 `soda-forgejo` PAM policy. The accepted outcome is that a primary human can log
@@ -130,16 +173,22 @@ revoke Forgejo sessions, tokens, SSH keys, or repository permissions.
 
 After installation, the administrator connects through the Tailnet with
 OpenSSH and authenticates to stock Cockpit with the ordinary Linux username and
-password through PAM. Soda retains no bootstrap database, API, custom
-authentication, public onboarding endpoint, bundle format, durable workflow,
-retry or reconciliation state, separate bootstrap user, or runtime bootstrap
+password through PAM. The one-attempt enrollment unit always removes the
+Tailscale credential and disables itself, whether enrollment succeeds or
+fails. Soda retains no bootstrap database, API, custom authentication, public
+onboarding endpoint, bundle format, durable workflow, retry or reconciliation
+state, separate bootstrap user, runtime credential storage, or bootstrap
 status.
 
-The first version does not implement in-place recovery orchestration. If
-Tailscale enrollment fails, the operator uses available local recovery or
-corrects the installer inputs and reinstalls. Acceptance testing proves private
-OpenSSH and Cockpit reachability and the absence of retained enrollment
-material; it does not create runtime verification state.
+There is no in-place Soda installer recovery workflow. If input validation,
+account creation, Forgejo initialization, or target finalization fails, treat
+the target as incomplete: correct the inputs, create a new protected OEMDRV
+medium, and repeat a fresh installation. If the single Tailscale attempt fails,
+use native local Tailscale recovery when available or reinstall with a fresh
+one-use key. Do not reuse the ejected credential medium or expect Soda to retry
+from retained state. Acceptance testing proves private OpenSSH and Cockpit
+reachability and the absence of retained enrollment material; it creates no
+runtime verification state.
 
 The runtime uses Fedora's native `nftables.service` with one fixed Soda ruleset:
 TCP 22, 9090, and 30000 are accepted on loopback and `tailscale0` and rejected
@@ -223,6 +272,7 @@ Soda ships no runtime release-index client, translated update state, update
 API, CLI wrapper, polling, download service, activation service, retry, or
 recovery process.
 
-The optional local release record binds Soda version and source revision, the
-Fedora base reference, exact Soda image reference, platform, RPM inventory
-checksum, and the installer ISO checksum when an ISO is produced.
+The local release record binds Soda version and source revision, the Fedora
+base reference, exact Soda image reference, platform, RPM inventory checksum,
+and installer ISO checksum. Artifact construction does not require the record;
+protected OEMDRV creation does.

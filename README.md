@@ -89,11 +89,16 @@ artifact boundary.
 
 ## Target operating model
 
-Installation uses Anaconda and Kickstart to create the first primary human
-Linux administrator, install that human's SSH public key, create the initial
-same-named Forgejo administrator through Forgejo's native interface, and enroll
-the machine in Tailscale through one bounded first-boot invocation. No Soda
-bootstrap state survives installation.
+Installation uses stock graphical Anaconda and a protected, removable OEMDRV
+answer medium bound to the exact installer ISO. Anaconda and Kickstart create
+the first primary human Linux administrator and install that human's SSH public
+key. One fixed installer-only finalizer creates the initial same-named Forgejo
+administrator through Forgejo's native interface, and one bounded first-boot
+invocation enrolls the machine in Tailscale. The installer requires the
+secret-bearing OEMDRV medium to be ejected and removed before installation can
+continue. Soda ships no custom Anaconda spoke, and no bootstrap service,
+credential store, or private bootstrap state remains active after the one
+Tailscale attempt; the disabled one-shot unit contains no credential.
 
 Every primary human Linux account is a Cockpit identity and may become a native
 Forgejo PAM user. Primary usernames remain stable while derived workspaces

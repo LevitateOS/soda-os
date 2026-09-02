@@ -2,8 +2,8 @@
 
 The governing product outcomes are in
 [architecture-reset.md](../../docs/architecture-reset.md). This directory
-contains the current raw-QEMU harness; issue #25 still owns its final
-single-workflow migration and the final post-#39 execution.
+contains the current raw-QEMU harness; its final single-workflow migration and
+final architecture-reset execution remain pending.
 
 Run every artifact and installation operation independently on matching-native
 x86-64 and AArch64 hardware. Evidence from one sibling does not qualify the
@@ -27,23 +27,28 @@ other.
 
 On matching-native x86-64 or AArch64 hardware,
 `tests/acceptance/unattended.sh prepare` creates a protected, test-only OEMDRV
-Kickstart input for a disposable installation. It requires a protected file
-containing one disposable Tailscale auth key. The runner removes the Kickstart
-source after creating OEMDRV. After Anaconda parses the generated Kickstart,
-its `%pre` section requests ejection in the guest. The host requires that exact
-QEMU device to report an open, unlocked tray, removes the medium from the
-already-open device, verifies the empty drive, and removes the host file. The
-host never forces the tray open. The native VM uses 8 GiB of memory
-so the
-installer's 4 GiB ephemeral `/var/tmp` mount can hold the immutable payload's
-transient import blobs. On x86-64, QEMU keeps the installed disk as the default
-and boots the installer media only once so the completed disk owns the first
-reboot. The shipped x86-64 installer remains graphical; when the protected
-OEMDRV input is present, the runner uses QMP keyboard events to append a
-test-only `inst.cmdline` override to that exact ISO's GRUB entry.
-This lets the unattended Kickstart own the installer mode without changing or
-bypassing the product ISO boot path. The QMP responses are retained as
-`installer-boot-override.jsonl`.
+answer medium for a disposable installation through
+`soda-image installer-input`. It validates the matching release record and
+exact ISO checksum and passes the generated administrator password, public key,
+and one disposable Tailscale key only through protected files. The shell runner
+never expands either credential into Kickstart, argv, or environment values.
+It selects the generator's explicit `--unattended` mode, which adds only the
+fixed destructive storage and completion commands required by this disposable
+VM; normal operator-created media remains graphical and storage-interactive.
+
+The product ISO already selects `/ks.cfg` from the mandatory OEMDRV label; the
+harness does not inject boot keys or replace the product boot path. Stock
+Anaconda owns installation. Its fixed `%pre` hook validates the inputs, emits
+native `user` and `sshkey` directives, and requests ejection in the guest. The
+host requires that exact QEMU device to report an open, unlocked tray, removes
+the medium from the already-open device, verifies the empty drive, and deletes
+the secret-bearing host file. The host never forces the tray open. QMP evidence
+is retained as `installer-input-eject.jsonl`.
+
+The native VM uses 8 GiB of memory so the installer's 4 GiB ephemeral
+`/var/tmp` mount can hold the immutable payload's transient import blobs. On
+x86-64, QEMU keeps the installed disk as the default and boots the installer
+media only once so the completed disk owns the first reboot.
 
 Load the generated `runner.env` in two terminals. `launch` replaces its shell
 with QEMU and remains in the foreground until the VM stops.
@@ -66,6 +71,13 @@ The administrator key is installed through Anaconda's native `sshkey` input in
 standard `~/.ssh/authorized_keys`. Post-install checks use the enrolled
 MagicDNS identity over the Tailnet. QEMU host forwards are test plumbing only,
 not product exposure.
+
+Installed capture fails if saved input or output Kickstart, transient installer
+state, installer-only hooks, legacy custom installer-extension paths, or the
+one-use Tailscale credential remains. It also requires the enrollment unit to
+be disabled. The accepted recovery path is a new disposable disk and a newly
+generated OEMDRV image; the harness does not resume provisioning or preserve
+credentials for retry.
 
 ## Native workspace slice evidence
 

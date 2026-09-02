@@ -36,15 +36,53 @@ Forgejo and Bun source inputs, and every command in the installed immutable
 tool manifest. Bun source and RPM construction occur only on matching-native
 hardware. There is no runtime source lookup or tool download path.
 
-The optional metadata command independently inspects the completed ISO and
-writes an unsigned local record containing the image labels, exact local digest,
-RPM inventory checksum, and ISO checksum:
+The metadata command independently inspects the completed ISO and writes an
+unsigned local record containing the image labels, exact local digest, RPM
+inventory checksum, and ISO checksum. The record is optional for artifact
+construction but required when creating protected installer input:
 
 ```sh
 just record "$ARCH" \
   ".artifacts/images/soda-os-0.4.0-${ARCH}.oci.tar" \
   ".artifacts/images/SodaOS-0.4.0-${ARCH}.iso"
 ```
+
+## Create protected installation input
+
+Every installation pairs the Soda product ISO with a new protected, removable
+OEMDRV answer medium. Create it on the same matching-native architecture:
+
+```sh
+go run ./cmd/soda-image --architecture "$ARCH" installer-input \
+  --iso ".artifacts/images/SodaOS-0.4.0-${ARCH}.iso" \
+  --release-record ".artifacts/releases/soda-os-0.4.0-${ARCH}.release.json" \
+  --username soda-admin \
+  --ssh-public-key-file "$HOME/.ssh/id_ed25519.pub" \
+  --tailscale-auth-key-file /secure/path/tailscale-auth-key \
+  --output /secure/path/soda-installer-input.iso
+```
+
+The command prompts twice for the administrator password. For automation,
+`--password-file /secure/path/administrator-password` supplies it from a
+mode-`0600` regular file. The password and Tailscale files must not be symlinks;
+do not put either secret in argv, environment values, logs, or repository
+files. The command validates the release record, ISO checksum, and selected
+platform, refuses to overwrite an output, and creates the OEMDRV image with
+mode `0600`.
+
+Attach both images and boot the product ISO. The ISO selects the secret-free
+Kickstart from OEMDRV; stock Anaconda owns storage and installation while fixed
+installer-only hooks create native account input and perform the bounded
+Forgejo handoff. The guest must eject OEMDRV before installation continues.
+Remove and destroy the exact host copy after ejection. The first boot gives the
+one-use key to native `tailscale up` once, then deletes the key and disables the
+unit regardless of success.
+
+There is no long-running or reusable runtime bootstrap service, credential
+store, or in-place Soda recovery workflow. On installer failure, discard the
+incomplete target, correct the input, generate a new OEMDRV image, and perform
+a fresh installation. On a failed Tailscale attempt, use native local recovery
+or reinstall with a fresh one-use key.
 
 ## Distribution infrastructure decision
 
@@ -130,3 +168,10 @@ hashes, bootc status, service state, stock Cockpit package discovery, the exact
 immutable command manifest, absence of the former toolchain mount and state,
 and QEMU state. Local acceptance does not create or require production
 signatures.
+
+The raw-QEMU harness creates OEMDRV through the same
+`soda-image installer-input` boundary. It retains QMP evidence that the guest
+opened and unlocked the exact removable device, removes the medium only after
+that proof, verifies the drive is empty, and deletes the secret-bearing host
+image. Capture also requires the installed system to lack saved Kickstart,
+installer-hook, legacy installer-extension, and credential state.
