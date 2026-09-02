@@ -1491,11 +1491,19 @@ primary_project_request() {
 	username=$1
 	action=$2
 	request=$3
-	credentials=$(password_file)
-	{
-		cat "$credentials"
-		printf '%s\n' "$request"
-	} | admin_ssh "sudo -k -S -p '' /usr/sbin/runuser --user '$username' -- /usr/libexec/soda/soda-projects '$action'"
+	printf '%s\n' "$username" | LC_ALL=C grep -Eq '^[a-z][a-z0-9-]{0,23}$' || die "invalid primary username $username"
+	need_file "$(known_hosts_path)"
+	printf '%s\n' "$request" | ssh -T -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
+		-o "UserKnownHostsFile=$(known_hosts_path)" -i "$SODA_ACCEPTANCE_ADMIN_KEY" -p "$guest_ssh_port" \
+		"$username@$guest_host" "/usr/libexec/soda/soda-projects '$action'"
+}
+
+missing_key_project_request() {
+	request=$1
+	need_file "$(known_hosts_path)"
+	printf '%s\n' "$request" | ssh -T -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
+		-o "UserKnownHostsFile=$(known_hosts_path)" -i "$SODA_ACCEPTANCE_ADMIN_KEY" -p "$guest_ssh_port" \
+		"nokey@$guest_host" 'rm -f "$HOME/.ssh/authorized_keys"; exec /usr/libexec/soda/soda-projects setup'
 }
 
 emit_product_accounts() {
@@ -1505,7 +1513,7 @@ for username in nokey charlie dana; do
 	! getent passwd "$username" >/dev/null
 	/usr/sbin/useradd --create-home --user-group --shell /bin/bash -- "$username"
 done
-for username in charlie dana; do
+for username in nokey charlie dana; do
 	home=$(getent passwd "$username" | cut -d: -f6)
 	group=$(id -gn "$username")
 	install -d -m 0700 -o "$username" -g "$group" "$home/.ssh"
@@ -1579,7 +1587,7 @@ scenario_product() {
 
 	run_privileged_script emit_product_accounts >"$operations/accounts.txt"
 	# Missing standard keys must fail before creating a derived account.
-	if primary_project_request nokey setup '{"id":"kept","git_username":"","git_password":""}' \
+	if missing_key_project_request '{"id":"kept","git_username":"","git_password":""}' \
 		>"$operations/missing-key.stdout" 2>"$operations/missing-key.stderr"; then
 		die "workspace setup unexpectedly accepted a primary account without keys"
 	fi
