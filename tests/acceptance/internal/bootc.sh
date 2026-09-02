@@ -776,7 +776,10 @@ capture() {
 		done
 		echo "[failed-units]"
 		failed_units=$(systemctl --failed --no-legend --plain || true)
-		test -z "$failed_units"
+		if test -n "$failed_units"; then
+			printf "%s\n" "$failed_units"
+			exit 1
+		fi
 		echo none
 		echo "[stock-cockpit]"
 		rpm -q cockpit-ws cockpit-system cockpit-storaged cockpit-networkmanager
