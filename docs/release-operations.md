@@ -218,15 +218,12 @@ and publication use the separately authorized maintained-tool boundaries above.
 
 ## Acceptance evidence
 
-`tests/acceptance/bootc.sh` keeps disposable acceptance guests separate from
-production installations. It can install or boot an architecture-selected VM,
-wait for SSH and Cockpit health, exercise an attributed SSH workload, capture
-host and guest evidence, prove native account-preserving image selection, and
-request a clean ACPI shutdown. Captures may include the local record, ISO
-hashes, bootc status, service state, stock Cockpit package discovery, the exact
-immutable command manifest, absence of the former toolchain mount and state,
-and QEMU state. Local acceptance does not create or require production
-signatures.
+`tests/acceptance/unattended.sh run` is the sole public installed-product
+workflow. One process owns a fresh raw-QEMU installation, the protected OEMDRV
+medium, a loopback-only disposable registry, native B-to-A-to-B image
+selection, product scenarios, evidence capture, and clean shutdown. Its private
+helpers are not alternative workflows. Local acceptance does not create or
+require production signatures.
 
 The raw-QEMU harness creates OEMDRV through the same
 `soda-image installer-input` boundary. It retains QMP evidence that the guest

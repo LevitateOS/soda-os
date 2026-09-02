@@ -1,199 +1,128 @@
-# Bootc installation and native-product evidence
+# Single-run installed-product acceptance
 
-The governing product outcomes are in
-[architecture-reset.md](../../docs/architecture-reset.md). This directory
-contains the current raw-QEMU harness; its final single-workflow migration and
-final architecture-reset execution remain pending.
+The product outcomes and acceptance criteria are governed by
+[architecture-reset.md](../../docs/architecture-reset.md). This directory owns
+one public raw-QEMU workflow:
 
-Run every artifact and installation operation independently on matching-native
-x86-64 and AArch64 hardware. Evidence from one sibling does not qualify the
-other.
-
-## Artifact ladder
-
-1. Run `just check`.
-2. Run `just rpm ARCH` and require the exact locked `soda-release`,
-   `soda-runtime`, `soda-projects`, `soda-forgejo`, `soda-bun`, and `soda-tea`
-   inputs.
-3. Run `just oci ARCH` and inspect the matching-native OCI archive, installed
-   package inventory, image labels, complete stock Cockpit host payload,
-   immutable tool manifest, and absence of the deleted identity, project,
-   dashboard, SSH, telemetry, and toolchain-control payload.
-4. Build the matching ISO from that local archive and verify its checksum and
-   exact embedded image digest.
-5. Install through native raw QEMU and capture the booted digest, native
-   services, RPM inventory, and product scenarios.
-
-## Raw-QEMU preparation
-
-On matching-native x86-64 or AArch64 hardware,
-`tests/acceptance/unattended.sh prepare` creates a protected, test-only OEMDRV
-answer medium for a disposable installation through
-`soda-image installer-input`. It validates the matching release record and
-exact ISO checksum and passes the generated administrator password, public key,
-and one disposable Tailscale key only through protected files. The shell runner
-never expands either credential into Kickstart, argv, or environment values.
-It selects the generator's explicit `--unattended` mode, which adds only the
-fixed destructive storage and completion commands required by this disposable
-VM; normal operator-created media remains graphical and storage-interactive.
-
-The product ISO already selects `/ks.cfg` from the mandatory OEMDRV label; the
-harness does not inject boot keys or replace the product boot path. Stock
-Anaconda owns installation. Its fixed `%pre` hook validates the inputs, emits
-native `user` and `sshkey` directives, and requests ejection in the guest. The
-host requires that exact QEMU device to report an open, unlocked tray, removes
-the medium from the already-open device, verifies the empty drive, and deletes
-the secret-bearing host file. The host never forces the tray open. QMP evidence
-is retained as `installer-input-eject.jsonl`.
-
-The native VM uses 8 GiB of memory so the installer's 4 GiB ephemeral
-`/var/tmp` mount can hold the immutable payload's transient import blobs. On
-x86-64, QEMU keeps the installed disk as the default and boots the installer
-media only once so the completed disk owns the first reboot.
-
-The current AArch64 launcher is specifically implemented for Apple Silicon
-macOS: it selects HVF, Cocoa display support, and the Homebrew QEMU firmware
-path. That is a temporary harness fact, not a Soda architecture requirement.
-A matching-native Linux AArch64 host needs an explicit KVM, firmware, and
-display launch boundary before this runner can validate it; evidence must not
-be inferred from the x86-64 launcher.
-
-Load the generated `runner.env` in two terminals. `launch` replaces its shell
-with QEMU and remains in the foreground until the VM stops.
-The file defaults the enrolled guest identity to the product hostname `soda`.
-If the matching-native host does not resolve Tailnet short names, export the
-guest's enrolled MagicDNS name or Tailnet IP as `SODA_ACCEPTANCE_GUEST_HOST`
-after loading `runner.env`.
-
-In terminal 1:
-
-```sh
-tests/acceptance/bootc.sh launch install
+```text
+tests/acceptance/unattended.sh run
 ```
 
-In terminal 2, after loading the same `runner.env`:
+Run it independently on matching-native x86-64 and AArch64 hardware. Evidence
+from one sibling architecture does not qualify the other.
+
+## Inputs
+
+The runner requires a candidate B ISO, OCI archive, and schema-2 release record;
+an earlier A OCI archive and release record for native fallback; one fresh
+single-use Tailscale key in a protected regular file; and a new evidence path.
 
 ```sh
-tests/acceptance/bootc.sh wait
-tests/acceptance/bootc.sh capture installed
-tests/acceptance/bootc.sh stop
+tests/acceptance/unattended.sh run \
+  --evidence-dir .artifacts/acceptance/run-$(date -u +%Y%m%dT%H%M%SZ) \
+  --candidate-iso .artifacts/images/SodaOS-0.4.0-x86_64.iso \
+  --candidate-record .artifacts/releases/soda-os-0.4.0-x86_64.release.json \
+  --candidate-oci .artifacts/images/soda-os-0.4.0-x86_64.oci.tar \
+  --fallback-record .artifacts/fallback/soda-os-0.4.0-x86_64.release.json \
+  --fallback-oci .artifacts/fallback/soda-os-0.4.0-x86_64.oci.tar \
+  --tailscale-auth-key-file .tailscale_auth_key
 ```
 
-The administrator key is installed through Anaconda's native `sshkey` input in
-standard `~/.ssh/authorized_keys`. Post-install checks use the enrolled
-MagicDNS identity over the Tailnet. QEMU host forwards are test plumbing only,
-not product exposure.
+The evidence directory must not already exist. The key file must be regular,
+non-symlink, and inaccessible to group and other users. Neither the password nor
+the Tailscale key is accepted through argv or environment values.
 
-Installed capture resolves each tested account's logical home to its physical
-`/var/home/<username>` directory and records the actual SELinux types. The
-primary administrator—and the derived workspace when workspace verification is
-enabled—must have `user_home_dir_t` on the home and `ssh_home_t` on `.ssh` and
-`authorized_keys`.
+Host prerequisites are `curl`, Docker, Go, `jq`, OpenSSL, QEMU, `qemu-img`,
+`sha256sum`, OpenSSH clients, and `xorriso`. Docker may be available directly or
+through passwordless sudo. The runner uses the exact registry and Skopeo tool
+containers pinned beside it; the registry binds only host loopback and is
+removed at the end. A matching-native host `skopeo` is used when already
+available. The runner publishes no image or release.
 
-Installed capture fails if saved input or output Kickstart, transient installer
-state, installer-only hooks, legacy custom installer-extension paths, or the
-one-use Tailscale credential remains. It also requires the enrollment unit to
-be disabled. The accepted recovery path is a new disposable disk and a newly
-generated OEMDRV image; the harness does not resume provisioning or preserve
-credentials for retry.
+## Owned workflow
 
-## Native workspace slice evidence
+One process owns the complete lifecycle:
 
-A fresh native x86-64 installation from installer source commit `2e5c596`
-demonstrated stock Cockpit authentication and Projects discovery, native empty
-Forgejo repository creation, synchronous setup, deterministic derived-account
-creation, complete clone publication, key-based direct workspace command
-execution, correct primary and workspace SELinux home labels, the immutable
-toolset, rootless Podman, and absence of the deleted identity, project,
-dashboard, forced-SSH, telemetry, and toolchain-control paths. The same run
-observed successful primary Cockpit authentication and workspace-account
-rejection. Exact artifact hashes and the boundary-by-boundary result are in
-[bug-notes.md](../../docs/bug-notes.md).
+1. Validate matching-native release records, the candidate ISO checksum, OCI
+   files, and protected credential input.
+2. Generate a fresh administrator password and key and create protected OEMDRV
+   answer media through `soda-image installer-input`.
+3. Start one exact disposable registry, copy A and B with preserved manifest
+   digests, and expose it only to QEMU's host endpoint.
+4. Create one fresh qcow2 disk and install candidate B through raw QEMU.
+5. Require the guest-requested OEMDRV ejection, remove the medium from its open
+   QMP tray, and delete only that exact answer image.
+6. Wait for the enrolled Tailnet identity, direct administrator SSH, and stock
+   Cockpit.
+7. Seed current authoritative Linux, catalog, workspace, Forgejo, Tailscale,
+   password, group, home, key, and host-key state on B.
+8. Select exact A with native `bootc switch --download-only` followed by
+   `bootc switch --from-downloaded`, reboot, and compare normalized current
+   mutable state.
+9. Select exact B the same way, reboot, compare again, and remove the disposable
+   guest registry configuration.
+10. Exercise product behavior and capture the final installed-product evidence.
+11. Shut down QEMU cleanly and remove only the exact disposable registry.
 
-An earlier focused route proof additionally exercised direct shell, command,
-SCP, SFTP, and password rejection. Focused and race tests cover catalog edit
-validation, missing-key preflight, transient Git credential transport, one-time
-key copying, catalog-last project removal, primary-last Soda-aware human
-deletion, and absence assertions for deleted source and package owners. Final
-installed automation must still cover the complete multi-user, destructive-
-failure, and transport scenario set rather than treating those focused proofs
-as final product acceptance.
+The private non-executable scripts below `tests/acceptance/internal/` are
+implementation details. They are not alternative public workflows, do not
+create `runner.env`, and require no two-terminal coordination or VNC.
 
-Matching-native AArch64 must repeat the latest protected-Kickstart installer
-and installed-product path. The current runner captures installed platform and
-service evidence, but final single-workflow automation of every architecture-
-reset scenario and the post-#39 absence inventory remain issue #25 work.
+## Product scenarios
 
-## Native host and immutable-toolset evidence
+The single run proves:
 
-An installed-image capture requires the Fedora-owned Cockpit system, storage,
-and networking packages plus Soda's branding and Projects package to be
-discoverable. Before capture, authenticate as the primary account and exercise
-Overview, Metrics, Services, Logs, Accounts, Terminal, Storage, Networking, and
-Projects.
-Use Projects to create a derived workspace and confirm that the derived account
-is rejected by Cockpit PAM. Export its direct-SSH details in terminal 2; when
-the primary administrator key was copied during setup, for example:
+- stock Anaconda/Kickstart installation, the initial Linux administrator,
+  standard authorized key, native Forgejo administrator, one-attempt Tailscale
+  enrollment, secret absence, and installed image digest;
+- stock Cockpit package discovery, Soda branding and Projects, primary login,
+  and workspace-account PAM rejection;
+- the exact sorted three-field catalog and edit-without-reconciliation behavior;
+- missing-key failure before workspace-account mutation;
+- native empty Forgejo creation and canonical-repository preservation;
+- one complete clone and derived Linux account per selected human-project pair;
+- distinct Alice and Bob UIDs, homes, checkouts, local files, and processes for
+  the same project;
+- ordinary direct OpenSSH command, SCP, and SFTP behavior as a derived UID;
+- non-conflicting project-selected host ports without Soda port state;
+- Soda-aware cascading human deletion with the primary account removed last;
+- generic Linux account deletion remaining non-cascading;
+- project removal deleting derived accounts and catalog state without deleting
+  the canonical Forgejo repository;
+- the complete immutable command manifest, representative Go, Python, Rust,
+  Node, Bun, C, and C++ execution, and rootless Podman for primary and derived
+  accounts;
+- native Linux/Cockpit ownership and absence of the removed installer add-on,
+  dashboard, forced SSH, telemetry, updater, and runtime toolchain state; and
+- the intentional pre-#39 health-only Soda daemon boundary.
 
-```sh
-export SODA_ACCEPTANCE_WORKSPACE_TARGET='<derived-username>'
-export SODA_ACCEPTANCE_WORKSPACE_KEY="$SODA_ACCEPTANCE_ADMIN_KEY"
-export SODA_ACCEPTANCE_REQUIRE_WORKSPACE_TOOLSET=1
-```
+The stopped later-primary Forgejo PAM `/etc/shadow` privilege decision is not
+implemented or claimed by this runner. The installer-created administrator is
+used for native Forgejo operations.
 
-The UI observations must use Linux-owned values as displayed by stock Cockpit;
-there is no Soda host-status RPC or telemetry page to compare.
+## Failure and evidence
 
-`capture` sends the same reusable, unprivileged smoke script to the primary
-account and, for milestone evidence, requires and exercises the derived account
-when `SODA_ACCEPTANCE_REQUIRE_WORKSPACE_TOOLSET=1`. It
-compares `/usr/share/soda/toolset-commands.txt` with the exact approved command
-contract, resolves every entry through ordinary `PATH`, and builds or runs
-small Go, Python, Rust, Node.js, Bun, C, and C++ programs in a user-owned
-temporary directory. It also exercises representative Git/SSH, build, archive,
-editor, and data tools plus rootless `podman info` and `podman unshare`. The
-Podman checks use only native per-user state and do not add a Soda container
-fixture or control path.
+Known collisions and invalid inputs fail before mutation. The runner does not
+retry, repair, compensate, reconcile, or keep durable workflow state. A failed
+run retains its evidence directory for diagnosis and requires a fresh directory,
+disk, OEMDRV image, and Tailscale key for repetition.
 
-The same primary and derived smoke runs resolve and invoke both `gh` and `tea`.
-They prove only immutable command availability and harmless version/help
-behavior; acceptance does not log either user into a forge or create shared
-credentials. The `soda-tea` RPM owns only its executable and license, and the
-installed-system capture rejects Soda- or system-managed `gh` and Tea
-configuration, credential, and state paths while allowing each user to keep
-ordinary CLI configuration below their own home.
+Normalized fallback manifests deliberately exclude boot IDs, timestamps, PIDs,
+logs, WAL bytes, and deployment selection. They include current account fields,
+hashed shadow records, groups, home and key facts, the catalog, workspace trees
+and Git state, native Forgejo facts, Tailscale identity and Fedora-owned state
+path, SSH host keys, and automatic-update timer state. Raw password hashes and
+credentials are never written to evidence.
 
-The capture must fail if `/opt/soda/toolchains`,
-`/var/lib/soda/toolchains`, `opt-soda-toolchains.mount`, or
-`soda-state-directories.service` exists. It must also prove that the residual
-`sodad` surface remains health-only by running and validating
-`sudo sodactl health`. When `SODA_ACCEPTANCE_ADMIN_PASSWORD_FILE` is set, the
-password is supplied only on standard input; otherwise capture requires
-passwordless non-interactive sudo for that command.
+Before issue #39, final capture requires `sudo sodactl health` to prove the
+intentional health-only shell. The #39 capstone changes that assertion to
+installed absence; final issue #25 closure occurs only after that post-capstone
+run passes on both matching-native architectures.
 
-## Native update and fallback evidence
+## Architecture notes
 
-The bounded fallback fixture requires exact digest references for image A and
-image B:
-
-```sh
-export SODA_ACCEPTANCE_IMAGE_A_REFERENCE='registry.example/soda-os@sha256:<a-digest>'
-export SODA_ACCEPTANCE_IMAGE_B_REFERENCE='registry.example/soda-os@sha256:<b-digest>'
-
-tests/acceptance/bootc.sh fallback seed-a
-tests/acceptance/bootc.sh fallback capture a-installed
-tests/acceptance/bootc.sh fallback stage b
-tests/acceptance/bootc.sh fallback unlock
-tests/acceptance/bootc.sh stop
-```
-
-After launching the installed disk again, capture and compare the updated
-state. Repeat the same stage/unlock/reboot sequence toward A, compare current
-state again, and finally recover forward to B. `fallback mutate-b` creates and
-deletes authoritative B-era state only after the pre-mutation manifests have
-proved equal. `fallback capture` records normalized Linux, workspace, catalog,
-Forgejo, Tailscale, SSH-host-key, and automatic-update evidence without raw
-password hashes or credentials.
-
-Run the full sequence independently on matching-native x86-64 and AArch64
-hardware. The x86-64 proof does not qualify AArch64 release completion.
+x86-64 uses KVM and OVMF. The existing AArch64 launch implementation is for
+matching-native Apple Silicon with HVF and Homebrew QEMU. A matching-native
+Linux AArch64 runner must supply its native QEMU/firmware boundary rather than
+reusing or inspecting x86-64 artifacts. Temporary host paths are test
+infrastructure facts, not Soda product requirements.
