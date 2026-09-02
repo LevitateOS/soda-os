@@ -32,6 +32,28 @@ func TestForgejoPAMRejectsNonPrimaryAccounts(t *testing.T) {
 	}, lines)
 }
 
+func TestForgejoPAMHasOnlyTheDedicatedShadowReadBoundary(t *testing.T) {
+	root := filepath.Join("..", "..", "..", "packaging", "rpm", "forgejo", "sources")
+
+	sysusers, err := os.ReadFile(filepath.Join(root, "sysusers", "forgejo.conf"))
+	require.NoError(t, err)
+	require.Equal(t, []string{
+		"g soda-forgejo-shadow -",
+		"u git 975 \"Soda OS built-in Git\" /var/lib/forgejo /bin/sh",
+	}, nonCommentLines(string(sysusers)))
+	require.NotContains(t, string(sysusers), "m git")
+	require.NotContains(t, string(sysusers), " shadow ")
+
+	unit, err := os.ReadFile(filepath.Join(root, "systemd", "forgejo.service"))
+	require.NoError(t, err)
+	require.Contains(t, string(unit), "After=forgejo-init.service network.target systemd-tmpfiles-setup.service")
+	require.Equal(t, 1, strings.Count(string(unit), "SupplementaryGroups=soda-forgejo-shadow"))
+
+	tmpfiles, err := os.ReadFile(filepath.Join(root, "tmpfiles", "forgejo.conf"))
+	require.NoError(t, err)
+	require.Contains(t, nonCommentLines(string(tmpfiles)), "z /etc/shadow 0040 root soda-forgejo-shadow - -")
+}
+
 func nonCommentLines(contents string) []string {
 	var lines []string
 	for line := range strings.Lines(contents) {

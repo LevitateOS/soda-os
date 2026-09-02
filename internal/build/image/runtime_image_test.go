@@ -188,6 +188,7 @@ func TestForgejoPackagingContract(t *testing.T) {
 	unit, err := os.ReadFile(filepath.Join(forgejoRoot, "sources", "systemd", "forgejo.service"))
 	require.NoError(t, err)
 	require.Contains(t, string(unit), "User=git")
+	require.Contains(t, string(unit), "SupplementaryGroups=soda-forgejo-shadow")
 	require.Contains(t, string(unit), "ExecStart=/usr/bin/forgejo web --config /etc/forgejo/app.ini")
 	require.Contains(t, string(unit), "ReadWritePaths=/var/lib/forgejo")
 
@@ -203,7 +204,12 @@ func TestForgejoPackagingContract(t *testing.T) {
 
 	sysusers, err := os.ReadFile(filepath.Join(forgejoRoot, "sources", "sysusers", "forgejo.conf"))
 	require.NoError(t, err)
+	require.Contains(t, string(sysusers), "g soda-forgejo-shadow -")
 	require.Contains(t, string(sysusers), "u git 975")
+
+	tmpfiles, err := os.ReadFile(filepath.Join(forgejoRoot, "sources", "tmpfiles", "forgejo.conf"))
+	require.NoError(t, err)
+	require.Contains(t, string(tmpfiles), "z /etc/shadow 0040 root soda-forgejo-shadow - -")
 
 	initialization, err := os.ReadFile(filepath.Join(forgejoRoot, "sources", "forgejo-init"))
 	require.NoError(t, err)

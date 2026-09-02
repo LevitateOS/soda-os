@@ -38,8 +38,12 @@ RUN dnf -y --setopt=install_weak_deps=False --enablerepo=updates-testing install
       /var/log/dnf5.log \
       /run/dnf \
       /var/tmp/soda-rpms \
-    && systemd-sysusers /usr/lib/sysusers.d/soda-projects.conf \
+    && systemd-sysusers /usr/lib/sysusers.d/soda-projects.conf /usr/lib/sysusers.d/forgejo.conf \
+    && systemd-tmpfiles --create /usr/lib/tmpfiles.d/forgejo.conf \
     && getent group soda-workspaces \
+    && getent group soda-forgejo-shadow \
+    && test "$(stat -c '%U:%G:%a' /etc/shadow)" = root:soda-forgejo-shadow:40 \
+    && grep -Fx 'SupplementaryGroups=soda-forgejo-shadow' /usr/lib/systemd/system/forgejo.service \
     && install -o root -g root -m 0644 /usr/lib/soda/pam/cockpit /etc/pam.d/cockpit \
     && restorecon -F /etc/pam.d/cockpit \
     && systemctl preset sshd.service soda-tailscale-enroll.service cockpit.socket forgejo.service tailscaled.service nftables.service \

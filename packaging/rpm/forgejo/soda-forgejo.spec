@@ -1,6 +1,6 @@
 Name:           soda-forgejo
 Version:        15.0.7
-Release:        1%{?dist}
+Release:        2%{?dist}
 Summary:        Soda OS built-in Git service
 License:        MIT AND GPL-3.0-or-later
 Requires:       git-core, git-lfs, pam, shadow-utils, systemd, tailscale, util-linux-core

@@ -1,12 +1,13 @@
 [Unit]
 Description=Soda OS built-in Git service
 Requires=forgejo-init.service
-After=forgejo-init.service network.target
+After=forgejo-init.service network.target systemd-tmpfiles-setup.service
 
 [Service]
 Type=notify
 User=git
 Group=git
+SupplementaryGroups=soda-forgejo-shadow
 WorkingDirectory=/var/lib/forgejo
 Environment=HOME=/var/lib/forgejo USER=git FORGEJO_WORK_DIR=/var/lib/forgejo
 ExecStart=/usr/bin/forgejo web --config /etc/forgejo/app.ini
