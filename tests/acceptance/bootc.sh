@@ -225,6 +225,9 @@ start_installer_input_ejector() {
 		cleanup_ejector() {
 			if [ "$ejected" != true ] && kill -0 "$qemu_pid" 2>/dev/null; then
 				kill -TERM "$qemu_pid" 2>/dev/null || true
+				while kill -0 "$qemu_pid" 2>/dev/null; do
+					sleep 1
+				done
 			fi
 			rm -f "$installer_input" "$eject_tmp"
 		}

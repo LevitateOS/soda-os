@@ -162,6 +162,7 @@ func TestAcceptanceUsesTheProtectedAnswerMediaBoundary(t *testing.T) {
 	bootRunner := readInstallerFixture(t, root, "tests/acceptance/bootc.sh")
 	require.Contains(t, bootRunner, "SODA_ACCEPTANCE_KICKSTART_ISO is required for launch install")
 	require.Contains(t, bootRunner, "start_installer_input_ejector")
+	require.Contains(t, bootRunner, "while kill -0 \"$qemu_pid\" 2>/dev/null; do")
 	require.Contains(t, bootRunner, `"execute":"blockdev-remove-medium"`)
 	require.NotContains(t, bootRunner, "start_x86_unattended_boot_selector")
 	require.NotContains(t, bootRunner, `"execute":"send-key"`)
