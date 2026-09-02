@@ -1542,6 +1542,14 @@ test ! -e /home/dana
 EOF
 }
 
+emit_generic_workspace_preserved() {
+	cat <<EOF
+test "\$(id -u)" -eq 0
+getent passwd '$dana_workspace' >/dev/null
+test -d '/home/$dana_workspace/Projects/generic'
+EOF
+}
+
 emit_keyless_delete() {
 	cat <<'EOF'
 test "$(id -u)" -eq 0
@@ -1672,8 +1680,9 @@ scenario_product() {
 	project_password_request create-forgejo generic 'Generic deletion fixture' >"$operations/generic-create.json"
 	primary_project_request dana setup '{"id":"generic","git_username":"","git_password":""}' >"$operations/dana-setup.json"
 	dana_workspace=$(jq -er '.workspace_username' "$operations/dana-setup.json")
+	printf '%s\n' "$dana_workspace" | LC_ALL=C grep -Eq '^soda-w-[0-9a-f]{24}$' || die "invalid Dana workspace username"
 	run_privileged_script emit_generic_delete >"$operations/dana-generic-delete.txt"
-	admin_ssh "getent passwd '$dana_workspace' >/dev/null; test -d '/home/$dana_workspace/Projects/generic'"
+	run_privileged_script emit_generic_workspace_preserved >"$operations/dana-workspace-preserved.txt"
 	project_request remove generic >"$operations/generic-remove.json"
 	admin_ssh "! getent passwd '$dana_workspace' >/dev/null; test ! -e '/home/$dana_workspace'"
 
