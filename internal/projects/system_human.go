@@ -193,10 +193,26 @@ func openStagedTeaConfig(target *os.File, uid int) (*os.File, error) {
 		return nil, err
 	}
 	defer config.Close()
-	if err = requireDirectoryNames(config, "config.yml"); err != nil {
+	if err = requireDirectoryNames(config, "config.yml", "config.yml.lock"); err != nil {
+		return nil, err
+	}
+	if err = validateStagedTeaLock(config, uid); err != nil {
 		return nil, err
 	}
 	return openOwnedRegularAt(config, "config.yml", uid, "staged Tea configuration")
+}
+
+func validateStagedTeaLock(config *os.File, uid int) error {
+	lock, err := openOwnedRegularAt(config, "config.yml.lock", uid, "staged Tea configuration lock")
+	if err != nil {
+		return err
+	}
+	defer lock.Close()
+	stat, err := descriptorStat(lock)
+	if err != nil || stat.Mode&0o777 != 0o600 || stat.Size != 0 {
+		return errors.New("staged Tea configuration lock must be empty with mode 0600")
+	}
+	return nil
 }
 
 func requireDirectoryNames(directory *os.File, expected ...string) error {

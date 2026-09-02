@@ -60,9 +60,30 @@ func (runner *teaRecordingRunner) Run(_ context.Context, request Command) (Comma
 		configRoot := environmentValue(request.Environment, "XDG_CONFIG_HOME")
 		require.NoError(runner.t, os.MkdirAll(filepath.Join(configRoot, "tea"), 0o700))
 		require.NoError(runner.t, os.WriteFile(filepath.Join(configRoot, "tea", "config.yml"), []byte("opaque-token"), 0o600))
+		require.NoError(runner.t, os.WriteFile(filepath.Join(configRoot, "tea", "config.yml.lock"), nil, 0o600))
 		return CommandResult{}, nil
 	}
 	return CommandResult{Stdout: `{"login":"bob"}`}, nil
+}
+
+func TestNativeTeaStagingRejectsUnexpectedOrInvalidLockState(t *testing.T) {
+	root := t.TempDir()
+	actor := primaryAccount("admin", primaryRoleAdministrator)
+	actor.UID, actor.GID = os.Getuid(), os.Getgid()
+	require.NoError(t, os.Mkdir(filepath.Join(root, strconv.Itoa(actor.UID)), 0o700))
+	runner := &teaRecordingRunner{t: t}
+	platform := &NativePlatform{RuntimeRoot: root, Runner: runner}
+	binary := filepath.Join(t.TempDir(), "tea")
+	require.NoError(t, os.WriteFile(binary, []byte("#!/bin/sh\n"), 0o700))
+	tea := NativeTea{Platform: platform, Runner: runner, Binary: binary}
+
+	require.NoError(t, tea.StageLogin(context.Background(), actor, "bob", "http://forgejo.test:30000", "initial secret"))
+	target := filepath.Join(root, strconv.Itoa(actor.UID), "soda-projects", "people", "bob", "config", "tea")
+	require.NoError(t, os.WriteFile(filepath.Join(target, "unexpected"), nil, 0o600))
+	require.ErrorContains(t, tea.Preflight(actor, "bob"), "unexpected entries")
+	require.NoError(t, os.Remove(filepath.Join(target, "unexpected")))
+	require.NoError(t, os.WriteFile(filepath.Join(target, "config.yml.lock"), []byte("not empty"), 0o600))
+	require.ErrorContains(t, tea.Preflight(actor, "bob"), "must be empty")
 }
 
 func environmentValue(environment []string, name string) string {

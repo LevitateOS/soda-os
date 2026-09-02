@@ -77,7 +77,10 @@ func validateStagedTeaConfigDirectory(config *os.File, uid int) error {
 		return err
 	}
 	defer teaDirectory.Close()
-	if err = requireDirectoryNames(teaDirectory, "config.yml"); err != nil {
+	if err = requireDirectoryNames(teaDirectory, "config.yml", "config.yml.lock"); err != nil {
+		return err
+	}
+	if err = validateStagedTeaLock(teaDirectory, uid); err != nil {
 		return err
 	}
 	file, err := openOwnedRegularAt(teaDirectory, "config.yml", uid, "staged Tea configuration")
