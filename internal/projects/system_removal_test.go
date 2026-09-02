@@ -8,6 +8,21 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+type processExitRunner struct {
+	remaining int
+}
+
+func (runner *processExitRunner) Run(_ context.Context, request Command) (CommandResult, error) {
+	if request.Name != "/usr/bin/pgrep" {
+		return CommandResult{}, errors.New("unexpected command")
+	}
+	if runner.remaining > 0 {
+		runner.remaining--
+		return CommandResult{ExitCode: 0}, nil
+	}
+	return CommandResult{ExitCode: 1}, nil
+}
+
 type logindRunner struct {
 	list      CommandResult
 	terminate CommandResult
@@ -58,4 +73,12 @@ func TestLogindUserRecordMustMatchBothUIDAndUsername(t *testing.T) {
 		_, err := logindUserIsActive(record, Account{Username: "alice", UID: 1000})
 		require.Error(t, err, record)
 	}
+}
+
+func TestProcessVerificationWaitsForKernelReaping(t *testing.T) {
+	runner := &processExitRunner{remaining: 2}
+	platform := &NativePlatform{Runner: runner}
+
+	require.NoError(t, platform.verifyNoOwnedProcesses(context.Background(), Account{Username: "alice", UID: 1000}))
+	require.Zero(t, runner.remaining)
 }

@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"golang.org/x/sys/unix"
 )
@@ -365,17 +366,32 @@ func (platform *NativePlatform) runTerminationStep(ctx context.Context, account 
 }
 
 func (platform *NativePlatform) verifyNoOwnedProcesses(ctx context.Context, account Account) error {
-	result, err := platform.run(ctx, "/usr/bin/pgrep", "--uid", strconv.Itoa(account.UID))
-	if err != nil {
-		return err
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		result, err := platform.run(ctx, "/usr/bin/pgrep", "--uid", strconv.Itoa(account.UID))
+		if err != nil {
+			return err
+		}
+		switch result.ExitCode {
+		case 1:
+			return nil
+		case 0:
+			if !time.Now().Before(deadline) {
+				return fmt.Errorf("account %s still owns processes", account.Username)
+			}
+		case 2:
+			return fmt.Errorf("verify %s processes: %s", account.Username, strings.TrimSpace(result.Stderr))
+		default:
+			return fmt.Errorf("verify %s processes: unexpected pgrep status %d: %s", account.Username, result.ExitCode, strings.TrimSpace(result.Stderr))
+		}
+		timer := time.NewTimer(100 * time.Millisecond)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return ctx.Err()
+		case <-timer.C:
+		}
 	}
-	if result.ExitCode == 0 {
-		return fmt.Errorf("account %s still owns processes", account.Username)
-	}
-	if result.ExitCode != 1 {
-		return fmt.Errorf("verify %s processes: %s", account.Username, strings.TrimSpace(result.Stderr))
-	}
-	return nil
 }
 
 func (platform *NativePlatform) removeLinuxAccount(ctx context.Context, account Account) error {
