@@ -56,15 +56,13 @@ select_tailscale() {
 		tailscale_command=$(command -v tailscale)
 	elif [ "$(uname -s)" = Darwin ] && [ -x /Applications/Tailscale.app/Contents/MacOS/Tailscale ]; then
 		tailscale_command=/Applications/Tailscale.app/Contents/MacOS/Tailscale
-		need open
-		open -gj -a Tailscale >/dev/null
 	else
 		die "Tailscale is unavailable on PATH and no macOS app CLI was found"
 	fi
 }
 
 host_tailscale() {
-	"$tailscale_command" "$@"
+	TAILSCALE_BE_CLI=1 "$tailscale_command" "$@"
 }
 
 host_docker() {
