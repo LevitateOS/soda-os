@@ -778,6 +778,10 @@ capture() {
 		failed_units=$(systemctl --failed --no-legend --plain || true)
 		if test -n "$failed_units"; then
 			printf "%s\n" "$failed_units"
+			printf "%s\n" "$failed_units" | awk '{print $1}' | while IFS= read -r failed_unit; do
+				systemctl status --no-pager --full -- "$failed_unit" || true
+				journalctl --boot --no-pager --unit "$failed_unit" --lines 100 || true
+			done
 			exit 1
 		fi
 		echo none

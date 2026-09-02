@@ -183,6 +183,8 @@ func TestAcceptanceUsesTheProtectedAnswerMediaBoundary(t *testing.T) {
 	require.Contains(t, bootRunner, `failed_units=$(systemctl --failed --no-legend --plain || true)`)
 	require.Contains(t, bootRunner, `if test -n "$failed_units"; then`)
 	require.Contains(t, bootRunner, `printf "%s\n" "$failed_units"`)
+	require.Contains(t, bootRunner, `systemctl status --no-pager --full -- "$failed_unit"`)
+	require.Contains(t, bootRunner, `journalctl --boot --no-pager --unit "$failed_unit" --lines 100`)
 	require.Contains(t, bootRunner, `uid=$(id -u nokey)`)
 	require.Contains(t, bootRunner, `Keyless fixture still owns processes after native logind termination`)
 	require.Contains(t, bootRunner, `/etc/ssh/sshd_config.d/41-soda-project-accounts.conf`)
