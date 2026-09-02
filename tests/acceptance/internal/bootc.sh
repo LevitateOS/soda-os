@@ -672,7 +672,7 @@ SODA_INSTALLER_PROVISIONING_ABSENCE
 emit_installed_ownership_checks() {
 	cat <<'EOF'
 set -eu
-rules=$(nft list chain inet soda input)
+rules=$(nft list chain inet soda_ingress input)
 printf '%s\n' "$rules"
 printf '%s\n' "$rules" | grep -F 'iifname { "lo", "tailscale0" } tcp dport { 22, 9090, 30000 } accept' >/dev/null
 printf '%s\n' "$rules" | grep -F 'tcp dport { 22, 9090, 30000 } reject with tcp reset' >/dev/null
