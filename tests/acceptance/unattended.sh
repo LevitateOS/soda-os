@@ -20,7 +20,7 @@ whole run. It never publishes an artifact or release.
 
 Optional environment:
   SODA_ACCEPTANCE_ADMIN=soda-test
-  SODA_ACCEPTANCE_GUEST_HOST=soda
+  SODA_ACCEPTANCE_GUEST_HOST=TAILNET_IP_OR_NAME
   SODA_ACCEPTANCE_SSH_PORT=2222
   SODA_ACCEPTANCE_COCKPIT_PORT=19090
   SODA_ACCEPTANCE_REGISTRY_PORT=5001
@@ -286,9 +286,10 @@ run() {
 	export SODA_ACCEPTANCE_HOST=127.0.0.1
 	export SODA_ACCEPTANCE_SSH_PORT=${SODA_ACCEPTANCE_SSH_PORT:-2222}
 	export SODA_ACCEPTANCE_COCKPIT_PORT=${SODA_ACCEPTANCE_COCKPIT_PORT:-19090}
-	export SODA_ACCEPTANCE_GUEST_HOST=${SODA_ACCEPTANCE_GUEST_HOST:-soda}
-	export SODA_ACCEPTANCE_GUEST_SSH_PORT=22
-	export SODA_ACCEPTANCE_GUEST_COCKPIT_PORT=9090
+	requested_guest_host=${SODA_ACCEPTANCE_GUEST_HOST:-}
+	export SODA_ACCEPTANCE_GUEST_HOST=127.0.0.1
+	export SODA_ACCEPTANCE_GUEST_SSH_PORT=$SODA_ACCEPTANCE_SSH_PORT
+	export SODA_ACCEPTANCE_GUEST_COCKPIT_PORT=$SODA_ACCEPTANCE_COCKPIT_PORT
 	export SODA_ACCEPTANCE_IMAGE_DIGEST=$b_digest
 	export SODA_ACCEPTANCE_IMAGE_A_REFERENCE=10.0.2.2:$registry_port/soda-os@${a_digest}
 	export SODA_ACCEPTANCE_IMAGE_B_REFERENCE=10.0.2.2:$registry_port/soda-os@${b_digest}
@@ -300,6 +301,16 @@ run() {
 	printf 'installing candidate image B through raw QEMU\n'
 	sh "$helper" launch install >"$evidence_dir/qemu.stdout" 2>"$evidence_dir/qemu.stderr" &
 	qemu_pid=$!
+	sh "$helper" wait
+	tailnet_address=$(sh "$helper" tailnet-address)
+	case "$tailnet_address" in
+		100.*) ;;
+		*) die "installed guest reported invalid Tailnet IPv4 address: $tailnet_address" ;;
+	esac
+	printf '%s\n' "$tailnet_address" >"$evidence_dir/tailnet-address.txt"
+	export SODA_ACCEPTANCE_GUEST_HOST=${requested_guest_host:-$tailnet_address}
+	export SODA_ACCEPTANCE_GUEST_SSH_PORT=22
+	export SODA_ACCEPTANCE_GUEST_COCKPIT_PORT=9090
 	sh "$helper" wait
 	sh "$helper" fallback registry-enable
 	sh "$helper" fallback seed-b

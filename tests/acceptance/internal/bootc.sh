@@ -9,6 +9,7 @@ Commands:
   launch install       Create a blank disk and boot the configured installer ISO
   launch installed     Boot the existing acceptance disk without installer media
   wait                 Wait for SSH and Cockpit, then prove key-based admin SSH
+  tailnet-address      Print the guest's native Tailscale IPv4 address
   capture NAME         Capture nonprivileged host, guest, QMP, and registry evidence
   fallback seed-a      Seed authoritative mutable state on image A
   fallback seed-b      Seed current authoritative mutable state on image B
@@ -451,6 +452,10 @@ wait_ready() {
 	done
 	printf 'ready_at=%s\nelapsed_seconds=%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$(( $(date +%s) - started ))" |
 		tee "$acceptance_dir/readiness.txt"
+}
+
+tailnet_address() {
+	admin_ssh 'tailscale status --json | jq -er '\''[.TailscaleIPs[] | select(test("^[0-9]+\\."))][0]'\'''
 }
 
 valid_name() {
@@ -1716,6 +1721,7 @@ case "$command" in
 	help|-h|--help) usage ;;
 	launch) shift; launch "${1:-}" ;;
 	wait) shift; [ "$#" -eq 0 ] || die "wait accepts no arguments"; wait_ready ;;
+	tailnet-address) shift; [ "$#" -eq 0 ] || die "tailnet-address accepts no arguments"; tailnet_address ;;
 	capture) shift; capture "${1:-}" ;;
 	fallback) shift; fallback "$@" ;;
 	workload) shift; workload "${1:-}" ;;
