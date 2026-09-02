@@ -290,16 +290,15 @@ OEMDRV creation does.
 
 ## Current verification status
 
-The protected installer path was exercised end to end on a fresh native x86-64
-guest from installer source commit `2e5c596`. The run proved OEMDRV protection,
+The current installer path was exercised end to end on a fresh native x86-64
+guest at implementation checkpoint `3df4431`. The run proved OEMDRV protection,
 guest ejection and exact host removal, stock-Anaconda installation, Linux and
 same-named Forgejo administrator creation, password and public-key SSH, correct
 home and key SELinux labels, one-attempt Tailscale enrollment and handoff
-deletion, stock Cockpit authentication and workspace rejection, Projects setup,
-direct derived-account SSH, the immutable toolset, rootless Podman, obsolete-
-state absence, and the exact installed runtime digest. That historical image
-also proved the Health RPC which has since been deleted; post-control-plane
-installed-system verification remains pending.
+deletion, stock Cockpit authentication and workspace rejection, Projects and
+multi-user workspace behavior, direct SSH/SCP/SFTP, destructive ordering, the
+immutable toolset, rootless Podman, obsolete-state absence, zero runtime
+control-plane surface, and the exact installed runtime digest.
 The artifact hashes and failure history are recorded in
 [bug-notes.md](bug-notes.md); they are local evidence, not a published release.
 

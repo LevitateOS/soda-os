@@ -8,7 +8,7 @@ matching-native AArch64 repetition remains required before release completion.
 
 **Initial implementation snapshot reviewed:** `7f2c60b`
 
-**Current implementation checkpoint documented:** `75206ec`
+**Current implementation checkpoint documented:** `3df4431`
 
 **Initial architecture record:** `e992e22`
 
@@ -19,15 +19,13 @@ governing constraints, and issue boundaries.
 At the current checkpoint, the protected stock-Anaconda/Kickstart, native
 workspace, direct-SSH, stock-Cockpit, immutable-toolset, telemetry-deletion,
 runtime-updater-deletion, native-publication, and residual-control-plane
-deletion slices are present. One earlier fresh native x86-64 installation has
-exercised the retained product slices, and native x86-64 A→B→A→B image
-selection has preserved current mutable state. These are
-implementation and test facts, not additional product authority. The current
-protected installer and fallback still require matching-native AArch64
-installed-system evidence. The post-control-plane x86-64 installed run is also
-pending. Later-primary Forgejo PAM authentication remains stopped at an
-explicit password-verifier privilege decision. Final matching-native
-installed-product acceptance remains later verification work.
+deletion slices are present. A fresh native x86-64 installation has exercised
+the complete retained product, multi-user and destructive scenarios, installed
+absence of the deleted control plane, and B→A→B preservation between two
+post-control-plane images. These are implementation and test facts, not
+additional product authority. Matching-native AArch64 must repeat that final
+workflow before release completion. Later-primary Forgejo PAM authentication
+remains stopped at an explicit password-verifier privilege decision.
 
 ## Product contract
 
@@ -575,14 +573,13 @@ The accepted dependency order is:
 9. [#25: test(acceptance): collapse raw-QEMU test orchestration](https://github.com/LevitateOS/soda-os/issues/25) around the resulting outcomes
 10. [#39: architecture(control-plane): remove residual runtime infrastructure](https://github.com/LevitateOS/soda-os/issues/39) as the capstone
 
-At the current implementation checkpoint, #33, #37's initial-admin repository
-path, #35, #36, #32, #34, and the source-side #24 replacement are locally
-implemented. The protected #40 path, #24 installed toolset, and #38 fallback
-have native x86-64 evidence but still need current matching-native AArch64
-repetition. The later-primary portion of #37 is stopped at its explicit
-Forgejo password-verifier privilege decision. Issues #23, #25, and #39 remain
-substantive later milestones. These status facts do not let issue text redefine
-the outcomes above.
+At the current implementation checkpoint, #40, #33, #35, #36, #32, #34, #24,
+#23, and #39 are implemented, and their retained outcomes passed the final
+native x86-64 installed workflow. Issue #38's account-preserving fallback and
+#25's complete post-capstone runner have also passed on x86-64; matching-native
+AArch64 repetition remains their release-level gate. The later-primary portion
+of #37 remains stopped at its explicit Forgejo password-verifier privilege
+decision. These status facts do not let issue text redefine the outcomes above.
 
 Issue #33 owns stable primary identity, Linux-native account classification,
 and supported cascading human deletion. Issue #38 owns account behavior across

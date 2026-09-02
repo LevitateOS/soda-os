@@ -92,9 +92,9 @@ repository is left unchanged.
 
 Code-level verification covers administrator authorization, validation before
 deletion, process and account removal, catalog-last project deletion,
-primary-last human deletion, and failure behavior. Final installed coverage
-for the complete multi-user destructive and partial-failure scenarios is still
-incomplete.
+primary-last human deletion, and failure behavior. The complete multi-user and
+destructive-ordering scenarios have also passed on an installed native x86-64
+system; matching-native AArch64 repetition remains pending.
 
 One native x86-64 installation has exercised stock Cockpit authentication,
 its Fedora-owned administration pages, Projects discovery and setup, and

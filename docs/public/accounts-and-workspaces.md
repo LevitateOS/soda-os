@@ -115,9 +115,10 @@ placement, password-disabled workspace checks, and deletion ordering. A native
 x86-64 installation has demonstrated a real derived workspace, its home and
 SSH key labels, and a direct SSH command running as that workspace user.
 
-The latest full installed workflow has not yet been repeated on matching-native
-AArch64. Final installed acceptance coverage for multiple users and complete
-destructive and failure scenarios is also incomplete.
+The final native x86-64 workflow proved distinct Alice and Bob workspaces,
+direct access, local-data isolation, and ordered project and human deletion.
+The same complete installed workflow has not yet been repeated on
+matching-native AArch64.
 
 Later-created primary users can use Linux and Cockpit, but they cannot
 currently use the intended Forgejo PAM login. That unresolved limitation does

@@ -157,15 +157,12 @@ behavior; platform files select only inputs that genuinely differ. Every RPM,
 image, ISO, installation, inspection, and acceptance claim must be produced on
 matching-native hardware. Evidence from one sibling does not qualify the other.
 
-At historical implementation checkpoint `2d2a359`, a fresh native x86-64
-installation proved the protected installer, initial Linux and Forgejo
-administrator,
-Tailscale enrollment and credential deletion, stock Cockpit, Projects setup,
-direct workspace SSH, immutable toolset, rootless Podman, obsolete-state
-absence and exact installed image digest together. That installed image still
-contained the now-deleted residual Health RPC. The post-control-plane source
-and package boundary is implemented at `75206ec`; its complete installed
-x86-64 and matching-native AArch64 evidence remains pending. The current
-protected installer and full installed-product path still require
-matching-native AArch64 repetition. Final multi-user destructive scenarios and
-the post-residual-control-plane acceptance run also remain outstanding.
+At implementation checkpoint `3df4431`, a fresh native x86-64 installation
+proved the protected installer, initial Linux and Forgejo administrator,
+Tailscale enrollment and credential deletion, stock Cockpit, Projects,
+multi-user workspace isolation, direct SSH/SCP/SFTP, destructive ordering,
+immutable tools, rootless Podman, exact installed image digest, and installed
+absence of the deleted runtime control plane. Native B→A→B selection between
+two post-control-plane images preserved current mutable state. Matching-native
+AArch64 must repeat this final workflow before release-level architecture and
+acceptance completion; x86-64 evidence does not qualify the sibling.

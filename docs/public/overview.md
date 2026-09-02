@@ -101,12 +101,13 @@ Soda OS is pre-release. The current Fedora 44 bootc image definitions cover
 x86-64 and AArch64 as equal product targets, but there is no public release or
 production update channel to install from.
 
-One fresh installation on native x86-64 has exercised the complete installed
-path: protected installer input, the initial Linux and Forgejo administrator,
-Tailnet enrollment, stock Cockpit, Projects, workspace setup, direct SSH, the
-installed development toolset, rootless Podman, and the exact installed image.
-Native x86-64 image selection to an earlier image and forward again has also
-preserved current mutable state.
+One fresh installation on native x86-64 has exercised the complete final
+installed path: protected installer input, the initial Linux and Forgejo
+administrator, Tailnet enrollment, stock Cockpit, Projects, separate Alice and
+Bob workspaces, direct SSH/SCP/SFTP, destructive ordering, the installed
+development toolset, rootless Podman, the exact installed image, and absence of
+the deleted Soda control plane. Native B→A→B selection between two
+post-control-plane images also preserved current mutable state.
 
 Matching-native AArch64 construction, installation, and installed-product
 evidence for the same current path are still pending. Evidence from x86-64 does
@@ -118,10 +119,9 @@ to use; enabling the current pinned Forgejo process to verify Linux passwords
 still requires an unresolved privilege decision. The installer-created first
 Forgejo administrator does work.
 
-Final installed coverage for the complete multi-user destructive and failure
-scenarios is incomplete. Individual catalog, workspace, credential, and
-deletion rules have code-level coverage, but that is not a substitute for the
-final installed-system evidence.
+The complete multi-user, destructive-ordering, and native-failure scenarios
+have installed x86-64 evidence. Matching-native AArch64 repetition remains the
+final architecture-level acceptance gate.
 
 Soda ships no runtime daemon, general control CLI, local control socket, or API.
 Stock Cockpit and ordinary Linux tools expose native host status.

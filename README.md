@@ -37,17 +37,17 @@ toolset slice has also removed Soda telemetry and runtime toolchain management.
 The final control-plane deletion removed Soda's runtime daemon, general CLI,
 local control socket, and protobuf/gRPC API without introducing a replacement.
 
-At historical implementation snapshot `2d2a359`, one fresh native x86-64
-installation of the protected OEMDRV and stock-Anaconda path passed the initial administrator,
-Forgejo, Tailscale, stock Cockpit, Projects, direct workspace SSH, immutable
-toolset, rootless Podman, obsolete-state absence, and installed-digest checks.
-Native x86-64 A→B→A→B image selection also preserved current mutable state.
-The current protected installer and fallback still require matching-native
-AArch64 installed-system evidence before release-level completion. The
-post-control-plane source and package boundary is implemented at `75206ec`;
-its final installed-system acceptance remains to be recorded. Initial
-Forgejo administration works; later-primary Forgejo PAM login remains disabled
-until its password-verifier privilege boundary receives an explicit decision.
+At implementation checkpoint `3df4431`, one fresh native x86-64 installation
+passed the complete post-reset workflow: protected OEMDRV and stock Anaconda,
+the initial Linux and Forgejo administrator, Tailscale, stock Cockpit, Projects,
+multi-user workspace isolation, direct SSH/SCP/SFTP, destructive ordering,
+immutable tools, rootless Podman, exact installed digest, and absence of the
+deleted runtime control plane. Native x86-64 B→A→B selection between two
+post-control-plane images also preserved current mutable state. The same final
+workflow still requires matching-native AArch64 evidence before release-level
+completion. Initial Forgejo administration works; later-primary Forgejo PAM
+login remains disabled until its password-verifier privilege boundary receives
+an explicit decision.
 
 This repository is independent from LevitateOS. It borrows the separation
 between declarative distro specifications, Go orchestration, explicit

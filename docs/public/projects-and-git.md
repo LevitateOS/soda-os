@@ -119,6 +119,6 @@ Linux credentials.
 Code-level verification covers exact three-field catalog storage, edits that
 affect only future setup, one-user workspace creation, credential boundaries,
 native empty repository ownership, setup-versus-removal coordination, and
-catalog-last deletion. Final installed multi-user destructive and failure
-coverage remains incomplete, and the complete installed path still needs
+catalog-last deletion. The complete multi-user, destructive-ordering, and
+native-failure workflow has passed on installed x86-64 and still needs
 matching-native AArch64 verification.
