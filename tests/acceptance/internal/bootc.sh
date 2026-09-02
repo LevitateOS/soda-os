@@ -1526,6 +1526,16 @@ EOF
 emit_generic_delete() {
 	cat <<'EOF'
 test "$(id -u)" -eq 0
+uid=$(id -u dana)
+/usr/bin/loginctl terminate-user dana
+deadline=$(( $(date +%s) + 10 ))
+while /usr/bin/pgrep -u "$uid" >/dev/null 2>&1; do
+	[ "$(date +%s)" -lt "$deadline" ] || {
+		echo "Dana still owns processes after native logind termination" >&2
+		exit 1
+	}
+	sleep 1
+done
 /usr/sbin/userdel --remove -- dana
 ! getent passwd dana >/dev/null
 test ! -e /home/dana
