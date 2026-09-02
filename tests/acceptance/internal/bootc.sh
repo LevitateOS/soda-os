@@ -1491,7 +1491,11 @@ primary_project_request() {
 	username=$1
 	action=$2
 	request=$3
-	printf '%s\n' "$request" | admin_ssh "/usr/sbin/runuser --user '$username' -- /usr/libexec/soda/soda-projects '$action'"
+	credentials=$(password_file)
+	{
+		cat "$credentials"
+		printf '%s\n' "$request"
+	} | admin_ssh "sudo -k -S -p '' /usr/sbin/runuser --user '$username' -- /usr/libexec/soda/soda-projects '$action'"
 }
 
 emit_product_accounts() {
