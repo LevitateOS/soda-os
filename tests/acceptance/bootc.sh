@@ -670,6 +670,27 @@ echo "soda-tailscale-enroll.service=disabled"
 SODA_INSTALLER_PROVISIONING_ABSENCE
 }
 
+emit_home_context_check() {
+	cat <<'SODA_HOME_CONTEXT_CHECK'
+set -eu
+
+username=$(id -un)
+physical_home=$(readlink -f "$HOME")
+test "$physical_home" = "/var/home/$username"
+context_type() {
+	stat -c %C "$1" | cut -d: -f3
+}
+home_type=$(context_type "$physical_home")
+ssh_type=$(context_type "$physical_home/.ssh")
+key_type=$(context_type "$physical_home/.ssh/authorized_keys")
+test "$home_type" = user_home_dir_t
+test "$ssh_type" = ssh_home_t
+test "$key_type" = ssh_home_t
+printf 'physical-home=%s\nhome-type=%s\nssh-type=%s\nkey-type=%s\n' \
+	"$physical_home" "$home_type" "$ssh_type" "$key_type"
+SODA_HOME_CONTEXT_CHECK
+}
+
 capture() {
 	name=${1:-}
 	valid_name "$name" || die "capture requires a lowercase name containing only letters, digits, and hyphens"
@@ -805,9 +826,13 @@ capture() {
 	' >"$checkpoint/guest.txt" 2>"$checkpoint/guest.stderr"
 	emit_toolset_smoke | admin_ssh /bin/sh -s \
 		>"$checkpoint/primary-toolset.txt" 2>"$checkpoint/primary-toolset.stderr"
+	emit_home_context_check | admin_ssh /bin/sh -s \
+		>"$checkpoint/primary-home-contexts.txt" 2>"$checkpoint/primary-home-contexts.stderr"
 	if [ "$verify_workspace_toolset" = 1 ]; then
 		emit_toolset_smoke | workspace_ssh /bin/sh -s \
 			>"$checkpoint/workspace-toolset.txt" 2>"$checkpoint/workspace-toolset.stderr"
+		emit_home_context_check | workspace_ssh /bin/sh -s \
+			>"$checkpoint/workspace-home-contexts.txt" 2>"$checkpoint/workspace-home-contexts.stderr"
 	fi
 	if [ -n "$password_file" ]; then
 		run_privileged_script emit_installer_provisioning_absence \

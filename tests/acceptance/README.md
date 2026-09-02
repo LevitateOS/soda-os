@@ -72,6 +72,12 @@ standard `~/.ssh/authorized_keys`. Post-install checks use the enrolled
 MagicDNS identity over the Tailnet. QEMU host forwards are test plumbing only,
 not product exposure.
 
+Installed capture resolves each tested account's logical home to its physical
+`/var/home/<username>` directory and records the actual SELinux types. The
+primary administrator—and the derived workspace when workspace verification is
+enabled—must have `user_home_dir_t` on the home and `ssh_home_t` on `.ssh` and
+`authorized_keys`.
+
 Installed capture fails if saved input or output Kickstart, transient installer
 state, installer-only hooks, legacy custom installer-extension paths, or the
 one-use Tailscale credential remains. It also requires the enrollment unit to

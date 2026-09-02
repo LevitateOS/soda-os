@@ -85,6 +85,12 @@ func TestInstallerOnlyExecutablesAreFixedAndParse(t *testing.T) {
 		`SSH_KEY_FILE = "administrator-authorized-key"`,
 		`Path("/proc/self/mountinfo")`,
 		`mountpoint = str(target_var)`,
+		`def _restore_installed_linux_account_contexts(username):`,
+		`not logical_home.samefile(physical_home)`,
+		`"/usr/sbin/restorecon",`,
+		`"/usr/sbin/matchpathcon",`,
+		`"-V",`,
+		`f"/var/home/{username}"`,
 		`def _bind_target_mount(source, relative_target):`,
 		`mounted_dev = _bind_target_mount("/dev", "dev")`,
 		`mounted_proc = _bind_target_mount("/proc", "proc")`,
@@ -96,12 +102,14 @@ func TestInstallerOnlyExecutablesAreFixedAndParse(t *testing.T) {
 		require.Contains(t, finalizer, expected)
 	}
 	for _, forbidden := range []string{
-		"pyanaconda", "dasbus", "Gtk", "ostree/deploy", "setfiles", "restorecon",
+		"pyanaconda", "dasbus", "Gtk", "ostree/deploy", "setfiles", "semanage",
 		`["/usr/bin/mount", "--bind", str(persistent_var)`,
 		"installer-admin.json", "if (target / probe).exists()",
 	} {
 		require.NotContains(t, input+finalizer, forbidden)
 	}
+	require.Equal(t, 1, strings.Count(finalizer, `"/usr/sbin/restorecon"`))
+	require.Equal(t, 1, strings.Count(finalizer, `"/usr/sbin/matchpathcon"`))
 	require.NotContains(t, finalizer, "--password")
 }
 

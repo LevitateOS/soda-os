@@ -273,6 +273,72 @@ class InstallerExecutableTests(unittest.TestCase):
                         "soda-test", canonical_key
                     )
 
+    def test_installed_linux_account_contexts_use_validated_physical_home(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            sysroot = pathlib.Path(temporary) / "sysroot"
+            physical_home = sysroot / "var/home/soda-test"
+            physical_home.mkdir(parents=True)
+            (sysroot / "home").symlink_to("var/home", target_is_directory=True)
+            completed = types.SimpleNamespace(returncode=0)
+
+            with (
+                mock.patch.object(self.finalizer, "SYSROOT", sysroot),
+                mock.patch.object(
+                    self.finalizer.subprocess, "run", return_value=completed
+                ) as run,
+            ):
+                self.finalizer._restore_installed_linux_account_contexts(
+                    "soda-test"
+                )
+
+            self.assertEqual(
+                [call.args[0] for call in run.call_args_list],
+                [
+                    [
+                        "/usr/sbin/chroot",
+                        str(sysroot),
+                        "/usr/sbin/restorecon",
+                        "-RF",
+                        "/var/home/soda-test",
+                    ],
+                    [
+                        "/usr/sbin/chroot",
+                        str(sysroot),
+                        "/usr/sbin/matchpathcon",
+                        "-V",
+                        "/var/home/soda-test",
+                        "/var/home/soda-test/.ssh",
+                        "/var/home/soda-test/.ssh/authorized_keys",
+                    ],
+                ],
+            )
+            for call in run.call_args_list:
+                self.assertEqual(call.kwargs["stdin"], subprocess.DEVNULL)
+                self.assertEqual(call.kwargs["stdout"], subprocess.DEVNULL)
+                self.assertEqual(call.kwargs["stderr"], subprocess.DEVNULL)
+                self.assertFalse(call.kwargs["check"])
+
+            failed = types.SimpleNamespace(returncode=1)
+            for results in ([failed], [completed, failed]):
+                with (
+                    mock.patch.object(self.finalizer, "SYSROOT", sysroot),
+                    mock.patch.object(
+                        self.finalizer.subprocess, "run", side_effect=results
+                    ),
+                ):
+                    with self.assertRaisesRegex(RuntimeError, "SELinux contexts"):
+                        self.finalizer._restore_installed_linux_account_contexts(
+                            "soda-test"
+                        )
+
+            physical_home.rename(sysroot / "var/home/real-soda-test")
+            physical_home.symlink_to("real-soda-test", target_is_directory=True)
+            with mock.patch.object(self.finalizer, "SYSROOT", sysroot):
+                with self.assertRaisesRegex(RuntimeError, "physical path"):
+                    self.finalizer._restore_installed_linux_account_contexts(
+                        "soda-test"
+                    )
+
     def test_tailscale_handoff_is_atomic_and_mode_restricted(self):
         with tempfile.TemporaryDirectory() as temporary:
             sysroot = pathlib.Path(temporary) / "sysroot"
