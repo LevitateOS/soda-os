@@ -105,7 +105,7 @@ func TestBuilderBunAndTeaInputsRemainPinned(t *testing.T) {
 	require.NotContains(t, string(teaFetcher), `latest`)
 	buildSource, err := os.ReadFile(filepath.Join(root, "internal", "build", "image", "rpm.go"))
 	require.NoError(t, err)
-	require.Contains(t, string(buildSource), `"GOFLAGS=-buildvcs=false"`)
+	require.Contains(t, string(buildSource), `make BUILDMODE=-buildvcs=false build`)
 
 	justfile, err := os.ReadFile(filepath.Join(root, "justfile"))
 	require.NoError(t, err)

@@ -151,7 +151,7 @@ func (b *Builder) buildTea(ctx context.Context) error {
 		"cd /src/.artifacts/build/tea-source",
 		"git apply --unidiff-zero /src/packaging/rpm/tea/sources/0001-secret-safe-deterministic-login.patch",
 		"go test ./cmd/login ./modules/task ./modules/config",
-		"TEA_VERSION=" + lock.Version + " make build",
+		"TEA_VERSION=" + lock.Version + " make BUILDMODE=-buildvcs=false build",
 		"install -m 0755 tea /src/.artifacts/build/tea",
 		"/src/.artifacts/build/tea --version | grep -F '" + lock.Version + "'",
 		"/src/.artifacts/build/tea logins add --help | grep -F -- '--password-stdin'",
@@ -159,7 +159,6 @@ func (b *Builder) buildTea(ctx context.Context) error {
 	}, "\n")
 	return b.docker(ctx, []string{
 		"CGO_ENABLED=0",
-		"GOFLAGS=-buildvcs=false",
 		"GOCACHE=/src/.artifacts/build/tea-go-cache",
 		"GOTMPDIR=/src/.artifacts/build/tea-go-tmp",
 		"SOURCE_DATE_EPOCH=" + fmt.Sprint(b.Spec.Build.SourceDateEpoch),
