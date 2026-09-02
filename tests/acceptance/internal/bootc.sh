@@ -884,6 +884,9 @@ capture() {
 /usr/share/licenses/soda-tea/LICENSE"
 		test "$(rpm -ql soda-tea)" = "$expected_tea_files"
 		echo "soda-tea-ownership=executable-and-license-only"
+		test "$(stat -c %a "$HOME/.config/tea/config.yml")" = 600
+		tea api --login soda user | jq -e --arg username "$(id -un)" '.login == $username' >/dev/null
+		echo "installer-administrator-tea-login=verified"
 		for path in /etc/gh /var/lib/gh /etc/soda/gh /var/lib/soda/gh /etc/tea /var/lib/tea /etc/soda/tea /var/lib/soda/tea; do
 			if test -e "$path"; then
 				echo "unexpected-forge-cli-state=$path"
@@ -1068,6 +1071,59 @@ project_request() {
 	esac
 }
 
+add_person_request() {
+	username=$1
+	printf '%s\n' "$username" | LC_ALL=C grep -Eq '^[a-z][a-z0-9-]{0,23}$' || die "invalid person fixture username"
+	fixture=$(later_primary_password_file)
+	need_file "$admin_key.pub"
+	jq -cn --rawfile password "$fixture" --rawfile authorized_key "$admin_key.pub" --arg username "$username" \
+		'{username:$username,password:($password|gsub("[\\r\\n]+$";"")),authorized_key:($authorized_key|gsub("[\\r\\n]+$";""))}' |
+		admin_ssh /usr/libexec/soda/soda-projects add-person
+}
+
+primary_ssh() {
+	username=$1
+	shift
+	need_file "$(known_hosts_path)"
+	ssh -T -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
+		-o "UserKnownHostsFile=$(known_hosts_path)" -i "$SODA_ACCEPTANCE_ADMIN_KEY" -p "$guest_ssh_port" \
+		"$username@$guest_host" "$@"
+}
+
+primary_tea_api() {
+	username=$1
+	endpoint=$2
+	payload=$3
+	printf '%s' "$payload" | primary_ssh "$username" /usr/bin/tea api --login soda --data @- "$endpoint"
+}
+
+exercise_tea_scopes() {
+	operations=$1
+	repository=tea-scope-smoke
+	primary_tea_api alice user/repos '{"name":"tea-scope-smoke","auto_init":true}' >"$operations/tea-repository.json"
+	base=$(jq -er '.default_branch | select(test("^[A-Za-z0-9._/-]+$"))' "$operations/tea-repository.json")
+	jq -e '.name == "tea-scope-smoke" and .owner.login == "alice"' "$operations/tea-repository.json" >/dev/null
+
+	branch_payload=$(jq -cn --arg base "$base" '{new_branch_name:"tea-scope-proof",old_branch_name:$base}')
+	primary_tea_api alice "repos/alice/$repository/branches" "$branch_payload" >"$operations/tea-branch.json"
+	primary_tea_api alice "repos/alice/$repository/contents/proof.txt" \
+		'{"branch":"tea-scope-proof","content":"U29kYSBUZWEgc2NvcGUgcHJvb2YK","message":"add Tea scope proof"}' \
+		>"$operations/tea-content.json"
+	primary_tea_api alice "repos/alice/$repository/issues" \
+		'{"title":"Tea issue scope proof","body":"native user-owned Tea authentication"}' \
+		>"$operations/tea-issue.json"
+	pull_payload=$(jq -cn --arg base "$base" '{title:"Tea pull request scope proof",head:"tea-scope-proof",base:$base}')
+	primary_tea_api alice "repos/alice/$repository/pulls" "$pull_payload" >"$operations/tea-pull.json"
+	release_payload=$(jq -cn --arg base "$base" \
+		'{tag_name:"tea-scope-v1",target_commitish:$base,name:"Tea release scope proof"}')
+	primary_tea_api alice "repos/alice/$repository/releases" "$release_payload" >"$operations/tea-release.json"
+	jq -e '.name == "tea-scope-proof"' "$operations/tea-branch.json" >/dev/null
+	jq -e '.content.name == "proof.txt"' "$operations/tea-content.json" >/dev/null
+	jq -e '.number > 0' "$operations/tea-issue.json" >/dev/null
+	jq -e '.number > 0' "$operations/tea-pull.json" >/dev/null
+	jq -e '.tag_name == "tea-scope-v1"' "$operations/tea-release.json" >/dev/null
+}
+
 emit_seed_accounts() {
 	cat <<'EOF'
 test "$(id -u)" -eq 0
@@ -1082,12 +1138,14 @@ for username in alice obsolete bob; do
 	! getent passwd "$username" >/dev/null
 done
 
+EOF
+}
+
+emit_seed_account_files() {
+	cat <<'EOF'
+test "$(id -u)" -eq 0
 for username in alice obsolete; do
-	/usr/sbin/useradd --create-home --user-group --shell /bin/bash -- "$username"
 	home=$(getent passwd "$username" | cut -d: -f6)
-	group=$(id -gn "$username")
-	install -d -m 0700 -o "$username" -g "$group" "$home/.ssh"
-	install -m 0600 -o "$username" -g "$group" /home/soda-test/.ssh/authorized_keys "$home/.ssh/authorized_keys"
 	/usr/sbin/runuser --user "$username" -- /usr/bin/env HOME="$home" STATE="$username" /bin/sh -c \
 		' umask 077; printf "seed-a:%s\n" "$STATE" >"$HOME/soda-acceptance-state.txt" '
 	restorecon -RF "$home"
@@ -1100,23 +1158,24 @@ EOF
 
 exercise_seed_forgejo_pam() {
 	operations=$1
-	[ "$(forgejo_user_status alice)" = 404 ] || die "Alice already exists in Forgejo before PAM login"
 	forgejo_pam_request alice wrong 401 "$operations/alice-forgejo-wrong-password.json"
-	[ "$(forgejo_user_status alice)" = 404 ] || die "failed PAM login created Alice in Forgejo"
-	set_fixture_password alice
-	set_fixture_password obsolete
 	forgejo_pam_request alice correct 200 "$operations/alice-forgejo-login.json"
 	jq -e '.login == "alice" and .active == true and .is_admin == false' \
 		"$operations/alice-forgejo-login.json" >/dev/null || die "Alice did not become an ordinary native Forgejo user"
 	forgejo_pam_request obsolete correct 200 "$operations/obsolete-forgejo-login.json"
 	jq -e '.login == "obsolete" and .active == true and .is_admin == false' \
 		"$operations/obsolete-forgejo-login.json" >/dev/null || die "obsolete fixture did not become an ordinary native Forgejo user"
+	for username in alice obsolete; do
+		primary_ssh "$username" 'test "$(stat -c %a "$HOME/.config/tea/config.yml")" = 600; tea api --login soda user' \
+			>"$operations/$username-tea-user.json"
+		jq -e --arg username "$username" '.login == $username' "$operations/$username-tea-user.json" >/dev/null ||
+			die "$username Tea login has the wrong identity"
+	done
+	run_privileged_script emit_verify_pam_verifiers >"$operations/pam-verifiers.txt"
 }
 
 exercise_mutated_forgejo_pam() {
 	operations=$1
-	set_fixture_password alice
-	set_fixture_password bob
 	forgejo_pam_request alice correct 200 "$operations/alice-forgejo-wheel-login.json"
 	jq -e '.login == "alice" and .active == true and .is_admin == false' \
 		"$operations/alice-forgejo-wheel-login.json" >/dev/null || die "wheel changed Alice's Forgejo role"
@@ -1124,6 +1183,26 @@ exercise_mutated_forgejo_pam() {
 	jq -e '.login == "bob" and .active == true and .is_admin == false' \
 		"$operations/bob-forgejo-login.json" >/dev/null || die "Bob did not become an ordinary native Forgejo user"
 	[ "$(forgejo_user_status obsolete)" = 200 ] || die "Linux deletion removed the obsolete native Forgejo user"
+	primary_ssh bob 'tea api --login soda user' >"$operations/bob-tea-user.json"
+	jq -e '.login == "bob"' "$operations/bob-tea-user.json" >/dev/null || die "Bob Tea login has the wrong identity"
+	run_privileged_script emit_verify_pam_verifiers >"$operations/mutated-pam-verifiers.txt"
+}
+
+emit_verify_pam_verifiers() {
+	cat <<'EOF'
+test "$(id -u)" -eq 0
+for username in alice obsolete bob; do
+	if getent passwd "$username" >/dev/null || test "$username" = obsolete; then
+		row=$(sqlite3 /var/lib/forgejo/data/forgejo.db \
+			"select count(*) || ':' || sum(case when passwd = '' and salt = '' and passwd_hash_algo = '' then 1 else 0 end) from user where lower_name = '$username' and login_type = 4;")
+		test "$row" = 1:1
+	fi
+done
+admin_verifier=$(sqlite3 /var/lib/forgejo/data/forgejo.db "select passwd from user where lower_name = 'soda-test' and is_admin = 1;")
+test -n "$admin_verifier"
+echo "pam-local-verifiers=absent"
+echo "installer-admin-local-verifier=present"
+EOF
 }
 
 emit_seed_workspace_files() {
@@ -1154,6 +1233,10 @@ fallback_seed_a() {
 	operations=$(fallback_operations_dir)
 	[ ! -e "$operations/seed-a.complete" ] || die "fallback seed-a has already completed"
 	run_privileged_script emit_seed_accounts >"$operations/seed-a-accounts.txt"
+	add_person_request alice >"$operations/seed-a-alice-add.json"
+	add_person_request obsolete >"$operations/seed-a-obsolete-add.json"
+	run_privileged_script emit_seed_account_files >"$operations/seed-a-account-files.txt"
+	exercise_seed_forgejo_pam "$operations"
 	for project in kept removed; do
 		case "$project" in kept) display_name=Kept ;; removed) display_name=Removed ;; esac
 		project_password_request create-forgejo "$project" "$display_name" >"$operations/seed-a-$project-create.json"
@@ -1176,6 +1259,9 @@ fallback_seed_b() {
 	operations=$(fallback_operations_dir)
 	[ ! -e "$operations/seed-b.complete" ] || die "fallback seed-b has already completed"
 	run_privileged_script emit_seed_accounts >"$operations/seed-b-accounts.txt"
+	add_person_request alice >"$operations/seed-b-alice-add.json"
+	add_person_request obsolete >"$operations/seed-b-obsolete-add.json"
+	run_privileged_script emit_seed_account_files >"$operations/seed-b-account-files.txt"
 	exercise_seed_forgejo_pam "$operations"
 	for project in kept removed; do
 		case "$project" in kept) display_name=Kept ;; removed) display_name=Removed ;; esac
@@ -1183,6 +1269,7 @@ fallback_seed_b() {
 		project_password_request setup "$project" "" >"$operations/seed-b-$project-setup.json"
 	done
 	run_privileged_script emit_seed_workspace_files >"$operations/seed-b-workspaces.txt"
+	add_person_request bob >"$operations/seed-b-bob-add.json"
 	run_privileged_script emit_mutate_accounts >"$operations/seed-b-current-accounts.txt"
 	exercise_mutated_forgejo_pam "$operations"
 	kept_url=$(admin_ssh "jq -er '.[] | select(.id == \"kept\") | .canonical_url' /var/lib/soda/catalog/projects.json")
@@ -1300,14 +1387,10 @@ emit_mutate_accounts() {
 test "$(id -u)" -eq 0
 getent passwd alice >/dev/null
 getent passwd obsolete >/dev/null
-! getent passwd bob >/dev/null
+getent passwd bob >/dev/null
 /usr/sbin/usermod --append --groups wheel -- alice
 
-/usr/sbin/useradd --create-home --user-group --shell /bin/bash -- bob
 bob_home=$(getent passwd bob | cut -d: -f6)
-bob_group=$(id -gn bob)
-install -d -m 0700 -o bob -g "$bob_group" "$bob_home/.ssh"
-install -m 0600 -o bob -g "$bob_group" /home/soda-test/.ssh/authorized_keys "$bob_home/.ssh/authorized_keys"
 /usr/sbin/runuser --user bob -- /usr/bin/env HOME="$bob_home" /bin/sh -c \
 	' umask 077; printf "mutate-b:bob\n" >"$HOME/soda-acceptance-state.txt" '
 restorecon -RF "$bob_home"
@@ -1345,6 +1428,7 @@ fallback_mutate_b() {
 	need_file "$(fallback_root)/b-updated/manifest.json"
 	fallback_compare a-installed b-updated
 	[ ! -e "$operations/mutate-b.complete" ] || die "fallback mutate-b has already completed"
+	add_person_request bob >"$operations/mutate-b-bob-add.json"
 	run_privileged_script emit_mutate_accounts >"$operations/mutate-b-accounts.txt"
 	kept_url=$(admin_ssh "jq -er '.[] | select(.id == \"kept\") | .canonical_url' /var/lib/soda/catalog/projects.json")
 	jq -cn --arg id kept --arg display_name 'Kept after B' --arg canonical_url "$kept_url" \
@@ -1701,15 +1785,15 @@ emit_product_accounts() {
 test "$(id -u)" -eq 0
 for username in nokey charlie dana; do
 	! getent passwd "$username" >/dev/null
-	/usr/sbin/useradd --create-home --user-group --shell /bin/bash -- "$username"
 done
-for username in nokey charlie dana; do
-	home=$(getent passwd "$username" | cut -d: -f6)
-	group=$(id -gn "$username")
-	install -d -m 0700 -o "$username" -g "$group" "$home/.ssh"
-	install -m 0600 -o "$username" -g "$group" /home/soda-test/.ssh/authorized_keys "$home/.ssh/authorized_keys"
-	restorecon -RF "$home"
-done
+EOF
+}
+
+emit_remove_keyless_fixture_key() {
+	cat <<'EOF'
+test "$(id -u)" -eq 0
+test -f /home/nokey/.ssh/authorized_keys
+rm -- /home/nokey/.ssh/authorized_keys
 EOF
 }
 
@@ -1795,6 +1879,7 @@ scenario_product() {
 	kept_workspace=$(project_workspace kept)
 	forgejo_pam_request "$kept_workspace" wrong 401 "$operations/workspace-forgejo-login.json"
 	[ "$(forgejo_user_status "$kept_workspace")" = 404 ] || die "workspace PAM attempt created a Forgejo user"
+	exercise_tea_scopes "$operations"
 
 	# The installed catalog is the exact sorted three-field product fact.
 	admin_ssh 'cat /var/lib/soda/catalog/projects.json' >"$operations/catalog-before.json"
@@ -1816,7 +1901,11 @@ scenario_product() {
 		>"$operations/cockpit-workspace.status"
 	[ "$(cat "$operations/cockpit-workspace.status")" = 401 ] || die "workspace Cockpit authentication was not rejected"
 
-	run_privileged_script emit_product_accounts >"$operations/accounts.txt"
+	run_privileged_script emit_product_accounts >"$operations/accounts-preflight.txt"
+	for username in nokey charlie dana; do
+		add_person_request "$username" >"$operations/$username-add.json"
+	done
+	run_privileged_script emit_remove_keyless_fixture_key >"$operations/nokey-remove-key.txt"
 	# Missing standard keys must fail before creating a derived account.
 	if missing_key_project_request '{"id":"kept","git_username":"","git_password":""}' \
 		>"$operations/missing-key.stdout" 2>"$operations/missing-key.stderr"; then
@@ -1837,6 +1926,19 @@ scenario_product() {
 		printf '%s\n' "$workspace" | LC_ALL=C grep -Eq '^soda-w-[0-9a-f]{24}$' || die "invalid workspace username"
 		fallback_workspace_ssh "$workspace" 'test "$(id -u)" -eq "$(stat -c %u "$HOME")"; test -d "$HOME/Projects/kept/.git"; printf "%s\n" "$(id -un):$(id -u):$HOME"'
 	done >"$operations/workspace-identities.txt"
+	for association in "alice:$alice_workspace" "bob:$bob_workspace"; do
+		primary=${association%%:*}
+		workspace=${association#*:}
+		primary_hash=$(primary_ssh "$primary" 'sha256sum "$HOME/.config/tea/config.yml" | cut -d" " -f1')
+		workspace_hash=$(fallback_workspace_ssh "$workspace" 'sha256sum "$HOME/.config/tea/config.yml" | cut -d" " -f1')
+		[ "$primary_hash" = "$workspace_hash" ] || die "$primary Tea configuration was not copied opaquely"
+		fallback_workspace_ssh "$workspace" 'tea api --login soda user' >"$operations/$primary-workspace-tea.json"
+		jq -e --arg primary "$primary" '.login == $primary' "$operations/$primary-workspace-tea.json" >/dev/null ||
+			die "$primary workspace Tea login has the wrong identity"
+	done
+	[ "$(primary_ssh alice 'sha256sum "$HOME/.config/tea/config.yml" | cut -d" " -f1')" != \
+	  "$(primary_ssh bob 'sha256sum "$HOME/.config/tea/config.yml" | cut -d" " -f1')" ] ||
+		die "Alice and Bob unexpectedly share one Tea configuration"
 	[ "$(fallback_workspace_ssh "$alice_workspace" 'id -u')" != "$(fallback_workspace_ssh "$bob_workspace" 'id -u')" ] ||
 		die "two humans received the same workspace UID"
 	fallback_workspace_ssh "$alice_workspace" 'printf alice-private >"$HOME/Projects/kept/alice-private.txt"; nohup sleep 300 </dev/null > /dev/null 2>&1 & echo $! >"$HOME/alice-process.pid"'
