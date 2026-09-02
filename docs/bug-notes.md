@@ -614,6 +614,90 @@ The SELinuxFS defect does not justify bringing back the add-on or replacing
 Anaconda wholesale. Patch the smallest verified upstream seam, guard it against
 version drift, and delete the patch when Fedora carries the fix.
 
+## 2026-09-02: a global tmpfiles failure silently removed Forgejo PAM access
+
+### Expected outcome
+
+The installed image grants only the Forgejo service process read access to
+`/etc/shadow`: the file is `root:soda-forgejo-shadow` mode `0040`, the `git`
+account is not an NSS member of that group, and `forgejo.service` receives the
+group through `SupplementaryGroups`. A later primary user should then be able
+to authenticate through Forgejo's native PAM source while a workspace account
+remains rejected.
+
+### Exact artifact and environment
+
+The failure was reproduced on the native x86-64 image built from candidate B
+commit `c3d296e` in a fresh disposable raw-QEMU installation. SELinux was
+enforcing and the service process had the expected supplementary group.
+
+### What happened
+
+Wrong-password authentication correctly returned HTTP 401, but the correct
+Linux password also returned 401. The installed `/etc/shadow` was
+`root:soda-forgejo-shadow` mode `0000`, and PAM's password check reported an
+unknown user.
+
+### Last passed boundary
+
+The image contained the dedicated group, the service-only supplementary-group
+grant, the intended PAM stack, and the named tmpfiles rule. Forgejo ran in its
+expected SELinux domain, and no matching AVC denial was recorded.
+
+### First failed boundary
+
+The intended tmpfiles side effect had not occurred. The global
+`systemd-tmpfiles-setup.service` exited with status 73 on an unrelated rule for
+the immutable `/usr/local/sbin` path before the installed system reached the
+required shadow-file mode.
+
+### Direct evidence
+
+Running `systemd-tmpfiles --create forgejo.conf` on the disposable installed
+machine changed only the intended rule and restored `/etc/shadow` mode `0040`.
+The same protected correct-password request then returned HTTP 200 and Forgejo
+created one active, non-administrator Alice user. Subsequent `useradd`,
+`chpasswd`, password locking, and `userdel` probes preserved the group and
+mode.
+
+### Root cause and ownership
+
+The package described its required privilege through tmpfiles but relied on
+the success of the system-wide tmpfiles pass. A failure in an unrelated rule
+therefore prevented Forgejo's package-owned precondition. Linux/PAM still own
+password verification; Soda owns only composition of the explicitly authorized
+service privilege.
+
+### Smallest correction
+
+The existing root-owned `forgejo-init.service` now runs
+`systemd-tmpfiles --create forgejo.conf` before its existing initialization and
+before `forgejo.service`. This reuses the package's single declarative rule and
+existing ordering boundary. It adds no daemon, service, executable, identity
+state, verifier copy, credential path, or generic privilege mechanism.
+
+### Rejected broader fixes
+
+Do not add `git` permanently to a shadow-reading NSS group, add a password
+helper or broker, copy shadow records, disable SELinux, make Forgejo unconfined,
+or attempt to make Soda repair every global tmpfiles failure.
+
+### Verification status
+
+Focused image/package tests, both architecture source contracts, `just check`,
+and the native x86-64 A artifact build pass at commit `e0a0fa5`. The manual
+installed probe proves the corrected mechanism. The complete fresh x86-64
+B-to-A-to-B acceptance and matching-native AArch64 repetition remain required
+before release-level completion.
+
+### Rule we will reuse
+
+A declarative rule being present is not evidence that its side effect occurred.
+When a service requires one package-owned tmpfiles invariant, apply that named
+configuration at the existing service initialization boundary and verify the
+installed state directly; do not depend on unrelated global rules all
+succeeding.
+
 ## Checklist for the next installer investigation
 
 - [ ] Record commit, architecture, input hashes, and exact package versions.

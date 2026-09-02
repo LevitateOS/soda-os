@@ -581,10 +581,14 @@ native x86-64 installed workflow. Issue #38's account-preserving fallback and
 #25's complete post-capstone runner have also passed on x86-64. The remaining
 #37 path now uses an explicitly authorized, dedicated group to grant only the
 Forgejo service process read access to `/etc/shadow`; Linux/PAM remain password
-authority and the existing PAM classification rejects `soda-workspaces`.
-Focused source and package checks pass, while the complete post-#37 installed
-workflow remains to run on x86-64 and matching-native AArch64. These status
-facts do not let issue text redefine the outcomes above.
+authority and the existing PAM classification rejects `soda-workspaces`. The
+existing Forgejo initialization unit applies the package's one named tmpfiles
+rule before service startup, because installed evidence showed that an
+unrelated failure in the global tmpfiles pass could otherwise leave that
+authorized boundary unapplied. Focused source and package checks and the native
+x86-64 A artifact build pass, while the complete post-#37 installed workflow
+remains to run on x86-64 and matching-native AArch64. These status facts do not
+let issue text redefine the outcomes above.
 
 Issue #33 owns stable primary identity, Linux-native account classification,
 and supported cascading human deletion. Issue #38 owns account behavior across

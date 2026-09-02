@@ -153,9 +153,12 @@ in with their Linux username and password, after which Forgejo creates its own
 ordinary native user record. The authorized read boundary is limited to the
 Forgejo service process: `/etc/shadow` is `root:soda-forgejo-shadow` mode
 `0040`, the `git` account is not an NSS member of that dedicated group, and
-`forgejo.service` receives it through `SupplementaryGroups`. Linux account
-creation performs no Forgejo operation, and later `wheel` membership has no
-Forgejo effect. Derived workspace accounts are Linux-only development
+`forgejo.service` receives it through `SupplementaryGroups`. The existing
+root-owned Forgejo initialization unit applies only Forgejo's named tmpfiles
+configuration before service startup, so an unrelated failure in the global
+tmpfiles pass cannot silently remove the authorized read boundary. Linux
+account creation performs no Forgejo operation, and later `wheel` membership
+has no Forgejo effect. Derived workspace accounts are Linux-only development
 identities that use their installed authorized public keys for direct OpenSSH
 access; the shipped PAM account rule rejects the `soda-workspaces` group so
 they cannot become Forgejo users.
