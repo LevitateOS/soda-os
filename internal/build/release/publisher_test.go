@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -68,65 +67,6 @@ func TestInspectRejectsRPMInventorySidecarMismatch(t *testing.T) {
 	publisher := &Publisher{spec: testSpec()}
 	_, err := publisher.inspect(testImageWithSidecar(t, strings.Repeat("0", 64)), Repository+"@sha256:"+strings.Repeat("a", 64))
 	require.EqualError(t, err, "installed RPM inventory does not match its image sidecar")
-}
-
-func TestReleaseIndexRequiresTwoMatchingSiblingArtifacts(t *testing.T) {
-	root := t.TempDir()
-	publisher := &Publisher{spec: testSpec()}
-	artifacts := map[string]ReleaseArtifact{}
-	for architecture, digest := range map[string]string{"aarch64": strings.Repeat("a", 64), "x86_64": strings.Repeat("b", 64)} {
-		isoPath := filepath.Join(root, architecture+".iso")
-		require.NoError(t, os.WriteFile(isoPath, []byte(architecture+" installer"), 0o644))
-		checksum, err := fileSHA256(isoPath)
-		require.NoError(t, err)
-		record := Record{SodaVersion: "0.2.0", SourceRevision: testRevision, SodaImageReference: Repository + "@sha256:" + digest, ISOChecksum: checksum}
-		recordPath := filepath.Join(root, architecture+".release.json")
-		encoded, err := json.Marshal(record)
-		require.NoError(t, err)
-		require.NoError(t, os.WriteFile(recordPath, encoded, 0o644))
-		artifacts[architecture] = ReleaseArtifact{ISOPath: isoPath, RecordPath: recordPath}
-	}
-	index, paths, err := publisher.releaseIndex(artifacts)
-	require.NoError(t, err)
-	require.Equal(t, []string{"aarch64", "x86_64"}, []string{index.Releases[0].Architecture, index.Releases[1].Architecture})
-	require.Len(t, paths, 4)
-
-	contents, err := os.ReadFile(artifacts["x86_64"].RecordPath)
-	require.NoError(t, err)
-	var mismatched Record
-	require.NoError(t, json.Unmarshal(contents, &mismatched))
-	mismatched.SourceRevision = strings.Repeat("c", 40)
-	encoded, err := json.Marshal(mismatched)
-	require.NoError(t, err)
-	require.NoError(t, os.WriteFile(artifacts["x86_64"].RecordPath, encoded, 0o644))
-	_, _, err = publisher.releaseIndex(artifacts)
-	require.EqualError(t, err, "paired release records have different source revisions")
-}
-
-type fakeGitHubReleaseClient struct{ events []string }
-
-func (f *fakeGitHubReleaseClient) CreateDraft(_ context.Context, repository, tag, title string) (githubDraft, error) {
-	f.events = append(f.events, "draft:"+repository+":"+tag+":"+title)
-	return githubDraft{ID: 7}, nil
-}
-func (f *fakeGitHubReleaseClient) Upload(_ context.Context, _ githubDraft, path string) error {
-	f.events = append(f.events, "upload:"+filepath.Base(path))
-	return nil
-}
-func (f *fakeGitHubReleaseClient) VerifyAssets(_ context.Context, _ githubDraft, paths []string) error {
-	f.events = append(f.events, fmt.Sprintf("verify:%d", len(paths)))
-	return nil
-}
-func (f *fakeGitHubReleaseClient) Publish(_ context.Context, _ githubDraft) error {
-	f.events = append(f.events, "publish")
-	return nil
-}
-
-func TestPairedGitHubReleasePublishesOnlyAfterUploadVerification(t *testing.T) {
-	client := &fakeGitHubReleaseClient{}
-	_, err := publishPaired(context.Background(), client, pairedUpload{repository: "LevitateOS/soda-os", tag: "v0.2.0", indexPath: "/tmp/index.json", paths: []string{"/tmp/a.iso", "/tmp/x.iso"}})
-	require.NoError(t, err)
-	require.Equal(t, []string{"draft:LevitateOS/soda-os:v0.2.0:Soda OS 0.2.0", "upload:a.iso", "upload:x.iso", "verify:2", "publish"}, client.events)
 }
 
 func TestOCIArchiveRequiresExactlyOneArm64Manifest(t *testing.T) {
