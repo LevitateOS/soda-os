@@ -213,6 +213,8 @@ func TestAcceptanceExposesOnePublicWorkflow(t *testing.T) {
 		`fallback compare b-current b-restored`,
 		`scenario product`,
 		`capture final-pre-capstone`,
+		`registry_data=$work_dir/registry`,
+		`--volume "$registry_data:/var/lib/registry"`,
 	} {
 		require.Contains(t, runner, expected)
 	}

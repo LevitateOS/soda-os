@@ -248,6 +248,8 @@ run() {
 	password_file=$work_dir/admin-password
 	oemdrv=$work_dir/oemdrv.iso
 	disk=$work_dir/soda-system.qcow2
+	registry_data=$work_dir/registry
+	mkdir -p "$registry_data"
 	registry_port=${SODA_ACCEPTANCE_REGISTRY_PORT:-5001}
 	printf '%s\n' "$registry_port" | LC_ALL=C grep -Eq '^[0-9]{1,5}$' || die "registry port must be numeric"
 	[ "$registry_port" -ge 1 ] && [ "$registry_port" -le 65535 ] || die "registry port is outside the TCP range"
@@ -357,7 +359,8 @@ PY
 	)
 	protected_secret_file "$oemdrv" >/dev/null
 
-	host_docker run --detach --name "$registry_name" --publish "127.0.0.1:$registry_port:5000" "$registry_image" \
+	host_docker run --detach --name "$registry_name" --publish "127.0.0.1:$registry_port:5000" \
+		--volume "$registry_data:/var/lib/registry" "$registry_image" \
 		>"$evidence_dir/registry-container-id.txt"
 	registry_started=true
 	registry_deadline=$(( $(date +%s) + 30 ))
