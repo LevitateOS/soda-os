@@ -196,23 +196,18 @@ forgejo_pam_request() {
 	fixture=$(later_primary_password_file)
 	raw=$acceptance_dir/.forgejo-pam-$$.response
 	trap 'rm -f "$raw"' 0 1 2 15
+	forgejo_url=$(admin_ssh 'printf "{}\n" | /usr/libexec/soda/soda-projects list | jq -er .forgejo_url')
+	printf '%s\n' "$forgejo_url" | LC_ALL=C grep -Eq '^http://(\[[0-9A-Fa-f:]+\]|[A-Za-z0-9][A-Za-z0-9._-]*):[0-9]{1,5}$' ||
+		die "installed Forgejo URL is not a credential-free Tailnet HTTP endpoint"
 	{
-		printf '%s\n' "$username"
+		printf 'user = "%s:' "$username"
 		case "$password_kind" in
-			correct) cat "$fixture" ;;
-			wrong) openssl rand -hex 24 ;;
+			correct) tr -d '\r\n' <"$fixture" ;;
+			wrong) openssl rand -hex 24 | tr -d '\r\n' ;;
 			*) die "Forgejo PAM request requires correct or wrong password input" ;;
 		esac
-	} | admin_ssh '/bin/bash -eu -o pipefail -c '\''
-		IFS= read -r username
-		IFS= read -r password
-		forgejo_url=$(printf "{}\n" | /usr/libexec/soda/soda-projects list | jq -er .forgejo_url)
-		{
-			printf "user = \"%s:%s\"\n" "$username" "$password"
-			printf "silent\nshow-error\nwrite-out = \"\\n%%{http_code}\\n\"\n"
-		} | curl --config - --request GET --url "$forgejo_url/api/v1/user"
-		unset password
-	'\''' >"$raw"
+		printf '"\nsilent\nshow-error\nwrite-out = "\\n%%{http_code}\\n"\n'
+	} | curl --config - --request GET --url "$forgejo_url/api/v1/user" >"$raw"
 	status=$(tail -n 1 "$raw")
 	sed '$d' "$raw" >"$output"
 	rm -f "$raw"
