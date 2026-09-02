@@ -3,25 +3,28 @@ set -eu
 
 usage() {
 	cat <<'EOF'
-Usage: tests/acceptance/unattended.sh prepare
+Usage:
+  tests/acceptance/unattended.sh run \
+    --evidence-dir DIR \
+    --candidate-iso PATH \
+    --candidate-record PATH \
+    --candidate-oci PATH \
+    --fallback-record PATH \
+    --fallback-oci PATH \
+    --tailscale-auth-key-file PATH
 
-Prepare a raw-QEMU Soda acceptance installation with test-only credentials.
-After it succeeds:
-
-  . "$SODA_ACCEPTANCE_DIR/runner.env"
-  tests/acceptance/bootc.sh launch install
-
-Required environment:
-  SODA_ACCEPTANCE_DIR              Untracked evidence directory
-  SODA_ACCEPTANCE_ISO              Exact Soda installer ISO
-  SODA_ACCEPTANCE_RELEASE_RECORD   Release record for that ISO
-  SODA_ACCEPTANCE_TAILSCALE_AUTH_KEY_FILE
-                                   Protected file containing one disposable key
+Install candidate image B once through native raw QEMU, exercise the accepted
+product scenarios, select earlier exact image A, and recover forward to B. The
+runner owns its disposable VM, OEMDRV media, and loopback registry for the
+whole run. It never publishes an artifact or release.
 
 Optional environment:
   SODA_ACCEPTANCE_ADMIN=soda-test
+  SODA_ACCEPTANCE_GUEST_HOST=soda
   SODA_ACCEPTANCE_SSH_PORT=2222
   SODA_ACCEPTANCE_COCKPIT_PORT=19090
+  SODA_ACCEPTANCE_REGISTRY_PORT=5001
+  SODA_ACCEPTANCE_DISK_SIZE=40G
 EOF
 }
 
@@ -35,132 +38,323 @@ need() {
 }
 
 need_file() {
-	[ -f "$1" ] || die "required file $1 is unavailable"
+	[ -f "$1" ] && [ ! -L "$1" ] || die "required regular file $1 is unavailable"
 }
 
-prepare() {
-	case "$(uname -m)" in
-		aarch64|arm64)
-			architecture=aarch64
-			expected_platform=linux/arm64
-			;;
-		x86_64|amd64)
-			architecture=x86_64
-			expected_platform=linux/amd64
-			;;
-		*) die "unattended acceptance requires matching native AArch64 or x86-64 hardware" ;;
+select_docker() {
+	if docker info >/dev/null 2>&1; then
+		docker_access=direct
+	elif sudo -n docker info >/dev/null 2>&1; then
+		docker_access=sudo
+	else
+		die "Docker is unavailable directly or through passwordless sudo"
+	fi
+}
+
+host_docker() {
+	case "$docker_access" in
+		direct) docker "$@" ;;
+		sudo) sudo -n docker "$@" ;;
+		*) die "Docker access was not selected" ;;
 	esac
-	for command in go jq openssl ssh-keygen sha256sum xorriso; do
-		need "$command"
-	done
-	acceptance_dir=${SODA_ACCEPTANCE_DIR:-}
-	iso=${SODA_ACCEPTANCE_ISO:-}
-	record=${SODA_ACCEPTANCE_RELEASE_RECORD:-}
-	tailscale_auth_key_file=${SODA_ACCEPTANCE_TAILSCALE_AUTH_KEY_FILE:-}
-	[ -n "$acceptance_dir" ] || die "SODA_ACCEPTANCE_DIR is required"
-	[ -n "$iso" ] || die "SODA_ACCEPTANCE_ISO is required"
-	[ -n "$record" ] || die "SODA_ACCEPTANCE_RELEASE_RECORD is required"
-	[ -n "$tailscale_auth_key_file" ] || die "SODA_ACCEPTANCE_TAILSCALE_AUTH_KEY_FILE is required"
-	umask 077
-	mkdir -p "$acceptance_dir"
-	chmod 0700 "$acceptance_dir"
-	acceptance_dir=$(CDPATH= cd -- "$acceptance_dir" && pwd)
-	need python3
-	need_file "$iso"
-	need_file "$record"
-	need_file "$tailscale_auth_key_file"
-	tailscale_auth_key_file=$(python3 - "$tailscale_auth_key_file" "$acceptance_dir" <<'PY'
+}
+
+absolute_file() {
+	need_file "$1"
+	printf '%s/%s\n' "$(CDPATH= cd -- "$(dirname "$1")" && pwd)" "$(basename "$1")"
+}
+
+protected_secret_file() {
+	python3 - "$1" <<'PY'
 import os
 import stat
 import sys
 
-source_name, evidence_name = sys.argv[1:]
-source_stat = os.lstat(source_name)
-if not stat.S_ISREG(source_stat.st_mode):
-    raise SystemExit("Tailscale auth key input must be a regular file, not a symlink")
-if source_stat.st_mode & 0o077:
-    raise SystemExit("Tailscale auth key input must not be accessible by group or other users")
-source = os.path.realpath(source_name)
-evidence = os.path.realpath(evidence_name)
-if os.path.commonpath((source, evidence)) == evidence:
-    raise SystemExit("Tailscale auth key input must remain outside acceptance evidence")
-print(source)
+path = sys.argv[1]
+value = os.lstat(path)
+if not stat.S_ISREG(value.st_mode):
+    raise SystemExit(f"{path} must be a regular file, not a symlink")
+if value.st_mode & 0o077:
+    raise SystemExit(f"{path} must not be accessible by group or other users")
+print(os.path.realpath(path))
 PY
-	)
-	iso=$(CDPATH= cd -- "$(dirname "$iso")" && pwd)/$(basename "$iso")
-	record=$(CDPATH= cd -- "$(dirname "$record")" && pwd)/$(basename "$record")
+}
 
-	platform=$(jq -r '.platform // empty' "$record")
-	[ "$platform" = "$expected_platform" ] || die "release record platform $platform is not $expected_platform"
-	image_reference=$(jq -r '.soda_image_reference // empty' "$record")
-	case "$image_reference" in
-		*@sha256:????????????????????????????????????????????????????????????????) ;;
-		*) die "release record does not contain an exact Soda image reference" ;;
+native_architecture() {
+	case "$(uname -m)" in
+		aarch64|arm64) printf 'aarch64 linux/arm64\n' ;;
+		x86_64|amd64) printf 'x86_64 linux/amd64\n' ;;
+		*) die "acceptance requires matching-native AArch64 or x86-64 hardware" ;;
 	esac
-	expected_iso=$(jq -r '.iso_sha256 // empty' "$record")
-	actual_iso=$(sha256sum "$iso" | awk '{print $1}')
-	[ "$actual_iso" = "$expected_iso" ] || die "installer ISO does not match the release record"
+}
 
+record_value() {
+	jq -er "$2" "$1" || die "release record $1 is missing $2"
+}
+
+validate_artifact_set() {
+	label=$1
+	record=$2
+	oci=$3
+	expected_platform=$4
+	need_file "$record"
+	need_file "$oci"
+	[ "$(record_value "$record" '.schema_version')" = 2 ] || die "$label record is not schema 2"
+	[ "$(record_value "$record" '.platform')" = "$expected_platform" ] || die "$label record is for the wrong platform"
+	reference=$(record_value "$record" '.soda_image_reference')
+	case "$reference" in
+		*@sha256:????????????????????????????????????????????????????????????????) ;;
+		*) die "$label record has no exact image digest" ;;
+	esac
+}
+
+wait_for_exit() {
+	pid=$1
+	while kill -0 "$pid" 2>/dev/null; do sleep 1; done
+	wait "$pid" || die "raw QEMU exited unsuccessfully"
+}
+
+run() {
+	evidence_dir=
+	candidate_iso=
+	candidate_record=
+	candidate_oci=
+	fallback_record=
+	fallback_oci=
+	tailscale_key=
+	while [ "$#" -gt 0 ]; do
+		case "$1" in
+			--evidence-dir|--candidate-iso|--candidate-record|--candidate-oci|--fallback-record|--fallback-oci|--tailscale-auth-key-file)
+				[ "$#" -ge 2 ] || die "$1 requires a value"
+				case "$1" in
+					--evidence-dir) evidence_dir=$2 ;;
+					--candidate-iso) candidate_iso=$2 ;;
+					--candidate-record) candidate_record=$2 ;;
+					--candidate-oci) candidate_oci=$2 ;;
+					--fallback-record) fallback_record=$2 ;;
+					--fallback-oci) fallback_oci=$2 ;;
+					--tailscale-auth-key-file) tailscale_key=$2 ;;
+				esac
+				shift 2
+				;;
+			-h|--help) usage; return ;;
+			*) die "unknown argument $1" ;;
+		esac
+	done
+	[ -n "$evidence_dir" ] || die "--evidence-dir is required"
+	[ -n "$candidate_iso" ] || die "--candidate-iso is required"
+	[ -n "$candidate_record" ] || die "--candidate-record is required"
+	[ -n "$candidate_oci" ] || die "--candidate-oci is required"
+	[ -n "$fallback_record" ] || die "--fallback-record is required"
+	[ -n "$fallback_oci" ] || die "--fallback-oci is required"
+	[ -n "$tailscale_key" ] || die "--tailscale-auth-key-file is required"
+
+	for command in curl docker go jq openssl qemu-img sha256sum ssh ssh-keygen sudo tar xorriso; do need "$command"; done
+	select_docker
+	set -- $(native_architecture)
+	architecture=$1
+	expected_platform=$2
+	repo_root=$(CDPATH= cd -- "$(dirname "$0")/../.." && pwd)
+	helper=$repo_root/tests/acceptance/internal/bootc.sh
+	registry_pin_file=$repo_root/tests/acceptance/registry-image.txt
+	skopeo_pin_file=$repo_root/tests/acceptance/skopeo-image.txt
+	need_file "$helper"
+	need_file "$registry_pin_file"
+	need_file "$skopeo_pin_file"
+	candidate_iso=$(absolute_file "$candidate_iso")
+	candidate_record=$(absolute_file "$candidate_record")
+	candidate_oci=$(absolute_file "$candidate_oci")
+	fallback_record=$(absolute_file "$fallback_record")
+	fallback_oci=$(absolute_file "$fallback_oci")
+	tailscale_key=$(protected_secret_file "$tailscale_key")
+	validate_artifact_set candidate "$candidate_record" "$candidate_oci" "$expected_platform"
+	validate_artifact_set fallback "$fallback_record" "$fallback_oci" "$expected_platform"
+	expected_iso=$(record_value "$candidate_record" '.iso_sha256')
+	actual_iso=$(sha256sum "$candidate_iso" | awk '{print $1}')
+	[ "$expected_iso" = "$actual_iso" ] || die "candidate ISO does not match its release record"
+
+	umask 077
+	[ ! -e "$evidence_dir" ] || die "evidence directory already exists: $evidence_dir"
+	mkdir -p "$evidence_dir"
+	chmod 0700 "$evidence_dir"
+	evidence_dir=$(CDPATH= cd -- "$evidence_dir" && pwd)
 	admin=${SODA_ACCEPTANCE_ADMIN:-soda-test}
-	admin_key=$acceptance_dir/admin
-	password_file=$acceptance_dir/admin-password
-	if [ ! -e "$admin_key" ] && [ ! -e "$admin_key.pub" ]; then
-		ssh-keygen -q -t ed25519 -N '' -C "$admin@raw-qemu" -f "$admin_key"
-	fi
-	need_file "$admin_key"
-	need_file "$admin_key.pub"
-	if [ ! -e "$password_file" ]; then
-		openssl rand -base64 24 | tr -d '\n' >"$password_file"
-		printf '\n' >>"$password_file"
-	fi
-	chmod 0600 "$admin_key" "$password_file"
-	kickstart_iso=$acceptance_dir/oemdrv.iso
-	prepared=false
-	cleanup_prepare() {
-		[ "$prepared" = true ] || rm -f "$kickstart_iso"
-	}
-	abort_prepare() {
-		trap - 1 2 15
-		exit 1
-	}
-	trap cleanup_prepare 0
-	trap abort_prepare 1 2 15
-	go run ./cmd/soda-image --architecture "$architecture" installer-input \
-		--unattended \
-		--iso "$iso" \
-		--release-record "$record" \
-		--username "$admin" \
-		--password-file "$password_file" \
-		--ssh-public-key-file "$admin_key.pub" \
-		--tailscale-auth-key-file "$tailscale_auth_key_file" \
-		--output "$kickstart_iso"
+	admin_key=$evidence_dir/admin
+	password_file=$evidence_dir/admin-password
+	oemdrv=$evidence_dir/oemdrv.iso
+	registry_port=${SODA_ACCEPTANCE_REGISTRY_PORT:-5001}
+	printf '%s\n' "$registry_port" | LC_ALL=C grep -Eq '^[0-9]{1,5}$' || die "registry port must be numeric"
+	[ "$registry_port" -ge 1 ] && [ "$registry_port" -le 65535 ] || die "registry port is outside the TCP range"
+	registry_name=soda-acceptance-registry-$$
+	registry_image=$(sed -n '1p' "$registry_pin_file")
+	skopeo_image=$(sed -n '1p' "$skopeo_pin_file")
+	case "$(uname -s)" in
+		Linux) skopeo_container_network='--network host'; skopeo_registry_host=127.0.0.1 ;;
+		Darwin) skopeo_container_network=; skopeo_registry_host=host.docker.internal ;;
+		*) die "unsupported host operating system for containerized Skopeo" ;;
+	esac
+	qemu_pid=
+	registry_started=false
+	completed=false
 
-	image_digest=$(printf '%s\n' "$image_reference" | sed 's/.*@//')
-	cat >"$acceptance_dir/runner.env" <<EOF
-export SODA_ACCEPTANCE_DIR=$acceptance_dir
-export SODA_ACCEPTANCE_ARCHITECTURE=$architecture
-export SODA_ACCEPTANCE_ADMIN=$admin
-export SODA_ACCEPTANCE_ADMIN_KEY=$admin_key
-export SODA_ACCEPTANCE_ADMIN_PASSWORD_FILE=$password_file
-export SODA_ACCEPTANCE_HOST=127.0.0.1
-export SODA_ACCEPTANCE_SSH_PORT=${SODA_ACCEPTANCE_SSH_PORT:-2222}
-export SODA_ACCEPTANCE_COCKPIT_PORT=${SODA_ACCEPTANCE_COCKPIT_PORT:-19090}
-export SODA_ACCEPTANCE_GUEST_HOST=${SODA_ACCEPTANCE_GUEST_HOST:-soda}
-export SODA_ACCEPTANCE_GUEST_SSH_PORT=22
-export SODA_ACCEPTANCE_GUEST_COCKPIT_PORT=9090
-export SODA_ACCEPTANCE_IMAGE_DIGEST=$image_digest
-export SODA_ACCEPTANCE_RELEASE_RECORD=$record
-export SODA_ACCEPTANCE_ISO=$iso
-export SODA_ACCEPTANCE_KICKSTART_ISO=$kickstart_iso
-EOF
-	chmod 0600 "$acceptance_dir/runner.env"
-	prepared=true
-	trap - 0 1 2 15
-	printf 'raw-QEMU acceptance inputs prepared in %s\n' "$acceptance_dir"
+	cleanup() {
+		status=$?
+		trap - 0 1 2 15
+		if [ -n "$qemu_pid" ] && kill -0 "$qemu_pid" 2>/dev/null; then
+			kill -TERM "$qemu_pid" 2>/dev/null || true
+			wait "$qemu_pid" 2>/dev/null || true
+		fi
+		if [ "$registry_started" = true ]; then
+			host_docker rm -f "$registry_name" >/dev/null 2>&1 || true
+		fi
+		rm -f "$oemdrv"
+		if [ "$completed" != true ]; then
+			printf 'acceptance stopped; evidence retained in %s\n' "$evidence_dir" >&2
+		fi
+		exit "$status"
+	}
+	trap cleanup 0 1 2 15
+
+	ssh-keygen -q -t ed25519 -N '' -C "$admin@raw-qemu" -f "$admin_key"
+	openssl rand -base64 24 >"$password_file"
+	chmod 0600 "$admin_key" "$password_file"
+	(
+		cd "$repo_root"
+		go run ./cmd/soda-image --architecture "$architecture" installer-input \
+			--unattended \
+			--iso "$candidate_iso" \
+			--release-record "$candidate_record" \
+			--username "$admin" \
+			--password-file "$password_file" \
+			--ssh-public-key-file "$admin_key.pub" \
+			--tailscale-auth-key-file "$tailscale_key" \
+			--output "$oemdrv"
+	)
+	[ "$(stat -c %a "$oemdrv")" = 600 ] || die "generated OEMDRV is not mode 0600"
+
+	host_docker run --detach --name "$registry_name" --publish "127.0.0.1:$registry_port:5000" "$registry_image" \
+		>"$evidence_dir/registry-container-id.txt"
+	registry_started=true
+	registry_deadline=$(( $(date +%s) + 30 ))
+	until curl --fail --silent --show-error "http://127.0.0.1:$registry_port/v2/" >/dev/null 2>&1; do
+		[ "$(date +%s)" -lt "$registry_deadline" ] || die "disposable registry did not become ready"
+		sleep 1
+	done
+	registry_repository=127.0.0.1:$registry_port/soda-os
+	copy_oci() {
+		archive=$1
+		tag=$2
+		if command -v skopeo >/dev/null 2>&1; then
+			skopeo copy --preserve-digests --dest-tls-verify=false "oci-archive:$archive" "docker://$registry_repository:$tag"
+		else
+			# Word splitting is intentional for the fixed host-OS network selection.
+			# shellcheck disable=SC2086
+			host_docker run --rm $skopeo_container_network \
+				--volume "$archive:/input/archive.tar:ro" --entrypoint /usr/bin/skopeo "$skopeo_image" \
+				copy --preserve-digests --dest-tls-verify=false oci-archive:/input/archive.tar \
+				"docker://$skopeo_registry_host:$registry_port/soda-os:$tag"
+		fi
+	}
+	inspect_digest() {
+		tag=$1
+		if command -v skopeo >/dev/null 2>&1; then
+			skopeo inspect --tls-verify=false --format '{{.Digest}}' "docker://$registry_repository:$tag"
+		else
+			# Word splitting is intentional for the fixed host-OS network selection.
+			# shellcheck disable=SC2086
+			host_docker run --rm $skopeo_container_network \
+				--entrypoint /usr/bin/skopeo "$skopeo_image" inspect --tls-verify=false --format '{{.Digest}}' \
+				"docker://$skopeo_registry_host:$registry_port/soda-os:$tag"
+		fi
+	}
+	copy_oci "$fallback_oci" fallback >"$evidence_dir/registry-fallback-copy.txt"
+	copy_oci "$candidate_oci" candidate >"$evidence_dir/registry-candidate-copy.txt"
+	a_digest=$(record_value "$fallback_record" '.soda_image_reference' | sed 's/.*@//')
+	b_digest=$(record_value "$candidate_record" '.soda_image_reference' | sed 's/.*@//')
+	for pair in "fallback:$a_digest" "candidate:$b_digest"; do
+		tag=${pair%%:*}
+		digest=${pair#*:}
+		actual=$(inspect_digest "$tag")
+		[ "$actual" = "$digest" ] || die "registry changed the $tag manifest digest"
+	done
+
+	export SODA_ACCEPTANCE_DIR=$evidence_dir
+	export SODA_ACCEPTANCE_ARCHITECTURE=$architecture
+	export SODA_ACCEPTANCE_ADMIN=$admin
+	export SODA_ACCEPTANCE_ADMIN_KEY=$admin_key
+	export SODA_ACCEPTANCE_ADMIN_PASSWORD_FILE=$password_file
+	export SODA_ACCEPTANCE_HOST=127.0.0.1
+	export SODA_ACCEPTANCE_SSH_PORT=${SODA_ACCEPTANCE_SSH_PORT:-2222}
+	export SODA_ACCEPTANCE_COCKPIT_PORT=${SODA_ACCEPTANCE_COCKPIT_PORT:-19090}
+	export SODA_ACCEPTANCE_GUEST_HOST=${SODA_ACCEPTANCE_GUEST_HOST:-soda}
+	export SODA_ACCEPTANCE_GUEST_SSH_PORT=22
+	export SODA_ACCEPTANCE_GUEST_COCKPIT_PORT=9090
+	export SODA_ACCEPTANCE_IMAGE_DIGEST=$b_digest
+	export SODA_ACCEPTANCE_IMAGE_A_REFERENCE=10.0.2.2:$registry_port/soda-os@${a_digest}
+	export SODA_ACCEPTANCE_IMAGE_B_REFERENCE=10.0.2.2:$registry_port/soda-os@${b_digest}
+	export SODA_ACCEPTANCE_RELEASE_RECORD=$candidate_record
+	export SODA_ACCEPTANCE_ISO=$candidate_iso
+	export SODA_ACCEPTANCE_KICKSTART_ISO=$oemdrv
+	export SODA_ACCEPTANCE_DISK_SIZE=${SODA_ACCEPTANCE_DISK_SIZE:-40G}
+
+	printf 'installing candidate image B through raw QEMU\n'
+	sh "$helper" launch install >"$evidence_dir/qemu.stdout" 2>"$evidence_dir/qemu.stderr" &
+	qemu_pid=$!
+	sh "$helper" wait
+	sh "$helper" fallback registry-enable
+	sh "$helper" fallback seed-b
+	sh "$helper" fallback capture b-current
+
+	reboot_to() {
+		target=$1
+		sh "$helper" fallback stage "$target"
+		sh "$helper" fallback unlock
+		sh "$helper" stop
+		wait_for_exit "$qemu_pid"
+		qemu_pid=
+		sh "$helper" launch installed >>"$evidence_dir/qemu.stdout" 2>>"$evidence_dir/qemu.stderr" &
+		qemu_pid=$!
+		sh "$helper" wait
+	}
+
+	printf 'selecting exact earlier image A\n'
+	reboot_to a
+	sh "$helper" fallback capture a-selected
+	sh "$helper" fallback compare b-current a-selected
+	printf 'recovering forward to exact candidate image B\n'
+	reboot_to b
+	sh "$helper" fallback capture b-restored
+	sh "$helper" fallback compare b-current b-restored
+	sh "$helper" fallback registry-disable
+
+	workspace_target=$(sh "$helper" project-workspace kept)
+	export SODA_ACCEPTANCE_WORKSPACE_TARGET=$workspace_target
+	export SODA_ACCEPTANCE_WORKSPACE_KEY=$admin_key
+	export SODA_ACCEPTANCE_REQUIRE_WORKSPACE_TOOLSET=1
+	sh "$helper" scenario product
+	sh "$helper" capture final-pre-capstone
+	sh "$helper" stop
+	wait_for_exit "$qemu_pid"
+	qemu_pid=
+
+	jq -n \
+		--arg architecture "$architecture" \
+		--arg candidate_record_sha256 "$(sha256sum "$candidate_record" | awk '{print $1}')" \
+		--arg candidate_iso_sha256 "$actual_iso" \
+		--arg fallback_record_sha256 "$(sha256sum "$fallback_record" | awk '{print $1}')" \
+		--arg image_a_digest "$a_digest" \
+		--arg image_b_digest "$b_digest" \
+		--arg workspace_username "$workspace_target" \
+		'{result:"pass",architecture:$architecture,candidate_record_sha256:$candidate_record_sha256,
+		  candidate_iso_sha256:$candidate_iso_sha256,fallback_record_sha256:$fallback_record_sha256,
+		  image_a_digest:$image_a_digest,image_b_digest:$image_b_digest,
+		  workspace_username:$workspace_username}' >"$evidence_dir/summary.json"
+	completed=true
+	printf 'single-run raw-QEMU acceptance passed; evidence: %s\n' "$evidence_dir"
 }
 
 case "${1:-help}" in
 	help|-h|--help) usage ;;
-	prepare) prepare ;;
+	run) shift; run "$@" ;;
 	*) usage >&2; exit 2 ;;
 esac

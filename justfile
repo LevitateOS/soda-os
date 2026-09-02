@@ -14,9 +14,8 @@ hooks-install:
 
 check:
     test -z "$(gofmt -l $(find . -name '*.go' -not -path './.artifacts/*'))"
-    sh -n tests/acceptance/bootc.sh
     sh -n tests/acceptance/unattended.sh
-    tests/acceptance/bootc.sh --help >/dev/null
+    sh -n tests/acceptance/internal/bootc.sh
     tests/acceptance/unattended.sh --help >/dev/null
     ./scripts/protobuf-verify.sh
     ./scripts/check-complexity.sh

@@ -3,7 +3,7 @@ set -eu
 
 usage() {
 	cat <<'EOF'
-Usage: tests/acceptance/bootc.sh COMMAND [ARG]
+Private helper for tests/acceptance/unattended.sh. It is not a public workflow.
 
 Commands:
   launch install       Create a blank disk and boot the configured installer ISO
@@ -11,6 +11,11 @@ Commands:
   wait                 Wait for SSH and Cockpit, then prove key-based admin SSH
   capture NAME         Capture nonprivileged host, guest, QMP, and registry evidence
   fallback seed-a      Seed authoritative mutable state on image A
+  fallback seed-b      Seed current authoritative mutable state on image B
+  fallback registry-enable
+                       Permit only the disposable host-loopback registry
+  fallback registry-disable
+                       Remove the disposable registry configuration
   fallback capture NAME
                        Capture normalized fallback-preservation evidence
   fallback stage a|b   Download only the configured exact A or B image
@@ -20,6 +25,8 @@ Commands:
                        Compare two normalized preservation manifests
   workload start       Start the configured direct-workspace SSH continuity workload
   workload verify      Verify the continuity workload and record its heartbeat
+  project-workspace ID Print the current user's derived username for one project
+  scenario product     Exercise multi-user, transport, port, and deletion outcomes
   stop                 Request a clean ACPI shutdown through QMP
 
 Required environment:
@@ -55,7 +62,6 @@ Optional environment:
   SODA_ACCEPTANCE_COCKPIT_PORT=9090
   SODA_ACCEPTANCE_GUEST_SSH_PORT=22
   SODA_ACCEPTANCE_GUEST_COCKPIT_PORT=9090
-  SODA_ACCEPTANCE_VNC=127.0.0.1:1  Loopback VNC endpoint for x86-64 graphical install
   SODA_ACCEPTANCE_ADMIN_PASSWORD_FILE=<test-only administrator password file>
   SODA_ACCEPTANCE_DISK=$SODA_ACCEPTANCE_DIR/soda-system.qcow2
   SODA_ACCEPTANCE_DISK_SIZE=40G
@@ -378,18 +384,8 @@ launch_x86_64() {
 	need_file "$qemu"
 	need_file "$firmware"
 	need_file "$vars_template"
-	vnc=${SODA_ACCEPTANCE_VNC:-}
-	if [ -n "$vnc" ]; then
-		case "$vnc" in
-			127.0.0.1:[0-9]|127.0.0.1:[0-9][0-9]) ;;
-			*) die "SODA_ACCEPTANCE_VNC must be a loopback display such as 127.0.0.1:1" ;;
-		esac
-		set -- -vnc "$vnc"
-		display_command="-vnc $vnc"
-	else
-		set -- -display none
-		display_command="-display none"
-	fi
+	set -- -display none
+	display_command="-display none"
 	boot_command=
 	if [ "$mode" = install ]; then
 		set -- -boot order=c,once=d "$@"
@@ -673,6 +669,23 @@ echo "soda-tailscale-enroll.service=disabled"
 SODA_INSTALLER_PROVISIONING_ABSENCE
 }
 
+emit_installed_ownership_checks() {
+	cat <<'EOF'
+set -eu
+rules=$(nft list chain inet soda input)
+printf '%s\n' "$rules"
+printf '%s\n' "$rules" | grep -F 'iifname { "lo", "tailscale0" } tcp dport { 22, 9090, 30000 } accept' >/dev/null
+printf '%s\n' "$rules" | grep -F 'tcp dport { 22, 9090, 30000 } reject with tcp reset' >/dev/null
+members=$(getent group soda-workspaces | cut -d: -f4 | tr ',' ' ')
+for username in $members; do
+	id -nG "$username" | tr ' ' '\n' | grep -Fx soda-workspaces >/dev/null
+	! id -nG "$username" | tr ' ' '\n' | grep -Fx wheel >/dev/null
+	marker=$(getent passwd "$username" | cut -d: -f5)
+	printf '%s\n' "$marker" | grep -Eq '^soda-workspace=[a-z][a-z0-9-]{0,23}/[a-z][a-z0-9-]{0,23}$'
+	done
+EOF
+}
+
 emit_home_context_check() {
 	cat <<'SODA_HOME_CONTEXT_CHECK'
 set -eu
@@ -851,9 +864,13 @@ capture() {
 	if [ -n "$password_file" ]; then
 		run_privileged_script emit_installer_provisioning_absence \
 			>"$checkpoint/installer-provisioning.txt" 2>"$checkpoint/installer-provisioning.stderr"
+		run_privileged_script emit_installed_ownership_checks \
+			>"$checkpoint/native-ownership.txt" 2>"$checkpoint/native-ownership.stderr"
 	else
 		emit_installer_provisioning_absence | admin_ssh 'sudo -n /bin/sh -s' \
 			>"$checkpoint/installer-provisioning.txt" 2>"$checkpoint/installer-provisioning.stderr"
+		emit_installed_ownership_checks | admin_ssh 'sudo -n /bin/sh -s' \
+			>"$checkpoint/native-ownership.txt" 2>"$checkpoint/native-ownership.stderr"
 	fi
 	if [ -n "$password_file" ]; then
 		admin_ssh "sudo -k -S -p '' /usr/bin/sodactl health" <"$password_file" \
@@ -992,6 +1009,37 @@ fallback_seed_a() {
 	date -u +%Y-%m-%dT%H:%M:%SZ >"$operations/seed-a.complete"
 }
 
+fallback_seed_b() {
+	require_dir
+	require_guest_endpoint
+	require_fallback_references
+	need jq
+	[ "$admin" = soda-test ] || die "fallback seed-b requires the installer administrator soda-test"
+	fallback_assert_booted b
+	operations=$(fallback_operations_dir)
+	[ ! -e "$operations/seed-b.complete" ] || die "fallback seed-b has already completed"
+	run_privileged_script emit_seed_accounts >"$operations/seed-b-accounts.txt"
+	for project in kept removed; do
+		case "$project" in kept) display_name=Kept ;; removed) display_name=Removed ;; esac
+		project_password_request create-forgejo "$project" "$display_name" >"$operations/seed-b-$project-create.json"
+		project_password_request setup "$project" "" >"$operations/seed-b-$project-setup.json"
+	done
+	run_privileged_script emit_seed_workspace_files >"$operations/seed-b-workspaces.txt"
+	run_privileged_script emit_mutate_accounts >"$operations/seed-b-current-accounts.txt"
+	kept_url=$(admin_ssh "jq -er '.[] | select(.id == \"kept\") | .canonical_url' /var/lib/soda/catalog/projects.json")
+	jq -cn --arg id kept --arg display_name 'Kept on B' --arg canonical_url "$kept_url" \
+		'{id:$id,display_name:$display_name,canonical_url:$canonical_url}' |
+		admin_ssh /usr/libexec/soda/soda-projects edit >"$operations/seed-b-kept-edit.json"
+	run_privileged_script emit_mutate_workspace >"$operations/seed-b-kept-workspace.txt"
+	project_password_request create-forgejo new 'New on B' >"$operations/seed-b-new-create.json"
+	project_password_request setup new '' >"$operations/seed-b-new-setup.json"
+	project_request remove removed >"$operations/seed-b-removed-remove.json"
+	capture_forgejo_state >"$operations/seed-b-forgejo.json"
+	jq -e 'any(.repositories[]; .name == "removed" and .owner == "soda-test")' \
+		"$operations/seed-b-forgejo.json" >/dev/null || die "project removal deleted the canonical Forgejo repository"
+	date -u +%Y-%m-%dT%H:%M:%SZ >"$operations/seed-b.complete"
+}
+
 fallback_stage() {
 	target=${1:-}
 	require_dir
@@ -1040,6 +1088,52 @@ fallback_unlock() {
 		.status.staged.image.imageDigest == $digest and
 		.status.staged.downloadOnly == false
 	' "$after" >/dev/null || die "bootc did not create the configured staged deployment"
+}
+
+emit_registry_enable() {
+	registry=$1
+	cat <<EOF
+install -d -m 0755 /etc/containers/registries.conf.d
+cat > /etc/containers/registries.conf.d/99-soda-acceptance.conf <<'SODA_REGISTRY'
+[[registry]]
+location = "$registry"
+insecure = true
+SODA_REGISTRY
+chmod 0644 /etc/containers/registries.conf.d/99-soda-acceptance.conf
+EOF
+}
+
+emit_registry_disable() {
+	cat <<'EOF'
+file=/etc/containers/registries.conf.d/99-soda-acceptance.conf
+test -f "$file"
+rm -- "$file"
+EOF
+}
+
+fallback_registry() {
+	action=$1
+	require_dir
+	require_guest_endpoint
+	require_fallback_references
+	reference=$(fallback_reference b)
+	registry=${reference%%/*}
+	printf '%s\n' "$registry" | LC_ALL=C grep -Eq '^10\.0\.2\.2:[0-9]{1,5}$' ||
+		die "fallback registry must be the fixed QEMU host endpoint"
+	operations=$(fallback_operations_dir)
+	case "$action" in
+		enable)
+			credentials=$(password_file)
+			{
+				cat "$credentials"
+				emit_registry_enable "$registry"
+			} | admin_ssh 'sudo -k -S -p "" /bin/bash -eu -o pipefail -s' >"$operations/registry-enable.txt"
+			;;
+		disable)
+			run_privileged_script emit_registry_disable >"$operations/registry-disable.txt"
+			;;
+		*) die "fallback registry action must be enable or disable" ;;
+	esac
 }
 
 emit_mutate_accounts() {
@@ -1372,12 +1466,227 @@ fallback() {
 	shift || true
 	case "$action" in
 		seed-a) [ "$#" -eq 0 ] || die "fallback seed-a accepts no arguments"; fallback_seed_a ;;
+		seed-b) [ "$#" -eq 0 ] || die "fallback seed-b accepts no arguments"; fallback_seed_b ;;
+		registry-enable) [ "$#" -eq 0 ] || die "fallback registry-enable accepts no arguments"; fallback_registry enable ;;
+		registry-disable) [ "$#" -eq 0 ] || die "fallback registry-disable accepts no arguments"; fallback_registry disable ;;
 		capture) [ "$#" -eq 1 ] || die "fallback capture requires one checkpoint name"; fallback_capture "$1" ;;
 		stage) [ "$#" -eq 1 ] || die "fallback stage requires a or b"; fallback_stage "$1" ;;
 		unlock) [ "$#" -eq 0 ] || die "fallback unlock accepts no arguments"; fallback_unlock ;;
 		mutate-b) [ "$#" -eq 0 ] || die "fallback mutate-b accepts no arguments"; fallback_mutate_b ;;
 		compare) [ "$#" -eq 2 ] || die "fallback compare requires expected and actual checkpoint names"; fallback_compare "$1" "$2" ;;
-		*) die "fallback requires seed-a, capture, stage, unlock, mutate-b, or compare" ;;
+		*) die "fallback requires seed-a, seed-b, registry-enable, registry-disable, capture, stage, unlock, mutate-b, or compare" ;;
+	esac
+}
+
+project_workspace() {
+	project_id=${1:-}
+	valid_name "$project_id" || die "project-workspace requires a valid project ID"
+	require_dir
+	require_guest_endpoint
+	printf '{}\n' | admin_ssh /usr/libexec/soda/soda-projects list |
+		jq -er --arg id "$project_id" '.projects[] | select(.id == $id) | .workspace_username | select(length > 0)'
+}
+
+primary_project_request() {
+	username=$1
+	action=$2
+	request=$3
+	printf '%s\n' "$request" | admin_ssh "/usr/sbin/runuser --user '$username' -- /usr/libexec/soda/soda-projects '$action'"
+}
+
+emit_product_accounts() {
+	cat <<'EOF'
+test "$(id -u)" -eq 0
+for username in nokey charlie dana; do
+	! getent passwd "$username" >/dev/null
+	/usr/sbin/useradd --create-home --user-group --shell /bin/bash -- "$username"
+done
+for username in charlie dana; do
+	home=$(getent passwd "$username" | cut -d: -f6)
+	group=$(id -gn "$username")
+	install -d -m 0700 -o "$username" -g "$group" "$home/.ssh"
+	install -m 0600 -o "$username" -g "$group" /home/soda-test/.ssh/authorized_keys "$home/.ssh/authorized_keys"
+	restorecon -RF "$home"
+done
+EOF
+}
+
+emit_generic_delete() {
+	cat <<'EOF'
+test "$(id -u)" -eq 0
+/usr/sbin/userdel --remove -- dana
+! getent passwd dana >/dev/null
+test ! -e /home/dana
+EOF
+}
+
+emit_keyless_delete() {
+	cat <<'EOF'
+test "$(id -u)" -eq 0
+/usr/sbin/userdel --remove -- nokey
+! getent passwd nokey >/dev/null
+test ! -e /home/nokey
+EOF
+}
+
+set_workspace_marker() {
+	username=$1
+	marker=$2
+	printf '%s\n' "$username" | LC_ALL=C grep -Eq '^soda-w-[0-9a-f]{24}$' || die "invalid workspace fixture username"
+	case "$marker" in
+		unexpected|soda-workspace=soda-test/failure-order) ;;
+		*) die "invalid workspace fixture marker" ;;
+	esac
+	credentials=$(password_file)
+	{
+		cat "$credentials"
+		printf '/usr/sbin/usermod --comment %s -- %s\n' "$marker" "$username"
+	} | admin_ssh 'sudo -k -S -p "" /bin/bash -eu -o pipefail -s'
+}
+
+scenario_product() {
+	require_dir
+	require_guest_endpoint
+	for command in curl jq scp sftp ssh; do need "$command"; done
+	operations=$acceptance_dir/product-scenarios
+	[ ! -e "$operations" ] || die "product scenarios already ran"
+	mkdir -p "$operations"
+
+	# The installed catalog is the exact sorted three-field product fact.
+	admin_ssh 'cat /var/lib/soda/catalog/projects.json' >"$operations/catalog-before.json"
+	jq -e 'type == "array" and all(.[]; keys == ["canonical_url","display_name","id"]) and ([.[].id] == ([.[].id] | sort))' \
+		"$operations/catalog-before.json" >/dev/null
+
+	# Exercise stock Cockpit authentication without placing passwords in argv.
+	password=$(password_file)
+	{
+		printf 'user = "%s:%s"\n' "$admin" "$(tr -d '\r\n' <"$password")"
+		printf 'insecure\nsilent\nshow-error\noutput = "%s"\nwrite-out = "%%{http_code}"\n' "$operations/cockpit-primary.body"
+	} | curl --config - --request GET "https://$guest_host:$guest_cockpit_port/cockpit/login" \
+		>"$operations/cockpit-primary.status"
+	[ "$(cat "$operations/cockpit-primary.status")" = 200 ] || die "primary Cockpit authentication failed"
+	kept_workspace=$(project_workspace kept)
+	{
+		printf 'user = "%s:locked-workspace-password"\n' "$kept_workspace"
+		printf 'insecure\nsilent\nshow-error\noutput = "%s"\nwrite-out = "%%{http_code}"\n' "$operations/cockpit-workspace.body"
+	} | curl --config - --request GET "https://$guest_host:$guest_cockpit_port/cockpit/login" \
+		>"$operations/cockpit-workspace.status"
+	[ "$(cat "$operations/cockpit-workspace.status")" = 401 ] || die "workspace Cockpit authentication was not rejected"
+
+	run_privileged_script emit_product_accounts >"$operations/accounts.txt"
+	# Missing standard keys must fail before creating a derived account.
+	if primary_project_request nokey setup '{"id":"kept","git_username":"","git_password":""}' \
+		>"$operations/missing-key.stdout" 2>"$operations/missing-key.stderr"; then
+		die "workspace setup unexpectedly accepted a primary account without keys"
+	fi
+	nokey_digest=$(printf 'nokey\0kept' | sha256sum | awk '{print substr($1,1,24)}')
+	admin_ssh "! getent passwd 'soda-w-$nokey_digest' >/dev/null"
+
+	# Two humans set up the same native repository as independent Linux users.
+	for username in alice bob; do
+		primary_project_request "$username" setup '{"id":"kept","git_username":"","git_password":""}' \
+			>"$operations/$username-setup.json"
+	done
+	alice_workspace=$(jq -er '.workspace_username' "$operations/alice-setup.json")
+	bob_workspace=$(jq -er '.workspace_username' "$operations/bob-setup.json")
+	[ "$alice_workspace" != "$bob_workspace" ] || die "two humans received the same workspace account"
+	for workspace in "$alice_workspace" "$bob_workspace"; do
+		printf '%s\n' "$workspace" | LC_ALL=C grep -Eq '^soda-w-[0-9a-f]{24}$' || die "invalid workspace username"
+		fallback_workspace_ssh "$workspace" 'test "$(id -u)" -eq "$(stat -c %u "$HOME")"; test -d "$HOME/Projects/kept/.git"; printf "%s\n" "$(id -un):$(id -u):$HOME"'
+	done >"$operations/workspace-identities.txt"
+	[ "$(fallback_workspace_ssh "$alice_workspace" 'id -u')" != "$(fallback_workspace_ssh "$bob_workspace" 'id -u')" ] ||
+		die "two humans received the same workspace UID"
+	fallback_workspace_ssh "$alice_workspace" 'printf alice-private >"$HOME/Projects/kept/alice-private.txt"; nohup sleep 300 </dev/null > /dev/null 2>&1 & echo $! >"$HOME/alice-process.pid"'
+	fallback_workspace_ssh "$bob_workspace" 'test ! -e "$HOME/Projects/kept/alice-private.txt"; printf bob-private >"$HOME/Projects/kept/bob-private.txt"'
+
+	# Direct command, SCP, and SFTP use ordinary OpenSSH as the derived UID.
+	fallback_workspace_ssh "$alice_workspace" 'test "$(id -un)" = '"$alice_workspace"'; pwd' >"$operations/direct-command.txt"
+	printf 'id -un\nexit\n' | ssh -T -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
+		-o "UserKnownHostsFile=$(known_hosts_path)" -i "${SODA_ACCEPTANCE_ADMIN_KEY}" -p "$guest_ssh_port" \
+		"$alice_workspace@$guest_host" >"$operations/direct-shell.txt"
+	grep -Fx "$alice_workspace" "$operations/direct-shell.txt" >/dev/null || die "direct workspace shell did not run as the derived UID"
+	printf 'scp-product-evidence\n' >"$operations/scp-input.txt"
+	scp -q -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
+		-o "UserKnownHostsFile=$(known_hosts_path)" -i "${SODA_ACCEPTANCE_ADMIN_KEY}" -P "$guest_ssh_port" \
+		"$operations/scp-input.txt" "$alice_workspace@$guest_host:scp-input.txt"
+	fallback_workspace_ssh "$alice_workspace" 'test "$(cat "$HOME/scp-input.txt")" = scp-product-evidence'
+	printf 'pwd\nls -l scp-input.txt\nquit\n' | sftp -q -b - \
+		-o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
+		-o "UserKnownHostsFile=$(known_hosts_path)" -i "${SODA_ACCEPTANCE_ADMIN_KEY}" -P "$guest_ssh_port" \
+		"$alice_workspace@$guest_host" >"$operations/sftp.txt"
+
+	# Projects choose non-conflicting host ports without a Soda port registry.
+	fallback_workspace_ssh "$alice_workspace" 'nohup python3 -m http.server 18080 --directory "$HOME/Projects/kept" </dev/null >"$HOME/port.log" 2>&1 & echo $! >"$HOME/port.pid"'
+	fallback_workspace_ssh "$bob_workspace" 'nohup python3 -m http.server 18081 --directory "$HOME/Projects/kept" </dev/null >"$HOME/port.log" 2>&1 & echo $! >"$HOME/port.pid"'
+	for port_and_file in 18080:alice-private.txt 18081:bob-private.txt; do
+		port=${port_and_file%%:*}
+		file=${port_and_file#*:}
+		deadline=$(( $(date +%s) + 20 ))
+		until curl --fail --silent --show-error "http://$guest_host:$port/$file" >"$operations/$file"; do
+			[ "$(date +%s)" -lt "$deadline" ] || die "project-owned port $port did not become reachable"
+			sleep 1
+		done
+	done
+
+	# Catalog edits do not reconcile an already published workspace.
+	before_remote=$(fallback_workspace_ssh "$kept_workspace" 'git -C "$HOME/Projects/kept" remote get-url origin')
+	kept_url=$(jq -er '.[] | select(.id == "kept") | .canonical_url' "$operations/catalog-before.json")
+	jq -cn --arg id kept --arg display_name 'Kept after catalog edit' --arg canonical_url "$kept_url" \
+		'{id:$id,display_name:$display_name,canonical_url:$canonical_url}' |
+		admin_ssh /usr/libexec/soda/soda-projects edit >"$operations/catalog-edit.json"
+	[ "$(fallback_workspace_ssh "$kept_workspace" 'git -C "$HOME/Projects/kept" remote get-url origin')" = "$before_remote" ] ||
+		die "catalog edit reconciled an existing checkout"
+
+	# Soda-aware human deletion is cascading and deletes the primary last.
+	capture_forgejo_state >"$operations/forgejo-before-human-delete.json"
+	primary_project_request charlie setup '{"id":"kept","git_username":"","git_password":""}' >"$operations/charlie-setup.json"
+	charlie_workspace=$(jq -er '.workspace_username' "$operations/charlie-setup.json")
+	jq -cn '{username:"charlie"}' | admin_ssh /usr/libexec/soda/soda-projects delete-human >"$operations/charlie-delete.json"
+	admin_ssh "! getent passwd charlie >/dev/null; ! getent passwd '$charlie_workspace' >/dev/null; test ! -e /home/charlie; test ! -e '/home/$charlie_workspace'"
+	capture_forgejo_state >"$operations/forgejo-after-human-delete.json"
+	diff -u "$operations/forgejo-before-human-delete.json" "$operations/forgejo-after-human-delete.json"
+
+	# Generic Linux deletion is deliberately non-cascading.
+	project_password_request create-forgejo generic 'Generic deletion fixture' >"$operations/generic-create.json"
+	primary_project_request dana setup '{"id":"generic","git_username":"","git_password":""}' >"$operations/dana-setup.json"
+	dana_workspace=$(jq -er '.workspace_username' "$operations/dana-setup.json")
+	run_privileged_script emit_generic_delete >"$operations/dana-generic-delete.txt"
+	admin_ssh "getent passwd '$dana_workspace' >/dev/null; test -d '/home/$dana_workspace/Projects/generic'"
+	project_request remove generic >"$operations/generic-remove.json"
+	admin_ssh "! getent passwd '$dana_workspace' >/dev/null; test ! -e '/home/$dana_workspace'"
+
+	# Project removal terminates every derived account and preserves Forgejo.
+	project_password_request create-forgejo removable 'Removal fixture' >"$operations/removable-create.json"
+	project_password_request setup removable '' >"$operations/removable-admin-setup.json"
+	primary_project_request alice setup '{"id":"removable","git_username":"","git_password":""}' >"$operations/removable-alice-setup.json"
+	removable_admin=$(jq -er '.workspace_username' "$operations/removable-admin-setup.json")
+	removable_alice=$(jq -er '.workspace_username' "$operations/removable-alice-setup.json")
+	fallback_workspace_ssh "$removable_alice" 'nohup sleep 300 </dev/null >/dev/null 2>&1 &'
+	project_request remove removable >"$operations/removable-remove.json"
+	admin_ssh "! getent passwd '$removable_admin' >/dev/null; ! getent passwd '$removable_alice' >/dev/null; jq -e 'all(.[]; .id != \"removable\")' /var/lib/soda/catalog/projects.json >/dev/null"
+	admin_ssh 'forgejo_url=$(printf "{}\n" | /usr/libexec/soda/soda-projects list | jq -er .forgejo_url); curl --fail --silent "$forgejo_url/api/v1/repos/soda-test/removable" >/dev/null'
+
+	# An ambiguous Linux association makes removal fail with the catalog intact.
+	project_password_request create-forgejo failure-order 'Failure ordering fixture' >"$operations/failure-order-create.json"
+	project_password_request setup failure-order '' >"$operations/failure-order-setup.json"
+	failure_workspace=$(jq -er '.workspace_username' "$operations/failure-order-setup.json")
+	set_workspace_marker "$failure_workspace" unexpected
+	if project_request remove failure-order >"$operations/failure-order-remove.stdout" 2>"$operations/failure-order-remove.stderr"; then
+		die "project removal accepted ambiguous workspace state"
+	fi
+	admin_ssh "jq -e 'any(.[]; .id == \"failure-order\")' /var/lib/soda/catalog/projects.json >/dev/null"
+	set_workspace_marker "$failure_workspace" soda-workspace=soda-test/failure-order
+	project_request remove failure-order >"$operations/failure-order-cleanup.json"
+
+	# Clean the keyless fixture through ordinary Linux ownership.
+	run_privileged_script emit_keyless_delete >"$operations/nokey-delete.txt"
+	date -u +%Y-%m-%dT%H:%M:%SZ >"$operations/pass.txt"
+}
+
+scenario() {
+	case "${1:-}" in
+		product) scenario_product ;;
+		*) die "scenario requires product" ;;
 	esac
 }
 
@@ -1410,6 +1719,8 @@ case "$command" in
 	capture) shift; capture "${1:-}" ;;
 	fallback) shift; fallback "$@" ;;
 	workload) shift; workload "${1:-}" ;;
+	project-workspace) shift; [ "$#" -eq 1 ] || die "project-workspace requires one ID"; project_workspace "$1" ;;
+	scenario) shift; [ "$#" -eq 1 ] || die "scenario requires one name"; scenario "$1" ;;
 	stop) shift; [ "$#" -eq 0 ] || die "stop accepts no arguments"; stop_vm ;;
 	*) usage >&2; die "unknown command $command" ;;
 esac

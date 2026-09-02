@@ -143,10 +143,11 @@ func TestAcceptanceUsesTheProtectedAnswerMediaBoundary(t *testing.T) {
 	root := filepath.Join("..", "..", "..")
 	runner := readInstallerFixture(t, root, "tests/acceptance/unattended.sh")
 	for _, expected := range []string{
+		"Usage:\n  tests/acceptance/unattended.sh run",
 		"installer-input",
-		`--tailscale-auth-key-file "$tailscale_auth_key_file"`,
+		`--tailscale-auth-key-file "$tailscale_key"`,
 		`--password-file "$password_file"`,
-		`--output "$kickstart_iso"`,
+		`--output "$oemdrv"`,
 	} {
 		require.Contains(t, runner, expected)
 	}
@@ -155,16 +156,56 @@ func TestAcceptanceUsesTheProtectedAnswerMediaBoundary(t *testing.T) {
 		"tailscale_auth_key=$tailscale_auth_key",
 		`user --name=$admin`,
 		"start_x86_unattended_boot_selector",
+		"runner.env",
+		"prepare)",
 	} {
 		require.NotContains(t, runner, obsolete)
 	}
 
-	bootRunner := readInstallerFixture(t, root, "tests/acceptance/bootc.sh")
+	bootRunner := readInstallerFixture(t, root, "tests/acceptance/internal/bootc.sh")
 	require.Contains(t, bootRunner, "SODA_ACCEPTANCE_KICKSTART_ISO is required for launch install")
 	require.Contains(t, bootRunner, "start_installer_input_ejector")
 	require.Contains(t, bootRunner, `"execute":"blockdev-remove-medium"`)
 	require.NotContains(t, bootRunner, "start_x86_unattended_boot_selector")
 	require.NotContains(t, bootRunner, `"execute":"send-key"`)
+}
+
+func TestAcceptanceExposesOnePublicWorkflow(t *testing.T) {
+	root := filepath.Join("..", "..", "..")
+	publicPath := filepath.Join(root, "tests", "acceptance", "unattended.sh")
+	publicInfo, err := os.Stat(publicPath)
+	require.NoError(t, err)
+	require.NotZero(t, publicInfo.Mode().Perm()&0o111)
+
+	privatePath := filepath.Join(root, "tests", "acceptance", "internal", "bootc.sh")
+	privateInfo, err := os.Stat(privatePath)
+	require.NoError(t, err)
+	require.Zero(t, privateInfo.Mode().Perm()&0o111)
+
+	_, err = os.Stat(filepath.Join(root, "tests", "acceptance", "bootc.sh"))
+	require.ErrorIs(t, err, os.ErrNotExist)
+
+	runner := readInstallerFixture(t, root, "tests/acceptance/unattended.sh")
+	for _, expected := range []string{
+		`fallback seed-b`,
+		`fallback stage "$target"`,
+		`fallback compare b-current a-selected`,
+		`fallback compare b-current b-restored`,
+		`scenario product`,
+		`capture final-pre-capstone`,
+	} {
+		require.Contains(t, runner, expected)
+	}
+	for _, obsolete := range []string{"runner.env", "VNC", "vnc", "two terminals"} {
+		require.NotContains(t, runner, obsolete)
+	}
+	for _, relative := range []string{
+		"tests/acceptance/registry-image.txt",
+		"tests/acceptance/skopeo-image.txt",
+	} {
+		value := strings.TrimSpace(readInstallerFixture(t, root, relative))
+		require.Regexp(t, `^[a-z0-9./-]+@sha256:[0-9a-f]{64}$`, value)
+	}
 }
 
 func readInstallerFixture(t *testing.T, root, relative string) string {
