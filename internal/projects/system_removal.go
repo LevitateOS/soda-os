@@ -250,7 +250,15 @@ func (platform *NativePlatform) validateAccountHome(account Account) error {
 
 func (platform *NativePlatform) openValidatedAccountHome(account Account) (*os.File, error) {
 	expectedHome := filepath.Join(platform.homeRoot(), account.Username)
-	if account.Home != expectedHome {
+	homeMatches := account.Home == expectedHome
+	if !homeMatches {
+		resolvedHomeRoot, err := filepath.EvalSymlinks(platform.homeRoot())
+		if err != nil {
+			return nil, fmt.Errorf("resolve Linux home root: %w", err)
+		}
+		homeMatches = account.Home == filepath.Join(resolvedHomeRoot, account.Username)
+	}
+	if !homeMatches {
 		return nil, fmt.Errorf("Linux account %s has unexpected home %s", account.Username, account.Home)
 	}
 	homeRoot, err := openManagedHomeRoot(platform.homeRoot())

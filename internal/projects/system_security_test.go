@@ -39,7 +39,7 @@ func nativePlatformForAccount(account Account) *NativePlatform {
 	return &NativePlatform{HomeRoot: filepath.Dir(account.Home)}
 }
 
-func TestManagedHomeRootMayBeNativeSymlinkButAccountHomeMayNot(t *testing.T) {
+func TestManagedHomeRootAcceptsLogicalAndPhysicalNativeHomes(t *testing.T) {
 	root := t.TempDir()
 	realHomeRoot := filepath.Join(root, "var", "home")
 	require.NoError(t, os.MkdirAll(realHomeRoot, 0o755))
@@ -61,6 +61,16 @@ func TestManagedHomeRootMayBeNativeSymlinkButAccountHomeMayNot(t *testing.T) {
 	contents, err := platform.ReadAuthorizedKeys(account)
 	require.NoError(t, err)
 	require.Equal(t, keys, contents)
+
+	account.Home = realHome
+	contents, err = platform.ReadAuthorizedKeys(account)
+	require.NoError(t, err)
+	require.Equal(t, keys, contents)
+
+	account.Home = filepath.Join(root, "other", "alice")
+	_, err = platform.ReadAuthorizedKeys(account)
+	require.ErrorContains(t, err, "unexpected home")
+	account.Home = realHome
 
 	require.NoError(t, os.Rename(realHome, filepath.Join(realHomeRoot, "real-alice")))
 	require.NoError(t, os.Symlink("real-alice", realHome))
