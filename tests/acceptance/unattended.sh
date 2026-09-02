@@ -51,6 +51,20 @@ select_docker() {
 	fi
 }
 
+select_tailscale() {
+	if command -v tailscale >/dev/null 2>&1; then
+		tailscale_command=$(command -v tailscale)
+	elif [ "$(uname -s)" = Darwin ] && [ -x /Applications/Tailscale.app/Contents/MacOS/Tailscale ]; then
+		tailscale_command=/Applications/Tailscale.app/Contents/MacOS/Tailscale
+	else
+		die "Tailscale is unavailable on PATH and no macOS app CLI was found"
+	fi
+}
+
+host_tailscale() {
+	"$tailscale_command" "$@"
+}
+
 host_docker() {
 	case "$docker_access" in
 		direct) docker "$@" ;;
@@ -139,7 +153,7 @@ discover_tailnet_address() {
 	current=$evidence_dir/.host-tailnet-current.json
 	candidates=$evidence_dir/.new-soda-peers.tsv
 	while :; do
-		tailscale status --json >"$current"
+		host_tailscale status --json >"$current"
 		: >"$candidates"
 		for id in $(jq -r '.Peer[]? | select(.Online == true and .HostName == "soda") | .ID' "$current"); do
 			if ! jq -e --arg id "$id" '.Peer[]? | select(.ID == $id)' "$before" >/dev/null; then
@@ -196,8 +210,9 @@ run() {
 	[ -n "$fallback_oci" ] || die "--fallback-oci is required"
 	[ -n "$tailscale_key" ] || die "--tailscale-auth-key-file is required"
 
-	for command in curl docker go jq openssl qemu-img sha256sum ssh ssh-keygen sudo tailscale tar xorriso; do need "$command"; done
+	for command in curl docker go jq openssl qemu-img sha256sum ssh ssh-keygen sudo tar xorriso; do need "$command"; done
 	select_docker
+	select_tailscale
 	set -- $(native_architecture)
 	architecture=$1
 	expected_platform=$2
@@ -407,7 +422,7 @@ PY
 	export SODA_ACCEPTANCE_KICKSTART_ISO=$oemdrv
 	export SODA_ACCEPTANCE_DISK=$disk
 	export SODA_ACCEPTANCE_DISK_SIZE=${SODA_ACCEPTANCE_DISK_SIZE:-40G}
-	tailscale status --json >"$evidence_dir/host-tailnet-before.json"
+	host_tailscale status --json >"$evidence_dir/host-tailnet-before.json"
 
 	printf 'installing candidate image B through raw QEMU\n'
 	sh "$helper" launch install >"$evidence_dir/qemu.stdout" 2>"$evidence_dir/qemu.stderr" &
