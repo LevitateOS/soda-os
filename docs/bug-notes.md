@@ -614,7 +614,7 @@ The SELinuxFS defect does not justify bringing back the add-on or replacing
 Anaconda wholesale. Patch the smallest verified upstream seam, guard it against
 version drift, and delete the patch when Fedora carries the fix.
 
-## 2026-09-02: a global tmpfiles failure silently removed Forgejo PAM access
+## 2026-09-02: tmpfiles and SELinux left Forgejo PAM access unapplied
 
 ### Expected outcome
 
@@ -653,50 +653,62 @@ required shadow-file mode.
 
 ### Direct evidence
 
-Running `systemd-tmpfiles --create forgejo.conf` on the disposable installed
-machine changed only the intended rule and restored `/etc/shadow` mode `0040`.
-The same protected correct-password request then returned HTTP 200 and Forgejo
-created one active, non-administrator Alice user. Subsequent `useradd`,
-`chpasswd`, password locking, and `userdel` probes preserved the group and
-mode.
+Running `systemd-tmpfiles --create forgejo.conf` manually from the unconfined
+administrator domain changed only the intended rule and restored `/etc/shadow`
+mode `0040`. The same protected correct-password request then returned HTTP 200
+and Forgejo created one active, non-administrator Alice user. Subsequent
+`useradd`, `chpasswd`, password locking, and `userdel` probes preserved the
+group and mode.
+
+That result was incomplete: invoking the same command from a systemd service
+returned success but left mode `0000`. With SELinux temporarily permissive, the
+service invocation produced mode `0040`. Disabling SELinux `dontaudit` rules
+then exposed the exact enforcing denial from `systemd_tmpfiles_t` to
+`shadow_t`: file permissions `{ getattr setattr }`. A test policy granting only
+those permissions made the service invocation work under enforcing SELinux.
 
 ### Root cause and ownership
 
-The package described its required privilege through tmpfiles but relied on
-the success of the system-wide tmpfiles pass. A failure in an unrelated rule
-therefore prevented Forgejo's package-owned precondition. Linux/PAM still own
-password verification; Soda owns only composition of the explicitly authorized
-service privilege.
+The package first relied on the success of the system-wide tmpfiles pass, so a
+failure in an unrelated rule prevented Forgejo's package-owned precondition.
+Moving the named rule to Forgejo initialization removed that coupling, but the
+SELinux policy intentionally prevented the tmpfiles domain from inspecting or
+changing shadow metadata. The command's successful exit did not prove its side
+effect. Linux/PAM still own password verification; Soda owns only composition
+of the explicitly authorized service privilege.
 
 ### Smallest correction
 
-The existing root-owned `forgejo-init.service` now runs
+The existing root-owned `forgejo-init.service` runs
 `systemd-tmpfiles --create forgejo.conf` before its existing initialization and
-before `forgejo.service`. This reuses the package's single declarative rule and
-existing ordering boundary. It adds no daemon, service, executable, identity
-state, verifier copy, credential path, or generic privilege mechanism.
+before `forgejo.service`. The image also installs one SELinux module allowing
+`systemd_tmpfiles_t` only `getattr` and `setattr` on `shadow_t`. This reuses the
+package's single declarative rule and existing ordering boundary while granting
+no content read or write permission. It adds no daemon, service, executable,
+identity state, verifier copy, credential path, or generic privilege mechanism.
 
 ### Rejected broader fixes
 
 Do not add `git` permanently to a shadow-reading NSS group, add a password
 helper or broker, copy shadow records, disable SELinux, make Forgejo unconfined,
-or attempt to make Soda repair every global tmpfiles failure.
+allow the tmpfiles domain to read or write shadow contents, or attempt to make
+Soda repair every global tmpfiles failure.
 
 ### Verification status
 
-Focused image/package tests, both architecture source contracts, `just check`,
-and the native x86-64 A artifact build pass at commit `e0a0fa5`. The manual
-installed probe proves the corrected mechanism. The complete fresh x86-64
-B-to-A-to-B acceptance and matching-native AArch64 repetition remain required
-before release-level completion.
+Focused image/package tests, both architecture source contracts, policy
+compilation, and `just check` pass at production commit `b2faeb3`. The
+disposable installed probe proves the exact policy under enforcing SELinux.
+Fresh x86-64 artifacts, complete B-to-A-to-B acceptance, and matching-native
+AArch64 repetition remain required before release-level completion.
 
 ### Rule we will reuse
 
-A declarative rule being present is not evidence that its side effect occurred.
-When a service requires one package-owned tmpfiles invariant, apply that named
-configuration at the existing service initialization boundary and verify the
-installed state directly; do not depend on unrelated global rules all
-succeeding.
+A declarative rule being present and its command exiting successfully are not
+evidence that the side effect occurred. Apply a package-owned tmpfiles invariant
+at the existing service initialization boundary, verify installed state, and
+when SELinux blocks it, derive the smallest policy from the exact denial rather
+than changing privilege owners or disabling enforcement.
 
 ## Checklist for the next installer investigation
 

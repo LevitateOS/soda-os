@@ -67,10 +67,13 @@ systemd's `SupplementaryGroups`. Tmpfiles maintains `/etc/shadow` as
 `root:soda-forgejo-shadow` mode `0040`. The existing root-owned
 `forgejo-init.service` reapplies that one named tmpfiles configuration before
 Forgejo starts; this makes the service privilege independent of failures in
-unrelated global tmpfiles rules without adding another service or helper. The
-PAM policy accepts regular Linux users, rejects `soda-workspaces`, and applies
-normal account checks. Soda copies no verifier, authentication result, role,
-token, or identity record.
+unrelated global tmpfiles rules without adding another service or helper. One
+image-owned SELinux rule permits `systemd_tmpfiles_t` only `getattr` and
+`setattr` on `shadow_t`, which are the exact permissions observed to be needed
+for that metadata rule. It grants neither file-content read nor write access.
+The PAM policy accepts regular Linux users, rejects `soda-workspaces`, and
+applies normal account checks. Soda copies no verifier, authentication result,
+role, token, or identity record.
 
 ## Project catalog and lifecycle
 

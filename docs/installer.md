@@ -156,12 +156,15 @@ Forgejo service process: `/etc/shadow` is `root:soda-forgejo-shadow` mode
 `forgejo.service` receives it through `SupplementaryGroups`. The existing
 root-owned Forgejo initialization unit applies only Forgejo's named tmpfiles
 configuration before service startup, so an unrelated failure in the global
-tmpfiles pass cannot silently remove the authorized read boundary. Linux
-account creation performs no Forgejo operation, and later `wheel` membership
-has no Forgejo effect. Derived workspace accounts are Linux-only development
-identities that use their installed authorized public keys for direct OpenSSH
-access; the shipped PAM account rule rejects the `soda-workspaces` group so
-they cannot become Forgejo users.
+tmpfiles pass cannot silently remove the authorized read boundary. A narrow
+SELinux rule allows the tmpfiles domain only the `getattr` and `setattr`
+metadata permissions on `shadow_t` proven by the installed denial; it does not
+grant shadow-content access. Linux account creation performs no Forgejo
+operation, and later `wheel` membership has no Forgejo effect. Derived
+workspace accounts are Linux-only development identities that use their
+installed authorized public keys for direct OpenSSH access; the shipped PAM
+account rule rejects the `soda-workspaces` group so they cannot become Forgejo
+users.
 
 Soda may set the PAM source's email domain to the fixed packaging convention
 `localhost`, allowing Forgejo to initialize `<username>@localhost`. The setting

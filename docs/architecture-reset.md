@@ -585,10 +585,13 @@ authority and the existing PAM classification rejects `soda-workspaces`. The
 existing Forgejo initialization unit applies the package's one named tmpfiles
 rule before service startup, because installed evidence showed that an
 unrelated failure in the global tmpfiles pass could otherwise leave that
-authorized boundary unapplied. Focused source and package checks and the native
-x86-64 A artifact build pass, while the complete post-#37 installed workflow
-remains to run on x86-64 and matching-native AArch64. These status facts do not
-let issue text redefine the outcomes above.
+authorized boundary unapplied. An exact SELinux denial further proved that the
+tmpfiles domain needed only `getattr` and `setattr` on `shadow_t`; the image now
+ships precisely those metadata permissions and no shadow-content permission.
+Focused source and package checks pass, while fresh post-policy artifacts and
+the complete post-#37 installed workflow remain to run on x86-64 and
+matching-native AArch64. These status facts do not let issue text redefine the
+outcomes above.
 
 Issue #33 owns stable primary identity, Linux-native account classification,
 and supported cascading human deletion. Issue #38 owns account behavior across
