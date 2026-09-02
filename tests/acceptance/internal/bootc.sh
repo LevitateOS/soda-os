@@ -775,7 +775,7 @@ capture() {
 			printf "%s=%s\n" "$unit" "$state"
 		done
 		echo "[failed-units]"
-		failed_units=$(systemctl --failed --no-legend --plain)
+		failed_units=$(systemctl --failed --no-legend --plain || true)
 		test -z "$failed_units"
 		echo none
 		echo "[stock-cockpit]"

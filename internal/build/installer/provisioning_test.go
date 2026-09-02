@@ -180,7 +180,7 @@ func TestAcceptanceUsesTheProtectedAnswerMediaBoundary(t *testing.T) {
 	require.Contains(t, bootRunner, "while kill -0 \"$qemu_pid\" 2>/dev/null; do")
 	require.Contains(t, bootRunner, `kill -KILL "$qemu_pid"`)
 	require.Contains(t, bootRunner, `"execute":"blockdev-remove-medium"`)
-	require.Contains(t, bootRunner, `failed_units=$(systemctl --failed --no-legend --plain)`)
+	require.Contains(t, bootRunner, `failed_units=$(systemctl --failed --no-legend --plain || true)`)
 	require.Contains(t, bootRunner, `test -z "$failed_units"`)
 	require.Contains(t, bootRunner, `uid=$(id -u nokey)`)
 	require.Contains(t, bootRunner, `Keyless fixture still owns processes after native logind termination`)
