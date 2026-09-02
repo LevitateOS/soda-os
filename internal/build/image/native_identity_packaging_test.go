@@ -56,6 +56,14 @@ func TestForgejoPAMHasOnlyTheDedicatedShadowReadBoundary(t *testing.T) {
 	tmpfiles, err := os.ReadFile(filepath.Join(root, "tmpfiles", "forgejo.conf"))
 	require.NoError(t, err)
 	require.Contains(t, nonCommentLines(string(tmpfiles)), "z /etc/shadow 0040 root soda-forgejo-shadow - -")
+
+	policy, err := os.ReadFile(filepath.Join(root, "selinux", "soda-forgejo-shadow.te"))
+	require.NoError(t, err)
+	policyRules := strings.Join(nonCommentLines(string(policy)), "\n")
+	require.Contains(t, policyRules, "allow systemd_tmpfiles_t shadow_t:file { getattr setattr };")
+	require.Equal(t, 1, strings.Count(policyRules, "allow "))
+	require.NotContains(t, policyRules, " read ")
+	require.NotContains(t, policyRules, " write ")
 }
 
 func nonCommentLines(contents string) []string {

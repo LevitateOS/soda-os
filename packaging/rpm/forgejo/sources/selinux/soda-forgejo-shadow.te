@@ -1,0 +1,11 @@
+module soda_forgejo_shadow 1.0;
+
+require {
+	type shadow_t;
+	type systemd_tmpfiles_t;
+	class file { getattr setattr };
+}
+
+# The package-owned tmpfiles rule changes only /etc/shadow metadata. Forgejo's
+# service-only supplementary group remains the sole added read boundary.
+allow systemd_tmpfiles_t shadow_t:file { getattr setattr };

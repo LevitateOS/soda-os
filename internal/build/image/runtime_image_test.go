@@ -182,8 +182,10 @@ func TestForgejoPackagingContract(t *testing.T) {
 	require.NoError(t, err)
 	require.Contains(t, string(spec), "Version:        15.0.7")
 	require.Contains(t, string(spec), "Pinned PAM-enabled Forgejo runtime")
+	require.Contains(t, string(spec), "Requires:       checkpolicy, git-core, git-lfs, pam, policycoreutils")
 	require.Contains(t, string(spec), "%{_unitdir}/forgejo.service")
 	require.Contains(t, string(spec), "%{_sysconfdir}/pam.d/soda-forgejo")
+	require.Contains(t, string(spec), "%{_datadir}/soda/selinux/soda-forgejo-shadow.te")
 
 	unit, err := os.ReadFile(filepath.Join(forgejoRoot, "sources", "systemd", "forgejo.service"))
 	require.NoError(t, err)
@@ -228,6 +230,19 @@ func TestForgejoPackagingContract(t *testing.T) {
 	require.Contains(t, string(buildPipeline), `"GOCACHE=/src/.artifacts/build/forgejo-go-cache"`)
 	require.Contains(t, string(buildPipeline), `"GOTMPDIR=/src/.artifacts/build/forgejo-go-tmp"`)
 	require.Contains(t, string(buildPipeline), `TAGS='bindata timetzdata sqlite sqlite_unlock_notify pam' make backend`)
+}
+
+func TestForgejoShadowSELinuxPolicyContract(t *testing.T) {
+	root := filepath.Join("..", "..", "..")
+	policy, err := os.ReadFile(filepath.Join(root, "packaging", "rpm", "forgejo", "sources", "selinux", "soda-forgejo-shadow.te"))
+	require.NoError(t, err)
+	require.Contains(t, string(policy), "allow systemd_tmpfiles_t shadow_t:file { getattr setattr };")
+
+	containerfile, err := os.ReadFile(filepath.Join(root, "packaging", "bootc", "Containerfile"))
+	require.NoError(t, err)
+	require.Contains(t, string(containerfile), "checkmodule -M -m -o /run/soda_forgejo_shadow.mod /usr/share/soda/selinux/soda-forgejo-shadow.te")
+	require.Contains(t, string(containerfile), "semodule -i /run/soda_forgejo_shadow.pp")
+	require.Contains(t, string(containerfile), "semodule -l | grep -Fx soda_forgejo_shadow")
 }
 
 func TestForgejoTailnetPackagingContract(t *testing.T) {

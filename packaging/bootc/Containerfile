@@ -39,6 +39,11 @@ RUN dnf -y --setopt=install_weak_deps=False --enablerepo=updates-testing install
       /run/dnf \
       /var/tmp/soda-rpms \
     && systemd-sysusers /usr/lib/sysusers.d/soda-projects.conf /usr/lib/sysusers.d/forgejo.conf \
+    && checkmodule -M -m -o /run/soda_forgejo_shadow.mod /usr/share/soda/selinux/soda-forgejo-shadow.te \
+    && semodule_package -o /run/soda_forgejo_shadow.pp -m /run/soda_forgejo_shadow.mod \
+    && semodule -i /run/soda_forgejo_shadow.pp \
+    && semodule -l | grep -Fx soda_forgejo_shadow \
+    && rm -f /run/soda_forgejo_shadow.mod /run/soda_forgejo_shadow.pp \
     && systemd-tmpfiles --create /usr/lib/tmpfiles.d/forgejo.conf \
     && getent group soda-workspaces \
     && getent group soda-forgejo-shadow \

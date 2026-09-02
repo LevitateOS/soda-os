@@ -184,6 +184,7 @@ func (b *Builder) stageNonBunRPMSources(build, sources string) error {
 		{b.path("packaging/rpm/forgejo/sources/sysusers/forgejo.conf"), filepath.Join(sources, "forgejo.sysusers")},
 		{b.path("packaging/rpm/forgejo/sources/tmpfiles/forgejo.conf"), filepath.Join(sources, "forgejo.tmpfiles")},
 		{b.path("packaging/rpm/forgejo/sources/pam/soda-forgejo"), filepath.Join(sources, "soda-forgejo.pam")},
+		{b.path("packaging/rpm/forgejo/sources/selinux/soda-forgejo-shadow.te"), filepath.Join(sources, "soda-forgejo-shadow.te")},
 		{b.path("packaging/rpm/release/sources/BASE_SYSTEM.md"), filepath.Join(sources, "BASE_SYSTEM.md")},
 		{b.path("distro/toolset-commands.txt"), filepath.Join(sources, "toolset-commands.txt")},
 		{b.path("assets/branding/source/soda-symbol.svg"), filepath.Join(sources, "soda-symbol.svg")},
