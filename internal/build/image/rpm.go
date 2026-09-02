@@ -146,6 +146,9 @@ func (b *Builder) stageRPMSources(build, sources string) error {
 	if err := b.stageBunSource(sources); err != nil {
 		return err
 	}
+	if err := b.stageTeaSource(sources); err != nil {
+		return err
+	}
 	return b.stageNonBunRPMSources(build, sources)
 }
 

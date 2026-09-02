@@ -24,6 +24,7 @@ pkg-config
 git
 git-lfs
 gh
+tea
 ssh
 scp
 sftp
