@@ -194,6 +194,7 @@ func TestAcceptanceExposesOnePublicWorkflow(t *testing.T) {
 		`fallback compare b-current b-restored`,
 		`scenario product`,
 		`capture final`,
+		`SODA_ACCEPTANCE_LATER_PRIMARY_PASSWORD_FILE`,
 	} {
 		require.Contains(t, runner, expected)
 	}
@@ -201,6 +202,16 @@ func TestAcceptanceExposesOnePublicWorkflow(t *testing.T) {
 		require.NotContains(t, runner, obsolete)
 	}
 	require.NotContains(t, runner, "final-pre-capstone")
+	bootRunner := readInstallerFixture(t, root, "tests/acceptance/internal/bootc.sh")
+	for _, expected := range []string{
+		`forgejo_pam_request alice wrong 401`,
+		`forgejo_pam_request alice correct 200`,
+		`forgejo_pam_request bob correct 200`,
+		`root:soda-forgejo-shadow:40`,
+		`workspace PAM attempt created a Forgejo user`,
+	} {
+		require.Contains(t, bootRunner, expected)
+	}
 	for _, relative := range []string{
 		"tests/acceptance/registry-image.txt",
 		"tests/acceptance/skopeo-image.txt",

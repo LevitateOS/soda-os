@@ -209,6 +209,7 @@ run() {
 	admin=${SODA_ACCEPTANCE_ADMIN:-soda-test}
 	admin_key=$evidence_dir/admin
 	password_file=$evidence_dir/admin-password
+	later_primary_password_file=$evidence_dir/later-primary-password
 	oemdrv=$evidence_dir/oemdrv.iso
 	registry_port=${SODA_ACCEPTANCE_REGISTRY_PORT:-5001}
 	printf '%s\n' "$registry_port" | LC_ALL=C grep -Eq '^[0-9]{1,5}$' || die "registry port must be numeric"
@@ -245,7 +246,8 @@ run() {
 
 	ssh-keygen -q -t ed25519 -N '' -C "$admin@raw-qemu" -f "$admin_key"
 	openssl rand -base64 24 >"$password_file"
-	chmod 0600 "$admin_key" "$password_file"
+	openssl rand -base64 24 >"$later_primary_password_file"
+	chmod 0600 "$admin_key" "$password_file" "$later_primary_password_file"
 	(
 		cd "$repo_root"
 		go run ./cmd/soda-image --architecture "$architecture" installer-input \
@@ -311,6 +313,7 @@ run() {
 	export SODA_ACCEPTANCE_ADMIN=$admin
 	export SODA_ACCEPTANCE_ADMIN_KEY=$admin_key
 	export SODA_ACCEPTANCE_ADMIN_PASSWORD_FILE=$password_file
+	export SODA_ACCEPTANCE_LATER_PRIMARY_PASSWORD_FILE=$later_primary_password_file
 	export SODA_ACCEPTANCE_HOST=127.0.0.1
 	export SODA_ACCEPTANCE_SSH_PORT=${SODA_ACCEPTANCE_SSH_PORT:-2222}
 	export SODA_ACCEPTANCE_COCKPIT_PORT=${SODA_ACCEPTANCE_COCKPIT_PORT:-19090}

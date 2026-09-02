@@ -39,6 +39,8 @@ Required environment:
 Additional fallback environment:
   SODA_ACCEPTANCE_IMAGE_A_REFERENCE Exact registry digest reference for image A
   SODA_ACCEPTANCE_IMAGE_B_REFERENCE Exact registry digest reference for image B
+  SODA_ACCEPTANCE_LATER_PRIMARY_PASSWORD_FILE
+                                    Protected password fixture for PAM evidence
 
 Additional launch install environment:
   SODA_ACCEPTANCE_ISO              Exact-digest Soda installer ISO
@@ -104,6 +106,14 @@ password_file() {
 	printf '%s\n' "$path"
 }
 
+later_primary_password_file() {
+	path=${SODA_ACCEPTANCE_LATER_PRIMARY_PASSWORD_FILE:-}
+	[ -n "$path" ] || die "SODA_ACCEPTANCE_LATER_PRIMARY_PASSWORD_FILE is required"
+	need_file "$path"
+	[ "$(stat -c %a "$path")" = 600 ] || die "later-primary password fixture must be mode 0600"
+	printf '%s\n' "$path"
+}
+
 valid_exact_image_reference() {
 	reference=$1
 	case "$reference" in
@@ -156,6 +166,71 @@ run_privileged_script() {
 		cat "$credentials"
 		"$emitter"
 	} | admin_ssh 'sudo -k -S -p "" /bin/bash -eu -o pipefail -s'
+}
+
+set_fixture_password() {
+	username=$1
+	case "$username" in alice|obsolete|bob) ;; *) die "unsupported PAM fixture account $username" ;; esac
+	credentials=$(password_file)
+	fixture=$(later_primary_password_file)
+	{
+		cat "$credentials"
+		printf '%s\n' "$username"
+		cat "$fixture"
+	} | admin_ssh 'sudo -k -S -p "" /bin/bash -eu -o pipefail -c '\''
+		IFS= read -r username
+		IFS= read -r password
+		case "$username" in alice|obsolete|bob) ;; *) exit 2 ;; esac
+		printf "%s:%s\n" "$username" "$password" | /usr/sbin/chpasswd
+		unset password
+	'\'''
+}
+
+forgejo_pam_request() {
+	username=$1
+	password_kind=$2
+	expected_status=$3
+	output=$4
+	printf '%s\n' "$username" | LC_ALL=C grep -Eq '^[a-z][a-z0-9-]{0,31}$' ||
+		die "invalid Forgejo PAM fixture username $username"
+	fixture=$(later_primary_password_file)
+	raw=$acceptance_dir/.forgejo-pam-$$.response
+	trap 'rm -f "$raw"' 0 1 2 15
+	{
+		printf '%s\n' "$username"
+		case "$password_kind" in
+			correct) cat "$fixture" ;;
+			wrong) openssl rand -hex 24 ;;
+			*) die "Forgejo PAM request requires correct or wrong password input" ;;
+		esac
+	} | admin_ssh '/bin/bash -eu -o pipefail -c '\''
+		IFS= read -r username
+		IFS= read -r password
+		forgejo_url=$(printf "{}\n" | /usr/libexec/soda/soda-projects list | jq -er .forgejo_url)
+		{
+			printf "user = \"%s:%s\"\n" "$username" "$password"
+			printf "silent\nshow-error\nwrite-out = \"\\n%%{http_code}\\n\"\n"
+		} | curl --config - --request GET --url "$forgejo_url/api/v1/user"
+		unset password
+	'\''' >"$raw"
+	status=$(tail -n 1 "$raw")
+	sed '$d' "$raw" >"$output"
+	rm -f "$raw"
+	trap - 0 1 2 15
+	[ "$status" = "$expected_status" ] ||
+		die "Forgejo PAM request for $username returned HTTP $status, expected $expected_status"
+}
+
+forgejo_user_status() {
+	username=$1
+	printf '%s\n' "$username" | LC_ALL=C grep -Eq '^[a-z][a-z0-9-]{0,31}$' ||
+		die "invalid Forgejo user status fixture $username"
+	admin_ssh "
+		set -eu
+		forgejo_url=\$(printf '{}\\n' | /usr/libexec/soda/soda-projects list | jq -er .forgejo_url)
+		curl --silent --show-error --output /dev/null --write-out '%{http_code}\\n' \
+			\"\$forgejo_url/api/v1/users/$username\"
+	"
 }
 
 require_dir() {
@@ -686,6 +761,18 @@ for username in $members; do
 	marker=$(getent passwd "$username" | cut -d: -f5)
 	printf '%s\n' "$marker" | grep -Eq '^soda-workspace=[a-z][a-z0-9-]{0,23}/[a-z][a-z0-9-]{0,23}$'
 	done
+test "$(stat -c '%U:%G:%a' /etc/shadow)" = root:soda-forgejo-shadow:40
+test -z "$(getent group soda-forgejo-shadow | cut -d: -f4)"
+! id -nG git | tr ' ' '\n' | grep -Fx soda-forgejo-shadow >/dev/null
+test "$(systemctl show forgejo.service --property=SupplementaryGroups --value)" = soda-forgejo-shadow
+shadow_gid=$(getent group soda-forgejo-shadow | cut -d: -f3)
+forgejo_pid=$(systemctl show forgejo.service --property=MainPID --value)
+test "$forgejo_pid" -gt 0
+grep -E "^Groups:.*[[:space:]]$shadow_gid([[:space:]]|$)" "/proc/$forgejo_pid/status" >/dev/null
+test "$(getenforce)" = Enforcing
+grep -Fx 'auth       required     pam_usertype.so isregular' /etc/pam.d/forgejo >/dev/null
+grep -Fx 'auth       required     pam_succeed_if.so quiet user notingroup soda-workspaces' /etc/pam.d/forgejo >/dev/null
+echo "forgejo-shadow-boundary=service-only"
 EOF
 }
 
@@ -979,11 +1066,35 @@ done
 /usr/sbin/runuser --user soda-test -- /usr/bin/env HOME=/home/soda-test /bin/sh -c \
 	' umask 077; printf "seed-a:soda-test\n" >"$HOME/soda-acceptance-state.txt" '
 restorecon -RF /home/soda-test
-alice_password=$(openssl rand -base64 32 | tr -d '\n')
-obsolete_password=$(openssl rand -base64 32 | tr -d '\n')
-printf 'alice:%s\nobsolete:%s\n' "$alice_password" "$obsolete_password" | /usr/sbin/chpasswd
-unset alice_password obsolete_password
 EOF
+}
+
+exercise_seed_forgejo_pam() {
+	operations=$1
+	[ "$(forgejo_user_status alice)" = 404 ] || die "Alice already exists in Forgejo before PAM login"
+	forgejo_pam_request alice wrong 401 "$operations/alice-forgejo-wrong-password.json"
+	[ "$(forgejo_user_status alice)" = 404 ] || die "failed PAM login created Alice in Forgejo"
+	set_fixture_password alice
+	set_fixture_password obsolete
+	forgejo_pam_request alice correct 200 "$operations/alice-forgejo-login.json"
+	jq -e '.login == "alice" and .active == true and .is_admin == false' \
+		"$operations/alice-forgejo-login.json" >/dev/null || die "Alice did not become an ordinary native Forgejo user"
+	forgejo_pam_request obsolete correct 200 "$operations/obsolete-forgejo-login.json"
+	jq -e '.login == "obsolete" and .active == true and .is_admin == false' \
+		"$operations/obsolete-forgejo-login.json" >/dev/null || die "obsolete fixture did not become an ordinary native Forgejo user"
+}
+
+exercise_mutated_forgejo_pam() {
+	operations=$1
+	set_fixture_password alice
+	set_fixture_password bob
+	forgejo_pam_request alice correct 200 "$operations/alice-forgejo-wheel-login.json"
+	jq -e '.login == "alice" and .active == true and .is_admin == false' \
+		"$operations/alice-forgejo-wheel-login.json" >/dev/null || die "wheel changed Alice's Forgejo role"
+	forgejo_pam_request bob correct 200 "$operations/bob-forgejo-login.json"
+	jq -e '.login == "bob" and .active == true and .is_admin == false' \
+		"$operations/bob-forgejo-login.json" >/dev/null || die "Bob did not become an ordinary native Forgejo user"
+	[ "$(forgejo_user_status obsolete)" = 200 ] || die "Linux deletion removed the obsolete native Forgejo user"
 }
 
 emit_seed_workspace_files() {
@@ -1036,6 +1147,7 @@ fallback_seed_b() {
 	operations=$(fallback_operations_dir)
 	[ ! -e "$operations/seed-b.complete" ] || die "fallback seed-b has already completed"
 	run_privileged_script emit_seed_accounts >"$operations/seed-b-accounts.txt"
+	exercise_seed_forgejo_pam "$operations"
 	for project in kept removed; do
 		case "$project" in kept) display_name=Kept ;; removed) display_name=Removed ;; esac
 		project_password_request create-forgejo "$project" "$display_name" >"$operations/seed-b-$project-create.json"
@@ -1043,6 +1155,7 @@ fallback_seed_b() {
 	done
 	run_privileged_script emit_seed_workspace_files >"$operations/seed-b-workspaces.txt"
 	run_privileged_script emit_mutate_accounts >"$operations/seed-b-current-accounts.txt"
+	exercise_mutated_forgejo_pam "$operations"
 	kept_url=$(admin_ssh "jq -er '.[] | select(.id == \"kept\") | .canonical_url' /var/lib/soda/catalog/projects.json")
 	jq -cn --arg id kept --arg display_name 'Kept on B' --arg canonical_url "$kept_url" \
 		'{id:$id,display_name:$display_name,canonical_url:$canonical_url}' |
@@ -1159,9 +1272,6 @@ test "$(id -u)" -eq 0
 getent passwd alice >/dev/null
 getent passwd obsolete >/dev/null
 ! getent passwd bob >/dev/null
-alice_password=$(openssl rand -base64 32 | tr -d '\n')
-printf 'alice:%s\n' "$alice_password" | /usr/sbin/chpasswd
-unset alice_password
 /usr/sbin/usermod --append --groups wheel -- alice
 
 /usr/sbin/useradd --create-home --user-group --shell /bin/bash -- bob
@@ -1171,9 +1281,6 @@ install -d -m 0700 -o bob -g "$bob_group" "$bob_home/.ssh"
 install -m 0600 -o bob -g "$bob_group" /home/soda-test/.ssh/authorized_keys "$bob_home/.ssh/authorized_keys"
 /usr/sbin/runuser --user bob -- /usr/bin/env HOME="$bob_home" /bin/sh -c \
 	' umask 077; printf "mutate-b:bob\n" >"$HOME/soda-acceptance-state.txt" '
-bob_password=$(openssl rand -base64 32 | tr -d '\n')
-printf 'bob:%s\n' "$bob_password" | /usr/sbin/chpasswd
-unset bob_password
 restorecon -RF "$bob_home"
 
 loginctl terminate-user obsolete 2>/dev/null || true
@@ -1349,11 +1456,30 @@ host_keys=$(
 timer_state=$(systemctl is-enabled bootc-fetch-apply-updates.timer 2>/dev/null || true)
 test "$timer_state" = masked
 
+shadow_state=$(stat -c '%U:%G:%a' /etc/shadow)
+test "$shadow_state" = root:soda-forgejo-shadow:40
+shadow_gid=$(getent group soda-forgejo-shadow | cut -d: -f3)
+test -n "$shadow_gid"
+test -z "$(getent group soda-forgejo-shadow | cut -d: -f4)"
+! id -nG git | tr ' ' '\n' | grep -Fx soda-forgejo-shadow >/dev/null
+service_groups=$(systemctl show forgejo.service --property=SupplementaryGroups --value)
+test "$service_groups" = soda-forgejo-shadow
+forgejo_pid=$(systemctl show forgejo.service --property=MainPID --value)
+test "$forgejo_pid" -gt 0
+grep -E "^Groups:.*[[:space:]]$shadow_gid([[:space:]]|$)" "/proc/$forgejo_pid/status" >/dev/null
+selinux=$(getenforce)
+test "$selinux" = Enforcing
+pam_sha=$(sha256sum /etc/pam.d/forgejo | awk '{print $1}')
+shadow_access=$(jq -cn --arg file "$shadow_state" --arg service_group "$service_groups" \
+	--arg selinux "$selinux" --arg pam_sha "$pam_sha" \
+	'{file:$file,service_supplementary_group:$service_group,nss_members:[],service_process_has_group:true,
+	  selinux:$selinux,pam_sha256:$pam_sha}')
+
 jq -cn --argjson accounts "$accounts" --argjson workspace_assertions "$workspace_assertions" \
 	--argjson workspaces "$workspaces" --argjson tailnet "$tailnet" \
-	--argjson host_keys "$host_keys" --arg timer_state "$timer_state" \
+	--argjson host_keys "$host_keys" --arg timer_state "$timer_state" --argjson shadow_access "$shadow_access" \
 	'{accounts:$accounts,workspace_assertions:$workspace_assertions,workspaces:$workspaces,tailnet:$tailnet,ssh_host_keys:$host_keys,
-	  automatic_update_timer:$timer_state}'
+	  automatic_update_timer:$timer_state,forgejo_shadow_access:$shadow_access}'
 EOF
 }
 
@@ -1361,14 +1487,30 @@ capture_forgejo_state() {
 	admin_ssh '
 		set -eu
 		forgejo_url=$(printf "{}\n" | /usr/libexec/soda/soda-projects list | jq -er .forgejo_url)
-		forgejo_get() {
-			path=$1
-			curl --fail --silent --show-error --request GET --url "$forgejo_url$path"
-		}
-		user=$(forgejo_get /api/v1/users/soda-test)
-		repositories=$(forgejo_get "/api/v1/users/soda-test/repos?limit=100")
-		jq -cn --argjson user "$user" --argjson repositories "$repositories" '\''
-			{user:($user|{id,login,active,restricted}),
+		users=$(
+			for login in soda-test alice obsolete bob; do
+				status=$(curl --silent --show-error --output /dev/null --write-out "%{http_code}" "$forgejo_url/api/v1/users/$login")
+				case "$status" in
+					200)
+						user=$(curl --fail --silent --show-error --request GET --url "$forgejo_url/api/v1/users/$login")
+						jq -cn --argjson user "$user" '\''$user | {id,login,active,restricted,is_admin,present:true}'\''
+						;;
+					404) jq -cn --arg login "$login" '\''{login:$login,present:false}'\'' ;;
+					*) exit 1 ;;
+				esac
+			done | jq -sc '\''sort_by(.login)'\''
+		)
+		repositories=$(curl --fail --silent --show-error --request GET --url "$forgejo_url/api/v1/users/soda-test/repos?limit=100")
+		workspace_users=$(
+			getent group soda-workspaces | cut -d: -f4 | tr "," "\n" | sed "/^$/d" | LC_ALL=C sort |
+			while IFS= read -r login; do
+				status=$(curl --silent --show-error --output /dev/null --write-out "%{http_code}" "$forgejo_url/api/v1/users/$login")
+				test "$status" = 404
+				jq -cn --arg login "$login" '\''{login:$login,present:false}'\''
+			done | jq -sc '\''sort_by(.login)'\''
+		)
+		jq -cn --argjson users "$users" --argjson workspace_users "$workspace_users" --argjson repositories "$repositories" '\''
+			{users:$users,workspace_users:$workspace_users,
 			 repositories:($repositories |
 			   map(select(.name == "kept" or .name == "removed" or .name == "new") |
 			       {id,name,owner:.owner.login,empty,clone_url,ssh_url}) |
@@ -1453,8 +1595,8 @@ fallback_capture() {
 	' "$checkpoint/catalog.json" >/dev/null || die "installed catalog is not the exact sorted three-field representation"
 	run_privileged_script emit_fallback_state >"$checkpoint/system.json"
 	capture_forgejo_state >"$checkpoint/forgejo.json"
-	jq -e '.user.login == "soda-test"' "$checkpoint/forgejo.json" >/dev/null ||
-		die "Forgejo native user evidence is missing"
+	jq -e '[.users[] | select(.present) | .login] == ["alice","bob","obsolete","soda-test"] and all(.workspace_users[]; .present == false)' \
+		"$checkpoint/forgejo.json" >/dev/null || die "Forgejo native user evidence is incomplete"
 	fallback_workspace_process "$checkpoint"
 	catalog_sha=$(sha256sum "$checkpoint/catalog.json" | awk '{print $1}')
 	jq -S -n --argjson system "$(cat "$checkpoint/system.json")" \
@@ -1599,6 +1741,20 @@ scenario_product() {
 	[ ! -e "$operations" ] || die "product scenarios already ran"
 	mkdir -p "$operations"
 
+	# Native Forgejo PAM remains Linux-owned after B -> A -> B. Existing Forgejo
+	# records survive Linux deletion, wheel does not grant Forgejo administration,
+	# and a derived workspace account cannot create a Forgejo identity.
+	forgejo_pam_request alice correct 200 "$operations/alice-forgejo-final-login.json"
+	jq -e '.login == "alice" and .active == true and .is_admin == false' \
+		"$operations/alice-forgejo-final-login.json" >/dev/null || die "Alice's final Forgejo PAM login is not ordinary"
+	forgejo_pam_request bob correct 200 "$operations/bob-forgejo-final-login.json"
+	jq -e '.login == "bob" and .active == true and .is_admin == false' \
+		"$operations/bob-forgejo-final-login.json" >/dev/null || die "Bob's final Forgejo PAM login is not ordinary"
+	[ "$(forgejo_user_status obsolete)" = 200 ] || die "deleted Linux user no longer has its independent Forgejo record"
+	kept_workspace=$(project_workspace kept)
+	forgejo_pam_request "$kept_workspace" wrong 401 "$operations/workspace-forgejo-login.json"
+	[ "$(forgejo_user_status "$kept_workspace")" = 404 ] || die "workspace PAM attempt created a Forgejo user"
+
 	# The installed catalog is the exact sorted three-field product fact.
 	admin_ssh 'cat /var/lib/soda/catalog/projects.json' >"$operations/catalog-before.json"
 	jq -e 'type == "array" and all(.[]; keys == ["canonical_url","display_name","id"]) and ([.[].id] == ([.[].id] | sort))' \
@@ -1612,7 +1768,6 @@ scenario_product() {
 	} | curl --config - --request GET "https://$guest_host:$guest_cockpit_port/cockpit/login" \
 		>"$operations/cockpit-primary.status"
 	[ "$(cat "$operations/cockpit-primary.status")" = 200 ] || die "primary Cockpit authentication failed"
-	kept_workspace=$(project_workspace kept)
 	{
 		printf 'user = "%s:locked-workspace-password"\n' "$kept_workspace"
 		printf 'insecure\nsilent\nshow-error\noutput = "%s"\nwrite-out = "%%{http_code}"\n' "$operations/cockpit-workspace.body"
