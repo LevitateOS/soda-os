@@ -6,8 +6,8 @@ default:
 fmt:
     gofmt -w $(find . -name '*.go' -not -path './.artifacts/*')
 
-complexity:
-    ./scripts/check-complexity.sh
+lint:
+    ./scripts/check-lint.sh
 
 hooks-install:
     git config --local core.hooksPath .githooks
@@ -17,7 +17,7 @@ check:
     sh -n tests/acceptance/unattended.sh
     sh -n tests/acceptance/internal/bootc.sh
     tests/acceptance/unattended.sh --help >/dev/null
-    ./scripts/check-complexity.sh
+    ./scripts/check-lint.sh
     node --test cockpit/soda-projects/*.test.mjs
     go vet ./...
     go test ./...
