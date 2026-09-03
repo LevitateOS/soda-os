@@ -1,234 +1,183 @@
-# Soda OS artifact operations
+# Soda OS 0.5.0 release operations
 
-> [!IMPORTANT]
-> `soda-release` is an operator-side boundary around Git, `gh`, and GitHub
-> Releases. It is not installed in Soda OS, and installed systems consume no
-> release index. Administrators select exact published image digests through
-> native `bootc` operations.
+Soda releases have three independent outputs:
 
-Local development produces platform-specific OCI archives and installer ISOs
-without publishing or signing them. Architecture selection is explicit and
-`aarch64` and `x86_64` are equal sibling targets.
+1. GHCR holds one bootc OCI image per architecture. Its exact manifest digest
+   is the installed system's update authority.
+2. GitHub Releases holds a network installer ISO and checksum per architecture.
+3. GitHub Releases holds a compressed reusable QCOW2 and checksum per
+   architecture.
 
-Each architecture's artifact work runs on matching native hardware: run
-`aarch64` RPM, OCI, ISO, record, installation, and artifact-validation work on
-an AArch64 host, and run the corresponding `x86_64` work on an x86-64 host.
-`soda-image` rejects a mismatched selected architecture before resolving
-artifact inputs or invoking Docker. `just check` remains a cross-architecture
-source and contract check and may run on either host.
+The raw QCOW2 is a matching-native build artifact, not a download. `aarch64`
+and `x86_64` are equal sibling targets: each host builds, signs, publishes,
+installs, and validates only its own architecture. `just check` is a source
+contract check, never sibling-architecture artifact evidence.
 
-## Build a local installer
+## Identity and immutable outputs
 
-```sh
-ARCH=x86_64 # run this only on an x86-64 host; use aarch64 only on an AArch64 host
-just check
-just oci "$ARCH"
-just iso "$ARCH" ".artifacts/images/soda-os-0.4.0-${ARCH}.oci.tar"
-```
-
-The ISO builder validates the archive platform, derives the exact manifest
-digest from the local OCI layout, copies the payload into ISO-local container
-storage, and writes the ISO plus its SHA-256 sidecar under `.artifacts/images/`.
-It does not contact GHCR, push an image, invoke Cosign, or require any signing
-key, passphrase, signature, or registry credentials.
-
-The OCI build also verifies the architecture-owned package lock, the fixed
-Forgejo, Bun, and Tea source inputs, their narrowly carried authentication
-patches, and every command in the installed
-immutable tool manifest. Bun and Tea source and RPM construction occur only on
-matching-native hardware. There is no runtime source lookup or tool download
-path.
-
-The metadata command independently inspects the completed ISO and writes an
-unsigned local record containing the image labels, exact local digest, RPM
-inventory checksum, and ISO checksum. The record is optional for artifact
-construction but required when creating protected installer input:
-
-```sh
-just record "$ARCH" \
-  ".artifacts/images/soda-os-0.4.0-${ARCH}.oci.tar" \
-  ".artifacts/images/SodaOS-0.4.0-${ARCH}.iso"
-```
-
-## Create protected installation input
-
-Every installation pairs the Soda product ISO with a new protected, removable
-OEMDRV answer medium. Create it on the same matching-native architecture:
-
-```sh
-go run ./cmd/soda-image --architecture "$ARCH" installer-input \
-  --iso ".artifacts/images/SodaOS-0.4.0-${ARCH}.iso" \
-  --release-record ".artifacts/releases/soda-os-0.4.0-${ARCH}.release.json" \
-  --username soda-admin \
-  --ssh-public-key-file "$HOME/.ssh/id_ed25519.pub" \
-  --tailscale-auth-key-file /secure/path/tailscale-auth-key \
-  --output /secure/path/soda-installer-input.iso
-```
-
-The command prompts twice for the administrator password. For automation,
-`--password-file /secure/path/administrator-password` supplies it from a
-mode-`0600` regular file. The password and Tailscale files must not be symlinks;
-do not put either secret in argv, environment values, logs, or repository
-files. The command validates the release record, ISO checksum, and selected
-platform, refuses to overwrite an output, and creates the OEMDRV image with
-mode `0600`.
-
-Attach both images and boot the product ISO. The ISO selects the secret-free
-Kickstart from OEMDRV; stock Anaconda owns storage and installation while fixed
-installer-only hooks create native account input and perform the bounded
-Forgejo handoff. The guest must eject OEMDRV before installation continues.
-Remove and destroy the exact host copy after ejection. The first boot gives the
-one-use key to native `tailscale up` once, then deletes the key and disables the
-unit regardless of success.
-
-There is no long-running or reusable runtime bootstrap service, credential
-store, or in-place Soda recovery workflow. On installer failure, discard the
-incomplete target, correct the input, generate a new OEMDRV image, and perform
-a fresh installation. On a failed Tailscale attempt, use native local recovery
-or reinstall with a fresh one-use key.
-
-## Distribution and publication boundary
-
-Production releases use these two distribution services:
-
-- GHCR stores each architecture-specific Soda OS OCI image. The exact OCI
-  manifest digest, never a mutable tag, is the update authority.
-- GitHub Releases stores the paired AArch64 and x86-64 installer ISOs, their
-  SHA-256 files, and independently justified release records and signature
-  material. The pre-reset paired release index is not a preservation contract
-  now that installed systems do not consume it. The marketing website may link
-  to these releases, but is not an update authority.
-
-Published release data is append-only. Draft creation fails before mutation if
-the version tag or release already exists; each architecture upload fails
-before mutation if any of its intended asset names exists. The workflow never
-replaces a published version asset or moves a published version to different
-bytes or digests.
-
-GitHub CLI is the maintained GitHub Release boundary. `soda-release` constructs
-only fixed `gh` operations and leaves authentication, transport, tags, drafts,
-assets, and releases under GitHub and GitHub CLI ownership. Authenticate the
-operator beforehand with native `gh auth`; Soda does not accept, read, copy, or
-store a GitHub token.
-
-Production publication starts from one clean checkout whose full `HEAD` is the
-intended release tag target. The architecture-specific release records must
-name that same source revision. This is a publication restriction, not an
-artifact-construction rule: local installer work may still reuse a validated
-runtime OCI whose image revision predates an installer-only change, but that
-candidate cannot be published through the current command until its provenance
-is represented without ambiguity.
-
-Prepare a regular release-notes file, then create the absent tag and empty
-draft:
-
-```sh
-go run ./cmd/soda-release --spec distro/soda.toml draft \
-  --notes-file /path/to/release-notes.md
-```
-
-The command requires a clean tracked worktree, verifies that `HEAD` exists in
-the configured GitHub repository, and fails before mutation if the version tag
-or release already exists. Untracked operator notes or ignored build artifacts
-do not affect source identity. It creates the tag at that exact revision and
-then creates an empty draft named `Soda OS <version>`.
-
-Each matching-native builder uploads only its own three validated assets. Run
-this once on AArch64 and once on x86-64, from the same source revision:
-
-```sh
-ARCH=x86_64 # use aarch64 only on matching-native AArch64 hardware
-go run ./cmd/soda-release --spec distro/soda.toml upload \
-  --architecture "$ARCH" \
-  --iso ".artifacts/images/SodaOS-0.4.0-${ARCH}.iso" \
-  --record ".artifacts/releases/soda-os-0.4.0-${ARCH}.release.json"
-```
-
-The checksum sidecar is derived as `<ISO>.sha256`. Before upload, the command
-validates the exact filenames, regular-file boundaries, release record, source
-revision, image reference, ISO bytes, and sidecar. It refuses an existing
-architecture-owned asset and invokes `gh release upload` without `--clobber`.
-GitHub's returned asset name, size, uploaded state, and SHA-256 digest must then
-match the local input.
-
-The complete draft contains these six required base assets:
+`distro/soda.toml` is the reviewed source of Soda identity. The `0.5.0`
+release uses `release/0.5.0`, tag `v0.5.0`, and these single-platform tags:
 
 ```text
-SodaOS-<version>-aarch64.iso
-SodaOS-<version>-aarch64.iso.sha256
-soda-os-<version>-aarch64.release.json
-SodaOS-<version>-x86_64.iso
-SodaOS-<version>-x86_64.iso.sha256
-soda-os-<version>-x86_64.release.json
+ghcr.io/levitateos/soda-os:0.5.0-aarch64
+ghcr.io/levitateos/soda-os:0.5.0-x86_64
 ```
 
-Independently produced signature material may coexist with these assets. It is
-not generated or interpreted by `soda-release`.
+Each is created once. Exact references are authoritative:
 
-> [!CAUTION]
-> `soda-release publish` is not a signing boundary. It neither signs GHCR
-> images or GitHub assets nor proves that the product's separate production
-> signing requirement has been satisfied. The release owner must complete and
-> verify the separately authorized maintained-tool signing process before
-> invoking `publish`. Source completion or a six-asset draft alone is not a
-> signed production release.
+```text
+ghcr.io/levitateos/soda-os@sha256:<aarch64-digest>
+ghcr.io/levitateos/soda-os@sha256:<x86_64-digest>
+```
 
-After that external signing gate has passed, publish the complete draft:
+There is no `latest`, `stable`, `edge`, moving version tag, or multi-platform
+index. Source-revision candidates are
+`sha-<full-source-revision>-<architecture>` and are not cleaned up
+automatically after failure.
+
+## Native artifacts
+
+Each matching-native builder consumes its reviewed architecture-owned locks and
+produces the OCI archive, network ISO, raw QCOW2, compressed QCOW2, checksums,
+and schema-3 release record:
 
 ```sh
-go run ./cmd/soda-release --spec distro/soda.toml publish
+ARCH=x86_64 # use aarch64 only on a matching-native AArch64 host
+just check
+just rpm "$ARCH"
+just oci "$ARCH"
+ARCHIVE=".artifacts/images/soda-os-0.5.0-${ARCH}.oci.tar"
+just iso "$ARCH" "$ARCHIVE"
+just qcow2 "$ARCH" "$ARCHIVE"
+just record "$ARCH" "$ARCHIVE" \
+  ".artifacts/images/SodaOS-0.5.0-${ARCH}.iso" \
+  ".artifacts/images/SodaOS-0.5.0-${ARCH}.qcow2" \
+  ".artifacts/images/SodaOS-0.5.0-${ARCH}.qcow2.zst"
 ```
 
-The command requires the same clean source revision, exact tag and draft, both
-architectures' six base assets, and valid GitHub SHA-256 metadata for every
-asset. It publishes with `gh release edit --verify-tag --draft=false`, then
-verifies that the release state changed without changing its assets.
+The network ISO contains no embedded Soda payload. Its Kickstart names one
+exact, anonymously retrievable GHCR digest. A record binds that digest, Fedora
+base reference, source revision, RPM inventory, ISO, raw QCOW2, and compressed
+QCOW2 checksums.
 
-Published release data is never replaced. If tag creation, draft creation, or
-an upload partly succeeds, Soda reports the GitHub-owned state and performs no
-retry, deletion, compensation, or reconciliation. Any inspection or cleanup is
-a separately authorized native `gh` operation; a fresh publication attempt may
-begin only after the operator has deliberately resolved that state.
+Protected OEMDRV remains the installer input boundary. It is mode `0600`, is
+ejected before installation proceeds, and is removed only after QMP proves the
+tray is open.
 
-Publication, signing, image push, and release deployment are separate
-operational authorizations. Repository tests exercise validation and fixed
-command construction without contacting or changing GitHub. No GitHub Actions
-workflow, OIDC identity, or protected-environment mechanism is selected by the
-current architecture.
+## Fixed publication boundary
 
-## Installed-system image lifecycle
+`soda-release` is an operator-side wrapper around Git, Skopeo, Cosign, and
+GitHub CLI. It is not installed in Soda OS and creates no runtime release
+service, release index, credential store, retry queue, or workflow state.
 
-An administrator selects an exact published image digest and uses the native
-sequence:
+```text
+soda-release image-stage --architecture ARCH --archive PATH
+soda-release image-promote --architecture ARCH --record PATH
+soda-release record-sign --architecture ARCH --record PATH
+soda-release draft --notes-file PATH --aarch64-record PATH --x86_64-record PATH
+soda-release upload --architecture ARCH --iso PATH --qcow2-zst PATH --record PATH --record-bundle PATH
+soda-release publish --aarch64-record PATH --x86_64-record PATH
+```
+
+`image-stage` publishes and verifies an immutable source-revision candidate.
+`image-promote` refuses an existing version tag, keylessly signs the exact
+digest, attaches an SLSA provenance predicate, verifies both, then creates the
+version tag. The predicate records source revision, architecture, Fedora base
+digest, runtime-lock checksum, RPM inventory, and ISO/QCOW2 checksums.
+
+`record-sign` creates `<record>.sigstore.json` and immediately verifies it.
+Image and record signing require a GitHub Actions workflow identity. `draft`
+requires both records and notes containing both exact image digests. `upload`
+accepts exactly six assets per architecture:
+
+```text
+SodaOS-0.5.0-<architecture>.iso
+SodaOS-0.5.0-<architecture>.iso.sha256
+SodaOS-0.5.0-<architecture>.qcow2.zst
+SodaOS-0.5.0-<architecture>.qcow2.zst.sha256
+soda-os-0.5.0-<architecture>.release.json
+soda-os-0.5.0-<architecture>.release.json.sigstore.json
+```
+
+`publish` refuses to change a draft unless all twelve assets, both signed
+records, both immutable version tags, anonymous exact-digest pulls, image
+signatures, SLSA attestations, release notes, and the remote release-branch
+revision agree. It runs only `gh release edit --draft=false --latest`; it never
+overwrites, deletes, compensates for, or repairs a partial remote result.
+
+OIDC is short-lived authentication only. GHCR stores OCI images, signatures,
+and attestations; GitHub Releases stores downloadable assets and signed records.
+
+## Protected CI
+
+`.github/workflows/ci.yml` is read-only source verification.
+`.github/workflows/release.yml` runs only on `release/**`, rejects a branch
+whose suffix is not the reviewed Soda version, and serializes release runs
+without cancellation.
+
+Native jobs use GitHub-hosted x86-64 or AArch64 orchestrators, then join the
+Tailnet through the SHA-pinned Tailscale action and workload identity
+federation. The identity has `id-token: write`, the configured client ID and
+audience, and `tag:soda-release-ci`; it does not use a reusable Tailnet key or
+attach a persistent GitHub self-hosted runner.
+
+The hosted runner reaches only a matching tagged builder through Tailscale SSH
+as `soda-release-ci`. The root-owned login shell is
+`soda-release-executor`, which accepts only `prepare`, `emit-record`, and
+`finalize`, deriving every path from run ID, attempt, source SHA, and
+architecture. It accepts no caller path or arbitrary command.
+
+Each acceptance VM gets a new one-use ephemeral `tag:soda-ci-guest` key.
+`scripts/release-create-vm-auth-key.sh` exchanges the GitHub OIDC JWT for a
+short-lived Tailscale API token, creates the key, prints it only to stdout, and
+deletes local token material. The workflow pipes it directly to the executor;
+it is never an argument, environment value, artifact, evidence file, or repo
+file.
+
+The native-host administrator separately provisions this account and root
+configuration before enabling the workflow:
+
+```text
+account: soda-release-ci
+password: locked
+home: private; no personal GitHub, Codex, or SSH state
+sudo/linger/cron/user services: none
+groups: docker and kvm only
+login shell: root-owned soda-release-executor
+config: /etc/soda-release-ci.conf
+```
+
+The configuration supplies only the root-owned release workspace, read-only
+Soda repository URL, and immutable `SODA_RESET_BASE_SHA`. Docker membership is
+root-equivalent on a shared host; that is an explicit accepted risk, not an
+isolation claim. GitHub environments/rulesets, GHCR visibility, the Tailscale
+federated identity and ACLs, and host account creation are external operations
+that repository commits do not perform.
+
+## Acceptance and updates
+
+The native `prepare` phase builds post-reset fallback A and release B, stages
+both candidates, creates network/QCOW2 artifacts, and runs the sole public
+installed-product workflow:
+
+```sh
+tests/acceptance/unattended.sh run
+```
+
+It proves installation, Tailnet enrollment, onboarding, Projects, direct SSH,
+immutable tools, zero obsolete control plane, and B-to-A-to-B preservation.
+NoCloud, ConfigDrive, and no-datasource QCOW2 scenarios are architecture-native
+release evidence too.
+
+Installed administrators choose an exact published GHCR digest:
 
 ```sh
 sudo bootc status
 sudo bootc switch --download-only ghcr.io/levitateos/soda-os@sha256:<digest>
-sudo bootc status
 sudo bootc switch --from-downloaded
 sudo systemctl reboot
 ```
 
-Supported fallback uses the same sequence with an earlier exact Soda digest.
-Direct `bootc rollback` is unsupported because current account state must be
-preserved. Soda does not discover releases, poll, download, activate, or reboot
-automatically.
-
-Local development artifacts and records remain unsigned. Production signing
-and publication use the separately authorized maintained-tool boundaries above.
-
-## Acceptance evidence
-
-`tests/acceptance/unattended.sh run` is the sole public installed-product
-workflow. One process owns a fresh raw-QEMU installation, the protected OEMDRV
-medium, a loopback-only disposable registry, native B-to-A-to-B image
-selection, product scenarios, evidence capture, and clean shutdown. Its private
-helpers are not alternative workflows. Local acceptance does not create or
-require production signatures.
-
-The raw-QEMU harness creates OEMDRV through the same
-`soda-image installer-input` boundary. It retains QMP evidence that the guest
-opened and unlocked the exact removable device, removes the medium only after
-that proof, verifies the drive is empty, and deletes the secret-bearing host
-image. Capture also requires the installed system to lack saved Kickstart,
-installer-hook, legacy installer-extension, and credential state.
+Fallback uses the same sequence with an earlier exact Soda digest. Direct
+`bootc rollback` is unsupported. Soda has no runtime release discovery,
+automatic download, activation, or update service.

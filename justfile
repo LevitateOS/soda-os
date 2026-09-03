@@ -19,6 +19,7 @@ check:
     tests/acceptance/unattended.sh --help >/dev/null
     ./scripts/check-complexity.sh
     ./scripts/check-release-identity.sh
+    ./scripts/check-release-ci.sh
     node --test cockpit/soda-projects/*.test.mjs
     go vet ./...
     go test ./...
