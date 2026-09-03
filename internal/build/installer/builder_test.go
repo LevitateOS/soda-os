@@ -122,6 +122,7 @@ func TestInstallerEnvironmentPinsBIOSHybridBootModule(t *testing.T) {
 	root := filepath.Join("..", "..", "..")
 	contents, err := os.ReadFile(filepath.Join(root, "packaging", "installer", "Containerfile"))
 	require.NoError(t, err)
+	require.Contains(t, string(contents), "$(cat /usr/share/soda-installer/boot-packages.txt)")
 	require.Contains(t, string(contents), "rpm -q $(cat /usr/share/soda-installer/boot-packages.txt)")
 	require.Contains(t, string(contents), "test -f /usr/lib/grub/i386-pc/boot_hybrid.img")
 	for _, architecture := range []string{"aarch64", "x86_64"} {
@@ -141,11 +142,16 @@ func TestInstallerEnvironmentUsesDefaultTargetRequiredByAnacondaGenerator(t *tes
 	require.NotContains(t, string(contents), "ln -sf /usr/lib/systemd/system/anaconda.target /etc/systemd/system/default.target")
 }
 
-func TestInstallerEnvironmentUsesVerifiedLocalFedoraBaseContext(t *testing.T) {
+func TestInstallerEnvironmentUsesPinnedFedoraInstallerBase(t *testing.T) {
 	contents, err := os.ReadFile(filepath.Join("..", "..", "..", "packaging", "installer", "Containerfile"))
 	require.NoError(t, err)
-	require.True(t, strings.HasPrefix(string(contents), "FROM fedora-base\n"))
+	require.True(t, strings.HasPrefix(string(contents), "FROM installer-base\n"))
 	require.Contains(t, string(contents), "COPY --chmod=0644 .artifacts/installer/context/interactive-defaults.ks /usr/share/anaconda/interactive-defaults.ks")
+}
+
+func TestInstallerInspectionRejectsDuplicatedBootcBase(t *testing.T) {
+	require.NoError(t, validateNoDuplicatedBootcBase("drwxr-xr-x squashfs-root/usr"))
+	require.EqualError(t, validateNoDuplicatedBootcBase("drwxr-xr-x squashfs-root/sysroot"), "installer squashfs contains a duplicated bootc base")
 }
 
 func TestInstallerEnvironmentUsesCurrentSodaAnacondaBranding(t *testing.T) {

@@ -15,7 +15,6 @@ import (
 	"strings"
 
 	"github.com/BurntSushi/toml"
-	imagebuild "github.com/LevitateOS/soda-os/internal/build/image"
 	"github.com/LevitateOS/soda-os/internal/config"
 	"github.com/LevitateOS/soda-os/internal/process"
 )
@@ -129,10 +128,6 @@ func (b *Builder) Build(ctx context.Context, options Options) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	baseTag, err := imagebuild.PrepareLocalBootcBase(ctx, b.Root, b.runner, b.Spec.Platform)
-	if err != nil {
-		return "", err
-	}
 	workspace, err := b.prepareInstallerWorkspace(options, reference)
 	if err != nil {
 		return "", err
@@ -145,7 +140,7 @@ func (b *Builder) Build(ctx context.Context, options Options) (string, error) {
 		_ = b.runner.Run(context.Background(), process.Command{Dir: b.Root, Name: "docker", Args: []string{"volume", "rm", "--force", volumeName}})
 	}()
 
-	installerArchive, installerTag, err := b.buildInstallerEnvironment(ctx, baseTag, workspace.work)
+	installerArchive, installerTag, err := b.buildInstallerEnvironment(ctx, workspace.work)
 	if err != nil {
 		return "", err
 	}
@@ -238,13 +233,13 @@ func (b *Builder) stageInstallerPackageLock(destination string) error {
 	return os.WriteFile(filepath.Join(destination, "installer-efi-vendor.txt"), []byte(lock.EFIVendor+"\n"), 0o644)
 }
 
-func (b *Builder) buildInstallerEnvironment(ctx context.Context, baseTag, work string) (string, string, error) {
+func (b *Builder) buildInstallerEnvironment(ctx context.Context, work string) (string, string, error) {
 	archive := filepath.Join(work, "soda-installer-environment-"+b.Spec.Platform.Architecture.Artifact+".oci.tar")
 	if err := os.Remove(archive); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return "", "", err
 	}
 	tag := "localhost/soda-installer:" + b.Spec.Identity.Version + "-" + b.Spec.Platform.Architecture.Artifact
-	args := []string{"buildx", "build", "--platform", b.Spec.Base.Platform, "--build-context", "fedora-base=docker-image://" + baseTag, "--file", "packaging/installer/Containerfile", "--tag", tag, "--provenance=false", "--output", "type=oci,dest=" + archive + ",oci-mediatypes=true", "."}
+	args := []string{"buildx", "build", "--platform", b.Spec.Base.Platform, "--build-context", "installer-base=docker-image://" + b.Spec.Platform.Builder.BaseReference, "--file", "packaging/installer/Containerfile", "--tag", tag, "--provenance=false", "--output", "type=oci,dest=" + archive + ",oci-mediatypes=true", "."}
 	if err := b.runner.Run(ctx, process.Command{Dir: b.Root, Name: "docker", Args: args}); err != nil {
 		return "", "", fmt.Errorf("build installer environment: %w", err)
 	}

@@ -25,17 +25,15 @@ platform = "linux/arm64"
 `), 0o644))
 	exactReference := Repository + "@" + digest
 	options := Options{ArchivePath: archive, ToolLock: lock, OutputDir: output}
-	const baseReference = "quay.io/fedora/fedora-bootc@sha256:950a52fa1244db4d7fe2673af57fd6784a605a83bec3cd2d716ed8c00ebd366d"
-	runner := &recordingRunner{Outputs: map[string]string{
-		"docker image ls --no-trunc --quiet --filter reference=" + baseReference: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n",
-	}}
+	runner := &recordingRunner{}
 	packageLock := filepath.Join(root, "installer-packages.toml")
 	require.NoError(t, os.WriteFile(packageLock, []byte("schema_version = 1\nplatform = \"linux/arm64\"\npackages = [\"anaconda\"]\nboot_packages = [\"shim-aa64\"]\nefi_vendor = \"fedora\"\n"), 0o644))
 	isoConfig := filepath.Join(root, "iso.yaml")
 	require.NoError(t, os.WriteFile(isoConfig, []byte("test ISO config\n"), 0o644))
 	platform := config.PlatformSpec{
 		Architecture: config.PlatformArchitecture{Name: "aarch64", OCI: "arm64", Platform: "linux/arm64", Artifact: "aarch64", Installer: "aarch64"},
-		Base:         config.PlatformBase{Reference: baseReference, Archive: "unused.oci.tar", ArchiveSHA256: strings.Repeat("a", 64)},
+		Base:         config.PlatformBase{Reference: "quay.io/fedora/fedora-bootc@sha256:950a52fa1244db4d7fe2673af57fd6784a605a83bec3cd2d716ed8c00ebd366d", Archive: "unused.oci.tar", ArchiveSHA256: strings.Repeat("a", 64)},
+		Builder:      config.PlatformBuilder{BaseReference: "registry.fedoraproject.org/fedora@sha256:9c8b291e256262b91aac5b3da50ea323760d0a6b449c6d6ad5f01d9550d48d2a"},
 		Installer:    config.PlatformInstaller{PackageLock: packageLock, ISOConfig: isoConfig},
 	}
 	builder := NewBuilder(root, config.DistroSpec{Identity: config.IdentitySpec{Architecture: "aarch64", Hostname: "soda", Version: "0.2.0"}, Base: config.BaseSpec{Reference: platform.Base.Reference, Platform: platform.Architecture.Platform}, Platform: platform}, runner)
@@ -48,7 +46,7 @@ platform = "linux/arm64"
 	require.Contains(t, commands, "docker volume create "+volumeName)
 	require.Contains(t, commands, "docker volume rm --force "+volumeName)
 	require.NotContains(t, commands, "containers-storage:"+exactReference)
-	require.Contains(t, commands, "--build-context fedora-base=docker-image://soda-fedora-bootc:sha256-950a52fa1244db4d7fe2673af57fd6784a605a83bec3cd2d716ed8c00ebd366d")
+	require.Contains(t, commands, "--build-context installer-base=docker-image://registry.fedoraproject.org/fedora@sha256:9c8b291e256262b91aac5b3da50ea323760d0a6b449c6d6ad5f01d9550d48d2a")
 	require.NotContains(t, commands, "--bootc-installer-payload-ref")
 	require.NotContains(t, commands, "--bootc-pull-container")
 	require.NotContains(t, commands, root+"/.artifacts/installer/containers-storage:/var/lib/containers/storage")

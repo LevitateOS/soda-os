@@ -1,4 +1,4 @@
-FROM fedora-base
+FROM installer-base
 
 # This image exists only while constructing installer media. It is not a Soda
 # runtime image and is never published as a Soda release.
@@ -8,6 +8,7 @@ COPY .artifacts/installer/context/installer-efi-vendor.txt /usr/share/soda-insta
 
 RUN dnf -y install --setopt=install_weak_deps=False \
       $(cat /usr/share/soda-installer/packages.txt) \
+      $(cat /usr/share/soda-installer/boot-packages.txt) \
     && dnf clean all \
     && test "$(find /usr/lib/modules -mindepth 1 -maxdepth 1 -type d | wc -l)" -eq 1 \
     && test "$(find /usr/lib/efi/shim -mindepth 3 -maxdepth 3 -type d ! -name BOOT | wc -l)" -eq 1 \

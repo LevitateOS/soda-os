@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/LevitateOS/soda-os/internal/process"
 )
@@ -25,6 +26,13 @@ func (b *Builder) inspectISO(ctx context.Context, input isoInspectionInput) erro
 	if err := b.runner.Run(ctx, process.Command{Dir: b.Root, Name: "docker", Args: args}); err != nil {
 		return fmt.Errorf("extract installer squashfs: %w", err)
 	}
+	listing, err := b.runner.Output(ctx, process.Command{Dir: b.Root, Name: "docker", Args: append(append([]string{}, outer...), "unsquashfs", "-ll", "/inspect/squashfs.img")})
+	if err != nil {
+		return fmt.Errorf("list installer squashfs: %w", err)
+	}
+	if err := validateNoDuplicatedBootcBase(listing); err != nil {
+		return err
+	}
 	args = append(append([]string{}, outer...), "unsquashfs", "-f", "-d", "/inspect/root", "/inspect/squashfs.img", ".buildstamp", "usr/lib/os-release", "usr/share/anaconda/interactive-defaults.ks", "etc/anaconda/conf.d/90-soda-storage.conf", "etc/anaconda/profile.d/sodaos.conf", "etc/systemd/system/anaconda.target.wants/var-tmp.mount", "usr/share/anaconda/pixmaps/soda.css", "usr/share/anaconda/pixmaps/soda-sidebar-logo.png", "usr/share/anaconda/pixmaps/soda-symbol.png", "usr/lib/image-builder/bootc/iso.yaml", "usr/lib/systemd/system/var-tmp.mount", "usr/libexec/soda/soda-installer-input", "usr/libexec/soda/soda-installer-finalize", anacondaBootcInstallationPath, "usr/share/anaconda/addons", "usr/share/anaconda/dbus/confs", "usr/share/anaconda/dbus/services", "var/lib/containers/storage/overlay-images/images.json")
 	if err := b.runner.Run(ctx, process.Command{Dir: b.Root, Name: "docker", Args: args}); err != nil {
 		return fmt.Errorf("inspect installer squashfs: %w", err)
@@ -37,6 +45,13 @@ func (b *Builder) inspectISO(ctx context.Context, input isoInspectionInput) erro
 		return fmt.Errorf("make extracted ISO inspection files readable: %w", err)
 	}
 	return b.validateExtractedISO(input.inspectDir, input.reference)
+}
+
+func validateNoDuplicatedBootcBase(listing string) error {
+	if strings.Contains(listing, "squashfs-root/sysroot") {
+		return errors.New("installer squashfs contains a duplicated bootc base")
+	}
+	return nil
 }
 
 func makeInspectionOwnerWritable(root string) error {
