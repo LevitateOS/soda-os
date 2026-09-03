@@ -160,6 +160,16 @@ emit_record() {
     cat "$record"
 }
 
+emit_bundle() {
+    require_run_identity "$@"
+    run=$(run_directory "$@")
+    source_tree=$(worktree "$run")
+    artifact_paths "$source_tree" "$4"
+    bundle=$record.sigstore.json
+    [ -f "$bundle" ] || die 'signed release-record bundle is unavailable'
+    cat "$bundle"
+}
+
 promote() {
     require_run_identity "$@"
     run=$(run_directory "$@")
@@ -219,7 +229,8 @@ shift || true
 case "$phase" in
     prepare) prepare "$@" ;;
     emit-record) emit_record "$@" ;;
+    emit-bundle) emit_bundle "$@" ;;
     promote) promote "$@" ;;
     upload) upload "$@" ;;
-    *) die 'supported phases are prepare, emit-record, promote, and upload' ;;
+    *) die 'supported phases are prepare, emit-record, emit-bundle, promote, and upload' ;;
 esac

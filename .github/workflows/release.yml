@@ -107,6 +107,16 @@ jobs:
           rm -f "$oidc_header"
           printf '%s\n%s\n' "$GH_TOKEN" "$sigstore_token" | tailscale ssh "soda-release-ci@${{ matrix.builder }}" soda-release-executor promote "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" "$GITHUB_SHA" "${{ matrix.architecture }}"
           unset sigstore_token
+      - name: Collect the signed release-record bundle
+        run: |
+          bundle="$RUNNER_TEMP/soda-os-0.5.0-${{ matrix.architecture }}.release.json.sigstore.json"
+          tailscale ssh "soda-release-ci@${{ matrix.builder }}" soda-release-executor emit-bundle "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" "$GITHUB_SHA" "${{ matrix.architecture }}" > "$bundle"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: soda-release-record-bundle-${{ matrix.architecture }}
+          path: ${{ runner.temp }}/soda-os-0.5.0-${{ matrix.architecture }}.release.json.sigstore.json
+          if-no-files-found: error
+          retention-days: 1
 
   draft:
     needs: promote
@@ -184,6 +194,14 @@ jobs:
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: soda-release-record-x86_64
+          path: ${{ runner.temp }}/records/x86_64
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: soda-release-record-bundle-aarch64
+          path: ${{ runner.temp }}/records/aarch64
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: soda-release-record-bundle-x86_64
           path: ${{ runner.temp }}/records/x86_64
       - name: Verify every output and publish the complete draft
         env:

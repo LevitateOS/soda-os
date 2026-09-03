@@ -126,11 +126,13 @@ attach a persistent GitHub self-hosted runner.
 The hosted runner reaches only a matching tagged builder through Tailscale SSH
 as `soda-release-ci`. The root-owned login shell is
 `soda-release-executor`, which accepts only `prepare`, `emit-record`,
-`promote`, and `upload`, deriving every path from run ID, attempt, source SHA,
-and architecture. It accepts no caller path or arbitrary command. Both native
-`prepare` jobs must pass before either `promote` job may run, and both promotion
-jobs must pass before GitHub creates the tag and empty draft. Upload is a later
-fixed phase and cannot sign or promote an image.
+`emit-bundle`, `promote`, and `upload`, deriving every path from run ID,
+attempt, source SHA, and architecture. The two emit operations expose only the
+non-secret record and its verified Sigstore bundle. The executor accepts no
+caller path or arbitrary command. Both native `prepare` jobs must pass before
+either `promote` job may run, and both promotion jobs and signed-bundle captures
+must pass before GitHub creates the tag and empty draft. Upload is a later fixed
+phase and cannot sign or promote an image.
 
 Each network-ISO, NoCloud, and ConfigDrive acceptance VM gets its own new
 one-use ephemeral `tag:soda-ci-guest` key. The no-datasource VM receives none.
