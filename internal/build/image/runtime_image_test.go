@@ -236,8 +236,8 @@ func TestForgejoPAMPatchContract(t *testing.T) {
 	require.Contains(t, string(buildPipeline), `"EXTRA_GOFLAGS=-buildvcs=false"`)
 	require.Contains(t, string(buildPipeline), `"GOCACHE=/src/.artifacts/build/forgejo-go-cache"`)
 	require.Contains(t, string(buildPipeline), `"GOTMPDIR=/src/.artifacts/build/forgejo-go-tmp"`)
-	require.Contains(t, string(buildPipeline), `git apply --unidiff-zero /src/packaging/rpm/forgejo/sources/patches/0001-pam-do-not-retain-password.patch`)
-	require.Contains(t, string(buildPipeline), `! grep -F 'Passwd:      password' services/auth/source/pam/source_authenticate.go`)
+	require.Contains(t, string(buildPipeline), `patch --batch --forward --fuzz=0 --strip=1 --input=/src/packaging/rpm/forgejo/sources/patches/0001-pam-do-not-retain-password.patch`)
+	require.Contains(t, string(buildPipeline), `if grep -F 'Passwd:      password' services/auth/source/pam/source_authenticate.go; then`)
 	require.Contains(t, string(buildPipeline), `go test ./services/auth/source/pam`)
 	require.Contains(t, string(buildPipeline), `TAGS='" + lock.BuildTags + "' make backend`)
 

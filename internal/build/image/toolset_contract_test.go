@@ -107,6 +107,7 @@ func TestBuilderBunAndTeaInputsRemainPinned(t *testing.T) {
 	buildSource, err := os.ReadFile(filepath.Join(root, "internal", "build", "image", "rpm.go"))
 	require.NoError(t, err)
 	require.Contains(t, string(buildSource), `make BUILDMODE=-buildvcs=false build`)
+	require.Contains(t, string(buildSource), `patch --batch --forward --fuzz=0 --strip=1 --input=/src/packaging/rpm/tea/sources/0001-secret-safe-deterministic-login.patch`)
 
 	justfile, err := os.ReadFile(filepath.Join(root, "justfile"))
 	require.NoError(t, err)
