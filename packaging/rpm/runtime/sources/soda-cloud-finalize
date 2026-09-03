@@ -83,10 +83,10 @@ def _password_hash(username):
     except OSError:
         raise RuntimeError("cloud administrator password state is unavailable") from None
     try:
-        metadata = os.fstat(descriptor)
-        if not stat.S_ISREG(metadata.st_mode) or metadata.st_uid != 0:
-            raise RuntimeError("cloud administrator password state is invalid")
         with os.fdopen(descriptor, "r", encoding="utf-8") as stream:
+            metadata = os.fstat(stream.fileno())
+            if not stat.S_ISREG(metadata.st_mode) or metadata.st_uid != 0:
+                raise RuntimeError("cloud administrator password state is invalid")
             for line in stream:
                 fields = line.rstrip("\n").split(":")
                 if len(fields) >= 2 and fields[0] == username:
