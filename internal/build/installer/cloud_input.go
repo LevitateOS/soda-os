@@ -118,6 +118,7 @@ func cloudUserData(username, password, publicKey, tailscaleKey string) []byte {
 		"  - [ /usr/bin/install, -d, -o, root, -g, root, -m, '0700', /var/lib/soda-install/cloud ]",
 		"users:",
 		"  - name: " + yamlQuoted(username),
+		"    homedir: /home/" + username,
 		"    groups: [wheel]",
 		"    shell: /bin/bash",
 		"    lock_passwd: false",

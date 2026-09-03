@@ -37,6 +37,7 @@ func TestCloudInputBuildsTheTwoSupportedProtectedMediaLayouts(t *testing.T) {
 			userData := string(staged[cloudUserDataPath(source)])
 			require.Contains(t, userData, "#cloud-config")
 			require.Contains(t, userData, "  - [ /usr/bin/install, -d, -o, root, -g, root, -m, '0700', /var/lib/soda-install/cloud ]")
+			require.Contains(t, userData, "    homedir: /home/soda-test")
 			require.Contains(t, userData, "soda-cloud-finalize")
 			require.Contains(t, userData, "correct horse battery staple")
 			require.Contains(t, userData, "tskey-auth-test-secret")
