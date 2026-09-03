@@ -710,6 +710,93 @@ at the existing service initialization boundary, verify installed state, and
 when SELinux blocks it, derive the smallest policy from the exact denial rather
 than changing privilege owners or disabling enforcement.
 
+## 2026-09-03: real Tea staging retained its native lock file
+
+### Expected outcome
+
+After Tea authenticates a newly added primary human and creates that human's
+Forgejo-owned PAT, the privileged publisher accepts only the exact protected
+Tea staging shape and copies only the opaque `config.yml` into the new home.
+
+### Exact artifact and environment
+
+The failure occurred in a fresh native x86-64 raw-QEMU installation of commit
+`5b1d7be`. Stock Anaconda installation, protected answer-media ejection,
+first-boot Tailscale enrollment, and readiness all passed before the first
+Add Person operation reached `human-publish`.
+
+### What happened
+
+Tea authenticated successfully and retained protected staging, but the helper
+reported `staging directory contains unexpected entries`. No Linux account,
+Forgejo user, PAT, or staging state was compensation-deleted.
+
+### Last passed boundary
+
+The unprivileged coordinator passed the password only on stdin, Forgejo's PAM
+source accepted the native Linux identity, Tea created its deterministic token,
+and Tea wrote its private configuration beneath the actor-owned runtime tree.
+
+### First failed boundary
+
+The privileged helper expected `config/tea` to contain only `config.yml`. The
+pinned Tea implementation uses a persistent `config.yml.lock` for its native
+configuration locking and intentionally closes without unlinking that file.
+
+### Direct evidence
+
+The exact pinned Tea source shows `GetConfigPath() + ".lock"`, opens that file
+with create/read-write mode `0600`, and releases it by unlocking and closing the
+descriptor. It does not unlink the lock. The repository's Tea runner fixture
+had modeled only `config.yml`, so focused tests had proved a substitute shape.
+
+### Root cause and ownership
+
+Soda owns the privilege boundary that validates and publishes staging, while
+Tea owns its configuration representation and locking. The helper's strict
+validation was correct in principle; the test fixture and allowlist were
+incorrect because they did not represent the exact pinned upstream output.
+
+### Smallest correction
+
+Accept exactly `config.yml` and `config.yml.lock`. Validate both with no-follow,
+beneath-only descriptor operations and actor ownership. Additionally require
+the lock to be a regular, empty, mode-`0600` file. Continue copying only the
+opaque `config.yml`; never parse, copy, or retain the lock in the human home.
+
+### Rejected broader fixes
+
+Do not weaken staging to accept arbitrary Tea files, recursively copy Tea's
+configuration directory, remove Tea's lock after publication, patch upstream
+locking semantics, parse the PAT, add a token store, or add recovery state.
+
+### Verification completed
+
+The focused race tests now model the real lock and reject extra entries,
+nonempty locks, incorrect modes, symlinks, and ownership mismatches. Repository
+`just check` passes, and matching-native x86-64 RPM, OCI, installer ISO, and
+release-record construction pass at commit `1aafad3`.
+
+### Verification still required
+
+Repeat fresh installed Add Person, workspace Tea copying, full product capture,
+and B-to-A-to-B preservation on x86-64. Matching-native AArch64 installation
+and acceptance remain a sibling release requirement.
+
+### Secret, data-loss, and destructive-action notes
+
+The failed disposable run's evidence proved the installer password and raw
+Tailscale key were absent from retained evidence and installed paths. Cleanup
+removed only that run's exact VM and registry state and did not touch the
+protected Tailscale key file.
+
+### Rule we will reuse
+
+When a strict boundary consumes upstream-owned filesystem output, tests must
+model the exact pinned upstream shape, including native lock artifacts. A
+successful mock that omits upstream side effects is not evidence that the
+installed producer and privileged consumer agree.
+
 ## Checklist for the next installer investigation
 
 - [ ] Record commit, architecture, input hashes, and exact package versions.
