@@ -43,8 +43,11 @@ func TestImagePromoteRequiresTheCandidateAndNeverMovesAnExistingVersionTag(t *te
 	require.NoError(t, err)
 	digest := strings.TrimPrefix(record.SodaImageReference, Repository+"@")
 	runner := &publicationRunner{
-		revision:     testRevision,
-		imageTags:    []string{`{"Tags":["sha-` + testRevision + `-aarch64"]}`},
+		revision: testRevision,
+		imageTags: []string{
+			`{"Tags":["sha-` + testRevision + `-aarch64"]}`,
+			`{"Tags":["sha-` + testRevision + `-aarch64"]}`,
+		},
 		imageDigests: []string{digest, digest},
 	}
 	publication := testPublication(t, runner, "arm64")
@@ -60,4 +63,5 @@ func TestImagePromoteRequiresTheCandidateAndNeverMovesAnExistingVersionTag(t *te
 	_, err = testPublication(t, locked, "arm64").ImagePromote(context.Background(), ImagePromoteOptions{Architecture: "aarch64", RecordPath: options.RecordPath})
 	require.ErrorContains(t, err, "already exists")
 	require.NotContains(t, strings.Join(commandStrings(locked.commands), "\n"), "skopeo copy")
+	require.NotContains(t, strings.Join(commandStrings(locked.commands), "\n"), "cosign")
 }

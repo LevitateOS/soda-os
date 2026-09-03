@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/LevitateOS/soda-os/internal/config"
@@ -81,6 +83,9 @@ func (p *Publication) ImagePromote(ctx context.Context, options ImagePromoteOpti
 	if err := p.requireImageTagAbsent(ctx, versionTag); err != nil {
 		return ImageResult{}, err
 	}
+	if err := p.signAndAttestImage(ctx, record, spec); err != nil {
+		return ImageResult{}, err
+	}
 	if err := p.runner.Run(ctx, p.skopeo("copy", "--src-tls-verify=true", "--dest-tls-verify=true", "docker://"+candidate, "docker://"+versionTag)); err != nil {
 		return ImageResult{}, fmt.Errorf("promote immutable GHCR image: %w", err)
 	}
@@ -88,6 +93,141 @@ func (p *Publication) ImagePromote(ctx context.Context, options ImagePromoteOpti
 		return ImageResult{}, err
 	}
 	return ImageResult{Architecture: options.Architecture, Reference: record.SodaImageReference, Revision: revision}, nil
+}
+
+func (p *Publication) signAndAttestImage(ctx context.Context, record Record, spec config.DistroSpec) error {
+	if p.workflowRunURL == "" {
+		return errors.New("image signing requires a GitHub Actions workflow run identity")
+	}
+	if err := p.runner.Run(ctx, p.cosign("sign", "--yes", record.SodaImageReference)); err != nil {
+		return fmt.Errorf("keylessly sign exact GHCR image digest: %w", err)
+	}
+	predicate, cleanup, err := p.writeImageProvenance(record, spec)
+	if err != nil {
+		return err
+	}
+	defer cleanup()
+	if err := p.runner.Run(ctx, p.cosign("attest", "--yes", "--type", "slsaprovenance", "--predicate", predicate, record.SodaImageReference)); err != nil {
+		return fmt.Errorf("attach exact GHCR image provenance: %w", err)
+	}
+	if err := p.verifySignedImage(ctx, record.SodaImageReference); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (p *Publication) verifySignedImage(ctx context.Context, reference string) error {
+	if err := p.runner.Run(ctx, p.cosign("verify", "--certificate-identity", p.releaseWorkflowIdentity(), "--certificate-oidc-issuer", githubOIDCIssuer, reference)); err != nil {
+		return fmt.Errorf("verify GHCR image signature: %w", err)
+	}
+	if err := p.runner.Run(ctx, p.cosign("verify-attestation", "--type", "slsaprovenance", "--certificate-identity", p.releaseWorkflowIdentity(), "--certificate-oidc-issuer", githubOIDCIssuer, reference)); err != nil {
+		return fmt.Errorf("verify GHCR image provenance: %w", err)
+	}
+	return nil
+}
+
+type imageProvenance struct {
+	Type          string              `json:"_type"`
+	Subject       []provenanceSubject `json:"subject"`
+	PredicateType string              `json:"predicateType"`
+	Predicate     provenancePredicate `json:"predicate"`
+}
+
+type provenanceSubject struct {
+	Name   string            `json:"name"`
+	Digest map[string]string `json:"digest"`
+}
+
+type provenancePredicate struct {
+	BuildDefinition provenanceBuildDefinition `json:"buildDefinition"`
+	RunDetails      provenanceRunDetails      `json:"runDetails"`
+}
+
+type provenanceBuildDefinition struct {
+	BuildType            string                 `json:"buildType"`
+	ExternalParameters   provenanceInputs       `json:"externalParameters"`
+	InternalParameters   map[string]string      `json:"internalParameters"`
+	ResolvedDependencies []provenanceDependency `json:"resolvedDependencies"`
+}
+
+type provenanceInputs struct {
+	SourceRevision      string `json:"source_revision"`
+	Architecture        string `json:"architecture"`
+	FedoraBaseReference string `json:"fedora_base_reference"`
+	RuntimeLockSHA256   string `json:"runtime_lock_sha256"`
+	RPMInventorySHA256  string `json:"rpm_inventory_sha256"`
+	ISOChecksum         string `json:"iso_sha256"`
+	QCOW2Checksum       string `json:"qcow2_sha256"`
+	QCOW2ZSTChecksum    string `json:"qcow2_zst_sha256"`
+}
+
+type provenanceDependency struct {
+	URI    string            `json:"uri"`
+	Digest map[string]string `json:"digest"`
+}
+
+type provenanceRunDetails struct {
+	Builder struct {
+		ID string `json:"id"`
+	} `json:"builder"`
+	Metadata struct {
+		InvocationID string `json:"invocationId"`
+	} `json:"metadata"`
+}
+
+func (p *Publication) writeImageProvenance(record Record, spec config.DistroSpec) (string, func(), error) {
+	lockPath := filepath.Join(p.root, spec.Platform.Base.RuntimePackageLock)
+	lockSHA256, err := fileSHA256(lockPath)
+	if err != nil {
+		return "", nil, fmt.Errorf("checksum %s runtime package lock: %w", spec.Platform.Architecture.Name, err)
+	}
+	imageDigest := strings.TrimPrefix(record.SodaImageReference, Repository+"@sha256:")
+	_, baseDigest, found := strings.Cut(record.FedoraBaseReference, "@sha256:")
+	if !found || !validHexadecimal(baseDigest, 64) {
+		return "", nil, errors.New("Fedora base reference does not contain an exact SHA-256 digest")
+	}
+	statement := imageProvenance{
+		Type:          "https://in-toto.io/Statement/v1",
+		Subject:       []provenanceSubject{{Name: Repository, Digest: map[string]string{"sha256": imageDigest}}},
+		PredicateType: "https://slsa.dev/provenance/v1",
+		Predicate: provenancePredicate{
+			BuildDefinition: provenanceBuildDefinition{
+				BuildType: "https://github.com/LevitateOS/soda-os/.github/workflows/release.yml",
+				ExternalParameters: provenanceInputs{
+					SourceRevision: record.SourceRevision, Architecture: spec.Platform.Architecture.Name,
+					FedoraBaseReference: record.FedoraBaseReference, RuntimeLockSHA256: lockSHA256,
+					RPMInventorySHA256: record.RPMInventorySHA256, ISOChecksum: record.ISOChecksum,
+					QCOW2Checksum: record.QCOW2Checksum, QCOW2ZSTChecksum: record.QCOW2ZSTChecksum,
+				},
+				InternalParameters: map[string]string{},
+				ResolvedDependencies: []provenanceDependency{
+					{URI: "git+https://github.com/" + p.repository + "@" + record.SourceRevision, Digest: map[string]string{"sha1": record.SourceRevision}},
+					{URI: record.FedoraBaseReference, Digest: map[string]string{"sha256": baseDigest}},
+				},
+			},
+		},
+	}
+	statement.Predicate.RunDetails.Builder.ID = p.releaseWorkflowIdentity()
+	statement.Predicate.RunDetails.Metadata.InvocationID = p.workflowRunURL
+	encoded, err := json.Marshal(statement)
+	if err != nil {
+		return "", nil, fmt.Errorf("encode image provenance: %w", err)
+	}
+	file, err := os.CreateTemp("", "soda-image-provenance-*.json")
+	if err != nil {
+		return "", nil, fmt.Errorf("create image provenance: %w", err)
+	}
+	path := file.Name()
+	if _, err := file.Write(append(encoded, '\n')); err != nil {
+		_ = file.Close()
+		_ = os.Remove(path)
+		return "", nil, fmt.Errorf("write image provenance: %w", err)
+	}
+	if err := file.Close(); err != nil {
+		_ = os.Remove(path)
+		return "", nil, fmt.Errorf("close image provenance: %w", err)
+	}
+	return path, func() { _ = os.Remove(path) }, nil
 }
 
 func (p *Publication) skopeo(args ...string) process.Command {

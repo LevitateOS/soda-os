@@ -60,6 +60,7 @@ type Publication struct {
 	hostArchitecture string
 	repository       string
 	version          string
+	workflowRunURL   string
 }
 
 func NewPublication(root string, aarch64, x86 config.DistroSpec, runner process.Runner) (*Publication, error) {
@@ -76,6 +77,7 @@ func NewPublication(root string, aarch64, x86 config.DistroSpec, runner process.
 		hostArchitecture: runtime.GOARCH,
 		repository:       aarch64.Distribution.GitHubRepository,
 		version:          aarch64.Identity.Version,
+		workflowRunURL:   workflowRunURLFromEnvironment(aarch64.Distribution.GitHubRepository),
 	}, nil
 }
 
@@ -97,87 +99,6 @@ func validatePublicationSpecs(aarch64, x86 config.DistroSpec) error {
 	return nil
 }
 
-func (p *Publication) Draft(ctx context.Context, options DraftOptions) (PublicationResult, error) {
-	if err := requireRegularFile("release notes", options.NotesPath); err != nil {
-		return PublicationResult{}, err
-	}
-	revision, err := p.cleanRevision(ctx)
-	if err != nil {
-		return PublicationResult{}, err
-	}
-	records, err := p.validateReleaseRecords(revision, options.AArch64RecordPath, options.X86RecordPath)
-	if err != nil {
-		return PublicationResult{}, err
-	}
-	if err := requireReleaseNotesDigests(options.NotesPath, records); err != nil {
-		return PublicationResult{}, err
-	}
-	if err := p.authenticate(ctx); err != nil {
-		return PublicationResult{}, err
-	}
-	state, err := p.repositoryState(ctx, revision)
-	if err != nil {
-		return PublicationResult{}, err
-	}
-	if err := requireAbsentReleaseState(state, revision); err != nil {
-		return PublicationResult{}, err
-	}
-	if err := p.createTag(ctx, revision); err != nil {
-		return PublicationResult{}, fmt.Errorf("create GitHub release tag: %w", err)
-	}
-	if err := p.createDraft(ctx, options.NotesPath); err != nil {
-		return PublicationResult{}, fmt.Errorf("create GitHub draft release: %w", err)
-	}
-	view, err := p.requireRelease(ctx, revision, draftRelease)
-	if err != nil {
-		return PublicationResult{}, fmt.Errorf("verify GitHub draft release: %w", err)
-	}
-	if len(view.Assets) != 0 {
-		return PublicationResult{}, errors.New("new GitHub draft release is not empty")
-	}
-	return PublicationResult{Tag: p.tag(), Revision: revision}, nil
-}
-
-func (p *Publication) Upload(ctx context.Context, options UploadOptions) (PublicationResult, error) {
-	spec, err := p.nativeSpec(options.Architecture)
-	if err != nil {
-		return PublicationResult{}, err
-	}
-	revision, err := p.cleanRevision(ctx)
-	if err != nil {
-		return PublicationResult{}, err
-	}
-	artifacts, err := validateUploadArtifacts(spec, revision, options)
-	if err != nil {
-		return PublicationResult{}, err
-	}
-	if err := p.authenticate(ctx); err != nil {
-		return PublicationResult{}, err
-	}
-	view, err := p.requireRelease(ctx, revision, draftRelease)
-	if err != nil {
-		return PublicationResult{}, err
-	}
-	if err := requireUploadNamesAbsent(view.Assets, artifacts); err != nil {
-		return PublicationResult{}, err
-	}
-	paths := make([]string, 0, len(artifacts))
-	for _, artifact := range artifacts {
-		paths = append(paths, artifact.Path)
-	}
-	if err := p.runner.Run(ctx, p.gh(append([]string{"release", "upload", p.tag()}, append(paths, "--repo", p.repository)...)...)); err != nil {
-		return PublicationResult{}, fmt.Errorf("upload GitHub release assets: %w", err)
-	}
-	view, err = p.requireRelease(ctx, revision, draftRelease)
-	if err != nil {
-		return PublicationResult{}, fmt.Errorf("verify uploaded GitHub release assets: %w", err)
-	}
-	if err := verifyUploadedAssets(view.Assets, artifacts); err != nil {
-		return PublicationResult{}, err
-	}
-	return PublicationResult{Tag: p.tag(), Revision: revision, Assets: artifactNames(artifacts)}, nil
-}
-
 func (p *Publication) nativeSpec(architecture string) (config.DistroSpec, error) {
 	spec, ok := p.specs[architecture]
 	if !ok {
@@ -187,105 +108,6 @@ func (p *Publication) nativeSpec(architecture string) (config.DistroSpec, error)
 		return config.DistroSpec{}, err
 	}
 	return spec, nil
-}
-
-func (p *Publication) Publish(ctx context.Context, options PublishOptions) (PublicationResult, error) {
-	revision, err := p.cleanRevision(ctx)
-	if err != nil {
-		return PublicationResult{}, err
-	}
-	records, err := p.verifySignedRecords(ctx, revision, options)
-	if err != nil {
-		return PublicationResult{}, err
-	}
-	if err := p.authenticate(ctx); err != nil {
-		return PublicationResult{}, err
-	}
-	view, err := p.requireRelease(ctx, revision, draftRelease)
-	if err != nil {
-		return PublicationResult{}, err
-	}
-	if err := requirePublishableAssets(view.Assets, p.version); err != nil {
-		return PublicationResult{}, err
-	}
-	if err := p.verifyPublishedImages(ctx, records); err != nil {
-		return PublicationResult{}, err
-	}
-	if err := p.requireRemoteReleaseBranch(ctx, revision); err != nil {
-		return PublicationResult{}, err
-	}
-	before := assetIdentities(view.Assets)
-	if err := p.runner.Run(ctx, p.gh("release", "edit", p.tag(), "--repo", p.repository, "--verify-tag", "--draft=false", "--latest")); err != nil {
-		return PublicationResult{}, fmt.Errorf("publish GitHub release: %w", err)
-	}
-	view, err = p.requireRelease(ctx, revision, publishedRelease)
-	if err != nil {
-		return PublicationResult{}, fmt.Errorf("verify published GitHub release: %w", err)
-	}
-	if after := assetIdentities(view.Assets); !equalStrings(before, after) {
-		return PublicationResult{}, errors.New("GitHub release assets changed while publishing")
-	}
-	return PublicationResult{Tag: p.tag(), Revision: revision, Assets: before}, nil
-}
-
-func (p *Publication) verifySignedRecords(ctx context.Context, revision string, options PublishOptions) ([]releaseRecordPath, error) {
-	records, err := p.validateReleaseRecords(revision, options.AArch64RecordPath, options.X86RecordPath)
-	if err != nil {
-		return nil, err
-	}
-	for _, item := range records {
-		bundle := item.path + ".sigstore.json"
-		if err := requireRegularFile("signed release-record bundle", bundle); err != nil {
-			return nil, err
-		}
-		if err := p.runner.Run(ctx, p.cosign("verify-blob", "--bundle", bundle, "--certificate-identity", p.releaseWorkflowIdentity(), "--certificate-oidc-issuer", githubOIDCIssuer, item.path)); err != nil {
-			return nil, fmt.Errorf("verify %s signed release record: %w", item.architecture, err)
-		}
-	}
-	return records, nil
-}
-
-func (p *Publication) verifyPublishedImages(ctx context.Context, records []releaseRecordPath) error {
-	for _, item := range records {
-		versionTag := p.versionImageTag(p.specs[item.architecture])
-		if err := p.requireImageDigest(ctx, versionTag, item.record.SodaImageReference); err != nil {
-			return fmt.Errorf("verify %s immutable GHCR version tag: %w", item.architecture, err)
-		}
-		if err := p.requireAnonymousImageDigest(ctx, item.record.SodaImageReference); err != nil {
-			return fmt.Errorf("verify anonymous %s GHCR digest pull: %w", item.architecture, err)
-		}
-		if err := p.runner.Run(ctx, p.cosign("verify", "--certificate-identity", p.releaseWorkflowIdentity(), "--certificate-oidc-issuer", githubOIDCIssuer, item.record.SodaImageReference)); err != nil {
-			return fmt.Errorf("verify %s GHCR image signature: %w", item.architecture, err)
-		}
-		if err := p.runner.Run(ctx, p.cosign("verify-attestation", "--type", "slsaprovenance", "--certificate-identity", p.releaseWorkflowIdentity(), "--certificate-oidc-issuer", githubOIDCIssuer, item.record.SodaImageReference)); err != nil {
-			return fmt.Errorf("verify %s GHCR image provenance: %w", item.architecture, err)
-		}
-	}
-	return nil
-}
-
-func (p *Publication) requireAnonymousImageDigest(ctx context.Context, reference string) error {
-	output, err := p.runner.Output(ctx, p.skopeo("inspect", "--no-creds", "--format", "{{.Digest}}", "docker://"+reference))
-	if err != nil {
-		return fmt.Errorf("inspect exact GHCR digest anonymously: %w", err)
-	}
-	expected := strings.TrimPrefix(reference, Repository+"@")
-	if strings.TrimSpace(output) != expected {
-		return errors.New("anonymous GHCR digest pull differs from the Soda release record")
-	}
-	return nil
-}
-
-func (p *Publication) requireRemoteReleaseBranch(ctx context.Context, revision string) error {
-	output, err := p.runner.Output(ctx, process.Command{Dir: p.root, Name: "git", Args: []string{"ls-remote", "--exit-code", "origin", "refs/heads/release/" + p.version}})
-	if err != nil {
-		return fmt.Errorf("inspect remote release branch: %w", err)
-	}
-	fields := strings.Fields(output)
-	if len(fields) != 2 || fields[0] != revision || fields[1] != "refs/heads/release/"+p.version {
-		return errors.New("remote release branch does not point to the clean Soda source revision")
-	}
-	return nil
 }
 
 type releaseRecordPath struct {
@@ -442,6 +264,19 @@ func (p *Publication) cosign(args ...string) process.Command {
 
 func (p *Publication) releaseWorkflowIdentity() string {
 	return "https://github.com/" + p.repository + "/.github/workflows/release.yml@refs/heads/release/" + p.version
+}
+
+func workflowRunURLFromEnvironment(repository string) string {
+	runID := os.Getenv("GITHUB_RUN_ID")
+	if runID == "" {
+		return ""
+	}
+	for _, character := range runID {
+		if character < '0' || character > '9' {
+			return ""
+		}
+	}
+	return "https://github.com/" + repository + "/actions/runs/" + runID
 }
 
 func (p *Publication) tag() string { return "v" + p.version }

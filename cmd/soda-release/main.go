@@ -30,7 +30,7 @@ func newCommand(runner process.Runner) *cobra.Command {
 		},
 	}
 	command.PersistentFlags().StringVar(&specPath, "spec", "distro/soda.toml", "path to the Soda distribution specification")
-	command.AddCommand(imageStageCommand(&specPath, runner), imagePromoteCommand(&specPath, runner), draftCommand(&specPath, runner), uploadCommand(&specPath, runner), publishCommand(&specPath, runner))
+	command.AddCommand(imageStageCommand(&specPath, runner), imagePromoteCommand(&specPath, runner), recordSignCommand(&specPath, runner), draftCommand(&specPath, runner), uploadCommand(&specPath, runner), publishCommand(&specPath, runner))
 	return command
 }
 
@@ -76,6 +76,32 @@ func imagePromoteCommand(specPath *string, runner process.Runner) *cobra.Command
 				return err
 			}
 			fmt.Printf("Promoted %s image: %s\n", result.Architecture, result.Reference)
+			return nil
+		},
+	}
+	command.Flags().StringVar(&options.Architecture, "architecture", "", "matching-native Soda architecture")
+	command.Flags().StringVar(&options.RecordPath, "record", "", "matching-native schema-3 Soda release record")
+	_ = command.MarkFlagRequired("architecture")
+	_ = command.MarkFlagRequired("record")
+	return command
+}
+
+func recordSignCommand(specPath *string, runner process.Runner) *cobra.Command {
+	var options release.RecordSignOptions
+	command := &cobra.Command{
+		Use:   "record-sign",
+		Short: "keylessly sign one matching-native Soda release record",
+		Args:  cobra.NoArgs,
+		RunE: func(command *cobra.Command, _ []string) error {
+			publication, err := publication(*specPath, runner)
+			if err != nil {
+				return err
+			}
+			result, err := publication.SignRecord(command.Context(), options)
+			if err != nil {
+				return err
+			}
+			fmt.Printf("Signed %s record: %s\n", result.Architecture, result.BundlePath)
 			return nil
 		},
 	}

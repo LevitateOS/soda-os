@@ -44,6 +44,7 @@ func testSpec() config.DistroSpec {
 		Image:    config.ImageSpec{Registry: Repository},
 		Platform: config.PlatformSpec{
 			Architecture: config.PlatformArchitecture{Name: "aarch64", OCI: "arm64", Platform: "linux/arm64", Artifact: "aarch64"},
+			Base:         config.PlatformBase{RuntimePackageLock: "runtime.lock"},
 			Release:      config.PlatformRelease{Channel: "aarch64"},
 		},
 	}

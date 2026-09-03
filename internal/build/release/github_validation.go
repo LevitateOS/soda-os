@@ -26,44 +26,19 @@ type localAsset struct {
 }
 
 func validateUploadArtifacts(spec config.DistroSpec, revision string, options UploadOptions) ([]localAsset, error) {
-	expectedISO := "SodaOS-" + spec.Identity.Version + "-" + spec.Platform.Architecture.Artifact + ".iso"
-	expectedQCOW2ZST := "SodaOS-" + spec.Identity.Version + "-" + spec.Platform.Architecture.Artifact + ".qcow2.zst"
-	expectedRecord := "soda-os-" + spec.Identity.Version + "-" + spec.Platform.Release.Channel + ".release.json"
-	expectedBundle := expectedRecord + ".sigstore.json"
-	if filepath.Base(options.ISOPath) != expectedISO || filepath.Base(options.QCOW2ZSTPath) != expectedQCOW2ZST || filepath.Base(options.RecordPath) != expectedRecord || filepath.Base(options.RecordBundlePath) != expectedBundle {
-		return nil, errors.New("release artifact filenames differ from the selected Soda architecture")
+	expected := expectedUploadNames(spec)
+	if err := expected.validate(options); err != nil {
+		return nil, err
 	}
-	isoSidecarPath := options.ISOPath + ".sha256"
-	qcow2SidecarPath := options.QCOW2ZSTPath + ".sha256"
-	paths := []string{options.ISOPath, isoSidecarPath, options.QCOW2ZSTPath, qcow2SidecarPath, options.RecordPath, options.RecordBundlePath}
+	paths := uploadPaths(options)
 	if err := validateArtifactPaths(paths); err != nil {
 		return nil, err
 	}
-	record, err := readStrictRecord(options.RecordPath)
+	record, err := validateUploadRecord(options.RecordPath, spec, revision)
 	if err != nil {
 		return nil, err
 	}
-	if err := validatePublicationRecord(record, spec, revision); err != nil {
-		return nil, err
-	}
-	isoDigest, err := fileSHA256(options.ISOPath)
-	if err != nil {
-		return nil, fmt.Errorf("checksum installer ISO: %w", err)
-	}
-	if record.ISOChecksum != isoDigest {
-		return nil, errors.New("installer ISO checksum differs from its release record")
-	}
-	if err := validateSidecar(isoSidecarPath, isoDigest, expectedISO); err != nil {
-		return nil, err
-	}
-	qcow2Digest, err := fileSHA256(options.QCOW2ZSTPath)
-	if err != nil {
-		return nil, fmt.Errorf("checksum compressed QCOW2: %w", err)
-	}
-	if record.QCOW2ZSTChecksum != qcow2Digest {
-		return nil, errors.New("compressed QCOW2 checksum differs from its release record")
-	}
-	if err := validateSidecar(qcow2SidecarPath, qcow2Digest, expectedQCOW2ZST); err != nil {
+	if err := validateUploadChecksums(record, options, expected); err != nil {
 		return nil, err
 	}
 	assets, err := inspectLocalAssets(paths)
@@ -74,6 +49,63 @@ func validateUploadArtifacts(spec config.DistroSpec, revision string, options Up
 		return nil, err
 	}
 	return assets, nil
+}
+
+type uploadNames struct {
+	iso          string
+	qcow2ZST     string
+	record       string
+	recordBundle string
+}
+
+func expectedUploadNames(spec config.DistroSpec) uploadNames {
+	record := "soda-os-" + spec.Identity.Version + "-" + spec.Platform.Release.Channel + ".release.json"
+	return uploadNames{
+		iso:          "SodaOS-" + spec.Identity.Version + "-" + spec.Platform.Architecture.Artifact + ".iso",
+		qcow2ZST:     "SodaOS-" + spec.Identity.Version + "-" + spec.Platform.Architecture.Artifact + ".qcow2.zst",
+		record:       record,
+		recordBundle: record + ".sigstore.json",
+	}
+}
+
+func (names uploadNames) validate(options UploadOptions) error {
+	if filepath.Base(options.ISOPath) != names.iso || filepath.Base(options.QCOW2ZSTPath) != names.qcow2ZST || filepath.Base(options.RecordPath) != names.record || filepath.Base(options.RecordBundlePath) != names.recordBundle {
+		return errors.New("release artifact filenames differ from the selected Soda architecture")
+	}
+	return nil
+}
+
+func uploadPaths(options UploadOptions) []string {
+	return []string{options.ISOPath, options.ISOPath + ".sha256", options.QCOW2ZSTPath, options.QCOW2ZSTPath + ".sha256", options.RecordPath, options.RecordBundlePath}
+}
+
+func validateUploadRecord(path string, spec config.DistroSpec, revision string) (Record, error) {
+	record, err := readStrictRecord(path)
+	if err != nil {
+		return Record{}, err
+	}
+	if err := validatePublicationRecord(record, spec, revision); err != nil {
+		return Record{}, err
+	}
+	return record, nil
+}
+
+func validateUploadChecksums(record Record, options UploadOptions, names uploadNames) error {
+	if err := validateReleaseAssetChecksum("installer ISO", options.ISOPath, record.ISOChecksum, names.iso); err != nil {
+		return err
+	}
+	return validateReleaseAssetChecksum("compressed QCOW2", options.QCOW2ZSTPath, record.QCOW2ZSTChecksum, names.qcow2ZST)
+}
+
+func validateReleaseAssetChecksum(label, path, expectedDigest, expectedName string) error {
+	digest, err := fileSHA256(path)
+	if err != nil {
+		return fmt.Errorf("checksum %s: %w", label, err)
+	}
+	if digest != expectedDigest {
+		return fmt.Errorf("%s checksum differs from its release record", label)
+	}
+	return validateSidecar(path+".sha256", digest, expectedName)
 }
 
 func validateGitHubAssetSizes(assets []localAsset) error {
