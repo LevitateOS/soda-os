@@ -1172,6 +1172,55 @@ Measure the generated filesystem tree, not the nominal package purpose. For
 upstream command references, separately test source transport syntax and the
 persisted target identity through the exact shipped version.
 
+## 2026-09-03: reusable image ownership crossed cloud-init and bootc paths
+
+### What happened
+
+The first reusable-QCOW2 runs exposed four independent assumptions in the
+acceptance boundary:
+
+- the protected cloud-finalizer input directory was not created with its
+  required `0700` mode before cloud-init wrote the inputs;
+- asking cloud-init to place an account directly beneath `/home` crossed the
+  bootc `/home` symlink and left the SSH directory with incorrect ownership;
+- the test treated Fedora's empty `/var/lib/cloud` parent as leaked Soda state;
+  and
+- filesystem growth was measured on the composefs `/` mount instead of the
+  persistent `/sysroot` backing filesystem.
+
+After those corrections, NoCloud and ConfigDrive both completed provisioning,
+secret cleanup, disk growth, Tea, Projects, and installed-product capture. The
+no-datasource case then proved that Fedora's inherited hostname remained
+`fedora` when no metadata supplied one, instead of the accepted Soda fallback.
+
+### Smallest correction
+
+- Have cloud-init create the account at its physical bootc home
+  `/var/home/<username>`, then use native `usermod` once to publish the logical
+  `/home/<username>` identity before the fixed Soda finalizer runs.
+- Check only Soda's cloud input, instance cache, input-bearing cache files, and
+  logs for cleanup; do not claim ownership of Fedora's empty parent directory.
+- Measure the partition and filesystem containing `/sysroot`.
+- Render the reviewed Soda hostname into `/etc/hostname` in the bootc image so
+  the no-datasource path needs no provisioning action.
+
+No watcher, migration, retry state, account mirror, or alternate cloud-init
+implementation was added.
+
+### Verification status
+
+The corrected preflight passed complete NoCloud and ConfigDrive scenarios on
+native x86-64. A final fresh run against post-hostname images remains required
+before release publication; the earlier artifacts are diagnostic evidence and
+must not be promoted.
+
+### Rule we will reuse
+
+On bootc systems, distinguish logical paths from their persistent physical
+owners. Acceptance assertions should target the product-owned state and the
+filesystem that actually stores it, while leaving empty upstream-owned parent
+directories alone.
+
 ## Checklist for the next installer investigation
 
 - [ ] Record commit, architecture, input hashes, and exact package versions.
