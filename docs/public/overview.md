@@ -109,9 +109,10 @@ development toolset, rootless Podman, the exact installed image, and absence of
 the deleted Soda control plane. Native B→A→B selection between two
 post-control-plane images also preserved current mutable state.
 
-Matching-native AArch64 construction, installation, and installed-product
-evidence for the same current path are still pending. Evidence from x86-64 does
-not qualify AArch64.
+Matching-native x86-64 and AArch64 reset-completion construction, installation,
+and installed-product evidence has passed. Each later release candidate still
+requires its own architecture-native artifacts and installed evidence; one
+sibling's result never qualifies the other.
 
 Later-created primary users use Forgejo's native PAM source with their Linux
 username and password. The first successful login creates an ordinary Forgejo
@@ -120,8 +121,7 @@ Only the Forgejo service process receives the dedicated read group needed for
 PAM password verification, and workspace accounts remain rejected.
 
 The complete multi-user, destructive-ordering, and native-failure scenarios
-have installed x86-64 evidence. Matching-native AArch64 repetition remains the
-final architecture-level acceptance gate.
+have installed x86-64 and AArch64 reset-completion evidence.
 
 Soda ships no runtime daemon, general control CLI, local control socket, or API.
 Stock Cockpit and ordinary Linux tools expose native host status.

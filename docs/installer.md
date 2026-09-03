@@ -314,8 +314,8 @@ GHCR digest and all artifact checksums to agree.
 
 ## Current verification status
 
-The current installer path was exercised end to end on a fresh native x86-64
-guest at implementation checkpoint `0d6ca31`. The run proved OEMDRV protection,
+The reset installer path was exercised end to end on fresh native x86-64 and
+AArch64 guests. The x86-64 checkpoint `0d6ca31` proved OEMDRV protection,
 guest ejection and exact host removal, stock-Anaconda installation, Linux and
 same-named Forgejo administrator creation, password and public-key SSH, correct
 home and key SELinux labels, one-attempt Tailscale enrollment and handoff
@@ -330,7 +330,8 @@ selection from `0d6ca31` to `ba4de43` and forward again.
 The artifact hashes and failure history are recorded in
 [bug-notes.md](bug-notes.md); they are local evidence, not a published release.
 
-The latest protected-Kickstart installer path still requires independent
-matching-native AArch64 construction, installation, and installed-system
-verification. Earlier AArch64 evidence for the removed add-on does not qualify
-this implementation.
+Matching-native AArch64 subsequently repeated the reset-completion workflow at
+source `eaf6ae8`. The later 0.5.0 x86-64 candidate at `1ed2e93` passed the
+network-ISO path plus reusable-QCOW2 NoCloud, ConfigDrive, no-datasource, disk-
+growth, secret-removal, and B→A→B scenarios. The 0.5.0 AArch64 artifacts still
+require their separate matching-native release-candidate run.

@@ -1210,9 +1210,10 @@ implementation was added.
 ### Verification status
 
 The corrected preflight passed complete NoCloud and ConfigDrive scenarios on
-native x86-64. A final fresh run against post-hostname images remains required
-before release publication; the earlier artifacts are diagnostic evidence and
-must not be promoted.
+native x86-64. The final fresh run then passed against post-hostname image A
+`f212ed9f61eaae22587f484d507adae1f077bfe4` and image B
+`1ed2e9398502fe85f00c59dcbd4510cdeb836e88`. The earlier artifacts remain
+diagnostic evidence and must not be promoted.
 
 ### Rule we will reuse
 
@@ -1220,6 +1221,41 @@ On bootc systems, distinguish logical paths from their persistent physical
 owners. Acceptance assertions should target the product-owned state and the
 filesystem that actually stores it, while leaving empty upstream-owned parent
 directories alone.
+
+## 2026-09-03: final native x86-64 0.5.0 candidate evidence
+
+The fresh native x86-64 run retained at
+`/home/soda-release-ci/release/evidence-x86-f212-1ed2-3` passed the complete
+release-candidate workflow. It installed image B through the network ISO, ran
+the product scenarios, selected exact earlier image A, recovered forward to
+exact B, and then exercised the same reusable QCOW2 through NoCloud,
+ConfigDrive, and no datasource.
+
+The accepted identities were:
+
+- image A source: `f212ed9f61eaae22587f484d507adae1f077bfe4`;
+- image A digest: `sha256:d57060e9eb5953043e7ce18b8e002422010f6e17c1408211907d31fd1cfa5edd`;
+- image B source: `1ed2e9398502fe85f00c59dcbd4510cdeb836e88`;
+- image B digest: `sha256:18e694bd4d3f91ff44869228242dd10e662510c9bee7eecd84288534a83cdd2a`;
+- image B ISO SHA-256:
+  `43c92d2f8336837bff5709fe7b67f808a27330527782a587f5e5f3997f1f3834`;
+- image B raw QCOW2 SHA-256:
+  `9ed93033137d69819af9843b6cef650c013dc1e731b34146fd8f36acffdd0905`;
+- image B compressed QCOW2 SHA-256:
+  `e2ae63758f30a9f285805a4eee486448b13eec09d046bf3d41c37ff411bd9bf7`;
+- image B release-record SHA-256:
+  `4df6175a4dfd10f534e3240f874dfb559cd34bfc5f0c6d486156c3e254469f41`.
+
+The two normalized preservation comparisons were byte-identical. NoCloud and
+ConfigDrive provisioning passed, the no-datasource boot reached
+`multi-user.target` without provisioning or Tailnet enrollment, and the final
+machine was booted into exact image B. The evidence scanner found none of the
+three Tailscale keys, administrator password, later-primary password, or test
+administrator private key in retained evidence.
+
+This is matching-native x86-64 evidence. It does not validate or replace the
+AArch64 release candidate, its architecture-owned artifacts, or its installed
+acceptance run.
 
 ## Checklist for the next installer investigation
 

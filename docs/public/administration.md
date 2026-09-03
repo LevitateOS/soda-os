@@ -93,13 +93,13 @@ repository is left unchanged.
 Code-level verification covers administrator authorization, validation before
 deletion, process and account removal, catalog-last project deletion,
 primary-last human deletion, and failure behavior. The complete multi-user and
-destructive-ordering scenarios have also passed on an installed native x86-64
-system; matching-native AArch64 repetition remains pending.
+destructive-ordering scenarios have passed on installed native x86-64 and
+AArch64 reset candidates. Each release candidate still requires its own
+matching-native artifact and installed evidence.
 
-One native x86-64 installation has exercised stock Cockpit authentication,
-its Fedora-owned administration pages, Projects discovery and setup, and
-workspace-account rejection. Matching-native AArch64 installed-system evidence
-for the same current path is pending.
+Installed native x86-64 and AArch64 reset candidates have exercised stock
+Cockpit authentication, its Fedora-owned administration pages, Projects
+discovery and setup, and workspace-account rejection.
 
 Later-created primary users sign in to Forgejo through native PAM with their
 Linux username and password. Forgejo creates its ordinary native user on the

@@ -37,7 +37,7 @@ toolset slice has also removed Soda telemetry and runtime toolchain management.
 The final control-plane deletion removed Soda's runtime daemon, general CLI,
 local control socket, and protobuf/gRPC API without introducing a replacement.
 
-At implementation checkpoint `0d6ca31`, one fresh native x86-64 installation
+At reset checkpoint `0d6ca31`, one fresh native x86-64 installation
 passed the complete post-reset workflow: protected OEMDRV and stock Anaconda,
 the initial Linux and Forgejo administrator, Tailscale, stock Cockpit, Projects,
 multi-user workspace isolation, direct SSH/SCP/SFTP, destructive ordering,
@@ -46,8 +46,12 @@ deleted runtime control plane. It also proved administrator-only Add person,
 same-named PAM Forgejo users without local password verifiers, distinct
 human-owned Tea credentials, and one-time opaque Tea placement in derived
 workspaces. Native B→A→B selection from `0d6ca31` to `ba4de43` and forward again
-preserved current mutable state and finished on B. The identical final workflow
-still requires matching-native AArch64 evidence before release-level completion.
+preserved current mutable state and finished on B. Matching-native AArch64
+subsequently repeated the reset-completion workflow. The 0.5.0 x86-64 release
+candidate at `1ed2e93` has additionally passed network-ISO installation,
+reusable-QCOW2 NoCloud and ConfigDrive provisioning, no-datasource inactivity,
+and B→A→B preservation. AArch64 release-candidate construction and installed
+evidence remain independently required for the dual-architecture release.
 
 This repository is independent from LevitateOS. It borrows the separation
 between declarative distro specifications, Go orchestration, explicit

@@ -8,7 +8,7 @@ matching-native AArch64 repetition remains required before release completion.
 
 **Initial implementation snapshot reviewed:** `7f2c60b`
 
-**Current implementation checkpoint documented:** `0d6ca31`
+**Current implementation checkpoint documented:** `1ed2e93`
 
 **Initial architecture record:** `e992e22`
 
@@ -26,8 +26,10 @@ post-control-plane images. These are implementation and test facts, not
 additional product authority. Native x86-64 acceptance at candidate B
 `0d6ca31` and fallback A `ba4de43` also proves the supported Add person,
 human-owned Tea, workspace Tea-copy, and PAM-without-local-verifier composition
-through a fresh installed B→A→B run. Matching-native AArch64 must repeat this
-final workflow; the x86-64 result does not qualify its sibling.
+through a fresh installed B→A→B run. Matching-native AArch64 repeated that
+reset-completion workflow at source `eaf6ae8`; the sibling result was merged at
+`63ebb41`. Release-candidate artifacts and delivery behavior remain
+architecture-owned and still require their own matching-native evidence.
 
 ## Product contract
 
@@ -587,30 +589,25 @@ The accepted dependency order is:
 9. [#25: test(acceptance): collapse raw-QEMU test orchestration](https://github.com/LevitateOS/soda-os/issues/25) around the resulting outcomes
 10. [#39: architecture(control-plane): remove residual runtime infrastructure](https://github.com/LevitateOS/soda-os/issues/39) as the capstone
 
-At the current implementation checkpoint, #40, #33, #35, #36, #32, #34, #24,
-#23, and #39 are implemented, and their retained outcomes passed the final
-native x86-64 installed workflow. Issue #38's account-preserving fallback and
-#25's complete post-capstone runner have also passed on x86-64. The remaining
-#37 path now uses an explicitly authorized, dedicated group to grant only the
-Forgejo service process read access to `/etc/shadow`; Linux/PAM remain password
-authority and the existing PAM classification rejects `soda-workspaces`. The
-existing Forgejo initialization unit applies the package's one named tmpfiles
-rule before service startup, because installed evidence showed that an
-unrelated failure in the global tmpfiles pass could otherwise leave that
-authorized boundary unapplied. An exact SELinux denial further proved that the
-tmpfiles domain needed only `getattr` and `setattr` on `shadow_t`; the image now
-ships precisely those metadata permissions and no shadow-content permission.
-Focused source and package checks pass, while fresh post-policy artifacts and
-the complete post-#37 installed workflow remain to run on x86-64 and
-matching-native AArch64. These status facts do not let issue text redefine the
-outcomes above.
+The architecture-reset issues through #40, plus #25 and #44, are implemented
+and closed after matching-native x86-64 and AArch64 evidence. The retained #37
+path uses an explicitly authorized, dedicated group to grant only the Forgejo
+service process read access to `/etc/shadow`; Linux/PAM remain password
+authority and the PAM classification rejects `soda-workspaces`. The Forgejo
+initialization unit applies the package's one named tmpfiles rule before service
+startup. Its narrow SELinux policy grants the tmpfiles domain only `getattr` and
+`setattr` on `shadow_t`, with no shadow-content permission. These implementation
+and evidence facts do not let issue text redefine the accepted outcomes above.
 
-Issue #44 now composes administrator-only primary-account creation, native PAM
-user creation, and a user-owned Tea login without adding identity or credential
-authority. Its source implementation and focused tests pass. Matching-native
-x86-64 RPM, OCI, installer ISO, and release-record construction pass at the
-post-fix image-A commit `1aafad3`; installed x86-64 and matching-native AArch64
-evidence remain required before claiming the milestone complete.
+Issue #44 composes administrator-only primary-account creation, native PAM user
+creation, and a user-owned Tea login without adding identity or credential
+authority. Matching-native x86-64 and AArch64 installed evidence has passed and
+the issue is complete. The subsequent 0.5.0 x86-64 release candidate at image B
+`1ed2e93` has also passed network-ISO installation, complete product scenarios,
+native B→A→B fallback to image A `f212ed9`, NoCloud and ConfigDrive
+provisioning, no-datasource inactivity, disk growth, and credential-absence
+checks. This is not AArch64 release-candidate evidence and does not qualify the
+sibling release output.
 
 Issue #33 owns stable primary identity, Linux-native account classification,
 and supported cascading human deletion. Issue #38 owns account behavior across
