@@ -2,6 +2,10 @@ ARG BUILDER_BASE_REFERENCE
 ARG GO_VERSION
 FROM ${BUILDER_BASE_REFERENCE}
 
+# Docker build arguments declared before FROM must be redeclared for later RUN
+# instructions. Keep the pinned Go archive check bound to the reviewed version.
+ARG GO_VERSION
+
 COPY .artifacts/builder/packages.lock /usr/share/soda-builder/packages.lock
 COPY .artifacts/builder/go.tar.gz /usr/share/soda-builder/go.tar.gz
 

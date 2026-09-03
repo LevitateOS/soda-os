@@ -96,6 +96,7 @@ func TestRPMBuilderContractPinsFedoraBaseAndInstalledInventory(t *testing.T) {
 	require.NoError(t, err)
 	containerfile := string(contents)
 	require.Contains(t, containerfile, "FROM ${BUILDER_BASE_REFERENCE}")
+	require.Regexp(t, regexp.MustCompile(`FROM \$\{BUILDER_BASE_REFERENCE\}\n\n(?:#.*\n)*ARG GO_VERSION`), containerfile)
 	require.Contains(t, containerfile, "COPY .artifacts/builder/packages.lock")
 	require.Contains(t, containerfile, "COPY .artifacts/builder/go.tar.gz")
 	require.Contains(t, containerfile, "ARG GO_VERSION")
