@@ -69,8 +69,8 @@ the ISO and its release record:
 ```sh
 ARCH=x86_64
 go run ./cmd/soda-image --architecture "$ARCH" installer-input \
-  --iso ".artifacts/images/SodaOS-0.4.0-${ARCH}.iso" \
-  --release-record ".artifacts/releases/soda-os-0.4.0-${ARCH}.release.json" \
+  --iso ".artifacts/images/SodaOS-0.5.0-${ARCH}.iso" \
+  --release-record ".artifacts/releases/soda-os-0.5.0-${ARCH}.release.json" \
   --username soda-admin \
   --ssh-public-key-file "$HOME/.ssh/id_ed25519.pub" \
   --tailscale-auth-key-file /secure/path/tailscale-auth-key \
@@ -233,14 +233,16 @@ therefore remains responsible for applying the installed policy to
 `/var/home`, including the administrator's SSH files. Soda runs no relabel
 command and creates no runtime relabel service or second home authority.
 
-The ISO embeds the local OCI payload under its exact digest in container
-storage. Fedora 44's `bootc` Kickstart command installs from that ISO-local
-`containers-storage:` reference, so installation does not require registry
-access. Pinned `bootc` deliberately uses the live host's `/var/tmp` for large
-import files. The installer environment mounts a 4 GiB ephemeral tmpfs there
-before Anaconda starts, keeping payload scratch outside the small LiveOS
-overlay and out of installed Soda state. The matching-native raw-QEMU harness
-allocates 8 GiB for this path.
+The network ISO contains no Soda OCI payload. Its Kickstart names the exact
+anonymous GHCR manifest digest recorded for the matching architecture, and
+Fedora 44's `bootc` command retrieves that digest during installation. A
+registry or network failure is therefore a native installation failure; Soda
+ships no embedded fallback payload, registry mirror, or retry mechanism. Pinned
+`bootc` deliberately uses the live host's `/var/tmp` for large import files.
+The installer environment mounts a 4 GiB ephemeral tmpfs there before Anaconda
+starts, keeping payload scratch outside the small LiveOS overlay and out of
+installed Soda state. The matching-native raw-QEMU harness allocates 8 GiB for
+this path.
 
 ## Persistent host state
 
@@ -302,14 +304,13 @@ Soda ships no runtime release-index client, translated update state, update
 API, CLI wrapper, polling, download service, activation service, retry, or
 recovery process.
 
-The local release record binds the runtime image's Soda version, source
-revision, Fedora base reference, exact image reference, platform, RPM inventory
-checksum, and installer ISO checksum. It does not independently record the
-installer-environment source revision. When a validated runtime OCI is reused
-for an installer-only change, identify the installer candidate by the
-repository commit and exact ISO checksum while recording the embedded runtime
-digest separately. Artifact construction does not require the record; protected
-OEMDRV creation does.
+The schema-3 release record binds the runtime image's Soda version, source
+revision, Fedora base reference, exact GHCR manifest-digest reference, platform,
+RPM inventory checksum, installer ISO checksum, raw QCOW2 checksum, and
+compressed QCOW2 download checksum. It does not independently record the
+installer-environment source revision. Artifact construction does not require a
+record; protected OEMDRV creation does. Release publication requires the exact
+GHCR digest and all artifact checksums to agree.
 
 ## Current verification status
 

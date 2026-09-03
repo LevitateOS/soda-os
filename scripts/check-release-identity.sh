@@ -25,6 +25,10 @@ contains packaging/installer/branding/buildstamp "Version=$version"
 contains packaging/installer/branding/buildstamp "UUID=SodaOS-$version"
 contains packaging/installer/branding/os-release "VERSION=\"$minor\""
 contains packaging/installer/branding/os-release "PRETTY_NAME=\"Soda OS $version\""
-for package in soda-release soda-runtime soda-projects; do
-  contains distro/locks/runtime-packages-x86_64.toml "$package-0:$version-"
+for lock in \
+  distro/locks/runtime-packages-aarch64.toml \
+  distro/locks/runtime-packages-x86_64.toml; do
+  for package in soda-release soda-runtime soda-projects; do
+    contains "$lock" "$package-0:$version-"
+  done
 done

@@ -73,17 +73,18 @@ just check
 ARCH=x86_64 # or aarch64
 just rpm "$ARCH"
 just oci "$ARCH"
-just iso "$ARCH" ".artifacts/images/soda-os-0.4.0-${ARCH}.oci.tar"
+just iso "$ARCH" ".artifacts/images/soda-os-0.5.0-${ARCH}.oci.tar"
 ```
 
 Build artifacts are written under `.artifacts/` and are never committed.
 `just rpm` builds the locked local Soda RPM inputs, including the narrowly
 packaged Bun binary and source-built Tea CLI. `just oci` builds those RPMs and emits
-`.artifacts/images/soda-os-0.4.0-${ARCH}.oci.tar` without loading or publishing
+`.artifacts/images/soda-os-0.5.0-${ARCH}.oci.tar` without loading or publishing
 the image. `just iso` derives the exact image digest from that local archive and
-embeds it in a platform-matched installer without a registry, signing key, or
-network publication step. Architecture selection is always explicit; neither
-sibling is a default or fallback.
+builds a platform-matched network installer whose Kickstart names that exact
+GHCR digest. Local construction does not publish or sign the image; installation
+requires the exact digest to be anonymously available in GHCR. Architecture
+selection is always explicit; neither sibling is a default or fallback.
 The package lock pins every Fedora package added to the immutable base, and the
 finished image contains a complete RPM inventory plus its verified SHA-256
 checksum. Both sibling locks include their independently resolved
