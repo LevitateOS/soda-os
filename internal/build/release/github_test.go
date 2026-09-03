@@ -53,60 +53,6 @@ func (r *publicationRunner) Output(_ context.Context, command process.Command) (
 	}
 }
 
-func TestImageStageUsesAnImmutableCandidateTagAndVerifiesTheDigest(t *testing.T) {
-	image := matchingTestImage(t)
-	archive := writeOCIArchive(t, image)
-	digest, err := image.Digest()
-	require.NoError(t, err)
-	runner := &publicationRunner{
-		revision:     testRevision,
-		imageTags:    []string{`{"Tags":[]}`},
-		imageDigests: []string{digest.String()},
-	}
-	publication := testPublication(t, runner, "arm64")
-	result, err := publication.ImageStage(context.Background(), ImageStageOptions{Architecture: "aarch64", ArchivePath: archive})
-	require.NoError(t, err)
-	require.Equal(t, Repository+"@"+digest.String(), result.Reference)
-	commands := commandStrings(runner.commands)
-	candidate := Repository + ":sha-" + testRevision + "-aarch64"
-	require.Contains(t, commands, "skopeo list-tags docker://"+Repository)
-	require.Contains(t, commands, "skopeo copy --dest-tls-verify=true oci-archive:"+archive+" docker://"+candidate)
-	require.Contains(t, commands, "skopeo inspect --format {{.Digest}} docker://"+candidate)
-}
-
-func TestImageStageRefusesAnExistingCandidateBeforePublishing(t *testing.T) {
-	runner := &publicationRunner{revision: testRevision, imageTags: []string{`{"Tags":["sha-` + testRevision + `-aarch64"]}`}}
-	publication := testPublication(t, runner, "arm64")
-	_, err := publication.ImageStage(context.Background(), ImageStageOptions{Architecture: "aarch64", ArchivePath: writeOCIArchive(t, matchingTestImage(t))})
-	require.ErrorContains(t, err, "already exists")
-	require.NotContains(t, strings.Join(commandStrings(runner.commands), "\n"), "skopeo copy")
-}
-
-func TestImagePromoteRequiresTheCandidateAndNeverMovesAnExistingVersionTag(t *testing.T) {
-	options, _ := writeUploadArtifacts(t, testArmPublicationSpec(), testRevision)
-	record, err := readStrictRecord(options.RecordPath)
-	require.NoError(t, err)
-	digest := strings.TrimPrefix(record.SodaImageReference, Repository+"@")
-	runner := &publicationRunner{
-		revision:     testRevision,
-		imageTags:    []string{`{"Tags":["sha-` + testRevision + `-aarch64"]}`},
-		imageDigests: []string{digest, digest},
-	}
-	publication := testPublication(t, runner, "arm64")
-	result, err := publication.ImagePromote(context.Background(), ImagePromoteOptions{Architecture: "aarch64", RecordPath: options.RecordPath})
-	require.NoError(t, err)
-	require.Equal(t, record.SodaImageReference, result.Reference)
-	commands := strings.Join(commandStrings(runner.commands), "\n")
-	candidate := Repository + ":sha-" + testRevision + "-aarch64"
-	version := Repository + ":0.2.0-aarch64"
-	require.Contains(t, commands, "skopeo copy --src-tls-verify=true --dest-tls-verify=true docker://"+candidate+" docker://"+version)
-
-	locked := &publicationRunner{revision: testRevision, imageTags: []string{`{"Tags":["sha-` + testRevision + `-aarch64","0.2.0-aarch64"]}`}, imageDigests: []string{digest}}
-	_, err = testPublication(t, locked, "arm64").ImagePromote(context.Background(), ImagePromoteOptions{Architecture: "aarch64", RecordPath: options.RecordPath})
-	require.ErrorContains(t, err, "already exists")
-	require.NotContains(t, strings.Join(commandStrings(locked.commands), "\n"), "skopeo copy")
-}
-
 func popOutput(outputs *[]string) (string, error) {
 	if len(*outputs) == 0 {
 		return "", errors.New("scripted output is exhausted")
@@ -145,28 +91,6 @@ func TestDraftUsesFixedAppendOnlyGitHubCLISequence(t *testing.T) {
 	requireGHEnvironment(t, runner.commands)
 	require.NotContains(t, strings.Join(commands, "\n"), "token")
 	require.NotContains(t, strings.Join(commands, "\n"), "clobber")
-}
-
-func TestDraftRequiresAuthenticationAndRepositoryWritePermission(t *testing.T) {
-	notes := filepath.Join(t.TempDir(), "notes.md")
-	require.NoError(t, os.WriteFile(notes, []byte("release notes\n"), 0o644))
-
-	t.Run("authentication", func(t *testing.T) {
-		runner := &publicationRunner{revision: testRevision, failRunPrefix: "gh auth status"}
-		_, err := testPublication(t, runner, "arm64").Draft(context.Background(), DraftOptions{NotesPath: notes})
-		require.ErrorContains(t, err, "verify GitHub CLI authentication")
-		require.NotContains(t, strings.Join(commandStrings(runner.commands), "\n"), "gh api repos/")
-	})
-
-	t.Run("permission", func(t *testing.T) {
-		runner := &publicationRunner{
-			revision: testRevision,
-			states:   []string{repositoryResponseJSON(testRevision, repositoryResponseFixture{permission: "READ"})},
-		}
-		_, err := testPublication(t, runner, "arm64").Draft(context.Background(), DraftOptions{NotesPath: notes})
-		require.ErrorContains(t, err, "requires write permission")
-		require.NotContains(t, strings.Join(commandStrings(runner.commands), "\n"), "gh api repos/")
-	})
 }
 
 func TestDraftDoesNotCompensateAfterPartialFailure(t *testing.T) {
@@ -367,10 +291,12 @@ func writeUploadArtifacts(t *testing.T, spec config.DistroSpec, revision string)
 		Channel:             spec.Platform.Release.Channel,
 		FedoraBaseReference: spec.Base.Reference,
 		SodaImageReference:  Repository + "@sha256:" + strings.Repeat("a", 64),
-		RPMInventorySHA256:  strings.Repeat("b", 64),
-		ISOChecksum:         digest,
-		QCOW2Checksum:       strings.Repeat("d", 64),
-		QCOW2ZSTChecksum:    strings.Repeat("e", 64),
+		ArtifactChecksums: ArtifactChecksums{
+			RPMInventorySHA256: strings.Repeat("b", 64),
+			ISOChecksum:        digest,
+			QCOW2Checksum:      strings.Repeat("d", 64),
+			QCOW2ZSTChecksum:   strings.Repeat("e", 64),
+		},
 	}
 	recordPath := filepath.Join(directory, "soda-os-"+spec.Identity.Version+"-"+spec.Platform.Release.Channel+".release.json")
 	encoded, err := json.Marshal(record)

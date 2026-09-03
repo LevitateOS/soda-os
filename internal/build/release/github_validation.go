@@ -79,16 +79,28 @@ func inspectLocalAssets(paths []string) ([]localAsset, error) {
 }
 
 func validatePublicationRecord(record Record, spec config.DistroSpec, revision string) error {
-	if record.SchemaVersion != 3 || record.SodaVersion != spec.Identity.Version || record.SourceRevision != revision {
+	if !validRecordIdentity(record, spec, revision) {
 		return errors.New("release record identity differs from the clean Soda source revision")
 	}
-	if record.Platform != spec.Base.Platform || record.Channel != spec.Platform.Release.Channel || record.FedoraBaseReference != spec.Base.Reference {
+	if !validRecordPlatform(record, spec) {
 		return errors.New("release record platform differs from the selected Soda architecture")
 	}
-	if !isSodaDigestReference(record.SodaImageReference) || !validHexadecimal(record.RPMInventorySHA256, 64) || !validHexadecimal(record.ISOChecksum, 64) || !validHexadecimal(record.QCOW2Checksum, 64) || !validHexadecimal(record.QCOW2ZSTChecksum, 64) {
+	if !validRecordProvenance(record) {
 		return errors.New("release record contains invalid image or checksum provenance")
 	}
 	return nil
+}
+
+func validRecordIdentity(record Record, spec config.DistroSpec, revision string) bool {
+	return record.SchemaVersion == 3 && record.SodaVersion == spec.Identity.Version && record.SourceRevision == revision
+}
+
+func validRecordPlatform(record Record, spec config.DistroSpec) bool {
+	return record.Platform == spec.Base.Platform && record.Channel == spec.Platform.Release.Channel && record.FedoraBaseReference == spec.Base.Reference
+}
+
+func validRecordProvenance(record Record) bool {
+	return isSodaDigestReference(record.SodaImageReference) && validHexadecimal(record.RPMInventorySHA256, 64) && validHexadecimal(record.ISOChecksum, 64) && validHexadecimal(record.QCOW2Checksum, 64) && validHexadecimal(record.QCOW2ZSTChecksum, 64)
 }
 
 func readStrictRecord(path string) (Record, error) {

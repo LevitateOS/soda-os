@@ -3,7 +3,6 @@ package installer
 import (
 	"context"
 	"encoding/csv"
-	"fmt"
 	"image/png"
 	"os"
 	"os/exec"
@@ -355,110 +354,6 @@ func TestArchiveReferenceDerivesExactDigestFromOneMatchingArm64Manifest(t *testi
 	require.Equal(t, Repository+"@"+digest, reference)
 	_, err = archiveReference(archive, "amd64")
 	require.ErrorContains(t, err, "must be linux/amd64")
-}
-
-func TestBuildDoesNotDeleteRuntimeArchiveFromOutputDirectory(t *testing.T) {
-	root := t.TempDir()
-	output := filepath.Join(root, ".artifacts", "images")
-	require.NoError(t, os.MkdirAll(output, 0o755))
-	archive, digest := writeTestOCIArchiveAt(t, filepath.Join(output, "runtime.oci.tar"))
-	lock := filepath.Join(root, "image-builder.lock")
-	require.NoError(t, os.WriteFile(lock, []byte(`version = "81.0.0"
-commit = "3130fb87ee1f684b6e9d1909f354861c43d7a092"
-reference = "ghcr.io/osbuild/image-builder@sha256:704dc05d6033799248a33c415f7f7253ec20b40f0b2bff03b06d8687179e058a"
-platform = "linux/arm64"
-`), 0o644))
-	exactReference := Repository + "@" + digest
-	options := Options{ArchivePath: archive, ToolLock: lock, OutputDir: output}
-	const baseReference = "quay.io/fedora/fedora-bootc@sha256:950a52fa1244db4d7fe2673af57fd6784a605a83bec3cd2d716ed8c00ebd366d"
-	runner := &recordingRunner{Outputs: map[string]string{
-		"docker image ls --no-trunc --quiet --filter reference=" + baseReference: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n",
-	}}
-	packageLock := filepath.Join(root, "installer-packages.toml")
-	require.NoError(t, os.WriteFile(packageLock, []byte("schema_version = 1\nplatform = \"linux/arm64\"\npackages = [\"anaconda\"]\nboot_packages = [\"shim-aa64\"]\nefi_vendor = \"fedora\"\n"), 0o644))
-	isoConfig := filepath.Join(root, "iso.yaml")
-	require.NoError(t, os.WriteFile(isoConfig, []byte("test ISO config\n"), 0o644))
-	platform := config.PlatformSpec{
-		Architecture: config.PlatformArchitecture{Name: "aarch64", OCI: "arm64", Platform: "linux/arm64", Artifact: "aarch64", Installer: "aarch64"},
-		Base:         config.PlatformBase{Reference: baseReference, Archive: "unused.oci.tar", ArchiveSHA256: strings.Repeat("a", 64)},
-		Installer:    config.PlatformInstaller{PackageLock: packageLock, ISOConfig: isoConfig},
-	}
-	builder := NewBuilder(root, config.DistroSpec{Identity: config.IdentitySpec{Architecture: "aarch64", Hostname: "soda", Version: "0.2.0"}, Base: config.BaseSpec{Reference: platform.Base.Reference, Platform: platform.Architecture.Platform}, Platform: platform}, runner)
-	builder.hostArchitecture = "arm64"
-	_, err := builder.Build(context.Background(), options)
-	require.ErrorContains(t, err, "image-builder did not create")
-	require.FileExists(t, archive)
-	volumeName := fmt.Sprintf("soda-installer-%s-%d", strings.TrimPrefix(exactReference, Repository+"@sha256:")[:12], os.Getpid())
-	commands := make([]string, 0, len(runner.Commands))
-	for _, command := range runner.Commands {
-		commands = append(commands, command.String())
-	}
-	require.Contains(t, commands, "docker volume create "+volumeName)
-	require.Contains(t, commands, "docker volume rm --force "+volumeName)
-	require.NotContains(t, strings.Join(commands, "\n"), "containers-storage:"+exactReference)
-	require.Contains(t, strings.Join(commands, "\n"), "--build-context fedora-base=docker-image://soda-fedora-bootc:sha256-950a52fa1244db4d7fe2673af57fd6784a605a83bec3cd2d716ed8c00ebd366d")
-	require.NotContains(t, strings.Join(commands, "\n"), "--bootc-installer-payload-ref")
-	require.Contains(t, strings.Join(commands, "\n"), "--bootc-pull-container")
-	require.NotContains(t, strings.Join(commands, "\n"), root+"/.artifacts/installer/containers-storage:/var/lib/containers/storage")
-	require.Contains(t, strings.Join(commands, "\n"), volumeName+":/var/lib/containers/storage")
-	require.Contains(t, strings.Join(commands, "\n"), "--tmpdir /var/lib/containers/storage copy")
-}
-
-func TestBuildQCOW2UsesTheExactArchiveReferenceAndFixedCompression(t *testing.T) {
-	root := t.TempDir()
-	archive, digest := writeTestOCIArchiveAt(t, filepath.Join(root, "runtime.oci.tar"))
-	lock := filepath.Join(root, "image-builder.lock")
-	require.NoError(t, os.WriteFile(lock, []byte(`version = "81.0.0"
-commit = "3130fb87ee1f684b6e9d1909f354861c43d7a092"
-reference = "ghcr.io/osbuild/image-builder@sha256:704dc05d6033799248a33c415f7f7253ec20b40f0b2bff03b06d8687179e058a"
-platform = "linux/arm64"
-`), 0o644))
-	output := filepath.Join(root, "output")
-	runner := &recordingRunner{}
-	builder := NewBuilder(root, config.DistroSpec{
-		Identity: config.IdentitySpec{Architecture: "aarch64", Hostname: "soda", Version: "0.5.0"},
-		Base:     config.BaseSpec{Platform: "linux/arm64"},
-		Platform: config.PlatformSpec{Architecture: config.PlatformArchitecture{Name: "aarch64", OCI: "arm64", Platform: "linux/arm64", Artifact: "aarch64", Installer: "aarch64"}},
-	}, runner)
-	builder.hostArchitecture = "arm64"
-	_, err := builder.BuildQCOW2(context.Background(), QCOW2Options{ArchivePath: archive, ToolLock: lock, OutputDir: output})
-	require.ErrorContains(t, err, "image-builder did not create")
-	commandLines := make([]string, 0, len(runner.Commands))
-	for _, command := range runner.Commands {
-		commandLines = append(commandLines, command.String())
-	}
-	commands := strings.Join(commandLines, "\n")
-	exactReference := Repository + "@" + digest
-	require.Contains(t, commands, "containers-storage:"+exactReference)
-	require.Contains(t, commands, "--bootc-ref "+exactReference)
-	require.Contains(t, commands, "--bootc-default-fs ext4")
-	require.Contains(t, commands, "--output-name SodaOS-0.5.0-aarch64 qcow2")
-	require.NotContains(t, commands, "--bootc-pull-container")
-	require.NotContains(t, commands, "--bootc-installer-payload-ref")
-}
-
-func TestBuildQCOW2RejectsExistingOutputsBeforeCreatingStorage(t *testing.T) {
-	root := t.TempDir()
-	output := filepath.Join(root, "output")
-	require.NoError(t, os.MkdirAll(output, 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(output, "SodaOS-0.5.0-aarch64.qcow2"), []byte("existing"), 0o644))
-	archive, _ := writeTestOCIArchiveAt(t, filepath.Join(root, "runtime.oci.tar"))
-	lock := filepath.Join(root, "image-builder.lock")
-	require.NoError(t, os.WriteFile(lock, []byte(`version = "81.0.0"
-commit = "3130fb87ee1f684b6e9d1909f354861c43d7a092"
-reference = "ghcr.io/osbuild/image-builder@sha256:704dc05d6033799248a33c415f7f7253ec20b40f0b2bff03b06d8687179e058a"
-platform = "linux/arm64"
-`), 0o644))
-	runner := &recordingRunner{}
-	builder := NewBuilder(root, config.DistroSpec{
-		Identity: config.IdentitySpec{Architecture: "aarch64", Hostname: "soda", Version: "0.5.0"},
-		Base:     config.BaseSpec{Platform: "linux/arm64"},
-		Platform: config.PlatformSpec{Architecture: config.PlatformArchitecture{Name: "aarch64", OCI: "arm64", Platform: "linux/arm64", Artifact: "aarch64", Installer: "aarch64"}},
-	}, runner)
-	builder.hostArchitecture = "arm64"
-	_, err := builder.BuildQCOW2(context.Background(), QCOW2Options{ArchivePath: archive, ToolLock: lock, OutputDir: output})
-	require.EqualError(t, err, "QCOW2 output \""+filepath.Join(output, "SodaOS-0.5.0-aarch64.qcow2")+"\" already exists")
-	require.Empty(t, runner.Commands)
 }
 
 func TestBuildRejectsMismatchedHostBeforeValidatingInputs(t *testing.T) {

@@ -73,10 +73,12 @@ func TestPublicationRecordRequiresExactIdentityAndProvenance(t *testing.T) {
 		Channel:             spec.Platform.Release.Channel,
 		FedoraBaseReference: spec.Base.Reference,
 		SodaImageReference:  Repository + "@sha256:" + strings.Repeat("a", 64),
-		RPMInventorySHA256:  strings.Repeat("b", 64),
-		ISOChecksum:         strings.Repeat("c", 64),
-		QCOW2Checksum:       strings.Repeat("d", 64),
-		QCOW2ZSTChecksum:    strings.Repeat("e", 64),
+		ArtifactChecksums: ArtifactChecksums{
+			RPMInventorySHA256: strings.Repeat("b", 64),
+			ISOChecksum:        strings.Repeat("c", 64),
+			QCOW2Checksum:      strings.Repeat("d", 64),
+			QCOW2ZSTChecksum:   strings.Repeat("e", 64),
+		},
 	}
 	require.NoError(t, validatePublicationRecord(valid, spec, testRevision))
 
