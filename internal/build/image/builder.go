@@ -207,6 +207,7 @@ func (b *Builder) BuildImage(ctx context.Context) error {
 		"--file", "packaging/bootc/Containerfile",
 		"--tag", b.Spec.Image.Registry + ":" + b.Spec.Identity.Version,
 		"--build-arg", "SODA_VERSION=" + b.Spec.Identity.Version,
+		"--build-arg", "SODA_HOSTNAME=" + b.Spec.Identity.Hostname,
 		"--build-arg", "SODA_SOURCE_REVISION=" + revision,
 		"--build-arg", "SOURCE_DATE_EPOCH=" + fmt.Sprint(b.Spec.Build.SourceDateEpoch),
 		"--build-arg", "SODA_CREATED=" + created,

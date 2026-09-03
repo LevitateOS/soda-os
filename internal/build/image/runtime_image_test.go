@@ -15,7 +15,7 @@ func TestRuntimeImageBootcContainerContract(t *testing.T) {
 	containerfile := string(contents)
 	require.True(t, strings.HasPrefix(containerfile, "FROM fedora-base\n"))
 	for _, expected := range []string{
-		"ARG FEDORA_BASE_REFERENCE", "org.opencontainers.image.base.name=\"${FEDORA_BASE_REFERENCE}\"", "systemd-sysusers /usr/lib/sysusers.d/soda-projects.conf",
+		"ARG FEDORA_BASE_REFERENCE", "ARG SODA_HOSTNAME", "org.opencontainers.image.base.name=\"${FEDORA_BASE_REFERENCE}\"", "systemd-sysusers /usr/lib/sysusers.d/soda-projects.conf",
 		"COPY --from=rpm-inputs /soda-release-*.rpm /var/tmp/soda-rpms/",
 		"COPY --from=rpm-inputs /soda-runtime-*.rpm /var/tmp/soda-rpms/",
 		"COPY --from=rpm-inputs /soda-projects-*.rpm /var/tmp/soda-rpms/",
@@ -32,6 +32,7 @@ func TestRuntimeImageBootcContainerContract(t *testing.T) {
 		"systemctl mask bootc-fetch-apply-updates.timer", "cp -f /usr/lib/soda/os-release /etc/os-release",
 		"cp -f /usr/lib/soda/os-release /usr/lib/os-release", "cp -f /usr/lib/soda/issue /etc/issue",
 		"cp -f /usr/lib/soda/issue /etc/issue.net", "cp -f /usr/lib/soda/system-release /etc/system-release",
+		`printf '%s\n' "${SODA_HOSTNAME}" > /etc/hostname`,
 		"rm -f /etc/redhat-release", "semanage fcontext -a -t var_lib_t '/var/lib/soda(/.*)?'",
 		"semanage fcontext -a -t ssh_home_t '/var/lib/forgejo/.ssh(/.*)?'", "restorecon -RF /var/lib/forgejo/.ssh", "ssh-keygen -q -t ed25519 -N '' -f /run/soda-sshd-hostkey",
 		"/usr/sbin/sshd -t -h /run/soda-sshd-hostkey", "rm -f /run/soda-sshd-hostkey /run/soda-sshd-hostkey.pub",

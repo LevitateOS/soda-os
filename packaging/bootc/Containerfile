@@ -1,6 +1,7 @@
 FROM fedora-base
 
 ARG SODA_VERSION
+ARG SODA_HOSTNAME
 ARG SODA_SOURCE_REVISION
 ARG SOURCE_DATE_EPOCH
 ARG SODA_CREATED
@@ -63,6 +64,7 @@ RUN dnf -y --setopt=install_weak_deps=False --enablerepo=updates-testing install
     && cp -f /usr/lib/soda/issue /etc/issue \
     && cp -f /usr/lib/soda/issue /etc/issue.net \
     && cp -f /usr/lib/soda/system-release /etc/system-release \
+    && printf '%s\n' "${SODA_HOSTNAME}" > /etc/hostname \
     && rm -f /etc/redhat-release \
     && semanage fcontext -a -t var_lib_t '/var/lib/soda(/.*)?' \
     && semanage fcontext -a -t ssh_home_t '/var/lib/forgejo/.ssh(/.*)?' \
