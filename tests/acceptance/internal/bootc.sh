@@ -770,7 +770,12 @@ emit_cloud_provisioning_checks() {
 set -eu
 test "$(id -u)" -eq 0
 test -x /usr/libexec/soda/soda-cloud-finalize
-for path in /var/lib/soda-install /var/lib/cloud /var/log/cloud-init.log /var/log/cloud-init-output.log; do
+for path in \
+	/var/lib/soda-install \
+	/var/lib/cloud/instance \
+	/var/lib/cloud/instances \
+	/var/log/cloud-init.log \
+	/var/log/cloud-init-output.log; do
 	test ! -e "$path"
 	echo "$path=absent"
 done
