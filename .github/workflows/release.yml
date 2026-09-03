@@ -52,15 +52,18 @@ jobs:
           audience: ${{ vars.SODA_TAILSCALE_AUDIENCE }}
           tags: tag:soda-release-ci
           use-cache: 'false'
-      - name: Create one ephemeral acceptance-node key and prepare native artifacts
+      - name: Create ephemeral acceptance-node keys and prepare native artifacts
         env:
           GH_TOKEN: ${{ github.token }}
           SODA_TAILSCALE_CLIENT_ID: ${{ vars.SODA_TAILSCALE_CLIENT_ID }}
           SODA_TAILSCALE_AUDIENCE: ${{ vars.SODA_TAILSCALE_AUDIENCE }}
         run: |
-          guest_key=$(scripts/release-create-vm-auth-key.sh)
-          printf '%s\n%s\n' "$GH_TOKEN" "$guest_key" | tailscale ssh "soda-release-ci@${{ matrix.builder }}" soda-release-executor prepare "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" "$GITHUB_SHA" "${{ matrix.architecture }}"
-          unset guest_key
+          iso_guest_key=$(scripts/release-create-vm-auth-key.sh)
+          nocloud_guest_key=$(scripts/release-create-vm-auth-key.sh)
+          configdrive_guest_key=$(scripts/release-create-vm-auth-key.sh)
+          printf '%s\n%s\n%s\n%s\n' "$GH_TOKEN" "$iso_guest_key" "$nocloud_guest_key" "$configdrive_guest_key" |
+            tailscale ssh "soda-release-ci@${{ matrix.builder }}" soda-release-executor prepare "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" "$GITHUB_SHA" "${{ matrix.architecture }}"
+          unset iso_guest_key nocloud_guest_key configdrive_guest_key
       - name: Collect the non-secret architecture release record
         run: |
           tailscale ssh "soda-release-ci@${{ matrix.builder }}" soda-release-executor emit-record "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" "$GITHUB_SHA" "${{ matrix.architecture }}" > "$RUNNER_TEMP/${{ matrix.architecture }}.release.json"

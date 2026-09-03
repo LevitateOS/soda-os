@@ -9,9 +9,12 @@ Usage:
     --candidate-iso PATH \
     --candidate-record PATH \
     --candidate-oci PATH \
+    --candidate-qcow2 PATH \
     --fallback-record PATH \
     --fallback-oci PATH \
-    --tailscale-auth-key-file PATH
+    --tailscale-auth-key-file PATH \
+    --nocloud-tailscale-auth-key-file PATH \
+    --configdrive-tailscale-auth-key-file PATH
 
 Install candidate image B once through native raw QEMU, exercise the accepted
 product scenarios, select earlier exact image A, and recover forward to B. The
@@ -149,9 +152,10 @@ terminate_process() {
 
 discover_tailnet_address() {
 	before=$1
+	output_dir=${2:-$evidence_dir}
 	deadline=$(( $(date +%s) + 1200 ))
-	current=$evidence_dir/.host-tailnet-current.json
-	candidates=$evidence_dir/.new-soda-peers.tsv
+	current=$output_dir/.host-tailnet-current.json
+	candidates=$output_dir/.new-soda-peers.tsv
 	while :; do
 		host_tailscale status --json >"$current"
 		: >"$candidates"
@@ -163,7 +167,7 @@ discover_tailnet_address() {
 		case "$(wc -l <"$candidates" | tr -d ' ')" in
 			0) ;;
 			1)
-				cp "$current" "$evidence_dir/host-tailnet-enrolled.json"
+				cp "$current" "$output_dir/host-tailnet-enrolled.json"
 				cut -f2 "$candidates"
 				rm -f "$current" "$candidates"
 				return
@@ -180,21 +184,27 @@ run() {
 	candidate_iso=
 	candidate_record=
 	candidate_oci=
+	candidate_qcow2=
 	fallback_record=
 	fallback_oci=
 	tailscale_key=
+	nocloud_tailscale_key=
+	configdrive_tailscale_key=
 	while [ "$#" -gt 0 ]; do
 		case "$1" in
-			--evidence-dir|--candidate-iso|--candidate-record|--candidate-oci|--fallback-record|--fallback-oci|--tailscale-auth-key-file)
+			--evidence-dir|--candidate-iso|--candidate-record|--candidate-oci|--candidate-qcow2|--fallback-record|--fallback-oci|--tailscale-auth-key-file|--nocloud-tailscale-auth-key-file|--configdrive-tailscale-auth-key-file)
 				[ "$#" -ge 2 ] || die "$1 requires a value"
 				case "$1" in
 					--evidence-dir) evidence_dir=$2 ;;
 					--candidate-iso) candidate_iso=$2 ;;
 					--candidate-record) candidate_record=$2 ;;
 					--candidate-oci) candidate_oci=$2 ;;
+					--candidate-qcow2) candidate_qcow2=$2 ;;
 					--fallback-record) fallback_record=$2 ;;
 					--fallback-oci) fallback_oci=$2 ;;
 					--tailscale-auth-key-file) tailscale_key=$2 ;;
+					--nocloud-tailscale-auth-key-file) nocloud_tailscale_key=$2 ;;
+					--configdrive-tailscale-auth-key-file) configdrive_tailscale_key=$2 ;;
 				esac
 				shift 2
 				;;
@@ -206,9 +216,12 @@ run() {
 	[ -n "$candidate_iso" ] || die "--candidate-iso is required"
 	[ -n "$candidate_record" ] || die "--candidate-record is required"
 	[ -n "$candidate_oci" ] || die "--candidate-oci is required"
+	[ -n "$candidate_qcow2" ] || die "--candidate-qcow2 is required"
 	[ -n "$fallback_record" ] || die "--fallback-record is required"
 	[ -n "$fallback_oci" ] || die "--fallback-oci is required"
 	[ -n "$tailscale_key" ] || die "--tailscale-auth-key-file is required"
+	[ -n "$nocloud_tailscale_key" ] || die "--nocloud-tailscale-auth-key-file is required"
+	[ -n "$configdrive_tailscale_key" ] || die "--configdrive-tailscale-auth-key-file is required"
 
 	for command in curl docker go jq openssl qemu-img sha256sum ssh ssh-keygen sudo tar xorriso; do need "$command"; done
 	select_docker
@@ -226,14 +239,20 @@ run() {
 	candidate_iso=$(absolute_file "$candidate_iso")
 	candidate_record=$(absolute_file "$candidate_record")
 	candidate_oci=$(absolute_file "$candidate_oci")
+	candidate_qcow2=$(absolute_file "$candidate_qcow2")
 	fallback_record=$(absolute_file "$fallback_record")
 	fallback_oci=$(absolute_file "$fallback_oci")
 	tailscale_key=$(protected_secret_file "$tailscale_key")
+	nocloud_tailscale_key=$(protected_secret_file "$nocloud_tailscale_key")
+	configdrive_tailscale_key=$(protected_secret_file "$configdrive_tailscale_key")
 	validate_artifact_set candidate "$candidate_record" "$candidate_oci" "$expected_platform"
 	validate_artifact_set fallback "$fallback_record" "$fallback_oci" "$expected_platform"
 	expected_iso=$(record_value "$candidate_record" '.iso_sha256')
 	actual_iso=$(sha256sum "$candidate_iso" | awk '{print $1}')
 	[ "$expected_iso" = "$actual_iso" ] || die "candidate ISO does not match its release record"
+	expected_qcow2=$(record_value "$candidate_record" '.qcow2_sha256')
+	actual_qcow2=$(sha256sum "$candidate_qcow2" | awk '{print $1}')
+	[ "$expected_qcow2" = "$actual_qcow2" ] || die "candidate QCOW2 does not match its release record"
 
 	umask 077
 	[ ! -e "$evidence_dir" ] || die "evidence directory already exists: $evidence_dir"
@@ -269,12 +288,12 @@ run() {
 
 	sanitize_evidence() {
 		[ -e "$evidence_dir/secret-absence.txt" ] && return
-		python3 - "$evidence_dir" "$tailscale_key" "$password_file" "$later_primary_password_file" "$admin_key" <<'PY'
+		python3 - "$evidence_dir" "$tailscale_key" "$nocloud_tailscale_key" "$configdrive_tailscale_key" "$password_file" "$later_primary_password_file" "$admin_key" <<'PY'
 import pathlib
 import sys
 
 evidence = pathlib.Path(sys.argv[1])
-labels = ("tailscale-auth-key", "administrator-password", "later-primary-password", "administrator-private-key")
+labels = ("iso-tailscale-auth-key", "nocloud-tailscale-auth-key", "configdrive-tailscale-auth-key", "administrator-password", "later-primary-password", "administrator-private-key")
 secrets = []
 for label, raw_path in zip(labels, sys.argv[2:]):
     path = pathlib.Path(raw_path)
@@ -342,6 +361,96 @@ PY
 		exit "$status"
 	}
 	trap cleanup 0 1 2 15
+
+	copy_cloud_disk() {
+		source=$1
+		destination=$2
+		if [ "$(uname -s)" = Linux ] && cp --reflink=auto "$source" "$destination" 2>/dev/null; then
+			return
+		fi
+		rm -f "$destination"
+		cp "$source" "$destination"
+	}
+
+	run_cloud_scenario() {
+		datasource=$1
+		cloud_key=$2
+		product_smoke=$3
+		cloud_dir=$evidence_dir/cloud-$datasource
+		cloud_disk=$work_dir/cloud-$datasource.qcow2
+		cloud_input=$work_dir/cloud-$datasource.iso
+		mkdir -p "$cloud_dir"
+		copy_cloud_disk "$candidate_qcow2" "$cloud_disk"
+		qemu-img resize "$cloud_disk" +8G >"$cloud_dir/disk-resize.txt"
+		(
+			cd "$repo_root"
+			go run ./cmd/soda-image --architecture "$architecture" cloud-input \
+				--datasource "$datasource" \
+				--username "$admin" \
+				--password-file "$password_file" \
+				--ssh-public-key-file "$admin_key.pub" \
+				--tailscale-auth-key-file "$cloud_key" \
+				--output "$cloud_input"
+		)
+		protected_secret_file "$cloud_input" >/dev/null
+		host_tailscale status --json >"$cloud_dir/host-tailnet-before.json"
+		export SODA_ACCEPTANCE_DIR=$cloud_dir
+		export SODA_ACCEPTANCE_DISK=$cloud_disk
+		export SODA_ACCEPTANCE_QMP_SOCKET=$cloud_dir/qmp.sock
+		export SODA_ACCEPTANCE_CLOUD_INPUT=$cloud_input
+		unset SODA_ACCEPTANCE_ISO SODA_ACCEPTANCE_KICKSTART_ISO
+		sh "$helper" launch cloud >"$cloud_dir/qemu.stdout" 2>"$cloud_dir/qemu.stderr" &
+		qemu_pid=$!
+		cloud_address=$(discover_tailnet_address "$cloud_dir/host-tailnet-before.json" "$cloud_dir")
+		export SODA_ACCEPTANCE_GUEST_HOST=$cloud_address
+		printf '%s\n' "$cloud_address" >"$cloud_dir/tailnet-address.txt"
+		sh "$helper" wait
+		sh "$helper" scenario cloud >"$cloud_dir/cloud-provisioning.txt"
+		sh "$helper" fallback seed-b
+		cloud_workspace=$(sh "$helper" project-workspace kept)
+		export SODA_ACCEPTANCE_WORKSPACE_TARGET=$cloud_workspace
+		export SODA_ACCEPTANCE_WORKSPACE_KEY=$admin_key
+		export SODA_ACCEPTANCE_REQUIRE_WORKSPACE_TOOLSET=1
+		if [ "$product_smoke" = true ]; then
+			sh "$helper" scenario product
+		fi
+		sh "$helper" capture "$datasource"
+		sh "$helper" stop
+		wait_for_exit "$qemu_pid" 120
+		qemu_pid=
+		rm -f "$cloud_input"
+		jq -n --arg datasource "$datasource" --arg endpoint "$cloud_address" --arg workspace "$cloud_workspace" \
+			'{result:"pass",datasource:$datasource,endpoint:$endpoint,workspace_username:$workspace}' >"$cloud_dir/summary.json"
+	}
+
+	run_no_datasource_scenario() {
+		bare_dir=$evidence_dir/cloud-no-datasource
+		bare_disk=$work_dir/cloud-no-datasource.qcow2
+		mkdir -p "$bare_dir"
+		copy_cloud_disk "$candidate_qcow2" "$bare_disk"
+		host_tailscale status --json >"$bare_dir/host-tailnet-before.json"
+		export SODA_ACCEPTANCE_DIR=$bare_dir
+		export SODA_ACCEPTANCE_DISK=$bare_disk
+		export SODA_ACCEPTANCE_QMP_SOCKET=$bare_dir/qmp.sock
+		unset SODA_ACCEPTANCE_CLOUD_INPUT SODA_ACCEPTANCE_ISO SODA_ACCEPTANCE_KICKSTART_ISO
+		sh "$helper" launch bare >"$bare_dir/qemu.stdout" 2>"$bare_dir/qemu.stderr" &
+		qemu_pid=$!
+		deadline=$(( $(date +%s) + 600 ))
+		until grep -Eq 'soda login:|Reached target.*Multi-User System' "$bare_dir/serial.log" 2>/dev/null; do
+			kill -0 "$qemu_pid" 2>/dev/null || die "no-datasource QCOW2 exited before reaching the login target"
+			[ "$(date +%s)" -lt "$deadline" ] || die "no-datasource QCOW2 did not reach ordinary startup"
+			sleep 5
+		done
+		host_tailscale status --json >"$bare_dir/host-tailnet-after.json"
+		jq -e -n --slurpfile before "$bare_dir/host-tailnet-before.json" --slurpfile after "$bare_dir/host-tailnet-after.json" '
+			[ $after[0].Peer[]? | select(.HostName == "soda") | .ID ] -
+			[ $before[0].Peer[]? | select(.HostName == "soda") | .ID ] | length == 0
+		' >"$bare_dir/no-new-tailnet-peer.txt" || die "no-datasource QCOW2 enrolled a new Tailnet peer"
+		sh "$helper" stop
+		wait_for_exit "$qemu_pid" 120
+		qemu_pid=
+		printf 'result=pass\nstartup=multi-user\nprovisioning-input=absent\ntailnet-enrollment=absent\n' >"$bare_dir/summary.txt"
+	}
 
 	ssh-keygen -q -t ed25519 -N '' -C "$admin@raw-qemu" -f "$admin_key"
 	openssl rand -base64 24 >"$password_file"
@@ -482,6 +591,12 @@ PY
 	sh "$helper" stop
 	wait_for_exit "$qemu_pid" 120
 	qemu_pid=
+	printf 'provisioning reusable QCOW2 through NoCloud\n'
+	run_cloud_scenario nocloud "$nocloud_tailscale_key" true
+	printf 'provisioning reusable QCOW2 through ConfigDrive\n'
+	run_cloud_scenario configdrive "$configdrive_tailscale_key" false
+	printf 'booting reusable QCOW2 without a datasource\n'
+	run_no_datasource_scenario
 	retire_run_inputs
 
 	jq -n \
@@ -492,6 +607,7 @@ PY
 		--arg fallback_oci_sha256 "$(sha256sum "$fallback_oci" | awk '{print $1}')" \
 		--arg candidate_record_sha256 "$(sha256sum "$candidate_record" | awk '{print $1}')" \
 		--arg candidate_iso_sha256 "$actual_iso" \
+		--arg candidate_qcow2_sha256 "$actual_qcow2" \
 		--arg fallback_record_sha256 "$(sha256sum "$fallback_record" | awk '{print $1}')" \
 		--arg image_a_digest "$a_digest" \
 		--arg image_b_digest "$b_digest" \
@@ -499,9 +615,10 @@ PY
 		'{result:"pass",architecture:$architecture,candidate_source_revision:$candidate_source_revision,
 		  fallback_source_revision:$fallback_source_revision,candidate_oci_sha256:$candidate_oci_sha256,
 		  fallback_oci_sha256:$fallback_oci_sha256,candidate_record_sha256:$candidate_record_sha256,
-		  candidate_iso_sha256:$candidate_iso_sha256,fallback_record_sha256:$fallback_record_sha256,
+		  candidate_iso_sha256:$candidate_iso_sha256,candidate_qcow2_sha256:$candidate_qcow2_sha256,
+		  fallback_record_sha256:$fallback_record_sha256,
 		  image_a_digest:$image_a_digest,image_b_digest:$image_b_digest,
-		  workspace_username:$workspace_username}' >"$evidence_dir/summary.json"
+		  workspace_username:$workspace_username,qcow2:{nocloud:"pass",configdrive:"pass",no_datasource:"pass"}}' >"$evidence_dir/summary.json"
 	completed=true
 	printf 'single-run raw-QEMU acceptance passed; evidence: %s\n' "$evidence_dir"
 }

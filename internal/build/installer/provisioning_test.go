@@ -150,11 +150,17 @@ func TestAcceptanceUsesTheProtectedAnswerMediaBoundary(t *testing.T) {
 		"Usage:\n  tests/acceptance/unattended.sh run",
 		"installer-input",
 		`--tailscale-auth-key-file "$tailscale_key"`,
+		`--nocloud-tailscale-auth-key-file PATH`,
+		`--configdrive-tailscale-auth-key-file PATH`,
+		`--candidate-qcow2 PATH`,
 		`--password-file "$password_file"`,
 		`--output "$oemdrv"`,
 		`work_dir=$(mktemp -d "${TMPDIR:-/tmp}/soda-acceptance-run.XXXXXX")`,
 		`export SODA_ACCEPTANCE_DISK=$disk`,
 		`sanitize_evidence`,
+		`run_cloud_scenario nocloud "$nocloud_tailscale_key" true`,
+		`run_cloud_scenario configdrive "$configdrive_tailscale_key" false`,
+		`run_no_datasource_scenario`,
 	} {
 		require.Contains(t, runner, expected)
 	}
@@ -180,6 +186,9 @@ func TestAcceptanceUsesTheProtectedAnswerMediaBoundary(t *testing.T) {
 
 	bootRunner := readInstallerFixture(t, root, "tests/acceptance/internal/bootc.sh")
 	require.Contains(t, bootRunner, "SODA_ACCEPTANCE_KICKSTART_ISO is required for launch install")
+	require.Contains(t, bootRunner, "SODA_ACCEPTANCE_CLOUD_INPUT is required for launch cloud")
+	require.Contains(t, bootRunner, `launch requires install, installed, cloud, or bare`)
+	require.Contains(t, bootRunner, `emit_cloud_provisioning_checks`)
 	require.Contains(t, bootRunner, "start_installer_input_ejector")
 	require.Contains(t, bootRunner, "while kill -0 \"$qemu_pid\" 2>/dev/null; do")
 	require.Contains(t, bootRunner, `kill -KILL "$qemu_pid"`)

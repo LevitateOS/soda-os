@@ -13,9 +13,10 @@ from one sibling architecture does not qualify the other.
 
 ## Inputs
 
-The runner requires a candidate B ISO, OCI archive, and schema-3 release record;
-an earlier A OCI archive and release record for native fallback; one fresh
-single-use Tailscale key in a protected regular file; and a new evidence path.
+The runner requires a candidate B ISO, OCI archive, reusable QCOW2, and schema-3
+release record; an earlier A OCI archive and release record for native fallback;
+three fresh single-use Tailscale keys in protected regular files for the ISO,
+NoCloud, and ConfigDrive machines; and a new evidence path.
 
 ```sh
 tests/acceptance/unattended.sh run \
@@ -23,9 +24,12 @@ tests/acceptance/unattended.sh run \
   --candidate-iso .artifacts/images/SodaOS-0.5.0-x86_64.iso \
   --candidate-record .artifacts/releases/soda-os-0.5.0-x86_64.release.json \
   --candidate-oci .artifacts/images/soda-os-0.5.0-x86_64.oci.tar \
+  --candidate-qcow2 .artifacts/images/SodaOS-0.5.0-x86_64.qcow2 \
   --fallback-record .artifacts/fallback/soda-os-0.5.0-x86_64.release.json \
   --fallback-oci .artifacts/fallback/soda-os-0.5.0-x86_64.oci.tar \
-  --tailscale-auth-key-file .tailscale_auth_key
+  --tailscale-auth-key-file /secure/iso-auth-key \
+  --nocloud-tailscale-auth-key-file /secure/nocloud-auth-key \
+  --configdrive-tailscale-auth-key-file /secure/configdrive-auth-key
 ```
 
 The evidence directory must not already exist. The key file must be regular,
@@ -67,9 +71,14 @@ One process owns the complete lifecycle:
 9. Select exact B the same way, reboot, compare again, and remove the disposable
    guest registry configuration.
 10. Exercise product behavior and capture the final installed-product evidence.
-11. Shut down QEMU cleanly, scan retained evidence for the generated password,
-    private key, and Tailscale key, then remove the exact disposable runtime
-    directory and registry.
+11. Provision fresh copies of the candidate QCOW2 through NoCloud and
+    ConfigDrive, proving disk growth, native onboarding, Tailnet exposure,
+    Projects/workspace behavior, Tea, and removal of cloud-init secret state.
+12. Boot another fresh QCOW2 without a datasource, prove ordinary startup and
+    the absence of a new Tailnet node, and perform no provisioning.
+13. Shut down every VM cleanly, scan retained evidence for all generated
+    passwords, private keys, and Tailscale keys, then remove the exact
+    disposable runtime directory and registry.
 
 The private non-executable scripts below `tests/acceptance/internal/` are
 implementation details. They are not alternative public workflows, do not

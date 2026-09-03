@@ -8,6 +8,8 @@ Private helper for tests/acceptance/unattended.sh. It is not a public workflow.
 Commands:
   launch install       Create a blank disk and boot the configured installer ISO
   launch installed     Boot the existing acceptance disk without installer media
+  launch cloud         Boot a fresh reusable disk with configured cloud-input media
+  launch bare          Boot a fresh reusable disk without provisioning media
   wait                 Wait for SSH and Cockpit, then prove key-based admin SSH
   capture NAME         Capture nonprivileged host, guest, QMP, and registry evidence
   fallback seed-a      Seed authoritative mutable state on image A
@@ -399,7 +401,7 @@ start_installer_input_ejector() {
 
 launch() {
 	mode=${1:-}
-	[ "$mode" = install ] || [ "$mode" = installed ] || die "launch requires install or installed"
+	case "$mode" in install|installed|cloud|bare) ;; *) die "launch requires install, installed, cloud, or bare" ;; esac
 	require_dir
 	qemu_img=${SODA_QEMU_IMG:-qemu-img}
 	disk=${SODA_ACCEPTANCE_DISK:-$acceptance_dir/soda-system.qcow2}
@@ -426,6 +428,16 @@ launch() {
 		installer_args="$installer_args -drive if=none,file=$kickstart_iso,format=raw,readonly=on,id=soda-oemdrv -device virtio-scsi-pci,id=soda-oemdrv-scsi -device scsi-cd,drive=soda-oemdrv,id=soda-oemdrv-device"
 	else
 		need_file "$disk"
+		if [ "$mode" = cloud ]; then
+			cloud_input=${SODA_ACCEPTANCE_CLOUD_INPUT:-}
+			[ -n "$cloud_input" ] || die "SODA_ACCEPTANCE_CLOUD_INPUT is required for launch cloud"
+			need_file "$cloud_input"
+			if [ "$architecture" = aarch64 ]; then
+				installer_args="-drive file=$cloud_input,media=cdrom,if=virtio,format=raw,readonly=on"
+			else
+				installer_args="-drive file=$cloud_input,media=cdrom,format=raw,readonly=on"
+			fi
+		fi
 	fi
 
 	case "$architecture" in
@@ -478,7 +490,7 @@ launch_x86_64() {
 		set -- -boot order=c "$@"
 		boot_command="-boot order=c"
 	fi
-	if [ "$mode" = install ]; then
+	if [ "$mode" != installed ]; then
 		cp "$vars_template" "$vars"
 	else
 		need_file "$vars"
@@ -751,6 +763,26 @@ enrollment_state=$(systemctl is-enabled soda-tailscale-enroll.service 2>/dev/nul
 test "$enrollment_state" = disabled
 echo "soda-tailscale-enroll.service=disabled"
 SODA_INSTALLER_PROVISIONING_ABSENCE
+}
+
+emit_cloud_provisioning_checks() {
+	cat <<'EOF'
+set -eu
+test "$(id -u)" -eq 0
+test -x /usr/libexec/soda/soda-cloud-finalize
+for path in /var/lib/soda-install /var/lib/cloud /var/log/cloud-init.log /var/log/cloud-init-output.log; do
+	test ! -e "$path"
+	echo "$path=absent"
+done
+test "$(systemctl is-enabled soda-tailscale-enroll.service 2>/dev/null || true)" = disabled
+root_source=$(findmnt -n -o SOURCE /)
+root_bytes=$(findmnt -b -n -o SIZE /)
+disk_name=$(lsblk -n -o PKNAME "$root_source" | head -n 1)
+test -n "$disk_name"
+disk_bytes=$(lsblk -b -d -n -o SIZE "/dev/$disk_name")
+test "$root_bytes" -ge $((disk_bytes * 8 / 10))
+printf 'root_source=%s\nroot_bytes=%s\ndisk_bytes=%s\n' "$root_source" "$root_bytes" "$disk_bytes"
+EOF
 }
 
 emit_installed_ownership_checks() {
@@ -2063,7 +2095,11 @@ scenario_product() {
 scenario() {
 	case "${1:-}" in
 		product) scenario_product ;;
-		*) die "scenario requires product" ;;
+		cloud)
+			run_privileged_script emit_cloud_provisioning_checks
+			admin_ssh 'tea api --login soda user' | jq -e --arg username "$admin" '.login == $username' >/dev/null
+			;;
+		*) die "scenario requires product or cloud" ;;
 	esac
 }
 

@@ -129,7 +129,8 @@ as `soda-release-ci`. The root-owned login shell is
 `finalize`, deriving every path from run ID, attempt, source SHA, and
 architecture. It accepts no caller path or arbitrary command.
 
-Each acceptance VM gets a new one-use ephemeral `tag:soda-ci-guest` key.
+Each network-ISO, NoCloud, and ConfigDrive acceptance VM gets its own new
+one-use ephemeral `tag:soda-ci-guest` key. The no-datasource VM receives none.
 `scripts/release-create-vm-auth-key.sh` exchanges the GitHub OIDC JWT for a
 short-lived Tailscale API token, creates the key, prints it only to stdout, and
 deletes local token material. The workflow pipes it directly to the executor;

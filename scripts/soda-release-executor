@@ -106,8 +106,12 @@ prepare() {
     run=$(run_directory "$@")
     [ ! -e "$run" ] || die 'derived release run directory already exists'
     github_token=$(read_secret_line github_token)
-    guest_key=$(read_secret_line acceptance_guest_key)
-    case "$guest_key" in tskey-auth-*) ;; *) die 'acceptance guest key is not a Tailscale auth key' ;; esac
+    iso_guest_key=$(read_secret_line iso_acceptance_guest_key)
+    nocloud_guest_key=$(read_secret_line nocloud_acceptance_guest_key)
+    configdrive_guest_key=$(read_secret_line configdrive_acceptance_guest_key)
+    for guest_key in "$iso_guest_key" "$nocloud_guest_key" "$configdrive_guest_key"; do
+        case "$guest_key" in tskey-auth-*) ;; *) die 'acceptance guest key is not a Tailscale auth key' ;; esac
+    done
     umask 077
     install -d -m 0700 "$run"
     source_tree=$(worktree "$run")
@@ -119,25 +123,33 @@ prepare() {
     artifact_paths "$source_tree" "$4"
     candidate_archive=$archive
     candidate_iso=$iso
+    candidate_qcow2=$qcow2
     candidate_record=$record
     artifact_paths "$fallback_tree" "$4"
     guest_key_file=$run/acceptance-tailscale-auth-key
-    printf '%s\n' "$guest_key" >"$guest_key_file"
-    chmod 0600 "$guest_key_file"
+    nocloud_key_file=$run/nocloud-tailscale-auth-key
+    configdrive_key_file=$run/configdrive-tailscale-auth-key
+    printf '%s\n' "$iso_guest_key" >"$guest_key_file"
+    printf '%s\n' "$nocloud_guest_key" >"$nocloud_key_file"
+    printf '%s\n' "$configdrive_guest_key" >"$configdrive_key_file"
+    chmod 0600 "$guest_key_file" "$nocloud_key_file" "$configdrive_key_file"
     evidence=$run/evidence
     (
-	trap 'rm -f "$guest_key_file"' 0 1 2 15
+	trap 'rm -f "$guest_key_file" "$nocloud_key_file" "$configdrive_key_file"' 0 1 2 15
         cd "$source_tree"
         tests/acceptance/unattended.sh run \
             --evidence-dir "$evidence" \
             --candidate-iso "$candidate_iso" \
             --candidate-record "$candidate_record" \
             --candidate-oci "$candidate_archive" \
+            --candidate-qcow2 "$candidate_qcow2" \
             --fallback-record "$record" \
             --fallback-oci "$archive" \
-            --tailscale-auth-key-file "$guest_key_file"
+            --tailscale-auth-key-file "$guest_key_file" \
+            --nocloud-tailscale-auth-key-file "$nocloud_key_file" \
+            --configdrive-tailscale-auth-key-file "$configdrive_key_file"
     )
-    unset github_token guest_key
+    unset github_token guest_key iso_guest_key nocloud_guest_key configdrive_guest_key
 }
 
 emit_record() {
