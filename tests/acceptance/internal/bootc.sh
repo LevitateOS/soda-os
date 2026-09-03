@@ -773,12 +773,14 @@ test -x /usr/libexec/soda/soda-cloud-finalize
 for path in \
 	/var/lib/soda-install \
 	/var/lib/cloud/instance \
-	/var/lib/cloud/instances \
 	/var/log/cloud-init.log \
 	/var/log/cloud-init-output.log; do
 	test ! -e "$path"
 	echo "$path=absent"
 done
+cached_input=$(find /var/lib/cloud -type f \( -name 'user-data*' -o -name 'vendor-data*' \) -print -quit)
+test -z "$cached_input"
+echo "cloud-init-input-cache=absent"
 test "$(systemctl is-enabled soda-tailscale-enroll.service 2>/dev/null || true)" = disabled
 root_source=$(findmnt -n -o SOURCE /)
 root_bytes=$(findmnt -b -n -o SIZE /)
