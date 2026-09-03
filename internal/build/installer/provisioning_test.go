@@ -235,6 +235,7 @@ func TestAcceptanceExposesOnePublicWorkflow(t *testing.T) {
 		`forgejo_pam_request alice wrong 401`,
 		`forgejo_pam_request alice correct 200`,
 		`forgejo_pam_request bob correct 200`,
+		`admin_ssh /usr/libexec/soda/soda-projects delete-human`,
 		`root:soda-forgejo-shadow:40`,
 		`workspace PAM attempt created a Forgejo user`,
 	} {

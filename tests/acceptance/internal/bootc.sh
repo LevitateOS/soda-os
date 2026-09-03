@@ -1271,6 +1271,8 @@ fallback_seed_b() {
 	run_privileged_script emit_seed_workspace_files >"$operations/seed-b-workspaces.txt"
 	add_person_request bob >"$operations/seed-b-bob-add.json"
 	run_privileged_script emit_mutate_accounts >"$operations/seed-b-current-accounts.txt"
+	jq -cn '{username:"obsolete"}' |
+		admin_ssh /usr/libexec/soda/soda-projects delete-human >"$operations/seed-b-obsolete-delete.json"
 	exercise_mutated_forgejo_pam "$operations"
 	kept_url=$(admin_ssh "jq -er '.[] | select(.id == \"kept\") | .canonical_url' /var/lib/soda/catalog/projects.json")
 	jq -cn --arg id kept --arg display_name 'Kept on B' --arg canonical_url "$kept_url" \
@@ -1395,10 +1397,6 @@ bob_home=$(getent passwd bob | cut -d: -f6)
 	' umask 077; printf "mutate-b:bob\n" >"$HOME/soda-acceptance-state.txt" '
 restorecon -RF "$bob_home"
 
-loginctl terminate-user obsolete 2>/dev/null || true
-/usr/sbin/userdel --remove -- obsolete
-! getent passwd obsolete >/dev/null
-test ! -e /home/obsolete
 EOF
 }
 
