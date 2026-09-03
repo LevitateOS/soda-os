@@ -1,3 +1,26 @@
+ignoreGeneratedHeader = false
+severity = "warning"
+confidence = 0.0
+errorCode = 1
+warningCode = 1
+
+[rule.argument-limit]
+arguments = [5]
+
+[rule.cognitive-complexity]
+arguments = [10]
+
+[rule.file-length-limit]
+arguments = [{ max = 400, skipComments = true, skipBlankLines = true }]
+
+[rule.flag-parameter]
+
+[rule.function-length]
+arguments = [50, 75]
+
+[rule.function-result-limit]
+arguments = [3]
+
 [rule.identical-branches]
 
 [rule.identical-ifelseif-branches]
@@ -7,3 +30,6 @@
 [rule.identical-switch-branches]
 
 [rule.identical-switch-conditions]
+
+[rule.max-control-nesting]
+arguments = [3]

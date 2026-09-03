@@ -4,4 +4,4 @@ set -eu
 repository_root=$(git rev-parse --show-toplevel)
 cd "$repository_root"
 
-exec ./scripts/check-lint.sh
+exec ./scripts/check-complexity.sh
