@@ -13,7 +13,7 @@ from one sibling architecture does not qualify the other.
 
 ## Inputs
 
-The runner requires a candidate B ISO, OCI archive, and schema-2 release record;
+The runner requires a candidate B ISO, OCI archive, and schema-3 release record;
 an earlier A OCI archive and release record for native fallback; one fresh
 single-use Tailscale key in a protected regular file; and a new evidence path.
 
