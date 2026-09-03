@@ -885,7 +885,7 @@ capture() {
 		test "$(rpm -ql soda-tea)" = "$expected_tea_files"
 		echo "soda-tea-ownership=executable-and-license-only"
 		test "$(stat -c %a "$HOME/.config/tea/config.yml")" = 600
-		tea api --login soda user | jq -e --arg username "$(id -un)" '.login == $username' >/dev/null
+		tea api --login soda user | jq -e --arg username "$(id -un)" ".login == \$username" >/dev/null
 		echo "installer-administrator-tea-login=verified"
 		for path in /etc/gh /var/lib/gh /etc/soda/gh /var/lib/soda/gh /etc/tea /var/lib/tea /etc/soda/tea /var/lib/soda/tea; do
 			if test -e "$path"; then

@@ -237,6 +237,7 @@ func TestAcceptanceExposesOnePublicWorkflow(t *testing.T) {
 		`forgejo_pam_request bob correct 200`,
 		`admin_ssh /usr/libexec/soda/soda-projects delete-human`,
 		`forgejo_pam_create_tea_scope_repository "$operations/tea-repository.json"`,
+		`tea api --login soda user | jq -e --arg username "$(id -un)" ".login == \$username" >/dev/null`,
 		`root:soda-forgejo-shadow:40`,
 		`workspace PAM attempt created a Forgejo user`,
 	} {
