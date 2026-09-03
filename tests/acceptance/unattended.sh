@@ -485,25 +485,25 @@ PY
 		archive=$1
 		tag=$2
 		if command -v skopeo >/dev/null 2>&1; then
-			skopeo copy --preserve-digests --dest-tls-verify=false "oci-archive:$archive" "docker://$registry_repository:$tag"
+			skopeo copy --preserve-digests --src-no-creds --dest-no-creds --dest-tls-verify=false "oci-archive:$archive" "docker://$registry_repository:$tag"
 		else
 			# Word splitting is intentional for the fixed host-OS network selection.
 			# shellcheck disable=SC2086
 			host_docker run --rm $skopeo_container_network \
 				--volume "$archive:/input/archive.tar:ro" --entrypoint /usr/bin/skopeo "$skopeo_image" \
-				copy --preserve-digests --dest-tls-verify=false oci-archive:/input/archive.tar \
+				copy --preserve-digests --src-no-creds --dest-no-creds --dest-tls-verify=false oci-archive:/input/archive.tar \
 				"docker://$skopeo_registry_host:$registry_port/soda-os:$tag"
 		fi
 	}
 	inspect_digest() {
 		tag=$1
 		if command -v skopeo >/dev/null 2>&1; then
-			skopeo inspect --tls-verify=false --format '{{.Digest}}' "docker://$registry_repository:$tag"
+			skopeo inspect --no-creds --tls-verify=false --format '{{.Digest}}' "docker://$registry_repository:$tag"
 		else
 			# Word splitting is intentional for the fixed host-OS network selection.
 			# shellcheck disable=SC2086
 			host_docker run --rm $skopeo_container_network \
-				--entrypoint /usr/bin/skopeo "$skopeo_image" inspect --tls-verify=false --format '{{.Digest}}' \
+				--entrypoint /usr/bin/skopeo "$skopeo_image" inspect --no-creds --tls-verify=false --format '{{.Digest}}' \
 				"docker://$skopeo_registry_host:$registry_port/soda-os:$tag"
 		fi
 	}
