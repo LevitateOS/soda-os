@@ -317,10 +317,15 @@ func (b *Builder) builderTag() string {
 
 func (b *Builder) rpmbuild(ctx context.Context, name string) error {
 	epoch := fmt.Sprint(b.Spec.Build.SourceDateEpoch)
+	osReleaseVersion, err := osReleaseVersionID(b.Spec.Identity.Version)
+	if err != nil {
+		return err
+	}
 	spec := "packaging/rpm/" + strings.TrimPrefix(name, "soda-") + "/" + name + ".spec"
 	command := b.dockerCommand([]string{"SOURCE_DATE_EPOCH=" + epoch}, "rpmbuild", "-bb",
 		"--define", "_topdir /src/.artifacts/rpmbuild",
 		"--define", "soda_version "+b.Spec.Identity.Version,
+		"--define", "soda_os_release_version "+osReleaseVersion,
 		"--define", "_source_date_epoch "+epoch,
 		"--define", "use_source_date_epoch_as_buildtime 1",
 		"--define", "_buildhost soda-builder",
@@ -329,4 +334,19 @@ func (b *Builder) rpmbuild(ctx context.Context, name string) error {
 	args = append(args, command.Args[0], "--network", "none")
 	command.Args = append(args, command.Args[1:]...)
 	return b.runner.Run(ctx, command)
+}
+
+func osReleaseVersionID(version string) (string, error) {
+	parts := strings.Split(version, ".")
+	if len(parts) != 3 || parts[0] == "" || parts[1] == "" || parts[2] == "" {
+		return "", fmt.Errorf("Soda version %q is not major.minor.patch", version)
+	}
+	for _, part := range parts {
+		for _, rune := range part {
+			if rune < '0' || rune > '9' {
+				return "", fmt.Errorf("Soda version %q is not major.minor.patch", version)
+			}
+		}
+	}
+	return parts[0] + "." + parts[1], nil
 }

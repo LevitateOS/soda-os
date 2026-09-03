@@ -122,8 +122,18 @@ func TestRPMBuildPinsHeaderTimeAndHost(t *testing.T) {
 	require.Contains(t, command, "docker run --network none")
 	require.Contains(t, command, "--define _source_date_epoch 1787825905")
 	require.Contains(t, command, "--define soda_version 0.2.0")
+	require.Contains(t, command, "--define soda_os_release_version 0.2")
 	require.Contains(t, command, "--define use_source_date_epoch_as_buildtime 1")
 	require.Contains(t, command, "--define _buildhost soda-builder")
+}
+
+func TestOSReleaseVersionIDUsesMajorMinorForImageBuilder(t *testing.T) {
+	actual, err := osReleaseVersionID("0.5.0")
+	require.NoError(t, err)
+	require.Equal(t, "0.5", actual)
+
+	_, err = osReleaseVersionID("0.5")
+	require.EqualError(t, err, `Soda version "0.5" is not major.minor.patch`)
 }
 
 func TestSourceRevisionAcceptsCleanAndRejectsDirtyWorktrees(t *testing.T) {
