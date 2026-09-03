@@ -114,6 +114,8 @@ func cloudInstanceID() (string, error) {
 func cloudUserData(username, password, publicKey, tailscaleKey string) []byte {
 	return []byte(strings.Join([]string{
 		"#cloud-config",
+		"bootcmd:",
+		"  - [ /usr/bin/install, -d, -o, root, -g, root, -m, '0700', /var/lib/soda-install/cloud ]",
 		"users:",
 		"  - name: " + yamlQuoted(username),
 		"    groups: [wheel]",
