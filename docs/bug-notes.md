@@ -967,6 +967,78 @@ If a supported destructive operation deliberately kills an upstream-managed
 unit, remove only the failure state caused by that exact validated target before
 the irreversible deletion. Never hide unrelated failed units globally.
 
+## 2026-09-03: Fedora's inherited Avahi daemon survived legacy deletion
+
+### Expected outcome
+
+The final installed product contains no Avahi daemon from the deleted
+standalone-dashboard responsibility slice.
+
+### Exact artifact and environment
+
+Native x86-64 acceptance installed image B from commit `5d85216` with image
+digest
+`sha256:9160a1aaf9c3a12e5646f9efd93c030dd12fe376ea19a2d8cf87919c1de7b1f9`
+and selected image A from commit `d5e46c9` with image digest
+`sha256:baad012835f9186b3f709a097147a62865889398b3454dc034f2e7e141daa78a`.
+The preserved evidence is under
+`.artifacts/acceptance/44-x86-goal-20260903T035052Z`.
+
+### What happened
+
+Installation, onboarding, product scenarios, and B-to-A-to-B preservation
+completed. The final absence capture then reported
+`unexpected-unit=avahi-daemon.service`.
+
+### Last passed boundary
+
+The runner completed `product-scenarios/pass.txt`, returned to exact B, and
+recorded a passing credential-absence scan.
+
+### First failed boundary
+
+The final installed control-plane absence capture found Fedora's
+`avahi-daemon.service` unit.
+
+### Direct evidence
+
+The exact B container contained `avahi-0.9~rc2-8.fc44.x86_64`, the unit was
+enabled through Fedora's `90-default.preset`, and no package required `avahi`.
+A dry-run removal selected only that package.
+
+### Root cause
+
+Deleting Soda's Avahi service advertisement did not remove the separate Avahi
+daemon inherited from the Fedora image composition. Source-level absence tests
+covered Soda files but did not prove the installed upstream unit was absent.
+
+### Authoritative owner
+
+Fedora owns the package and service implementation. Soda owns whether the
+assembled appliance includes that unnecessary service.
+
+### Smallest correction
+
+Remove the unneeded `avahi` package during immutable image composition and
+assert that both the RPM and unit are absent. Do not add a mask, wrapper,
+replacement discovery service, or runtime cleanup.
+
+### Verification completed
+
+The focused image contract test and complete repository source gate pass. The
+failed run's secret scan passed, and its evidence remains preserved.
+
+### Verification still required
+
+Build fresh post-correction A and B artifacts and repeat native x86-64 installed
+B-to-A-to-B acceptance. Matching-native AArch64 remains independently required.
+
+### Rule we will reuse
+
+Deletion of a Soda-owned integration file does not prove that an upstream
+package's own service disappeared. Installed acceptance must inspect the final
+unit and package state at the ownership boundary it claims to remove.
+
 ## Checklist for the next installer investigation
 
 - [ ] Record commit, architecture, input hashes, and exact package versions.
