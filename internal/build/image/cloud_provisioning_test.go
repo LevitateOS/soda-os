@@ -27,6 +27,7 @@ func TestCloudProvisioningIsLimitedToTheTwoLocalCloudInitSources(t *testing.T) {
 	for _, expected := range []string{
 		`INPUT_DIR = Path("/var/lib/soda-install/cloud")`,
 		`TAILSCALE_KEY = TAILSCALE_DIR / "tailscale-auth-key"`,
+		`SHADOW_PATH = Path("/etc/shadow")`,
 		`"soda-cloud-finalize accepts no arguments and must run as root"`,
 		`"--password-stdin"`,
 		`"soda-os-tea"`,
@@ -37,6 +38,7 @@ func TestCloudProvisioningIsLimitedToTheTwoLocalCloudInitSources(t *testing.T) {
 	for _, forbidden := range []string{"Restart=", "requests", "boto", "metadata.google", "aws", `"--password",`} {
 		require.NotContains(t, string(contents), forbidden)
 	}
+	require.NotContains(t, string(contents), "spwd")
 }
 
 func TestRuntimePackageOwnsTheFixedCloudFinalizerOnly(t *testing.T) {

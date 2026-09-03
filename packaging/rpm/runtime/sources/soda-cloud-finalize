@@ -19,6 +19,7 @@ INPUT_DIR = Path("/var/lib/soda-install/cloud")
 TAILSCALE_DIR = Path("/var/lib/soda-install")
 TAILSCALE_KEY = TAILSCALE_DIR / "tailscale-auth-key"
 FORGEJO_CONFIG = Path("/etc/forgejo/app.ini")
+SHADOW_PATH = Path("/etc/shadow")
 USERNAME_PATTERN = re.compile(r"[a-z][a-z0-9-]{0,23}")
 
 
@@ -76,16 +77,35 @@ def _read_inputs():
     return values
 
 
+def _password_hash(username):
+    try:
+        descriptor = os.open(SHADOW_PATH, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC)
+    except OSError:
+        raise RuntimeError("cloud administrator password state is unavailable") from None
+    try:
+        metadata = os.fstat(descriptor)
+        if not stat.S_ISREG(metadata.st_mode) or metadata.st_uid != 0:
+            raise RuntimeError("cloud administrator password state is invalid")
+        with os.fdopen(descriptor, "r", encoding="utf-8") as stream:
+            for line in stream:
+                fields = line.rstrip("\n").split(":")
+                if len(fields) >= 2 and fields[0] == username:
+                    return fields[1]
+    except OSError:
+        raise RuntimeError("cloud administrator password state is unavailable") from None
+    raise RuntimeError("cloud administrator password state is unavailable")
+
+
 def _validate_linux_account(username, ssh_key):
     try:
         account = pwd.getpwnam(username)
         wheel = grp.getgrnam("wheel")
-        shadow = __import__("spwd").getspnam(username)
     except KeyError:
         raise RuntimeError("cloud administrator account is unavailable") from None
     if account.pw_dir != f"/home/{username}" or account.pw_shell != "/bin/bash" or username not in wheel.gr_mem:
         raise RuntimeError("cloud administrator account is invalid")
-    if not shadow.sp_pwdp or shadow.sp_pwdp.startswith(("!", "*")):
+    password_hash = _password_hash(username)
+    if not password_hash or password_hash.startswith(("!", "*")):
         raise RuntimeError("cloud administrator password is not usable")
     key_path = Path(account.pw_dir) / ".ssh/authorized_keys"
     try:
