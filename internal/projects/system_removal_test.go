@@ -30,13 +30,18 @@ type logindRunner struct {
 }
 
 type exactCommandRunner struct {
-	result CommandResult
-	call   Command
+	results []CommandResult
+	calls   []Command
 }
 
 func (runner *exactCommandRunner) Run(_ context.Context, request Command) (CommandResult, error) {
-	runner.call = request
-	return runner.result, nil
+	runner.calls = append(runner.calls, request)
+	if len(runner.results) == 0 {
+		return CommandResult{}, nil
+	}
+	result := runner.results[0]
+	runner.results = runner.results[1:]
+	return result, nil
 }
 
 func (runner *logindRunner) Run(_ context.Context, request Command) (CommandResult, error) {
@@ -105,18 +110,52 @@ func TestProcessVerificationWaitsForKernelReaping(t *testing.T) {
 }
 
 func TestResetFailedUserManagerTargetsOnlyValidatedUID(t *testing.T) {
-	runner := &exactCommandRunner{}
+	runner := &exactCommandRunner{results: []CommandResult{{Stdout: "failed\n"}, {}}}
 	platform := &NativePlatform{Runner: runner}
 
 	require.NoError(t, platform.resetFailedUserManager(context.Background(), Account{UID: 1008}))
-	require.Equal(t, "/usr/bin/systemctl", runner.call.Name)
-	require.Equal(t, []string{"reset-failed", "user@1008.service"}, runner.call.Args)
+	require.Len(t, runner.calls, 2)
+	require.Equal(t, "/usr/bin/systemctl", runner.calls[0].Name)
+	require.Equal(t, []string{"show", "--property=ActiveState", "--value", "user@1008.service"}, runner.calls[0].Args)
+	require.Equal(t, []string{"reset-failed", "user@1008.service"}, runner.calls[1].Args)
+}
+
+func TestResetFailedUserManagerAcceptsAnUnloadedInactiveUnit(t *testing.T) {
+	runner := &exactCommandRunner{results: []CommandResult{{Stdout: "inactive\n"}}}
+	platform := &NativePlatform{Runner: runner}
+
+	require.NoError(t, platform.resetFailedUserManager(context.Background(), Account{UID: 1008}))
+	require.Len(t, runner.calls, 1)
+}
+
+func TestResetFailedUserManagerAcceptsUnloadDuringReset(t *testing.T) {
+	runner := &exactCommandRunner{results: []CommandResult{
+		{Stdout: "failed\n"},
+		{ExitCode: 1, Stderr: "Unit user@1008.service not loaded."},
+		{Stdout: "inactive\n"},
+	}}
+	platform := &NativePlatform{Runner: runner}
+
+	require.NoError(t, platform.resetFailedUserManager(context.Background(), Account{UID: 1008}))
+	require.Len(t, runner.calls, 3)
 }
 
 func TestResetFailedUserManagerReportsNativeFailure(t *testing.T) {
-	runner := &exactCommandRunner{result: CommandResult{ExitCode: 1, Stderr: "unit failure"}}
+	runner := &exactCommandRunner{results: []CommandResult{
+		{Stdout: "failed\n"},
+		{ExitCode: 1, Stderr: "unit failure"},
+		{Stdout: "failed\n"},
+	}}
 	platform := &NativePlatform{Runner: runner}
 
 	err := platform.resetFailedUserManager(context.Background(), Account{UID: 1008})
 	require.ErrorContains(t, err, "reset user@1008.service failure state: unit failure")
+}
+
+func TestResetFailedUserManagerRejectsUnexpectedState(t *testing.T) {
+	runner := &exactCommandRunner{results: []CommandResult{{Stdout: "deactivating\n"}}}
+	platform := &NativePlatform{Runner: runner}
+
+	err := platform.resetFailedUserManager(context.Background(), Account{UID: 1008})
+	require.ErrorContains(t, err, `unexpected active state "deactivating"`)
 }
