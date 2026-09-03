@@ -59,5 +59,5 @@ func TestRuntimePackageOwnsTheFixedCloudFinalizerOnly(t *testing.T) {
 
 	containerfile, err := os.ReadFile(filepath.Join(root, "packaging/bootc/Containerfile"))
 	require.NoError(t, err)
-	require.Contains(t, string(containerfile), "cloud-init-local.service cloud-init.service cloud-config.service cloud-final.service")
+	require.Contains(t, string(containerfile), "cloud-init-local.service cloud-init-main.service cloud-config.service cloud-final.service")
 }
