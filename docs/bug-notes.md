@@ -1083,6 +1083,42 @@ rootless Podman, exact image selection, and installed absence of the deleted
 control plane. This is x86-64 evidence only; matching-native AArch64 remains
 required before issue 44 can close.
 
+## 2026-09-03: final matching-native AArch64 milestone 44 evidence
+
+The fresh installed raw-QEMU run passed on native Apple Silicon AArch64 and is
+retained at `.artifacts/aarch64-milestone-44-20260903/acceptance-20260903T1249Z`.
+It installed exact B, selected exact A, recovered forward to exact B, and
+finished with `summary.json` `result=pass` and `architecture=aarch64`.
+
+| Evidence | Image A | Image B |
+|---|---|---|
+| Source revision | `ba4de430966603cb7a36cbe012db3b9c7a8e412e` | `eaf6ae89b5f1ba48fb00462cc4e56c9ff0465344` |
+| OCI archive SHA-256 | `2a8f4871986d8902711854c4c94ebe790b8888913601bc348fcbd04ecd63267a` | `58f8f4c80f2ec53fc7983695a1b6ed20d7997a3b6c611518c9b724b10474ca94` |
+| Image digest | `sha256:49ef87447a2b00267cd4d056ddeab08627a5f8b39d8122ca8485df04058cdb27` | `sha256:3d91be3e318cdba738ce054f9a241e87741cce4f564498c87697e3b21cbf3c67` |
+| ISO SHA-256 | `4745b228305ede05697e01b65f0c905fa7f72b7ea5dfc5d096dbab4a09aa773f` | `c956188fc52a80601301e7e2df82d107c96c60629208c82f5307565ab97afadf` |
+| Release-record SHA-256 | `28041666b3f43abd9d35e08b532a51b691e74147a4a5f29159ff4ef64ccd9a2f` | `0c629e0e95f2e2da01c72a9b562178b9f82d1ac92c332487c24849be2db920b5` |
+
+Both images use runtime-lock SHA-256
+`da7168f600167e8119e714db97af2891bea38bb436b6a79eff069d73872fa0a1`,
+Fedora base
+`quay.io/fedora/fedora-bootc@sha256:950a52fa1244db4d7fe2673af57fd6784a605a83bec3cd2d716ed8c00ebd366d`,
+and RPM-inventory SHA-256
+`754de807aa02a29f06f7ac853b71e7b28082eb8cabb046b90450f2b494c84a82`.
+The installed Soda RPMs are `soda-forgejo-15.0.7-6.fc44.aarch64`,
+`soda-tea-0.15.1-2.fc44.aarch64`, `soda-bun-1.4.0-1.fc44.aarch64`,
+`soda-projects-0.4.0-2.fc44.aarch64`, `soda-runtime-0.4.0-1.fc44.aarch64`,
+and `soda-release-0.4.0-1.fc44.noarch`.
+
+The run proved installer-administrator Tea, Add person, distinct human Tea
+identities, PAM users without Forgejo-local verifiers, rejected wrong-password
+and workspace users, one-time workspace Tea placement, native Forgejo
+repository/issue/pull-request/release operations, direct SSH/SCP/SFTP,
+Cockpit, immutable tools, Bun, rootless Podman, destructive ordering,
+Tailnet-only exposure, zero-control-plane absence, and B-to-A-to-B preservation
+of Linux, Forgejo, Tea, catalog, workspace, Tailscale, SSH, password, and group
+state. `secret-absence.txt` passed for the Tailscale auth key, administrator
+password, later-primary password, and administrator private key.
+
 ## Checklist for the next installer investigation
 
 - [ ] Record commit, architecture, input hashes, and exact package versions.

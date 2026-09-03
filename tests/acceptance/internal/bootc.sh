@@ -110,7 +110,11 @@ later_primary_password_file() {
 	path=${SODA_ACCEPTANCE_LATER_PRIMARY_PASSWORD_FILE:-}
 	[ -n "$path" ] || die "SODA_ACCEPTANCE_LATER_PRIMARY_PASSWORD_FILE is required"
 	need_file "$path"
-	[ "$(stat -c %a "$path")" = 600 ] || die "later-primary password fixture must be mode 0600"
+	case "$(uname -s)" in
+		Darwin) mode=$(stat -f %Lp "$path") ;;
+		*) mode=$(stat -c %a "$path") ;;
+	esac
+	[ "$mode" = 600 ] || die "later-primary password fixture must be mode 0600"
 	printf '%s\n' "$path"
 }
 
@@ -246,6 +250,10 @@ known_hosts_path() {
 }
 
 qmp_path() {
+	if [ -n "${SODA_ACCEPTANCE_QMP_SOCKET:-}" ]; then
+		printf '%s\n' "$SODA_ACCEPTANCE_QMP_SOCKET"
+		return
+	fi
 	printf '%s/qmp.sock\n' "$acceptance_dir"
 }
 
