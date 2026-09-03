@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 
 	"github.com/LevitateOS/soda-os/internal/process"
 )
@@ -19,17 +20,29 @@ type installerInputWorkspace struct {
 }
 
 func (b *InstallerInputBuilder) createMedia(ctx context.Context, outputPath string, files map[string][]byte) (resultErr error) {
-	workspace, err := newInstallerInputWorkspace(outputPath, files)
+	return b.createProtectedInputISOWithPaths(ctx, outputPath, "OEMDRV", files, installerInputPaths())
+}
+
+func (b *InstallerInputBuilder) createProtectedInputISO(ctx context.Context, outputPath, label string, files map[string][]byte) (resultErr error) {
+	paths, err := protectedInputPaths(files)
+	if err != nil {
+		return err
+	}
+	return b.createProtectedInputISOWithPaths(ctx, outputPath, label, files, paths)
+}
+
+func (b *InstallerInputBuilder) createProtectedInputISOWithPaths(ctx context.Context, outputPath, label string, files map[string][]byte, paths []string) (resultErr error) {
+	workspace, err := newInstallerInputWorkspace(outputPath, files, paths)
 	if err != nil {
 		return err
 	}
 	defer workspace.cleanup(&resultErr)
 
 	temporaryISO := filepath.Join(workspace.root, "installer-input.iso")
-	if err = b.runInstallerInputXorriso(ctx, workspace.staging, temporaryISO); err != nil {
+	if err = b.runProtectedInputXorriso(ctx, workspace.staging, temporaryISO, label, paths); err != nil {
 		return err
 	}
-	if err = b.verifyMedia(ctx, workspace.root, temporaryISO, files); err != nil {
+	if err = b.verifyMedia(ctx, workspace.root, temporaryISO, files, paths); err != nil {
 		return err
 	}
 	if err = removeInstallerInputPlaintext(workspace.root, workspace.staging); err != nil {
@@ -42,12 +55,12 @@ func (b *InstallerInputBuilder) createMedia(ctx context.Context, outputPath stri
 	return nil
 }
 
-func newInstallerInputWorkspace(outputPath string, files map[string][]byte) (*installerInputWorkspace, error) {
+func newInstallerInputWorkspace(outputPath string, files map[string][]byte, paths []string) (*installerInputWorkspace, error) {
 	outputAbsolute, err := filepath.Abs(outputPath)
 	if err != nil {
 		return nil, fmt.Errorf("resolve installer input output: %w", err)
 	}
-	root, staging, err := stageInstallerInputFiles(outputAbsolute, files)
+	root, staging, err := stageInstallerInputFiles(outputAbsolute, files, paths)
 	if err != nil {
 		return nil, err
 	}
@@ -93,7 +106,7 @@ func removeInstallerInputPlaintextPath(path string) error {
 	return fmt.Errorf("verify staged installer input plaintext removal: %w", err)
 }
 
-func stageInstallerInputFiles(outputAbsolute string, files map[string][]byte) (string, string, error) {
+func stageInstallerInputFiles(outputAbsolute string, files map[string][]byte, paths []string) (string, string, error) {
 	work, err := os.MkdirTemp(filepath.Dir(outputAbsolute), ".soda-installer-input-*")
 	if err != nil {
 		return "", "", fmt.Errorf("create private installer input workspace: %w", err)
@@ -103,7 +116,7 @@ func stageInstallerInputFiles(outputAbsolute string, files map[string][]byte) (s
 		_ = os.RemoveAll(work)
 		return "", "", err
 	}
-	if err = writeInstallerInputFiles(staging, files); err != nil {
+	if err = writeInstallerInputFiles(staging, files, paths); err != nil {
 		_ = os.RemoveAll(work)
 		return "", "", err
 	}
@@ -115,14 +128,14 @@ func createInstallerInputStaging(work string) (string, error) {
 	if err := os.Mkdir(staging, 0o700); err != nil {
 		return "", fmt.Errorf("create installer input staging directory: %w", err)
 	}
-	if err := os.Mkdir(filepath.Join(staging, "soda"), 0o700); err != nil {
-		return "", fmt.Errorf("create installer input data directory: %w", err)
-	}
 	return staging, nil
 }
 
-func writeInstallerInputFiles(staging string, files map[string][]byte) error {
-	for _, name := range installerInputPaths() {
+func writeInstallerInputFiles(staging string, files map[string][]byte, paths []string) error {
+	for _, name := range paths {
+		if err := os.MkdirAll(filepath.Dir(filepath.Join(staging, name)), 0o700); err != nil {
+			return fmt.Errorf("create installer input data directory: %w", err)
+		}
 		if err := os.WriteFile(filepath.Join(staging, name), files[name], 0o600); err != nil {
 			return fmt.Errorf("stage installer input data: %w", err)
 		}
@@ -130,9 +143,9 @@ func writeInstallerInputFiles(staging string, files map[string][]byte) error {
 	return nil
 }
 
-func (b *InstallerInputBuilder) runInstallerInputXorriso(ctx context.Context, staging, temporaryISO string) error {
-	args := []string{"-as", "mkisofs", "-quiet", "-V", "OEMDRV", "-graft-points", "-o", temporaryISO}
-	for _, name := range installerInputPaths() {
+func (b *InstallerInputBuilder) runProtectedInputXorriso(ctx context.Context, staging, temporaryISO, label string, paths []string) error {
+	args := []string{"-as", "mkisofs", "-quiet", "-V", label, "-graft-points", "-o", temporaryISO}
+	for _, name := range paths {
 		args = append(args, name+"="+name)
 	}
 	if err := b.runner.Run(ctx, process.Command{Dir: staging, Name: "xorriso", Args: args}); err != nil {
@@ -206,16 +219,16 @@ func syncInstallerInputOutputDirectory(path string) error {
 	return nil
 }
 
-func (b *InstallerInputBuilder) verifyMedia(ctx context.Context, work, isoPath string, expected map[string][]byte) error {
+func (b *InstallerInputBuilder) verifyMedia(ctx context.Context, work, isoPath string, expected map[string][]byte, paths []string) error {
 	extracted, err := b.extractInstallerInputMedia(ctx, work, isoPath)
 	if err != nil {
 		return err
 	}
-	actual, err := readExtractedInstallerInput(extracted, len(expected))
+	actual, err := readExtractedInstallerInput(extracted, len(expected), paths)
 	if err != nil {
 		return err
 	}
-	return compareInstallerInputContents(actual, expected)
+	return compareInstallerInputContents(actual, expected, paths)
 }
 
 func (b *InstallerInputBuilder) extractInstallerInputMedia(ctx context.Context, work, isoPath string) (string, error) {
@@ -234,12 +247,13 @@ func (b *InstallerInputBuilder) extractInstallerInputMedia(ctx context.Context, 
 }
 
 type installerInputCollector struct {
-	root  string
-	files map[string][]byte
+	root        string
+	files       map[string][]byte
+	directories map[string]bool
 }
 
-func readExtractedInstallerInput(root string, capacity int) (map[string][]byte, error) {
-	collector := installerInputCollector{root: root, files: make(map[string][]byte, capacity)}
+func readExtractedInstallerInput(root string, capacity int, paths []string) (map[string][]byte, error) {
+	collector := installerInputCollector{root: root, files: make(map[string][]byte, capacity), directories: protectedInputDirectories(paths)}
 	if err := filepath.WalkDir(root, collector.visit); err != nil {
 		return nil, fmt.Errorf("verify installer input ISO contents: %w", err)
 	}
@@ -256,13 +270,13 @@ func (c installerInputCollector) visit(path string, entry os.DirEntry, walkErr e
 	}
 	relative = filepath.ToSlash(relative)
 	if entry.IsDir() {
-		return validateInstallerInputDirectory(relative)
+		return validateInstallerInputDirectory(relative, c.directories)
 	}
 	return c.collectFile(path, relative, entry)
 }
 
-func validateInstallerInputDirectory(relative string) error {
-	if relative != "soda" {
+func validateInstallerInputDirectory(relative string, expected map[string]bool) error {
+	if !expected[relative] {
 		return fmt.Errorf("installer input ISO contains unexpected directory %s", relative)
 	}
 	return nil
@@ -284,11 +298,11 @@ func (c installerInputCollector) collectFile(path, relative string, entry os.Dir
 	return nil
 }
 
-func compareInstallerInputContents(actual, expected map[string][]byte) error {
+func compareInstallerInputContents(actual, expected map[string][]byte, paths []string) error {
 	if len(actual) != len(expected) {
 		return errors.New("installer input ISO does not contain exactly the required files")
 	}
-	for _, name := range installerInputPaths() {
+	for _, name := range paths {
 		contents, present := actual[name]
 		if !present || !bytes.Equal(contents, expected[name]) {
 			return fmt.Errorf("installer input ISO contains unexpected data for %s", name)
@@ -305,4 +319,27 @@ func installerInputPaths() []string {
 		"soda/administrator-authorized-key",
 		"soda/tailscale-auth-key",
 	}
+}
+
+func protectedInputPaths(files map[string][]byte) ([]string, error) {
+	paths := make([]string, 0, len(files))
+	for path, contents := range files {
+		clean := filepath.ToSlash(filepath.Clean(path))
+		if clean == "." || clean == ".." || filepath.IsAbs(path) || clean != path || len(contents) == 0 {
+			return nil, errors.New("protected input contains an invalid file path")
+		}
+		paths = append(paths, path)
+	}
+	sort.Strings(paths)
+	return paths, nil
+}
+
+func protectedInputDirectories(paths []string) map[string]bool {
+	directories := map[string]bool{}
+	for _, path := range paths {
+		for directory := filepath.ToSlash(filepath.Dir(path)); directory != "."; directory = filepath.ToSlash(filepath.Dir(directory)) {
+			directories[directory] = true
+		}
+	}
+	return directories
 }
