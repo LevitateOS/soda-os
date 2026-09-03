@@ -60,4 +60,13 @@ func TestRuntimePackageOwnsTheFixedCloudFinalizerOnly(t *testing.T) {
 	containerfile, err := os.ReadFile(filepath.Join(root, "packaging/bootc/Containerfile"))
 	require.NoError(t, err)
 	require.Contains(t, string(containerfile), "cloud-init-local.service cloud-init-main.service cloud-config.service cloud-final.service")
+	for _, architecture := range []string{"aarch64", "x86_64"} {
+		builder, buildErr := NewBuilder(root, "distro/soda.toml", architecture, nil)
+		require.NoError(t, buildErr)
+		lock, lockErr := builder.packageLock()
+		require.NoError(t, lockErr)
+		require.Contains(t, lock.Package, lockedPackage{
+			Name: "cloud-init", NEVRA: "cloud-init-0:26.1-1.fc44.noarch", Source: "fedora",
+		})
+	}
 }
