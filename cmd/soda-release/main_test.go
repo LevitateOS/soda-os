@@ -16,7 +16,7 @@ func TestCommandExposesOnlyFixedPublicationOperations(t *testing.T) {
 		names = append(names, child.Name())
 	}
 	sort.Strings(names)
-	require.Equal(t, []string{"draft", "publish", "upload"}, names)
+	require.Equal(t, []string{"draft", "image-promote", "image-stage", "publish", "upload"}, names)
 
 	for _, forbidden := range []string{"github-token-env", "repository", "asset", "clobber", "output-dir"} {
 		flag := command.PersistentFlags().Lookup(forbidden)
