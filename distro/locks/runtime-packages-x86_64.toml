@@ -37,6 +37,11 @@ nevra = "clippy-0:1.98.0-1.fc44.x86_64"
 source = "fedora"
 
 [[package]]
+name = "cloud-init"
+nevra = "cloud-init-0:26.1-1.fc44.noarch"
+source = "fedora"
+
+[[package]]
 name = "cmake"
 nevra = "cmake-0:4.3.0-1.fc44.x86_64"
 source = "fedora"
@@ -89,6 +94,11 @@ source = "fedora"
 [[package]]
 name = "dns-root-data"
 nevra = "dns-root-data-0:2026260100-2.fc44.noarch"
+source = "fedora"
+
+[[package]]
+name = "dhcpcd"
+nevra = "dhcpcd-0:10.3.2-1.fc44.x86_64"
 source = "fedora"
 
 [[package]]
@@ -277,6 +287,11 @@ nevra = "ninja-build-0:1.13.2-2.fc44.x86_64"
 source = "fedora"
 
 [[package]]
+name = "netcat"
+nevra = "netcat-0:1.238-1.fc44.x86_64"
+source = "fedora"
+
+[[package]]
 name = "nodejs24"
 nevra = "nodejs24-1:24.18.0-1.fc44.x86_64"
 source = "fedora"
@@ -302,6 +317,11 @@ nevra = "nodejs24-npm-bin-1:24.18.0-1.fc44.noarch"
 source = "fedora"
 
 [[package]]
+name = "libretls"
+nevra = "libretls-0:3.8.1-7.fc44.x86_64"
+source = "fedora"
+
+[[package]]
 name = "patch"
 nevra = "patch-0:2.8-4.fc44.x86_64"
 source = "fedora"
@@ -317,6 +337,16 @@ nevra = "python3-audit-0:4.2.1-1.fc44.x86_64"
 source = "fedora"
 
 [[package]]
+name = "python3-attrs"
+nevra = "python3-attrs-0:25.4.0-2.fc44.noarch"
+source = "fedora"
+
+[[package]]
+name = "python3-configobj"
+nevra = "python3-configobj-0:5.0.9-9.fc44.noarch"
+source = "fedora"
+
+[[package]]
 name = "python3-dbus"
 nevra = "python3-dbus-0:1.4.0-9.fc44.x86_64"
 source = "fedora"
@@ -324,6 +354,31 @@ source = "fedora"
 [[package]]
 name = "python3-distro"
 nevra = "python3-distro-0:1.9.0-11.fc44.noarch"
+source = "fedora"
+
+[[package]]
+name = "python3-jinja2"
+nevra = "python3-jinja2-0:3.1.6-7.fc44.noarch"
+source = "fedora"
+
+[[package]]
+name = "python3-jsonpatch"
+nevra = "python3-jsonpatch-0:1.33-12.fc44.noarch"
+source = "fedora"
+
+[[package]]
+name = "python3-jsonpointer"
+nevra = "python3-jsonpointer-0:2.4-9.fc44.noarch"
+source = "fedora"
+
+[[package]]
+name = "python3-jsonschema"
+nevra = "python3-jsonschema-0:4.23.0-7.fc44.noarch"
+source = "fedora"
+
+[[package]]
+name = "python3-jsonschema-specifications"
+nevra = "python3-jsonschema-specifications-0:2024.10.1-7.fc44.noarch"
 source = "fedora"
 
 [[package]]
@@ -337,8 +392,28 @@ nevra = "python3-libsemanage-0:3.11-1.fc44.x86_64"
 source = "fedora"
 
 [[package]]
+name = "python3-markupsafe"
+nevra = "python3-markupsafe-0:3.0.2-7.fc44.x86_64"
+source = "fedora"
+
+[[package]]
+name = "python3-oauthlib"
+nevra = "python3-oauthlib-0:3.3.1-1.fc44.noarch"
+source = "fedora"
+
+[[package]]
 name = "python3-policycoreutils"
 nevra = "python3-policycoreutils-0:3.11-2.fc44.noarch"
+source = "fedora"
+
+[[package]]
+name = "python3-referencing"
+nevra = "python3-referencing-0:0.36.2-6.fc44.noarch"
+source = "fedora"
+
+[[package]]
+name = "python3-rpds-py"
+nevra = "python3-rpds-py-0:0.29.0-4.fc44.x86_64"
 source = "fedora"
 
 [[package]]

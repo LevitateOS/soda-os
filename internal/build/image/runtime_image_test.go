@@ -27,7 +27,7 @@ func TestRuntimeImageBootcContainerContract(t *testing.T) {
 		"dnf -y remove avahi", "! rpm -q avahi", "! test -e /usr/lib/systemd/system/avahi-daemon.service",
 		"getent group soda-workspaces",
 		"install -o root -g root -m 0644 /usr/lib/soda/pam/cockpit /etc/pam.d/cockpit",
-		"systemctl enable sshd.service soda-tailscale-enroll.service cockpit.socket forgejo.service tailscaled.service nftables.service",
+		"systemctl enable sshd.service cockpit.socket forgejo.service tailscaled.service nftables.service",
 		"getent passwd git",
 		"systemctl mask bootc-fetch-apply-updates.timer", "cp -f /usr/lib/soda/os-release /etc/os-release",
 		"cp -f /usr/lib/soda/os-release /usr/lib/os-release", "cp -f /usr/lib/soda/issue /etc/issue",
@@ -292,9 +292,10 @@ func TestRuntimeImageSystemdHostCompositionContract(t *testing.T) {
 	runtimeSources := filepath.Join("..", "..", "..", "packaging", "rpm", "runtime", "sources")
 	preset, err := os.ReadFile(filepath.Join(runtimeSources, "systemd", "90-soda.preset"))
 	require.NoError(t, err)
-	for _, unit := range []string{"sshd.service", "soda-tailscale-enroll.service", "forgejo.service", "cockpit.socket", "tailscaled.service", "nftables.service"} {
+	for _, unit := range []string{"sshd.service", "forgejo.service", "cockpit.socket", "tailscaled.service", "nftables.service"} {
 		require.True(t, strings.Contains(string(preset), "enable "+unit))
 	}
+	require.Contains(t, string(preset), "disable soda-tailscale-enroll.service")
 	for _, obsolete := range []string{"soda-authd.service", "soda-cockpit.service", "avahi-daemon.service", "var-srv-soda-projects.mount"} {
 		require.NotContains(t, string(preset), obsolete)
 	}

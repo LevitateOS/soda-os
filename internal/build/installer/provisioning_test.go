@@ -109,6 +109,7 @@ func TestInstallerOnlyExecutablesAreFixedAndParse(t *testing.T) {
 		`"--token-name"`,
 		`"soda-os-tea"`,
 		`os.replace(temporary, destination)`,
+		`["/usr/bin/systemctl", "--root", str(SYSROOT), "enable", "soda-tailscale-enroll.service"]`,
 	} {
 		require.Contains(t, finalizer, expected)
 	}

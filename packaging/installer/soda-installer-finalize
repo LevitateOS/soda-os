@@ -575,6 +575,13 @@ def _write_tailscale_auth_key(tailscale_key):
         raise
 
 
+def _enable_tailscale_enrollment():
+    command = ["/usr/bin/systemctl", "--root", str(SYSROOT), "enable", "soda-tailscale-enroll.service"]
+    completed = subprocess.run(command, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, check=False)
+    if completed.returncode != 0:
+        raise RuntimeError("the Tailscale enrollment service could not be enabled")
+
+
 def _run():
     if os.geteuid() != 0 or len(sys.argv) != 1:
         raise RuntimeError("soda-installer-finalize accepts no arguments and must run as root")
@@ -591,7 +598,13 @@ def _run():
         _validate_installed_linux_account(username, ssh_key)
         _create_forgejo_administrator(username, password)
         password = ""
+
         _write_tailscale_auth_key(tailscale_key)
+        try:
+            _enable_tailscale_enrollment()
+        except Exception:
+            (SYSROOT / TAILSCALE_KEY_PATH.lstrip("/")).unlink(missing_ok=True)
+            raise
     finally:
         password = ""
         tailscale_key = ""

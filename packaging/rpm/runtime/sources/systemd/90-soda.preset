@@ -1,5 +1,5 @@
 enable sshd.service
-enable soda-tailscale-enroll.service
+disable soda-tailscale-enroll.service
 enable forgejo.service
 enable cockpit.socket
 enable tailscaled.service
