@@ -86,7 +86,7 @@ func cloudInputFiles(source CloudDataSource, username string, password, publicKe
 			"user-data": userData,
 		}, "CIDATA", nil
 	case CloudConfigDrive:
-		metadata := fmt.Sprintf(`{"uuid":%q,"hostname":"soda"}`+"\n", instanceID)
+		metadata := fmt.Sprintf(`{"uuid":%q,"hostname":"soda","dsmode":"local"}`+"\n", instanceID)
 		return map[string][]byte{
 			"openstack/latest/meta_data.json": []byte(metadata),
 			"openstack/latest/user_data":      userData,

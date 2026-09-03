@@ -202,6 +202,8 @@ func (b *Builder) stageNonBunRPMSources(build, sources string) error {
 		{b.path("packaging/rpm/runtime/sources/systemd/getty@tty1.service.d/10-soda-console.conf"), filepath.Join(sources, "10-soda-console.conf")},
 		{b.path("packaging/rpm/runtime/sources/sysctl/60-soda-console.conf"), filepath.Join(sources, "60-soda-console.conf")},
 		{b.path("packaging/rpm/runtime/sources/console/soda-console-welcome"), filepath.Join(sources, "soda-console-welcome")},
+		{b.path("packaging/rpm/runtime/sources/soda-cloud-finalize"), filepath.Join(sources, "soda-cloud-finalize")},
+		{b.path("packaging/rpm/runtime/sources/cloud/99-soda-datasources.cfg"), filepath.Join(sources, "99-soda-datasources.cfg")},
 		{b.path("packaging/rpm/runtime/sources/profile.d/soda-console-welcome.sh"), filepath.Join(sources, "soda-console-welcome.sh")},
 		{b.path("packaging/rpm/projects/sources/pam/cockpit-stock"), filepath.Join(sources, "cockpit-stock.pam")},
 		{b.path("packaging/rpm/projects/sources/polkit/org.sodaos.projects.policy"), filepath.Join(sources, "org.sodaos.projects.policy")},

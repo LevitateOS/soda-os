@@ -55,7 +55,7 @@ RUN dnf -y --setopt=install_weak_deps=False --enablerepo=updates-testing install
     && install -o root -g root -m 0644 /usr/lib/soda/pam/cockpit /etc/pam.d/cockpit \
     && restorecon -F /etc/pam.d/cockpit \
     && systemctl preset sshd.service soda-tailscale-enroll.service cockpit.socket forgejo.service tailscaled.service nftables.service \
-    && systemctl enable sshd.service cockpit.socket forgejo.service tailscaled.service nftables.service \
+    && systemctl enable sshd.service cockpit.socket forgejo.service tailscaled.service nftables.service cloud-init-local.service cloud-init.service cloud-config.service cloud-final.service \
     && getent passwd git \
     && systemctl mask bootc-fetch-apply-updates.timer \
     && cp -f /usr/lib/soda/os-release /etc/os-release \
