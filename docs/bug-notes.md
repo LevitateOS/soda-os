@@ -887,6 +887,68 @@ still exists after first boot. When one upstream service can safely cover both
 private phases behind the already-authoritative firewall, preserve that one
 listener instead of adding credential rewriting or lifecycle machinery.
 
+## 2026-09-03: account removal left failed user-manager units
+
+### Expected outcome
+
+Supported project and human deletion should terminate the selected Linux
+accounts and leave the installed host with no failed systemd units.
+
+### Exact artifact and environment
+
+The failure occurred during matching-native x86-64 acceptance with candidate
+source `e9b62eb`, image digest
+`sha256:2c4b9b28ad5aedc35ef5c3604c8ac200c6491d9e2e73b32b9c02a879cd4bfe94`,
+and ISO SHA-256
+`22f87f7ec9f240ea3dfef2cbafb17255d2c7417ab2e677500b456485cce0069d`.
+
+### What happened
+
+Installation, native Tea operations, the B-to-A-to-B preservation comparisons,
+workspace isolation, and the deletion scenarios completed. Final capture then
+found `user@1008.service` and `user@1013.service` failed after their account
+processes had been deliberately terminated.
+
+### Root cause
+
+The bounded deletion path terminated logind sessions and then sent UID-scoped
+TERM and KILL signals. Killing the remaining per-user systemd manager correctly
+stopped the account's processes, but systemd retained the resulting unit failure
+after the account was deleted.
+
+### Smallest correction
+
+Remember whether the validated account had an active logind user, verify that
+its processes are gone, and reset only that exact `user@<uid>.service` failure
+before the final account revalidation and `userdel`. A reset failure leaves the
+account and higher-level catalog state intact for a visible retry.
+
+### Rejected broader fixes
+
+Do not ignore failed units in acceptance, reset all systemd failures, weaken
+process termination, add cleanup state, or add a reconciliation service.
+
+### Verification completed
+
+Focused race tests and the repository-wide source gate pass for the exact-unit
+reset and its native failure path.
+
+### Verification still required
+
+Rebuild both post-correction images and repeat fresh installed x86-64
+B-to-A-to-B acceptance. Matching-native AArch64 remains independently required.
+
+### Secret, data-loss, and destructive-action notes
+
+The failed run's secret scan passed. Its evidence was retained, and only the
+exact disposable machine and registry state were removed.
+
+### Rule we will reuse
+
+If a supported destructive operation deliberately kills an upstream-managed
+unit, remove only the failure state caused by that exact validated target before
+the irreversible deletion. Never hide unrelated failed units globally.
+
 ## Checklist for the next installer investigation
 
 - [ ] Record commit, architecture, input hashes, and exact package versions.
