@@ -22,3 +22,10 @@ and the installer-only provisioning tools.
 The ISO inspection rejects an installer SquashFS that contains `/sysroot`.
 Package-root additions require a direct installer ownership reason and updated
 matching-native size evidence. This x86-64 result is not AArch64 evidence.
+
+The direct-composition ISO passed source checks, artifact inspection, and a
+native raw-QEMU graphical boot to the branded Anaconda welcome screen. A full
+network installation is not claimed by this evidence: its exact runtime digest
+was not anonymously available from GHCR. Final installed acceptance therefore
+belongs after immutable candidate publication, using this same ISO without a
+local registry substitute.

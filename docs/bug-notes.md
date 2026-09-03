@@ -1119,6 +1119,59 @@ of Linux, Forgejo, Tea, catalog, workspace, Tailscale, SSH, password, and group
 state. `secret-absence.txt` passed for the Tailscale auth key, administrator
 password, later-primary password, and administrator private key.
 
+## 2026-09-03: installer base duplication and unexecuted image references
+
+### What happened
+
+The 2,091,892,736-byte Soda installer ISO used the full Fedora bootc runtime as
+the base of the Anaconda environment. Image Builder consequently compressed a
+second operating-system root beneath `/sysroot`, producing a 1,727,160,320-byte
+SquashFS. Direct composition from the locked Fedora installer base reduced the
+same ISO to 1,067,196,416 bytes and the SquashFS to 870,174,720 bytes.
+
+The first raw-QEMU run of the reduced ISO reached storage configuration and
+then failed because Kickstart supplied the exact GHCR reference directly as
+`--source-imgref`. The pinned `bootc install to-filesystem` path requires an
+explicit `docker://` transport for its source. The digest-only reference remains
+correct for `--target-imgref`.
+
+### Why source checks missed it
+
+The Kickstart test asserted that the source and target contained the reviewed
+digest, but did not exercise the pinned bootc parser. String equality proved
+the generated text, not that upstream accepted the two different reference
+roles.
+
+### Smallest correction
+
+- Compose the installer from the locked Fedora installer base and explicitly
+  install only its reviewed package roots and boot packages.
+- Reject any built SquashFS containing the duplicated `/sysroot`.
+- Render `docker://<exact GHCR digest>` only for `source-imgref`; retain the
+  exact digest-only update reference for `target-imgref`.
+- Require an anonymously pullable candidate digest before claiming a complete
+  network installation. Do not replace that boundary with a local mirror in
+  product evidence.
+
+### Verification completed
+
+The reduced ISO passed repository checks and native x86-64 build and
+inspection. A protected non-unattended OEMDRV boot reached the branded
+graphical Anaconda welcome screen in raw QEMU. The retained evidence scan found
+no password, private key, or Tailscale auth key.
+
+### Verification still required
+
+A complete installation awaits immutable candidate publication to GHCR. The
+matching-native AArch64 installer closure and size evidence remain independent
+work; x86-64 package results must not be copied into its lock.
+
+### Rule we will reuse
+
+Measure the generated filesystem tree, not the nominal package purpose. For
+upstream command references, separately test source transport syntax and the
+persisted target identity through the exact shipped version.
+
 ## Checklist for the next installer investigation
 
 - [ ] Record commit, architecture, input hashes, and exact package versions.
