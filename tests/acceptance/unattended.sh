@@ -428,6 +428,7 @@ PY
 	export SODA_ACCEPTANCE_ISO=$candidate_iso
 	export SODA_ACCEPTANCE_KICKSTART_ISO=$oemdrv
 	export SODA_ACCEPTANCE_DISK=$disk
+	export SODA_ACCEPTANCE_QMP_SOCKET=$work_dir/qmp.sock
 	export SODA_ACCEPTANCE_DISK_SIZE=${SODA_ACCEPTANCE_DISK_SIZE:-40G}
 	host_tailscale status --json >"$evidence_dir/host-tailnet-before.json"
 

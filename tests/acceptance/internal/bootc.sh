@@ -246,6 +246,10 @@ known_hosts_path() {
 }
 
 qmp_path() {
+	if [ -n "${SODA_ACCEPTANCE_QMP_SOCKET:-}" ]; then
+		printf '%s\n' "$SODA_ACCEPTANCE_QMP_SOCKET"
+		return
+	fi
 	printf '%s/qmp.sock\n' "$acceptance_dir"
 }
 
