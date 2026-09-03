@@ -1097,10 +1097,35 @@ primary_tea_api() {
 	printf '%s' "$payload" | primary_ssh "$username" /usr/bin/tea api --login soda --data @- "$endpoint"
 }
 
+forgejo_pam_create_tea_scope_repository() {
+	output=$1
+	fixture=$(later_primary_password_file)
+	raw=$acceptance_dir/.forgejo-tea-scope-$$.response
+	trap 'rm -f "$raw"' 0 1 2 15
+	forgejo_url=$(admin_ssh 'printf "{}\n" | /usr/libexec/soda/soda-projects list | jq -er .forgejo_url')
+	printf '%s\n' "$forgejo_url" | LC_ALL=C grep -Eq '^http://(\[[0-9A-Fa-f:]+\]|[A-Za-z0-9][A-Za-z0-9._-]*):[0-9]{1,5}$' ||
+		die "installed Forgejo URL is not a credential-free Tailnet HTTP endpoint"
+	forgejo_port=${forgejo_url##*:}
+	request_host=$guest_host
+	case "$request_host" in *:*) request_host=[$request_host] ;; esac
+	{
+		printf 'user = "alice:'
+		tr -d '\r\n' <"$fixture"
+		printf '"\nsilent\nshow-error\nwrite-out = "\\n%%{http_code}\\n"\n'
+	} | curl --config - --request POST --header 'Content-Type: application/json' \
+		--data-binary '{"name":"tea-scope-smoke","auto_init":true}' \
+		--url "http://$request_host:$forgejo_port/api/v1/user/repos" >"$raw"
+	status=$(tail -n 1 "$raw")
+	sed '$d' "$raw" >"$output"
+	rm -f "$raw"
+	trap - 0 1 2 15
+	[ "$status" = 201 ] || die "Forgejo PAM repository creation returned HTTP $status, expected 201"
+}
+
 exercise_tea_scopes() {
 	operations=$1
 	repository=tea-scope-smoke
-	primary_tea_api alice user/repos '{"name":"tea-scope-smoke","auto_init":true}' >"$operations/tea-repository.json"
+	forgejo_pam_create_tea_scope_repository "$operations/tea-repository.json"
 	base=$(jq -er '.default_branch | select(test("^[A-Za-z0-9._/-]+$"))' "$operations/tea-repository.json")
 	jq -e '.name == "tea-scope-smoke" and .owner.login == "alice"' "$operations/tea-repository.json" >/dev/null
 
