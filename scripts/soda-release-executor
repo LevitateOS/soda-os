@@ -184,6 +184,22 @@ finalize() {
     unset github_token sigstore_token
 }
 
+if [ "${1:-}" = -c ]; then
+    [ "$#" -eq 2 ] || die 'SSH invocation must contain one fixed command string'
+    command_line=$2
+    case "$command_line" in
+        *[!A-Za-z0-9_\ -]*) die 'SSH command contains unsupported characters' ;;
+    esac
+    old_ifs=$IFS
+    IFS=' '
+    # Word splitting is intentional after the strict character allowlist.
+    # shellcheck disable=SC2086
+    set -- $command_line
+    IFS=$old_ifs
+    [ "${1:-}" = soda-release-executor ] || die 'SSH command must invoke soda-release-executor'
+    shift
+fi
+
 phase=${1:-}
 shift || true
 case "$phase" in

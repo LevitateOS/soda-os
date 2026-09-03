@@ -18,6 +18,7 @@ grep -Fq 'soda-release-executor' "$workflow"
 grep -Fq 'prepare) prepare "$@"' scripts/soda-release-executor
 grep -Fq 'emit-record) emit_record "$@"' scripts/soda-release-executor
 grep -Fq 'finalize) finalize "$@"' scripts/soda-release-executor
+grep -Fq 'SSH command must invoke soda-release-executor' scripts/soda-release-executor
 
 if grep -Eq '^[[:space:]]*uses:[[:space:]]*[^@[:space:]]+@[^[:space:]#]{1,39}([[:space:]#]|$)' "$workflow"; then
     echo 'release workflow contains an action that is not pinned by full commit SHA' >&2
