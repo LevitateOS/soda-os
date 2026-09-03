@@ -27,6 +27,8 @@ type QCOW2Result struct {
 	CompressedSHA  string
 }
 
+const imageBuilderFedoraDistro = "fedora-44"
+
 // BuildQCOW2 creates a matching-native reusable disk from the exact local
 // single-platform OCI archive. The archive digest remains the deployment
 // image reference; Image Builder receives that exact reference from its local
@@ -101,7 +103,7 @@ func (b *Builder) runQCOW2Build(ctx context.Context, input qcow2Input, volumeNam
 	args := []string{"run", "--rm", "--platform", b.Spec.Base.Platform, "--privileged",
 		"--volume", volumeName + ":/var/lib/containers/storage",
 		"--volume", input.outputDir + ":/output", input.lock.Reference,
-		"build", "--arch", b.Spec.Platform.Architecture.Installer, "--bootc-ref", input.reference,
+		"build", "--distro", imageBuilderFedoraDistro, "--arch", b.Spec.Platform.Architecture.Installer, "--bootc-ref", input.reference,
 		"--bootc-default-fs", "ext4", "--output-dir", "/output", "--output-name", outputName, "qcow2",
 	}
 	if err := b.runner.Run(ctx, process.Command{Dir: b.Root, Name: "docker", Args: args}); err != nil {

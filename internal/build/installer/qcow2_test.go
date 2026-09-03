@@ -33,6 +33,7 @@ platform = "linux/arm64"
 	commands := commandOutput(runner)
 	exactReference := Repository + "@" + digest
 	require.Contains(t, commands, "containers-storage:"+exactReference)
+	require.Contains(t, commands, "--distro fedora-44")
 	require.Contains(t, commands, "--bootc-ref "+exactReference)
 	require.Contains(t, commands, "--bootc-default-fs ext4")
 	require.Contains(t, commands, "--output-name SodaOS-0.5.0-aarch64 qcow2")
