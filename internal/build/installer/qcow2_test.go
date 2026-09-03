@@ -64,6 +64,19 @@ platform = "linux/arm64"
 	require.Empty(t, runner.Commands)
 }
 
+func TestCompressQCOW2UsesSupportedFixedZstdArguments(t *testing.T) {
+	root := t.TempDir()
+	rawPath := filepath.Join(root, "SodaOS-0.5.0-aarch64.qcow2")
+	require.NoError(t, os.WriteFile(rawPath, []byte("raw QCOW2"), 0o644))
+	runner := &recordingRunner{}
+	builder := NewBuilder(root, config.DistroSpec{}, runner)
+	_, err := builder.compressQCOW2(context.Background(), qcow2Input{rawPath: rawPath, compressedPath: rawPath + ".zst"})
+	require.EqualError(t, err, "zstd did not create "+rawPath+".zst")
+	require.Contains(t, commandOutput(runner), "zstd -q --no-progress -T1 --force --output "+rawPath+".zst "+rawPath)
+	require.NotContains(t, commandOutput(runner), "--quiet")
+	require.NotContains(t, commandOutput(runner), "--threads=1")
+}
+
 func commandOutput(runner *recordingRunner) string {
 	commands := make([]string, 0, len(runner.Commands))
 	for _, command := range runner.Commands {
