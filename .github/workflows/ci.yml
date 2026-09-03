@@ -25,6 +25,8 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
+      - name: Install source-check prerequisites
+        run: sudo apt-get update && sudo apt-get install --yes librsvg2-bin
       - name: Check tracked diff integrity
         run: git diff --check HEAD^
       - name: Check shell entry points
