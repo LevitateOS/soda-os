@@ -141,7 +141,8 @@ func uploadCommand(specPath *string, runner process.Runner) *cobra.Command {
 }
 
 func publishCommand(specPath *string, runner process.Runner) *cobra.Command {
-	return &cobra.Command{
+	var options release.PublishOptions
+	command := &cobra.Command{
 		Use:   "publish",
 		Short: "publish a complete validated Soda GitHub draft",
 		Args:  cobra.NoArgs,
@@ -150,7 +151,7 @@ func publishCommand(specPath *string, runner process.Runner) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			result, err := publication.Publish(command.Context())
+			result, err := publication.Publish(command.Context(), options)
 			if err != nil {
 				return err
 			}
@@ -158,6 +159,12 @@ func publishCommand(specPath *string, runner process.Runner) *cobra.Command {
 			return nil
 		},
 	}
+	command.Flags().StringVar(&options.AArch64RecordPath, "aarch64-record", "", "matching-native AArch64 signed Soda release record")
+	command.Flags().StringVar(&options.X86RecordPath, "x86_64-record", "", "matching-native x86-64 signed Soda release record")
+	for _, name := range []string{"aarch64-record", "x86_64-record"} {
+		_ = command.MarkFlagRequired(name)
+	}
+	return command
 }
 
 func publication(specPath string, runner process.Runner) (*release.Publication, error) {

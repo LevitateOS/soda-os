@@ -197,7 +197,8 @@ func TestPublishRequiresCompleteAssetsAndPreservesThem(t *testing.T) {
 		},
 	}
 	publication := testPublication(t, runner, "arm64")
-	result, err := publication.Publish(context.Background())
+	options := writePublishOptions(t, testRevision)
+	result, err := publication.Publish(context.Background(), options)
 	require.NoError(t, err)
 	require.Len(t, result.Assets, 13)
 	var edit process.Command
@@ -208,6 +209,14 @@ func TestPublishRequiresCompleteAssetsAndPreservesThem(t *testing.T) {
 	}
 	require.Equal(t, []string{"release", "edit", "v0.2.0", "--repo", "LevitateOS/soda-os", "--verify-tag", "--draft=false"}, edit.Args)
 	requireGHEnvironment(t, runner.commands)
+	cosignCommands := make([]process.Command, 0, 2)
+	for _, command := range runner.commands {
+		if command.Name == "cosign" {
+			cosignCommands = append(cosignCommands, command)
+		}
+	}
+	require.Len(t, cosignCommands, 2)
+	require.Equal(t, []string{"verify-blob", "--bundle", options.AArch64RecordPath + ".sigstore.json", "--certificate-identity", "https://github.com/LevitateOS/soda-os/.github/workflows/release.yml@refs/heads/release/0.2.0", "--certificate-oidc-issuer", githubOIDCIssuer, options.AArch64RecordPath}, cosignCommands[0].Args)
 }
 
 func TestPublishRefusesIncompleteDraftWithoutMutation(t *testing.T) {
@@ -217,7 +226,7 @@ func TestPublishRefusesIncompleteDraftWithoutMutation(t *testing.T) {
 		views:    []string{releaseViewJSON(draftRelease, requiredRemoteAssets("0.2.0")[:5])},
 	}
 	publication := testPublication(t, runner, "arm64")
-	_, err := publication.Publish(context.Background())
+	_, err := publication.Publish(context.Background(), writePublishOptions(t, testRevision))
 	require.ErrorContains(t, err, "missing required asset")
 	require.NotContains(t, strings.Join(commandStrings(runner.commands), "\n"), "gh release edit")
 }
@@ -230,7 +239,7 @@ func TestPublishRejectsChangedOrInvalidRemoteAssets(t *testing.T) {
 			states:   []string{repositoryStateJSON(testRevision, draftRelease)},
 			views:    []string{releaseViewJSON(draftRelease, assets)},
 		}
-		_, err := testPublication(t, runner, "arm64").Publish(context.Background())
+		_, err := testPublication(t, runner, "arm64").Publish(context.Background(), writePublishOptions(t, testRevision))
 		require.ErrorContains(t, err, "not fully uploaded with a SHA-256 digest")
 		require.NotContains(t, strings.Join(commandStrings(runner.commands), "\n"), "gh release edit")
 	})
@@ -247,7 +256,7 @@ func TestPublishRejectsChangedOrInvalidRemoteAssets(t *testing.T) {
 			},
 			views: []string{releaseViewJSON(draftRelease, before), releaseViewJSON(publishedRelease, after)},
 		}
-		_, err := testPublication(t, runner, "arm64").Publish(context.Background())
+		_, err := testPublication(t, runner, "arm64").Publish(context.Background(), writePublishOptions(t, testRevision))
 		require.EqualError(t, err, "GitHub release assets changed while publishing")
 		require.Equal(t, 1, strings.Count(strings.Join(commandStrings(runner.commands), "\n"), "gh release edit"))
 	})
@@ -313,6 +322,13 @@ func writeUploadArtifacts(t *testing.T, spec config.DistroSpec, revision string)
 	local, err := validateUploadArtifacts(spec, revision, options)
 	require.NoError(t, err)
 	return options, local
+}
+
+func writePublishOptions(t *testing.T, revision string) PublishOptions {
+	t.Helper()
+	aarch64, _ := writeUploadArtifacts(t, testArmPublicationSpec(), revision)
+	x86, _ := writeUploadArtifacts(t, testX86PublicationSpec(), revision)
+	return PublishOptions{AArch64RecordPath: aarch64.RecordPath, X86RecordPath: x86.RecordPath}
 }
 
 func repositoryStateJSON(revision string, phase releasePhase) string {

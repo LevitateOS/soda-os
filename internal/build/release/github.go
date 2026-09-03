@@ -14,6 +14,8 @@ import (
 
 const repositoryStateQuery = `query($owner:String!,$name:String!,$revision:String!,$ref:String!,$tag:String!){repository(owner:$owner,name:$name){viewerPermission object(expression:$revision){oid} ref(qualifiedName:$ref){target{oid}} release(tagName:$tag){tagName isDraft}}}`
 
+const githubOIDCIssuer = "https://token.actions.githubusercontent.com"
+
 var ghEnvironment = []string{"GH_PROMPT_DISABLED=1", "GH_NO_UPDATE_NOTIFIER=1", "NO_COLOR=1"}
 
 type DraftOptions struct{ NotesPath string }
@@ -24,6 +26,11 @@ type UploadOptions struct {
 	QCOW2ZSTPath     string
 	RecordPath       string
 	RecordBundlePath string
+}
+
+type PublishOptions struct {
+	AArch64RecordPath string
+	X86RecordPath     string
 }
 
 type PublicationResult struct {
@@ -170,9 +177,12 @@ func (p *Publication) nativeSpec(architecture string) (config.DistroSpec, error)
 	return spec, nil
 }
 
-func (p *Publication) Publish(ctx context.Context) (PublicationResult, error) {
+func (p *Publication) Publish(ctx context.Context, options PublishOptions) (PublicationResult, error) {
 	revision, err := p.cleanRevision(ctx)
 	if err != nil {
+		return PublicationResult{}, err
+	}
+	if err := p.verifySignedRecords(ctx, revision, options); err != nil {
 		return PublicationResult{}, err
 	}
 	if err := p.authenticate(ctx); err != nil {
@@ -197,6 +207,35 @@ func (p *Publication) Publish(ctx context.Context) (PublicationResult, error) {
 		return PublicationResult{}, errors.New("GitHub release assets changed while publishing")
 	}
 	return PublicationResult{Tag: p.tag(), Revision: revision, Assets: before}, nil
+}
+
+func (p *Publication) verifySignedRecords(ctx context.Context, revision string, options PublishOptions) error {
+	records := []struct {
+		architecture string
+		path         string
+	}{
+		{architecture: "aarch64", path: options.AArch64RecordPath},
+		{architecture: "x86_64", path: options.X86RecordPath},
+	}
+	for _, item := range records {
+		architecture, path := item.architecture, item.path
+		spec := p.specs[architecture]
+		record, err := readStrictRecord(path)
+		if err != nil {
+			return fmt.Errorf("read %s release record: %w", architecture, err)
+		}
+		if err := validatePublicationRecord(record, spec, revision); err != nil {
+			return fmt.Errorf("validate %s release record: %w", architecture, err)
+		}
+		bundle := path + ".sigstore.json"
+		if err := requireRegularFile("signed release-record bundle", bundle); err != nil {
+			return err
+		}
+		if err := p.runner.Run(ctx, p.cosign("verify-blob", "--bundle", bundle, "--certificate-identity", p.releaseWorkflowIdentity(), "--certificate-oidc-issuer", githubOIDCIssuer, path)); err != nil {
+			return fmt.Errorf("verify %s signed release record: %w", architecture, err)
+		}
+	}
+	return nil
 }
 
 func (p *Publication) authenticate(ctx context.Context) error {
@@ -302,6 +341,14 @@ func (p *Publication) createDraft(ctx context.Context, notesPath string) error {
 
 func (p *Publication) gh(args ...string) process.Command {
 	return process.Command{Dir: p.root, Env: append([]string(nil), ghEnvironment...), Name: "gh", Args: args}
+}
+
+func (p *Publication) cosign(args ...string) process.Command {
+	return process.Command{Dir: p.root, Env: []string{"NO_COLOR=1"}, Name: "cosign", Args: args}
+}
+
+func (p *Publication) releaseWorkflowIdentity() string {
+	return "https://github.com/" + p.repository + "/.github/workflows/release.yml@refs/heads/release/" + p.version
 }
 
 func (p *Publication) tag() string { return "v" + p.version }
