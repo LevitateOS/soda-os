@@ -44,7 +44,7 @@ func TestKickstartKeepsStockInteractiveFlowAndExactDigest(t *testing.T) {
 	require.Contains(t, contents, "network --bootproto=dhcp --device=link --activate --onboot=on --hostname=soda")
 	require.Contains(t, contents, "rootpw --lock\n")
 	require.Contains(t, contents, "firstboot --disable\n")
-	require.Contains(t, contents, `--source-imgref="`+testExactImage+`"`)
+	require.Contains(t, contents, `--source-imgref="docker://`+testExactImage+`"`)
 	require.Contains(t, contents, `--target-imgref="`+testExactImage+`"`)
 	require.NotContains(t, contents, "%pre-install")
 	require.NotContains(t, contents, "/mnt/sysimage/var/home")
