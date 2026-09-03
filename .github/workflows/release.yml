@@ -74,8 +74,42 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
-  draft:
+  promote:
     needs: prepare
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - architecture: x86_64
+            runner: ubuntu-24.04
+            builder: ${{ vars.SODA_X86_64_RELEASE_BUILDER }}
+          - architecture: aarch64
+            runner: ubuntu-24.04-arm
+            builder: ${{ vars.SODA_AARCH64_RELEASE_BUILDER }}
+    runs-on: ${{ matrix.runner }}
+    environment: release-build
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Join the release Tailnet through workload identity federation
+        uses: tailscale/github-action@306e68a486fd2350f2bfc3b19fcd143891a4a2d8 # v4
+        with:
+          oauth-client-id: ${{ vars.SODA_TAILSCALE_CLIENT_ID }}
+          audience: ${{ vars.SODA_TAILSCALE_AUDIENCE }}
+          tags: tag:soda-release-ci
+          use-cache: 'false'
+      - name: Sign and promote the accepted matching-native image and record
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          oidc_header="$RUNNER_TEMP/oidc-header"
+          printf 'Authorization: bearer %s\n' "$ACTIONS_ID_TOKEN_REQUEST_TOKEN" > "$oidc_header"
+          sigstore_token=$(curl --fail --silent --show-error --header "@$oidc_header" "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=sigstore" | jq -er '.value')
+          rm -f "$oidc_header"
+          printf '%s\n%s\n' "$GH_TOKEN" "$sigstore_token" | tailscale ssh "soda-release-ci@${{ matrix.builder }}" soda-release-executor promote "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" "$GITHUB_SHA" "${{ matrix.architecture }}"
+          unset sigstore_token
+
+  draft:
+    needs: promote
     runs-on: ubuntu-24.04
     environment: release-build
     steps:
@@ -126,16 +160,11 @@ jobs:
           audience: ${{ vars.SODA_TAILSCALE_AUDIENCE }}
           tags: tag:soda-release-ci
           use-cache: 'false'
-      - name: Sign and upload the matching-native output set
+      - name: Upload the accepted matching-native output set
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          oidc_header="$RUNNER_TEMP/oidc-header"
-          printf 'Authorization: bearer %s\n' "$ACTIONS_ID_TOKEN_REQUEST_TOKEN" > "$oidc_header"
-          sigstore_token=$(curl --fail --silent --show-error --header "@$oidc_header" "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=sigstore" | jq -er '.value')
-          rm -f "$oidc_header"
-          printf '%s\n%s\n' "$GH_TOKEN" "$sigstore_token" | tailscale ssh "soda-release-ci@${{ matrix.builder }}" soda-release-executor finalize "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" "$GITHUB_SHA" "${{ matrix.architecture }}"
-          unset sigstore_token
+          printf '%s\n' "$GH_TOKEN" | tailscale ssh "soda-release-ci@${{ matrix.builder }}" soda-release-executor upload "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" "$GITHUB_SHA" "${{ matrix.architecture }}"
 
   publish:
     needs: upload

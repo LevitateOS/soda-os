@@ -17,7 +17,12 @@ grep -Fq 'tag:soda-release-ci' "$workflow"
 grep -Fq 'soda-release-executor' "$workflow"
 grep -Fq 'prepare) prepare "$@"' scripts/soda-release-executor
 grep -Fq 'emit-record) emit_record "$@"' scripts/soda-release-executor
-grep -Fq 'finalize) finalize "$@"' scripts/soda-release-executor
+grep -Fq 'promote) promote "$@"' scripts/soda-release-executor
+grep -Fq 'upload) upload "$@"' scripts/soda-release-executor
+grep -Fq 'needs: promote' "$workflow"
+grep -Fq 'needs: draft' "$workflow"
+test "$(grep -Fc 'soda-release-executor promote' "$workflow")" -eq 1
+test "$(grep -Fc 'soda-release-executor upload' "$workflow")" -eq 1
 grep -Fq 'SSH command must invoke soda-release-executor' scripts/soda-release-executor
 
 if grep -Eq '^[[:space:]]*uses:[[:space:]]*[^@[:space:]]+@[^[:space:]#]{1,39}([[:space:]#]|$)' "$workflow"; then

@@ -160,7 +160,7 @@ emit_record() {
     cat "$record"
 }
 
-finalize() {
+promote() {
     require_run_identity "$@"
     run=$(run_directory "$@")
     source_tree=$(worktree "$run")
@@ -169,19 +169,33 @@ finalize() {
     sigstore_token=$(read_secret_line sigstore_oidc_token)
     artifact_paths "$source_tree" "$4"
     (
-	auth_file=$run/registry-finalize-$4.json
-	trap 'rm -f "$auth_file"' 0 1 2 15
-	    umask 077
-	    login_ghcr "$github_token" "$auth_file"
+        auth_file=$run/registry-promote-$4.json
+        trap 'rm -f "$auth_file"' 0 1 2 15
+        umask 077
+        login_ghcr "$github_token" "$auth_file"
         cd "$source_tree"
         GH_TOKEN=$github_token REGISTRY_AUTH_FILE=$auth_file SIGSTORE_ID_TOKEN=$sigstore_token \
             go run ./cmd/soda-release image-promote --architecture "$4" --record "$record"
         GH_TOKEN=$github_token SIGSTORE_ID_TOKEN=$sigstore_token \
             go run ./cmd/soda-release record-sign --architecture "$4" --record "$record"
+    )
+    unset github_token sigstore_token
+}
+
+upload() {
+    require_run_identity "$@"
+    run=$(run_directory "$@")
+    source_tree=$(worktree "$run")
+    [ -d "$source_tree/.git" ] || die 'prepared source checkout is unavailable'
+    github_token=$(read_secret_line github_token)
+    artifact_paths "$source_tree" "$4"
+    [ -f "$record.sigstore.json" ] || die 'signed release-record bundle is unavailable'
+    (
+        cd "$source_tree"
         GH_TOKEN=$github_token \
             go run ./cmd/soda-release upload --architecture "$4" --iso "$iso" --qcow2-zst "$compressed" --record "$record" --record-bundle "$record.sigstore.json"
     )
-    unset github_token sigstore_token
+    unset github_token
 }
 
 if [ "${1:-}" = -c ]; then
@@ -205,6 +219,7 @@ shift || true
 case "$phase" in
     prepare) prepare "$@" ;;
     emit-record) emit_record "$@" ;;
-    finalize) finalize "$@" ;;
-    *) die 'supported phases are prepare, emit-record, and finalize' ;;
+    promote) promote "$@" ;;
+    upload) upload "$@" ;;
+    *) die 'supported phases are prepare, emit-record, promote, and upload' ;;
 esac
