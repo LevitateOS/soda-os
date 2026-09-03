@@ -3,7 +3,7 @@ name: Release
 on:
   push:
     branches:
-      - 'release/**'
+      - production
 
 permissions:
   contents: write
@@ -22,11 +22,11 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: 2
-      - name: Require the version-matching protected release branch
+      - name: Require the protected production branch
         run: |
           version=$(awk -F '"' '$1 ~ /^version[[:space:]]*=/ { print $2; exit }' distro/soda.toml)
           test -n "$version"
-          test "$GITHUB_REF_NAME" = "release/$version"
+          test "$GITHUB_REF_NAME" = production
           git diff --check HEAD^
 
   prepare:

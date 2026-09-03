@@ -61,7 +61,7 @@ func (p *Publication) verifyPublicationOutputs(ctx context.Context, revision str
 	if err := p.verifyPublishedImages(ctx, records); err != nil {
 		return err
 	}
-	return p.requireRemoteReleaseBranch(ctx, revision)
+	return p.requireRemoteProductionBranch(ctx, revision)
 }
 
 func (p *Publication) publishDraft(ctx context.Context) error {
@@ -141,14 +141,14 @@ func (p *Publication) requireAnonymousImageDigest(ctx context.Context, reference
 	return nil
 }
 
-func (p *Publication) requireRemoteReleaseBranch(ctx context.Context, revision string) error {
-	output, err := p.runner.Output(ctx, process.Command{Dir: p.root, Name: "git", Args: []string{"ls-remote", "--exit-code", "origin", "refs/heads/release/" + p.version}})
+func (p *Publication) requireRemoteProductionBranch(ctx context.Context, revision string) error {
+	output, err := p.runner.Output(ctx, process.Command{Dir: p.root, Name: "git", Args: []string{"ls-remote", "--exit-code", "origin", "refs/heads/production"}})
 	if err != nil {
-		return fmt.Errorf("inspect remote release branch: %w", err)
+		return fmt.Errorf("inspect remote production branch: %w", err)
 	}
 	fields := strings.Fields(output)
-	if len(fields) != 2 || fields[0] != revision || fields[1] != "refs/heads/release/"+p.version {
-		return errors.New("remote release branch does not point to the clean Soda source revision")
+	if len(fields) != 2 || fields[0] != revision || fields[1] != "refs/heads/production" {
+		return errors.New("remote production branch does not point to the clean Soda source revision")
 	}
 	return nil
 }

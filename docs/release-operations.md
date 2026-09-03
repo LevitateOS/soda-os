@@ -16,7 +16,9 @@ contract check, never sibling-architecture artifact evidence.
 ## Identity and immutable outputs
 
 `distro/soda.toml` is the reviewed source of Soda identity. The `0.5.0`
-release uses `release/0.5.0`, tag `v0.5.0`, and these single-platform tags:
+release uses the protected `production` branch. A successful production workflow
+derives and creates tag `v0.5.0` from `distro/soda.toml`; people do not create a
+release branch or tag by hand. The release then uses these single-platform tags:
 
 ```text
 ghcr.io/levitateos/soda-os:0.5.0-aarch64
@@ -101,7 +103,7 @@ soda-os-0.5.0-<architecture>.release.json.sigstore.json
 
 `publish` refuses to change a draft unless all twelve assets, both signed
 records, both immutable version tags, anonymous exact-digest pulls, image
-signatures, SLSA attestations, release notes, and the remote release-branch
+signatures, SLSA attestations, release notes, and the remote `production` branch
 revision agree. It runs only `gh release edit --draft=false --latest`; it never
 overwrites, deletes, compensates for, or repairs a partial remote result.
 
@@ -111,9 +113,9 @@ and attestations; GitHub Releases stores downloadable assets and signed records.
 ## Protected CI
 
 `.github/workflows/ci.yml` is read-only source verification.
-`.github/workflows/release.yml` runs only on `release/**`, rejects a branch
-whose suffix is not the reviewed Soda version, and serializes release runs
-without cancellation.
+`.github/workflows/release.yml` runs only on `production`, derives the reviewed
+Soda version from `distro/soda.toml`, creates the corresponding tag itself, and
+serializes release runs without cancellation.
 
 Native jobs use GitHub-hosted x86-64 or AArch64 orchestrators, then join the
 Tailnet through the SHA-pinned Tailscale action and workload identity

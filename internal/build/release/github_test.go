@@ -49,7 +49,7 @@ func (r *publicationRunner) Output(_ context.Context, command process.Command) (
 		return popOutput(&r.imageTags)
 	case strings.HasPrefix(command.String(), "skopeo inspect "):
 		return popOutput(&r.imageDigests)
-	case command.String() == "git ls-remote --exit-code origin refs/heads/release/0.2.0":
+	case command.String() == "git ls-remote --exit-code origin refs/heads/production":
 		return popOutput(&r.remoteBranches)
 	default:
 		return "", errors.New("unexpected output command: " + command.String())

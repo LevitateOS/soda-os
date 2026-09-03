@@ -263,7 +263,7 @@ func (p *Publication) cosign(args ...string) process.Command {
 }
 
 func (p *Publication) releaseWorkflowIdentity() string {
-	return "https://github.com/" + p.repository + "/.github/workflows/release.yml@refs/heads/release/" + p.version
+	return "https://github.com/" + p.repository + "/.github/workflows/release.yml@refs/heads/production"
 }
 
 func workflowRunURLFromEnvironment(repository string) string {

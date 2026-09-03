@@ -7,7 +7,7 @@ test -x scripts/release-create-vm-auth-key.sh
 test -x scripts/soda-release-executor
 
 grep -Fq 'branches:' "$workflow"
-grep -Fq -- "- 'release/**'" "$workflow"
+grep -Fq -- '- production' "$workflow"
 grep -Fq 'cancel-in-progress: false' "$workflow"
 grep -Fq 'id-token: write' "$workflow"
 grep -Fq 'packages: write' "$workflow"

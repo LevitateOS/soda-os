@@ -23,7 +23,7 @@ func TestPublishRequiresCompleteAssetsAndPreservesThem(t *testing.T) {
 			"sha256:" + strings.Repeat("a", 64), "sha256:" + strings.Repeat("a", 64),
 			"sha256:" + strings.Repeat("a", 64), "sha256:" + strings.Repeat("a", 64),
 		},
-		remoteBranches: []string{testRevision + "\trefs/heads/release/0.2.0\n"},
+		remoteBranches: []string{testRevision + "\trefs/heads/production\n"},
 	}
 	publication := testPublication(t, runner, "arm64")
 	options := writePublishOptions(t, testRevision)
@@ -58,7 +58,7 @@ func TestPublishRefusesRemoteBranchOrAnonymousDigestMismatchBeforeReleaseMutatio
 		"remote branch": {
 			revision: testRevision, states: []string{repositoryStateJSON(testRevision, draftRelease)}, views: []string{releaseViewJSON(draftRelease, assets)},
 			imageDigests:   []string{"sha256:" + strings.Repeat("a", 64), "sha256:" + strings.Repeat("a", 64), "sha256:" + strings.Repeat("a", 64), "sha256:" + strings.Repeat("a", 64)},
-			remoteBranches: []string{strings.Repeat("b", 40) + "\trefs/heads/release/0.2.0\n"},
+			remoteBranches: []string{strings.Repeat("b", 40) + "\trefs/heads/production\n"},
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -94,7 +94,7 @@ func TestPublishRejectsChangedOrInvalidRemoteAssets(t *testing.T) {
 			states:         []string{repositoryStateJSON(testRevision, draftRelease), repositoryStateJSON(testRevision, publishedRelease)},
 			views:          []string{releaseViewJSON(draftRelease, before), releaseViewJSON(publishedRelease, after)},
 			imageDigests:   []string{"sha256:" + strings.Repeat("a", 64), "sha256:" + strings.Repeat("a", 64), "sha256:" + strings.Repeat("a", 64), "sha256:" + strings.Repeat("a", 64)},
-			remoteBranches: []string{testRevision + "\trefs/heads/release/0.2.0\n"},
+			remoteBranches: []string{testRevision + "\trefs/heads/production\n"},
 		}
 		_, err := testPublication(t, runner, "arm64").Publish(context.Background(), writePublishOptions(t, testRevision))
 		require.EqualError(t, err, "GitHub release assets changed while publishing")
