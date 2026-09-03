@@ -797,6 +797,96 @@ model the exact pinned upstream shape, including native lock artifacts. A
 successful mock that omits upstream side effects is not evidence that the
 installed producer and privileged consumer agree.
 
+## 2026-09-03: installer-created Tea login lost its Forgejo endpoint after enrollment
+
+### Expected outcome
+
+The installer administrator's Tea configuration should work after first boot,
+and its one-time copy into a derived workspace should retain the same human's
+native Forgejo identity.
+
+### Exact artifact and environment
+
+The failure occurred on matching-native x86-64 with candidate source
+`11dd11a`, image digest `sha256:3ae8f501d37007ace03d2d9eb851f7e0ff3613b99026fd78b8a5876ccc335510`,
+and ISO SHA-256 `c45ef73a9787e0a4b666dd67cd984b5cb311e44c8306bf7dc6c9a0456340f31d`.
+
+### What happened
+
+Installation, first-boot Tailnet enrollment, and primary SSH readiness passed.
+The first post-install identity check failed because `tea api --login soda
+user` tried `http://127.0.0.1:30000`, while the enrolled Forgejo service had
+replaced its loopback bind with the Tailnet IPv4 address.
+
+### Last passed boundary
+
+The installer had successfully created and verified the administrator's Tea
+login against the sealed transient loopback Forgejo process. The installed
+machine then enrolled and became reachable through its Tailnet address.
+
+### First failed boundary
+
+The installed administrator could not use the installer-created, user-owned
+Tea configuration after Forgejo restarted with its enrolled address.
+
+### Direct evidence
+
+The retained runner output reported a native connection refusal for
+`GET http://127.0.0.1:30000/api/v1/user`. No credential material reached the
+evidence directory.
+
+### Root cause
+
+The installer necessarily creates the Tea token before first-boot Tailscale
+enrollment, so the only usable endpoint at that time is loopback. The runtime
+Forgejo initializer later changed `HTTP_ADDR` from loopback to the single
+Tailnet address. One persistent Tea configuration therefore could not span the
+two accepted phases.
+
+### Authoritative owner
+
+Forgejo remains the sole HTTP and authentication owner. Linux nftables remains
+the appliance ingress owner. Soda owns only their fixed private composition and
+the installer-time Tea handoff.
+
+### Smallest correction
+
+After enrollment, keep Forgejo's one native listener available on loopback and
+the Tailnet by binding IPv4 and retaining the advertised Tailnet `ROOT_URL`.
+The existing nftables rules admit TCP 30000 only from `lo` and `tailscale0` and
+reject every other ingress path. No proxy, second listener, configuration
+rewriter, credential service, or first-boot workflow is added.
+
+The same failed run also proved that the disposable registry writes its bind
+mount as root by default, preventing the unprivileged exact-run cleanup. Run
+that disposable container as the invoking UID/GID so its already-scoped
+registry tree remains removable without privileged or broad cleanup.
+
+### Rejected broader fixes
+
+Do not rewrite Tea configuration after enrollment, store the password for
+first boot, add a proxy, add a runtime bootstrap service, duplicate the token,
+or teach Soda to reconcile Forgejo endpoints or credentials.
+
+### Verification still required
+
+Rebuild post-correction images A and B, then repeat fresh x86-64 installation,
+Tea identity, Add Person, workspace copying, product acceptance, and B-to-A-to-B
+preservation. Matching-native AArch64 remains independently required.
+
+### Secret, data-loss, and destructive-action notes
+
+The runner's retained secret scan passed. The protected Tailscale key was not
+read into diagnostics or removed. Only the exact disposable failed-run tree is
+eligible for later cleanup.
+
+### Rule we will reuse
+
+An installer-created native client configuration must name an endpoint that
+still exists after first boot. When one upstream service can safely cover both
+private phases behind the already-authoritative firewall, preserve that one
+listener instead of adding credential rewriting or lifecycle machinery.
+
 ## Checklist for the next installer investigation
 
 - [ ] Record commit, architecture, input hashes, and exact package versions.

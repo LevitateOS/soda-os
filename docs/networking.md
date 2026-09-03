@@ -7,7 +7,7 @@ services provide the listeners; Soda only composes their private ingress.
 | --- | --- | --- |
 | OpenSSH | TCP 22 | Ordinary `sshd`; native nftables permits loopback and `tailscale0` only. |
 | Stock Cockpit | TCP 9090 | `cockpit.socket`; native nftables permits loopback and `tailscale0` only. |
-| Forgejo | TCP 30000 | Loopback before enrollment and the appliance Tailnet IPv4 afterward; other ingress is rejected. |
+| Forgejo | TCP 30000 | Loopback and the appliance Tailnet interface. After enrollment Forgejo listens on IPv4 so installer-created local Tea configuration remains usable; native nftables admits only loopback and `tailscale0` and rejects other ingress. |
 | Tailscale | UDP 41641 | Fedora's packaged `tailscaled` default. |
 
 Forgejo advertises SSH clone URLs on port 22; its embedded SSH server is

@@ -151,6 +151,14 @@ never a process argument, environment value, log field, or retained Soda or
 target file. This is a bounded installation handoff, not a runtime Forgejo
 credential service.
 
+The administrator's Tea login is intentionally created against the transient
+loopback endpoint. After Tailnet enrollment, Forgejo retains loopback access
+for that user-owned configuration while also serving its advertised Tailnet
+URL. Forgejo listens on IPv4 and Soda's native nftables policy admits TCP 30000
+only from loopback and `tailscale0`; other ingress remains rejected. This is
+one upstream Forgejo listener behind the existing Linux firewall, not a proxy
+or runtime credential-rewrite service.
+
 Forgejo's native PAM source delegates later authentication to the shipped
 `soda-forgejo` PAM policy. The accepted outcome is that a primary human can log
 in with their Linux username and password, after which Forgejo creates its own
