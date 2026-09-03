@@ -96,6 +96,9 @@ func (b *Builder) validateExtractedKickstart(inspectDir, reference string) error
 
 func validateExtractedPayload(inspectDir, reference string) error {
 	metadata, err := os.ReadFile(filepath.Join(inspectDir, "root", "var/lib/containers/storage/overlay-images/images.json"))
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
 	if err != nil {
 		return fmt.Errorf("read ISO container storage metadata: %w", err)
 	}

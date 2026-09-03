@@ -297,6 +297,16 @@ func TestValidateNoEmbeddedPayloadRejectsTheExactRuntimeDigest(t *testing.T) {
 	require.NoError(t, validateNoEmbeddedPayload(otherImage, testExactImage))
 }
 
+func TestValidateExtractedPayloadAcceptsNoContainerStorage(t *testing.T) {
+	inspectDir := t.TempDir()
+	require.NoError(t, validateExtractedPayload(inspectDir, testExactImage))
+
+	metadataPath := filepath.Join(inspectDir, "root", "var", "lib", "containers", "storage", "overlay-images", "images.json")
+	require.NoError(t, os.MkdirAll(filepath.Dir(metadataPath), 0o755))
+	require.NoError(t, os.WriteFile(metadataPath, []byte(`[{"names":["`+testExactImage+`"],"digest":"sha256:`+strings.Repeat("b", 64)+`"}]`), 0o644))
+	require.EqualError(t, validateExtractedPayload(inspectDir, testExactImage), "ISO embeds the Soda runtime payload instead of using the exact remote image reference")
+}
+
 func TestISOConfigRequiresExactStage2KernelAndInitrdContract(t *testing.T) {
 	expected := []byte("label: \"SodaOS-Installer\"\ngrub2:\n  default: 0\n  timeout: 10\n  entries:\n    - name: \"Install Soda OS\"\n      linux: \"/images/pxeboot/vmlinuz inst.stage2=hd:LABEL=SodaOS-Installer inst.ks=hd:LABEL=OEMDRV:/ks.cfg inst.nosave=all_ks console=tty0 inst.graphical enforcing=0\"\n      initrd: \"/images/pxeboot/initrd.img\"\n")
 	root := t.TempDir()
