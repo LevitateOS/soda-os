@@ -75,7 +75,7 @@ func TestDraftUsesFixedAppendOnlyGitHubCLISequence(t *testing.T) {
 	}
 	publication := testPublication(t, runner, "arm64")
 
-	result, err := publication.Draft(context.Background(), DraftOptions{NotesPath: notes})
+	result, err := publication.Draft(context.Background(), writeDraftOptions(t, notes, testRevision))
 	require.NoError(t, err)
 	require.Equal(t, "v0.2.0", result.Tag)
 	require.Equal(t, testRevision, result.Revision)
@@ -102,7 +102,7 @@ func TestDraftDoesNotCompensateAfterPartialFailure(t *testing.T) {
 		failRunPrefix: "gh release create",
 	}
 
-	_, err := testPublication(t, runner, "arm64").Draft(context.Background(), DraftOptions{NotesPath: notes})
+	_, err := testPublication(t, runner, "arm64").Draft(context.Background(), writeDraftOptions(t, notes, testRevision))
 	require.ErrorContains(t, err, "create GitHub draft release")
 	commands := strings.Join(commandStrings(runner.commands), "\n")
 	require.Equal(t, 1, strings.Count(commands, "gh release create"))
@@ -121,7 +121,7 @@ func TestDraftCollisionFailsBeforeMutation(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			runner := &publicationRunner{revision: testRevision, states: []string{state}}
-			_, err := testPublication(t, runner, "arm64").Draft(context.Background(), DraftOptions{NotesPath: notes})
+			_, err := testPublication(t, runner, "arm64").Draft(context.Background(), writeDraftOptions(t, notes, testRevision))
 			require.Error(t, err)
 			for _, command := range runner.commands {
 				require.NotEqual(t, "POST", argumentAfter(command.Args, "--method"))
@@ -129,6 +129,17 @@ func TestDraftCollisionFailsBeforeMutation(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestDraftRequiresBothExactImageDigestsInNotesBeforeGitHubMutation(t *testing.T) {
+	notes := filepath.Join(t.TempDir(), "notes.md")
+	require.NoError(t, os.WriteFile(notes, []byte("release notes\n"), 0o644))
+	runner := &publicationRunner{revision: testRevision}
+	options := writeDraftOptions(t, notes, testRevision)
+	require.NoError(t, os.WriteFile(notes, []byte("release notes\n"), 0o644))
+	_, err := testPublication(t, runner, "arm64").Draft(context.Background(), options)
+	require.ErrorContains(t, err, "release notes omit")
+	require.NotContains(t, strings.Join(commandStrings(runner.commands), "\n"), "gh auth")
 }
 
 func TestUploadValidatesAndVerifiesOnlyNativeArchitectureAssets(t *testing.T) {
@@ -207,7 +218,7 @@ func TestPublishRequiresCompleteAssetsAndPreservesThem(t *testing.T) {
 			edit = command
 		}
 	}
-	require.Equal(t, []string{"release", "edit", "v0.2.0", "--repo", "LevitateOS/soda-os", "--verify-tag", "--draft=false"}, edit.Args)
+	require.Equal(t, []string{"release", "edit", "v0.2.0", "--repo", "LevitateOS/soda-os", "--verify-tag", "--draft=false", "--latest"}, edit.Args)
 	requireGHEnvironment(t, runner.commands)
 	cosignCommands := make([]process.Command, 0, 2)
 	for _, command := range runner.commands {
@@ -329,6 +340,19 @@ func writePublishOptions(t *testing.T, revision string) PublishOptions {
 	aarch64, _ := writeUploadArtifacts(t, testArmPublicationSpec(), revision)
 	x86, _ := writeUploadArtifacts(t, testX86PublicationSpec(), revision)
 	return PublishOptions{AArch64RecordPath: aarch64.RecordPath, X86RecordPath: x86.RecordPath}
+}
+
+func writeDraftOptions(t *testing.T, notes string, revision string) DraftOptions {
+	t.Helper()
+	publish := writePublishOptions(t, revision)
+	for _, path := range []string{publish.AArch64RecordPath, publish.X86RecordPath} {
+		record, err := readStrictRecord(path)
+		require.NoError(t, err)
+		contents, err := os.ReadFile(notes)
+		require.NoError(t, err)
+		require.NoError(t, os.WriteFile(notes, append(contents, []byte(record.SodaImageReference+"\n")...), 0o644))
+	}
+	return DraftOptions{NotesPath: notes, AArch64RecordPath: publish.AArch64RecordPath, X86RecordPath: publish.X86RecordPath}
 }
 
 func repositoryStateJSON(revision string, phase releasePhase) string {

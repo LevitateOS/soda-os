@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"runtime"
 	"strings"
 
@@ -18,7 +19,11 @@ const githubOIDCIssuer = "https://token.actions.githubusercontent.com"
 
 var ghEnvironment = []string{"GH_PROMPT_DISABLED=1", "GH_NO_UPDATE_NOTIFIER=1", "NO_COLOR=1"}
 
-type DraftOptions struct{ NotesPath string }
+type DraftOptions struct {
+	NotesPath         string
+	AArch64RecordPath string
+	X86RecordPath     string
+}
 
 type UploadOptions struct {
 	Architecture     string
@@ -98,6 +103,13 @@ func (p *Publication) Draft(ctx context.Context, options DraftOptions) (Publicat
 	}
 	revision, err := p.cleanRevision(ctx)
 	if err != nil {
+		return PublicationResult{}, err
+	}
+	records, err := p.validateReleaseRecords(revision, options.AArch64RecordPath, options.X86RecordPath)
+	if err != nil {
+		return PublicationResult{}, err
+	}
+	if err := requireReleaseNotesDigests(options.NotesPath, records); err != nil {
 		return PublicationResult{}, err
 	}
 	if err := p.authenticate(ctx); err != nil {
@@ -196,7 +208,7 @@ func (p *Publication) Publish(ctx context.Context, options PublishOptions) (Publ
 		return PublicationResult{}, err
 	}
 	before := assetIdentities(view.Assets)
-	if err := p.runner.Run(ctx, p.gh("release", "edit", p.tag(), "--repo", p.repository, "--verify-tag", "--draft=false")); err != nil {
+	if err := p.runner.Run(ctx, p.gh("release", "edit", p.tag(), "--repo", p.repository, "--verify-tag", "--draft=false", "--latest")); err != nil {
 		return PublicationResult{}, fmt.Errorf("publish GitHub release: %w", err)
 	}
 	view, err = p.requireRelease(ctx, revision, publishedRelease)
@@ -210,29 +222,60 @@ func (p *Publication) Publish(ctx context.Context, options PublishOptions) (Publ
 }
 
 func (p *Publication) verifySignedRecords(ctx context.Context, revision string, options PublishOptions) error {
+	records, err := p.validateReleaseRecords(revision, options.AArch64RecordPath, options.X86RecordPath)
+	if err != nil {
+		return err
+	}
+	for _, item := range records {
+		bundle := item.path + ".sigstore.json"
+		if err := requireRegularFile("signed release-record bundle", bundle); err != nil {
+			return err
+		}
+		if err := p.runner.Run(ctx, p.cosign("verify-blob", "--bundle", bundle, "--certificate-identity", p.releaseWorkflowIdentity(), "--certificate-oidc-issuer", githubOIDCIssuer, item.path)); err != nil {
+			return fmt.Errorf("verify %s signed release record: %w", item.architecture, err)
+		}
+	}
+	return nil
+}
+
+type releaseRecordPath struct {
+	architecture string
+	path         string
+	record       Record
+}
+
+func (p *Publication) validateReleaseRecords(revision, aarch64Path, x86Path string) ([]releaseRecordPath, error) {
 	records := []struct {
 		architecture string
 		path         string
 	}{
-		{architecture: "aarch64", path: options.AArch64RecordPath},
-		{architecture: "x86_64", path: options.X86RecordPath},
+		{architecture: "aarch64", path: aarch64Path},
+		{architecture: "x86_64", path: x86Path},
 	}
+	validated := make([]releaseRecordPath, 0, len(records))
 	for _, item := range records {
 		architecture, path := item.architecture, item.path
 		spec := p.specs[architecture]
 		record, err := readStrictRecord(path)
 		if err != nil {
-			return fmt.Errorf("read %s release record: %w", architecture, err)
+			return nil, fmt.Errorf("read %s release record: %w", architecture, err)
 		}
 		if err := validatePublicationRecord(record, spec, revision); err != nil {
-			return fmt.Errorf("validate %s release record: %w", architecture, err)
+			return nil, fmt.Errorf("validate %s release record: %w", architecture, err)
 		}
-		bundle := path + ".sigstore.json"
-		if err := requireRegularFile("signed release-record bundle", bundle); err != nil {
-			return err
-		}
-		if err := p.runner.Run(ctx, p.cosign("verify-blob", "--bundle", bundle, "--certificate-identity", p.releaseWorkflowIdentity(), "--certificate-oidc-issuer", githubOIDCIssuer, path)); err != nil {
-			return fmt.Errorf("verify %s signed release record: %w", architecture, err)
+		validated = append(validated, releaseRecordPath{architecture: architecture, path: path, record: record})
+	}
+	return validated, nil
+}
+
+func requireReleaseNotesDigests(path string, records []releaseRecordPath) error {
+	contents, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Errorf("read release notes: %w", err)
+	}
+	for _, item := range records {
+		if !strings.Contains(string(contents), item.record.SodaImageReference) {
+			return fmt.Errorf("release notes omit the %s exact GHCR digest", item.architecture)
 		}
 	}
 	return nil

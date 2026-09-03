@@ -16,7 +16,7 @@ func TestDraftRequiresAuthenticationAndRepositoryWritePermission(t *testing.T) {
 
 	t.Run("authentication", func(t *testing.T) {
 		runner := &publicationRunner{revision: testRevision, failRunPrefix: "gh auth status"}
-		_, err := testPublication(t, runner, "arm64").Draft(context.Background(), DraftOptions{NotesPath: notes})
+		_, err := testPublication(t, runner, "arm64").Draft(context.Background(), writeDraftOptions(t, notes, testRevision))
 		require.ErrorContains(t, err, "verify GitHub CLI authentication")
 		require.NotContains(t, strings.Join(commandStrings(runner.commands), "\n"), "gh api repos/")
 	})
@@ -26,7 +26,7 @@ func TestDraftRequiresAuthenticationAndRepositoryWritePermission(t *testing.T) {
 			revision: testRevision,
 			states:   []string{repositoryResponseJSON(testRevision, repositoryResponseFixture{permission: "READ"})},
 		}
-		_, err := testPublication(t, runner, "arm64").Draft(context.Background(), DraftOptions{NotesPath: notes})
+		_, err := testPublication(t, runner, "arm64").Draft(context.Background(), writeDraftOptions(t, notes, testRevision))
 		require.ErrorContains(t, err, "requires write permission")
 		require.NotContains(t, strings.Join(commandStrings(runner.commands), "\n"), "gh api repos/")
 	})

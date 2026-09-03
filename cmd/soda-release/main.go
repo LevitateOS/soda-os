@@ -106,7 +106,11 @@ func draftCommand(specPath *string, runner process.Runner) *cobra.Command {
 		},
 	}
 	command.Flags().StringVar(&options.NotesPath, "notes-file", "", "regular file containing the release notes")
-	_ = command.MarkFlagRequired("notes-file")
+	command.Flags().StringVar(&options.AArch64RecordPath, "aarch64-record", "", "matching-native AArch64 Soda release record")
+	command.Flags().StringVar(&options.X86RecordPath, "x86_64-record", "", "matching-native x86-64 Soda release record")
+	for _, name := range []string{"notes-file", "aarch64-record", "x86_64-record"} {
+		_ = command.MarkFlagRequired(name)
+	}
 	return command
 }
 
