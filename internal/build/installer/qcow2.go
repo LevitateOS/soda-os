@@ -118,7 +118,7 @@ func (b *Builder) compressQCOW2(ctx context.Context, input qcow2Input) (QCOW2Res
 	if err != nil {
 		return QCOW2Result{}, fmt.Errorf("checksum QCOW2: %w", err)
 	}
-	if err := b.runner.Run(ctx, process.Command{Dir: b.Root, Name: "zstd", Args: []string{"-q", "--no-progress", "-T1", "--force", "--output", input.compressedPath, input.rawPath}}); err != nil {
+	if err := b.runner.Run(ctx, process.Command{Dir: b.Root, Name: "zstd", Args: []string{"-q", "--no-progress", "-T1", "--force", "-o", input.compressedPath, input.rawPath}}); err != nil {
 		return QCOW2Result{}, fmt.Errorf("compress QCOW2: %w", err)
 	}
 	if !regularFile(input.compressedPath) {
