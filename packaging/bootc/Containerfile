@@ -28,6 +28,9 @@ COPY --from=lock-inputs /expected-packages.txt /var/tmp/soda-lock/expected-packa
 RUN dnf -y --setopt=install_weak_deps=False --enablerepo=updates-testing install \
       $(cat /var/tmp/soda-lock/fedora-packages.txt) \
       /var/tmp/soda-rpms/*.rpm \
+    && dnf -y remove avahi \
+    && ! rpm -q avahi \
+    && ! test -e /usr/lib/systemd/system/avahi-daemon.service \
     && dnf clean all \
     && rm -rf \
       /usr/lib/sysimage/libdnf5/transaction_history.sqlite* \

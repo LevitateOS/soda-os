@@ -24,6 +24,7 @@ func TestRuntimeImageBootcContainerContract(t *testing.T) {
 		"COPY --from=rpm-inputs /soda-tea-*.rpm /var/tmp/soda-rpms/",
 		"COPY --from=lock-inputs /fedora-packages.txt /var/tmp/soda-lock/fedora-packages.txt",
 		"COPY --from=lock-inputs /expected-packages.txt /var/tmp/soda-lock/expected-packages.txt",
+		"dnf -y remove avahi", "! rpm -q avahi", "! test -e /usr/lib/systemd/system/avahi-daemon.service",
 		"getent group soda-workspaces",
 		"install -o root -g root -m 0644 /usr/lib/soda/pam/cockpit /etc/pam.d/cockpit",
 		"systemctl enable sshd.service soda-tailscale-enroll.service cockpit.socket forgejo.service tailscaled.service nftables.service",
@@ -57,7 +58,7 @@ func TestRuntimeImageBootcContainerContract(t *testing.T) {
 	require.NotContains(t, containerfile, "cp -f /usr/lib/soda/system-release /etc/redhat-release")
 	require.NotContains(t, containerfile, "bootc-fetch-apply-updates.service")
 	for _, obsolete := range []string{
-		"soda-authd.service", "soda-cockpit.service", "avahi-daemon.service",
+		"soda-authd.service", "soda-cockpit.service",
 		"var-srv-soda-projects.mount", "/var/lib/soda/projects", "/var/srv/soda/projects",
 		"/etc/soda/authorized_keys",
 	} {
