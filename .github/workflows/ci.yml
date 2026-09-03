@@ -32,10 +32,10 @@ jobs:
           sh -n tests/acceptance/unattended.sh
           sh -n tests/acceptance/internal/bootc.sh
           tests/acceptance/unattended.sh --help >/dev/null
-      - name: Check source formatting and lint
+      - name: Check source formatting and complexity
         run: |
           test -z "$(gofmt -l $(find . -name '*.go' -not -path './.artifacts/*'))"
-          ./scripts/check-lint.sh
+          ./scripts/check-complexity.sh
       - name: Test source contracts
         run: |
           node --test cockpit/soda-projects/*.test.mjs
