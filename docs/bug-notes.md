@@ -947,7 +947,9 @@ process termination, add cleanup state, or add a reconciliation service.
 ### Verification completed
 
 Focused race tests pass for the exact-unit reset, the already-inactive case,
-the unload-during-reset race, unexpected state, and a native reset failure.
+the unload-during-reset race, unexpected state, and a native reset failure. The
+systemd user-manager boundary is kept in its own focused source file, and the
+complete repository source gate passes.
 
 ### Verification still required
 
