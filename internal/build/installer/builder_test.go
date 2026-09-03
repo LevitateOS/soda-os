@@ -45,7 +45,7 @@ func TestKickstartKeepsStockInteractiveFlowAndExactDigest(t *testing.T) {
 	require.Contains(t, contents, "network --bootproto=dhcp --device=link --activate --onboot=on --hostname=soda")
 	require.Contains(t, contents, "rootpw --lock\n")
 	require.Contains(t, contents, "firstboot --disable\n")
-	require.Contains(t, contents, `--source-imgref="containers-storage:`+testExactImage+`"`)
+	require.Contains(t, contents, `--source-imgref="`+testExactImage+`"`)
 	require.Contains(t, contents, `--target-imgref="`+testExactImage+`"`)
 	require.NotContains(t, contents, "%pre-install")
 	require.NotContains(t, contents, "/mnt/sysimage/var/home")
@@ -283,26 +283,19 @@ func TestInspectionTreeBecomesReadableAndRemovableByOwner(t *testing.T) {
 	require.NoError(t, os.RemoveAll(filepath.Join(root, "root")))
 }
 
-func TestPayloadStagingReferenceUsesFullExactDigestOnlyForImageBuilderStorage(t *testing.T) {
-	expected := Repository + ":payload-" + strings.TrimPrefix(testExactImage, Repository+"@sha256:")
-	require.Equal(t, expected, payloadStagingReference(testExactImage))
-	require.NotEqual(t, testExactImage, payloadStagingReference(testExactImage))
-}
-
-func TestValidateEmbeddedPayloadRequiresStagingTagAndOriginalManifestDigest(t *testing.T) {
-	payloadTag := payloadStagingReference(testExactImage)
+func TestValidateNoEmbeddedPayloadRejectsTheExactRuntimeDigest(t *testing.T) {
 	manifestDigest := strings.TrimPrefix(testExactImage, Repository+"@")
-	metadata := []byte(`[{"names":["` + payloadTag + `"],"digest":"` + manifestDigest + `"}]`)
-	require.NoError(t, validateEmbeddedPayload(metadata, payloadTag, testExactImage))
+	metadata := []byte(`[{"names":["localhost/soda-installer"],"digest":"` + manifestDigest + `"}]`)
+	require.EqualError(t, validateNoEmbeddedPayload(metadata, testExactImage), "ISO embeds the Soda runtime payload instead of using the exact remote image reference")
 
 	malformed := []byte(`[{"names":`)
-	require.ErrorContains(t, validateEmbeddedPayload(malformed, payloadTag, testExactImage), "decode embedded container storage metadata")
+	require.ErrorContains(t, validateNoEmbeddedPayload(malformed, testExactImage), "decode ISO container storage metadata")
 
-	missingTag := []byte(`[{"names":["` + testExactImage + `"],"digest":"` + manifestDigest + `"}]`)
-	require.EqualError(t, validateEmbeddedPayload(missingTag, payloadTag, testExactImage), "ISO container storage does not contain the staged Soda payload and exact manifest digest")
+	remoteReference := []byte(`[{"names":["` + testExactImage + `"],"digest":"sha256:` + strings.Repeat("b", 64) + `"}]`)
+	require.EqualError(t, validateNoEmbeddedPayload(remoteReference, testExactImage), "ISO embeds the Soda runtime payload instead of using the exact remote image reference")
 
-	wrongDigest := []byte(`[{"names":["` + payloadTag + `"],"digest":"sha256:` + strings.Repeat("b", 64) + `"}]`)
-	require.EqualError(t, validateEmbeddedPayload(wrongDigest, payloadTag, testExactImage), "ISO container storage does not contain the staged Soda payload and exact manifest digest")
+	otherImage := []byte(`[{"names":["localhost/soda-installer"],"digest":"sha256:` + strings.Repeat("b", 64) + `"}]`)
+	require.NoError(t, validateNoEmbeddedPayload(otherImage, testExactImage))
 }
 
 func TestISOConfigRequiresExactStage2KernelAndInitrdContract(t *testing.T) {
@@ -402,11 +395,10 @@ platform = "linux/arm64"
 	}
 	require.Contains(t, commands, "docker volume create "+volumeName)
 	require.Contains(t, commands, "docker volume rm --force "+volumeName)
-	payloadTag := payloadStagingReference(exactReference)
-	require.Contains(t, strings.Join(commands, "\n"), "containers-storage:"+payloadTag)
+	require.NotContains(t, strings.Join(commands, "\n"), "containers-storage:"+exactReference)
 	require.Contains(t, strings.Join(commands, "\n"), "--build-context fedora-base=docker-image://soda-fedora-bootc:sha256-950a52fa1244db4d7fe2673af57fd6784a605a83bec3cd2d716ed8c00ebd366d")
-	require.Contains(t, strings.Join(commands, "\n"), "--bootc-installer-payload-ref "+payloadTag)
-	require.NotContains(t, strings.Join(commands, "\n"), "--bootc-installer-payload-ref "+exactReference)
+	require.NotContains(t, strings.Join(commands, "\n"), "--bootc-installer-payload-ref")
+	require.Contains(t, strings.Join(commands, "\n"), "--bootc-pull-container")
 	require.NotContains(t, strings.Join(commands, "\n"), root+"/.artifacts/installer/containers-storage:/var/lib/containers/storage")
 	require.Contains(t, strings.Join(commands, "\n"), volumeName+":/var/lib/containers/storage")
 	require.Contains(t, strings.Join(commands, "\n"), "--tmpdir /var/lib/containers/storage copy")

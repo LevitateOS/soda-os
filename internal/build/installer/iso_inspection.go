@@ -14,7 +14,7 @@ import (
 type isoInspectionInput struct {
 	lock                                          toolLock
 	volumeName, installerTag, isoPath, inspectDir string
-	reference, payloadTag                         string
+	reference                                     string
 }
 
 const anacondaBootcInstallationPath = "usr/lib64/python3.14/site-packages/pyanaconda/modules/payloads/payload/rpm_ostree/installation.py"
@@ -36,7 +36,7 @@ func (b *Builder) inspectISO(ctx context.Context, input isoInspectionInput) erro
 	if err := makeInspectionOwnerWritable(input.inspectDir); err != nil {
 		return fmt.Errorf("make extracted ISO inspection files readable: %w", err)
 	}
-	return b.validateExtractedISO(input.inspectDir, input.reference, input.payloadTag)
+	return b.validateExtractedISO(input.inspectDir, input.reference)
 }
 
 func makeInspectionOwnerWritable(root string) error {
@@ -64,11 +64,11 @@ func makeInspectionOwnerWritable(root string) error {
 	})
 }
 
-func (b *Builder) validateExtractedISO(inspectDir, reference, payloadTag string) error {
+func (b *Builder) validateExtractedISO(inspectDir, reference string) error {
 	if err := b.validateExtractedKickstart(inspectDir, reference); err != nil {
 		return err
 	}
-	if err := validateExtractedPayload(inspectDir, payloadTag, reference); err != nil {
+	if err := validateExtractedPayload(inspectDir, reference); err != nil {
 		return err
 	}
 	if err := b.validateExtractedConfiguration(inspectDir); err != nil {
@@ -94,12 +94,12 @@ func (b *Builder) validateExtractedKickstart(inspectDir, reference string) error
 	return nil
 }
 
-func validateExtractedPayload(inspectDir, payloadTag, reference string) error {
+func validateExtractedPayload(inspectDir, reference string) error {
 	metadata, err := os.ReadFile(filepath.Join(inspectDir, "root", "var/lib/containers/storage/overlay-images/images.json"))
 	if err != nil {
-		return fmt.Errorf("read embedded container storage metadata: %w", err)
+		return fmt.Errorf("read ISO container storage metadata: %w", err)
 	}
-	return validateEmbeddedPayload(metadata, payloadTag, reference)
+	return validateNoEmbeddedPayload(metadata, reference)
 }
 
 func (b *Builder) validateExtractedConfiguration(inspectDir string) error {

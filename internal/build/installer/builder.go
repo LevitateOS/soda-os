@@ -12,7 +12,6 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
-	"slices"
 	"strings"
 
 	"github.com/BurntSushi/toml"
@@ -86,8 +85,7 @@ func (b *Builder) inspectISOArtifact(ctx context.Context, isoPath, reference, in
 	if err := b.copyToStorage(ctx, lock, volumeName, installerArchive, installerTag); err != nil {
 		return "", err
 	}
-	payloadTag := payloadStagingReference(reference)
-	if err := b.inspectISO(ctx, isoInspectionInput{lock: lock, volumeName: volumeName, installerTag: installerTag, isoPath: isoPath, inspectDir: inspectDir, reference: reference, payloadTag: payloadTag}); err != nil {
+	if err := b.inspectISO(ctx, isoInspectionInput{lock: lock, volumeName: volumeName, installerTag: installerTag, isoPath: isoPath, inspectDir: inspectDir, reference: reference}); err != nil {
 		return "", err
 	}
 	digest, err := fileSHA256(isoPath)
@@ -151,17 +149,11 @@ func (b *Builder) Build(ctx context.Context, options Options) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	payloadTag := payloadStagingReference(reference)
-	for _, item := range []struct{ archive, reference string }{
-		{installerArchive, installerTag},
-		{options.ArchivePath, payloadTag},
-	} {
-		if err := b.copyToStorage(ctx, lock, volumeName, item.archive, item.reference); err != nil {
-			return "", err
-		}
+	if err := b.copyToStorage(ctx, lock, volumeName, installerArchive, installerTag); err != nil {
+		return "", err
 	}
 
-	return b.buildInstallerISO(ctx, isoBuildInput{lock: lock, volumeName: volumeName, installerTag: installerTag, workspace: workspace, reference: reference, payloadTag: payloadTag})
+	return b.buildInstallerISO(ctx, isoBuildInput{lock: lock, volumeName: volumeName, installerTag: installerTag, workspace: workspace, reference: reference})
 }
 
 type installerWorkspace struct{ work, context, inspect, output string }
@@ -170,7 +162,7 @@ type isoBuildInput struct {
 	lock                     toolLock
 	volumeName, installerTag string
 	workspace                installerWorkspace
-	reference, payloadTag    string
+	reference                string
 }
 
 func (b *Builder) prepareInstallerWorkspace(options Options, reference string) (installerWorkspace, error) {
@@ -270,7 +262,7 @@ func (b *Builder) buildInstallerISO(ctx context.Context, input isoBuildInput) (s
 		"--volume", input.volumeName + ":/var/lib/containers/storage",
 		"--volume", input.workspace.output + ":/output", input.lock.Reference,
 		"build", "--arch", b.Spec.Platform.Architecture.Installer, "--bootc-ref", input.installerTag,
-		"--bootc-installer-payload-ref", input.payloadTag,
+		"--bootc-pull-container",
 		"--bootc-default-fs", "ext4", "--output-dir", "/output",
 		"--output-name", outputName, "bootc-generic-iso",
 	}
@@ -281,7 +273,7 @@ func (b *Builder) buildInstallerISO(ctx context.Context, input isoBuildInput) (s
 	if !regularFile(isoPath) {
 		return "", fmt.Errorf("image-builder did not create %s", isoPath)
 	}
-	if err := b.inspectISO(ctx, isoInspectionInput{lock: input.lock, volumeName: input.volumeName, installerTag: input.installerTag, isoPath: isoPath, inspectDir: input.workspace.inspect, reference: input.reference, payloadTag: input.payloadTag}); err != nil {
+	if err := b.inspectISO(ctx, isoInspectionInput{lock: input.lock, volumeName: input.volumeName, installerTag: input.installerTag, isoPath: isoPath, inspectDir: input.workspace.inspect, reference: input.reference}); err != nil {
 		return "", err
 	}
 	digest, err := fileSHA256(isoPath)
@@ -350,25 +342,26 @@ func (b *Builder) copyToStorage(ctx context.Context, lock toolLock, volumeName, 
 	return nil
 }
 
-func payloadStagingReference(reference string) string {
-	return Repository + ":payload-" + strings.TrimPrefix(reference, Repository+"@sha256:")
-}
-
-func validateEmbeddedPayload(metadata []byte, payloadTag, reference string) error {
+func validateNoEmbeddedPayload(metadata []byte, reference string) error {
 	var images []struct {
 		Names  []string `json:"names"`
 		Digest string   `json:"digest"`
 	}
 	if err := json.Unmarshal(metadata, &images); err != nil {
-		return fmt.Errorf("decode embedded container storage metadata: %w", err)
+		return fmt.Errorf("decode ISO container storage metadata: %w", err)
 	}
 	manifestDigest := "sha256:" + strings.TrimPrefix(reference, Repository+"@sha256:")
 	for _, image := range images {
-		if slices.Contains(image.Names, payloadTag) && image.Digest == manifestDigest {
-			return nil
+		if image.Digest == manifestDigest {
+			return errors.New("ISO embeds the Soda runtime payload instead of using the exact remote image reference")
+		}
+		for _, name := range image.Names {
+			if name == reference {
+				return errors.New("ISO embeds the Soda runtime payload instead of using the exact remote image reference")
+			}
 		}
 	}
-	return errors.New("ISO container storage does not contain the staged Soda payload and exact manifest digest")
+	return nil
 }
 
 func kickstart(reference, hostname string) string {
@@ -377,7 +370,7 @@ func kickstart(reference, hostname string) string {
 		"network --bootproto=dhcp --device=link --activate --onboot=on --hostname=" + hostname + "\n" +
 		"rootpw --lock\n" +
 		"firstboot --disable\n" +
-		"bootc --source-imgref=\"containers-storage:" + reference + "\" --target-imgref=\"" + reference + "\"\n"
+		"bootc --source-imgref=\"" + reference + "\" --target-imgref=\"" + reference + "\"\n"
 }
 
 func regularFile(path string) bool {
