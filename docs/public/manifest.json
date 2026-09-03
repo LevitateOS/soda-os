@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "sections": [
     {
       "id": "start-here",
@@ -8,73 +8,68 @@
         {
           "slug": "index",
           "title": "Soda OS documentation",
-          "description": "Understand the Soda OS product model, its current pre-release state, and where to begin.",
-          "source": "overview.md",
-          "evidence_paths": [
-            "AGENTS.md",
-            "docs/principles.md",
-            "docs/architecture-reset.md",
-            "README.md"
-          ],
-          "issues": [23, 25, 37, 38, 39, 40]
+          "description": "Understand Soda OS and follow the path from a new machine to a ready development workspace.",
+          "source": "overview.md"
         },
         {
-          "slug": "installation-model",
-          "title": "Installation model",
-          "description": "How Soda OS combines an architecture-matched image, stock Anaconda, protected input, and private Tailnet enrollment.",
-          "source": "installation-model.md",
-          "evidence_paths": [
-            "docs/installer.md",
-            "packaging/installer/soda-installer-input",
-            "packaging/installer/soda-installer-finalize",
-            "packaging/rpm/runtime/sources/systemd/soda-tailscale-enroll.service"
-          ],
-          "issues": [40, 42]
+          "slug": "product-model",
+          "title": "Product model",
+          "description": "Understand the people, accounts, systems, and ownership boundaries that make up Soda OS.",
+          "source": "product-model.md"
         }
       ]
     },
     {
-      "id": "core-workflow",
-      "title": "Core workflow",
+      "id": "deploy",
+      "title": "Deploy",
       "pages": [
         {
-          "slug": "accounts-and-workspaces",
-          "title": "Accounts and workspaces",
-          "description": "How primary Linux accounts and per-person, per-project workspace accounts keep development work independent.",
-          "source": "accounts-and-workspaces.md",
-          "evidence_paths": [
-            "docs/principles.md",
-            "internal/projects/model.go",
-            "internal/projects/lifecycle.go",
-            "internal/projects/system_keys.go"
-          ],
-          "issues": [33, 35, 36]
+          "slug": "deploy-to-cloud",
+          "title": "Deploy to a cloud",
+          "description": "Provision an architecture-matched Soda OS QCOW2 with NoCloud or ConfigDrive.",
+          "source": "deploy-to-cloud.md"
         },
         {
-          "slug": "projects-and-git",
-          "title": "Projects and Git",
-          "description": "How the project catalog, Forgejo, external Git hosts, and Set up for me divide responsibility.",
-          "source": "projects-and-git.md",
-          "evidence_paths": [
-            "cockpit/soda-projects/index.html",
-            "internal/projects/catalog.go",
-            "internal/projects/coordinator.go",
-            "internal/projects/forgejo.go"
-          ],
-          "issues": [35, 37]
+          "slug": "install-on-premises",
+          "title": "Install on premises",
+          "description": "Install Soda OS from its network ISO with graphical Anaconda and protected OEMDRV input.",
+          "source": "install-on-premises.md"
+        },
+        {
+          "slug": "first-connection",
+          "title": "Make the first connection",
+          "description": "Reach the new machine through its Tailnet with SSH, Cockpit, and Forgejo.",
+          "source": "first-connection.md"
+        }
+      ]
+    },
+    {
+      "id": "develop",
+      "title": "Develop",
+      "pages": [
+        {
+          "slug": "people-and-access",
+          "title": "Add people and manage access",
+          "description": "Create a complete Soda OS identity and grant Linux administrator access when needed.",
+          "source": "people-and-access.md"
+        },
+        {
+          "slug": "projects-and-workspaces",
+          "title": "Projects and workspaces",
+          "description": "Catalog repositories and give each developer an independent project workspace.",
+          "source": "projects-and-workspaces.md"
         },
         {
           "slug": "connect-and-develop",
           "title": "Connect and develop",
-          "description": "How developers use Tailscale and ordinary SSH tools to work directly on the Soda OS machine.",
-          "source": "connect-and-develop.md",
-          "evidence_paths": [
-            "docs/networking.md",
-            "distro/toolset-commands.txt",
-            "packaging/rpm/runtime/sources/nftables/soda-ingress.nft",
-            "cockpit/soda-projects/app.mjs"
-          ],
-          "issues": [24, 36]
+          "description": "Work directly in a Soda OS workspace with ordinary SSH tools, editors, and agents.",
+          "source": "connect-and-develop.md"
+        },
+        {
+          "slug": "ci-runners",
+          "title": "Use CI runners",
+          "description": "Use Forgejo or GitHub with runners that execute locally on the Soda OS machine.",
+          "source": "ci-runners.md"
         }
       ]
     },
@@ -85,28 +80,20 @@
         {
           "slug": "administration",
           "title": "Administration",
-          "description": "How stock Cockpit, Linux administrator status, and Soda's focused Projects page fit together.",
-          "source": "administration.md",
-          "evidence_paths": [
-            "docs/architecture.md",
-            "cockpit/soda-projects/index.html",
-            "internal/projects/lifecycle.go",
-            "packaging/rpm/projects/sources/pam/cockpit-stock"
-          ],
-          "issues": [25, 32, 39]
+          "description": "Use stock Cockpit and native Linux tools to operate the Soda OS machine.",
+          "source": "administration.md"
         },
         {
-          "slug": "updates-and-recovery",
-          "title": "Updates and recovery",
-          "description": "How administrators use native bootc operations while preserving current accounts and workspace state.",
-          "source": "updates-and-recovery.md",
-          "evidence_paths": [
-            "docs/architecture-reset.md",
-            "docs/release-operations.md",
-            "tests/acceptance/README.md",
-            "packaging/bootc/Containerfile"
-          ],
-          "issues": [23, 25, 38, 39]
+          "slug": "updates-and-fallback",
+          "title": "Updates and fallback",
+          "description": "Select exact signed Soda OS images with bootc while preserving machine state.",
+          "source": "updates-and-fallback.md"
+        },
+        {
+          "slug": "data-safety-and-removal",
+          "title": "Data safety and removal",
+          "description": "Protect important work and understand exactly what destructive Soda OS actions remove.",
+          "source": "data-safety-and-removal.md"
         }
       ]
     }

@@ -1,22 +1,35 @@
 # Public website documentation
 
-This directory owns the public wording synchronized into the Soda OS website.
-It is a presentation layer, not an independent source of product requirements.
+This directory contains the public Soda OS handbook. It describes the finished
+product that owners, administrators, and developers use. The handbook is a
+presentation of accepted product behavior, not an independent source of product
+requirements.
 
 Product purpose and ownership come from [`docs/principles.md`](../principles.md).
 Accepted behavior and boundaries come from
-[`docs/architecture-reset.md`](../architecture-reset.md). Current implementation
-claims must be supported by the current source, tests, and implementation
-documentation. When those sources disagree with this directory, correct the
-public wording rather than treating it as authority.
+[`docs/architecture-reset.md`](../architecture-reset.md). Repository source and
+tests provide implementation evidence; they do not narrow the intended product
+described here.
 
-`manifest.json` defines page order, routes, descriptions, evidence paths, and
-related issues. Each Markdown page deliberately contains no level-one heading;
-the website supplies its title from the manifest. Every page distinguishes the
-accepted **Product contract** from the **Current implementation** at the source
-revision recorded by the website snapshot.
+`manifest.json` defines public section order, routes, titles, descriptions, and
+source files. Issue numbers, commits, evidence paths, release readiness, and
+implementation history do not belong in the public manifest or pages.
 
-The website synchronizer rejects raw HTML, images, unsafe links, broken local
-documentation links, and missing required sections. It renders and commits a
-deterministic HTML snapshot so the deployed website never fetches this
-repository at runtime.
+Each published page:
+
+- contains no level-one heading because the website supplies its title;
+- uses relative links to other handbook pages;
+- explains unfamiliar terms at first use;
+- identifies who performs a task and what they need;
+- gives concrete steps and the expected successful result; and
+- puts safety and irreversible data-loss information beside the relevant
+  action.
+
+Conceptual pages may use a responsibility table or a short guided journey in
+place of procedural steps. Public wording describes launch behavior directly;
+it does not split pages into product-contract and implementation-status
+sections.
+
+The website renders a deterministic snapshot of these sources. Publication is
+a separate operation performed only after the shipped product and handbook
+agree.

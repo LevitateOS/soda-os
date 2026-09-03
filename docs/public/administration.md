@@ -1,111 +1,98 @@
-Soda OS keeps general machine administration where Linux administrators expect
-it: in stock **Cockpit**, Fedora's browser administration interface, and
-ordinary Linux tools. Soda adds one focused **Projects** page only for the
-machine-wide project catalog and workspace lifecycle.
+Soda OS uses stock Cockpit as its browser administration surface. Cockpit owns
+authentication, sessions, and general Linux administration. Soda adds focused
+pages for the small number of product-specific journeys, including **Projects**.
 
-Owners encounter Cockpit when operating the machine. Developers use the same
-browser sign-in to discover projects, but only Linux administrators see the
-supported action for removing another person from Soda OS.
+Remote administration is SSH-first. Administrators can use ordinary Linux
+commands over OpenSSH whenever the stock host interface is the clearer tool.
 
-## Product contract
+## Sign in as an administrator
 
-### Cockpit is the administration interface
+An administrator is a primary Linux account in `wheel`. Connect through the
+Tailnet with either:
 
-Cockpit provides the machine overview, metrics, services, logs, accounts,
-terminal, storage, and networking pages. It also owns browser authentication,
-sessions, TLS, and normal privilege elevation.
+```sh
+ssh <administrator>@<soda-hostname>
+```
 
-Every primary Linux account—the ordinary account representing one human—can
-sign in to Cockpit with its Linux username and password. Workspace accounts
-are the separate person-project development identities; they cannot sign in to
-Cockpit, and developers reach them directly through SSH.
+or Cockpit at:
 
-Linux `wheel` membership determines who is an administrator. Soda keeps no
-separate administrator list. Use stock Cockpit or ordinary Linux tools for
-normal primary-account creation, password changes, group membership, and
-machine administration.
+```text
+https://<soda-hostname>:9090
+```
 
-### Projects is the Soda-specific page
+Use `id` to confirm `wheel` membership before performing an administrative
+operation. Linux group membership is the authority; Soda does not keep a
+parallel role database.
 
-The **Projects** page adds only the actions needed for Soda's project workflow:
+## Use the right administrative owner
 
-- see the appliance-wide project catalog;
-- use **Add repository** or **New Forgejo project**;
-- use **Edit** or **Set up for me**;
-- use **Remove** for destructive project removal; and
-- for administrators, use **Remove person…** for supported cascading human
-  deletion.
+| Task | Where to perform it |
+| --- | --- |
+| Add a complete Soda person | **Add person…** on **Projects** |
+| Grant or revoke host administration | Cockpit **Accounts** or native Linux `wheel` management |
+| Add, edit, set up, or remove a project | **Projects** |
+| Manage Forgejo repositories, collaborators, and roles | Forgejo |
+| Manage Tailnet devices and access policy | Tailscale |
+| Inspect services, storage, networking, and logs | Stock Cockpit or native Linux tools |
+| Select an operating-system image | Native bootc commands |
 
-The page reuses the current Cockpit identity and session. It is not a second
-dashboard, account system, or general privileged command interface.
+When workflow execution should run on the Soda machine, follow
+[CI runners](ci-runners.md).
 
-### Forgejo administration remains separate
+## Add and administer people
 
-**Forgejo** is the bundled Git hosting and collaboration service. Forgejo
-manages its own users, administrator roles, repositories, permissions, keys,
-tokens, sessions, issues, reviews, and releases.
+Use **Add person…** for initial onboarding because it creates the person's
+Linux, SSH, Forgejo, and Tea result together. Afterward, use stock Cockpit or
+ordinary Linux tools for password changes and `wheel` membership.
 
-The first installation creates same-named Linux and Forgejo administrators,
-but they become independent accounts immediately afterward. Changing a Linux
-password or `wheel` membership does not change a Forgejo role. Disabling or
-deleting a Linux account does not claim to revoke existing Forgejo sessions,
-tokens, keys, or repository access. Administrators handle those concerns in
-Forgejo itself.
+Forgejo administrator status is separate from Linux administrator status. Use
+Forgejo's own administration interface when a person needs a Forgejo role.
 
-### Understand the two destructive paths
+Before removing someone, follow [Data safety and removal](data-safety-and-removal.md).
+The supported **Remove person…** action deletes that person's local workspaces
+before deleting the primary Linux account last.
 
-Any primary user may choose **Remove** for a project. The confirmation names
-the project and permanently deletes all of its Soda-managed local workspace
-accounts, homes, clones, dependencies, project-local data, and uncommitted or
-unpushed work. The canonical repository is never deleted, and the catalog
-entry remains if local deletion fails.
+## Keep managed services private
 
-Only an administrator may choose **Remove person…**. The supported Soda-aware
-action permanently deletes that person's local workspace accounts and homes,
-then deletes the primary Linux account and home last. It does not delete the
-person's Forgejo account or any Forgejo or external repository.
+The managed entry points are:
 
-These actions do not provide archive, undo, rollback, or data recovery. Preserve
-or push anything valuable before confirming them.
+| Service | Port | Intended ingress |
+| --- | ---: | --- |
+| OpenSSH | 22 | Loopback and the Tailnet |
+| Stock Cockpit | 9090 | Loopback and the Tailnet |
+| Forgejo | 30000 | Loopback and the Tailnet |
 
-Do not confuse **Remove person…** with generic account deletion in Cockpit or
-`userdel`. Generic Linux deletion affects only the account explicitly selected;
-it does not cascade to Soda workspaces. Soda does not watch for that out-of-band
-change or repair the resulting state.
+Tailscale owns device membership and Tailnet access policy. Keep cloud security
+groups, router forwarding, and host policy aligned with this private access
+model.
 
-Read [Updates and recovery](updates-and-recovery.md) for operating-system image
-changes and [Projects and Git](projects-and-git.md) for project removal details.
+## Diagnose with native tools
 
-## Current implementation
+Start with the system that owns the failing behavior:
 
-The current image includes Fedora's stock Cockpit host pages, Soda branding,
-and the static Projects page. Root-required catalog and Linux changes pass
-through one narrowly authorized synchronous operation. It cannot run arbitrary
-commands or act as a general account, Forgejo, container, or filesystem API,
-and it retains no credential or background job state.
+```sh
+systemctl --failed
+systemctl status <unit>
+journalctl --boot --unit <unit>
+ss -ltnup
+df -h
+bootc status
+```
 
-The UI shows **Remove person…** only to a signed-in primary account whose
-Linux account is in `wheel`. Project removal requires the exact project ID;
-human removal requires the primary username to be entered twice. Both dialogs
-state that local data is permanently removed and that Forgejo or the canonical
-repository is left unchanged.
+Use Cockpit's stock pages for services, logs, storage, networking, and terminal
+access. Use Forgejo for repository and collaboration failures, Tailscale for
+private reachability, and OpenSSH diagnostics for remote-session failures.
 
-Code-level verification covers administrator authorization, validation before
-deletion, process and account removal, catalog-last project deletion,
-primary-last human deletion, and failure behavior. The complete multi-user and
-destructive-ordering scenarios have also passed on an installed native x86-64
-system; matching-native AArch64 repetition remains pending.
+## Back up mutable state
 
-One native x86-64 installation has exercised stock Cockpit authentication,
-its Fedora-owned administration pages, Projects discovery and setup, and
-workspace-account rejection. Matching-native AArch64 installed-system evidence
-for the same current path is pending.
+Operating-system image changes preserve machine-specific state, but they are
+not backups. Back up the data the team cannot reconstruct, including:
 
-Later-created primary users sign in to Forgejo through native PAM with their
-Linux username and password. Forgejo creates its ordinary native user on the
-first successful login. Linux `wheel` membership has no effect on Forgejo
-administration, and workspace accounts are rejected by the PAM policy.
+- unpushed workspace work and project-local data;
+- Forgejo repositories and mutable Forgejo state;
+- the Project catalog;
+- home-directory configuration and keys; and
+- other service data created by the team.
 
-Soda has no runtime administration daemon, general control CLI, or health API.
-Use stock Cockpit, `systemctl`, `journalctl`, and ordinary Linux tools for host
-inspection.
+Test that backups can be restored without depending on the running machine.
+Continue with [Updates and fallback](updates-and-fallback.md) for image changes.

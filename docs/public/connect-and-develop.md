@@ -1,97 +1,121 @@
-The Soda machine is where development runs; a laptop or other lightweight
-device is the interface. Developers connect with the same SSH-capable
-terminals, editors, file-transfer tools, and agents they already use.
+After selecting **Set up for me**, work directly in the resulting workspace
+with ordinary OpenSSH clients. The remote shell, editor server, commands,
+transfers, development agents, and project services run as the workspace's real
+Linux user on the Soda machine.
 
-You encounter this workflow after an administrator has enrolled the machine in
-the private network and after **Set up for me** has created your project
-workspace: a dedicated Linux account, home, and clone for you and that project.
+## Before you connect
 
-## Product contract
+You need:
 
-### Reach Soda through the Tailnet
+- a client device authorized on the Soda machine's Tailnet;
+- the private key matching a public key copied into the workspace;
+- the workspace username and SSH command shown on **Projects**; and
+- Tailnet policy that permits SSH access to the machine.
 
-A **Tailnet** is the private network created by Tailscale for an organization
-or group of devices. Soda OS assumes a trusted team reaches OpenSSH,
-**Cockpit** (Fedora's browser administration interface), **Forgejo** (the
-bundled Git hosting service), and other managed services through that network.
-Those services are not designed for direct exposure to the public Internet.
+The workspace has no login password. Public-key authentication is the normal
+direct access path.
 
-The owner controls Tailnet membership and policy. An administrator keeps the
-Soda machine enrolled. A developer connects from another authorized Tailnet
-device using the machine's Tailnet name or address.
+## Open a workspace shell
 
-### Connect to the workspace, not through a gateway
+Use the command shown for the workspace:
 
-After setup, the Projects page shows a command in this form:
-
-```text
-ssh <workspace-username>@<soda-tailnet-host>
+```sh
+ssh <workspace-user>@<soda-hostname>
 ```
 
-That is an ordinary OpenSSH login to a real Linux account. Soda adds no project
-selector, forced command, synthetic home, or SSH gateway. The same identity
-works with familiar SSH behavior, including:
+Confirm the remote identity and enter the clone:
 
-```text
-ssh <workspace-username>@<soda-tailnet-host> <command>
-scp <file> <workspace-username>@<soda-tailnet-host>:<destination>
-sftp <workspace-username>@<soda-tailnet-host>
+```sh
+id
+cd "$HOME/Projects/<repository>"
+git status
 ```
 
-SSH-capable editors and coding agents use the same host and workspace username.
-Interactive shells, non-interactive commands, editor processes, automation,
-SCP, and SFTP run as the workspace's actual Linux user in its real home.
+Commands run directly as the workspace user. There is no forced Soda command,
+synthetic home, or intermediate session service.
 
-The SSH public keys copied during setup authorize access to the Soda
-workspace. Outbound Git authentication is separate. A key that lets you enter
-the workspace does not automatically give that workspace access to GitHub,
-Forgejo, or another repository host. Use an ordinary Git method that suits the
-host and project; Soda does not choose one or retain credentials.
+## Run commands and automation
 
-### Use the installed tools or add project-local ones
+Ordinary non-interactive SSH behavior remains available:
 
-Soda's image includes a broad reviewed set of language runtimes, compilers,
-build systems, Git and SSH clients, container tools, data and network
-utilities, archive tools, and terminal editors. They are normal commands on
-`PATH`, available to primary and workspace accounts.
+```sh
+ssh <workspace-user>@<soda-hostname> 'cd "$HOME/Projects/<repository>" && make test'
+```
 
-Project-specific packages, virtual environments, language caches, and
-dependencies belong in the workspace home or repository. Soda does not have a
-runtime toolchain downloader, version profile, or readiness database.
+Scripts and automation can use the same OpenSSH options, host aliases, agents,
+and key selection used with other Linux servers. Process ownership on the Soda
+machine remains attributable to the workspace Linux user.
 
-### Coordinate ports on the shared host
+## Transfer files
 
-Workspace accounts separate files and processes, not the network stack. Two
-development servers cannot listen on the same host address and port at the
-same time. The team or project must choose non-conflicting ports.
+Use SCP for direct copies:
 
-Rootless Podman, Buildah, and Skopeo are available as ordinary tools. Podman is
-optional; Soda does not use it to create workspaces and does not manage
-containers or project networks.
+```sh
+scp ./notes.txt <workspace-user>@<soda-hostname>:Projects/<repository>/
+```
 
-See [Accounts and workspaces](accounts-and-workspaces.md) for the identity and
-key model or [Projects and Git](projects-and-git.md) for initial setup.
+Use SFTP for interactive or graphical file transfer:
 
-## Current implementation
+```sh
+sftp <workspace-user>@<soda-hostname>
+```
 
-The current fixed ingress rules allow managed TCP services only from the local
-machine and the Tailscale interface: OpenSSH on port 22, stock Cockpit on port
-9090, and Forgejo on port 30000. Other interfaces are rejected for those
-ports. Forgejo advertises SSH clone URLs through OpenSSH on port 22 rather than
-running a second embedded SSH server.
+Files created through either protocol receive ordinary Linux ownership and
+permissions inside the workspace.
 
-The installed command list currently includes Go, Python, uv, Rust, Node.js,
-Bun, C and C++ tools, Git, Git LFS, GitHub CLI, OpenSSH tools, Podman, Buildah,
-Skopeo, SQLite, common data, network, and archive utilities, and terminal
-editors. These are immutable image contents, not a promise of on-demand latest
-versions.
+## Connect an editor or coding agent
 
-One native x86-64 installation has exercised a direct attributed workspace
-command, the installed command set, and rootless Podman. Earlier focused
-installed evidence also covered an interactive shell, SCP, SFTP, and password
-rejection. The consolidated installed transport scenarios and full
-multi-user acceptance are not yet complete.
+Configure the editor's standard SSH remote feature with the workspace username
+and Soda Tailnet hostname. Open the repository directory under
+`$HOME/Projects/<repository>` after the connection succeeds.
 
-The same installed-product path has not yet been verified on matching-native
-AArch64 hardware. There is also no public Soda OS release to connect to unless
-an owner is working with locally built pre-release artifacts.
+Editor helpers, language servers, terminals, debuggers, and coding agents run
+inside the workspace. Their files, caches, sockets, and processes belong to
+that workspace account rather than to the primary account or another
+developer's workspace.
+
+## Keep inbound SSH and outbound Git separate
+
+The authorized key copied during setup permits inbound SSH to the workspace.
+It does not automatically authenticate outbound Git commands.
+
+For `git fetch`, `git pull`, and `git push`, use the canonical host's ordinary
+authentication:
+
+- forward an SSH agent when appropriate;
+- use the private Tea configuration copied for the same human; or
+- configure a provider credential privately in the workspace.
+
+Soda does not retain or synchronize Git credentials. Repository access and
+collaboration remain owned by Forgejo or the external Git provider.
+
+## Use the installed development tools
+
+Soda includes a broad reviewed collection of language runtimes and development
+tools in the operating-system image. Use ordinary project conventions for
+additional packages, version-specific dependencies, virtual environments, and
+user-local configuration.
+
+Each workspace has a separate home, so one project's dependencies and caches
+do not overwrite another project's user-local state.
+
+Rootless Podman is available when a project benefits from containers. It is an
+optional developer tool, not the mechanism that creates or owns Soda
+workspaces.
+
+## Choose project ports deliberately
+
+Workspace accounts share the host network. Projects choose non-conflicting
+ports for development servers, databases, and other listeners. When a bind
+fails with `address already in use`, inspect the native host state:
+
+```sh
+ss -ltnup
+```
+
+Coordinate long-lived ports with the trusted team. Soda does not allocate,
+proxy, or namespace project ports.
+
+For the ownership and trust boundary behind this workflow, read
+[Product model](product-model.md). For host-level work, use
+[Administration](administration.md).
