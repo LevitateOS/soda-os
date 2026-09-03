@@ -318,6 +318,7 @@ func (b *Builder) rpmbuild(ctx context.Context, name string) error {
 	spec := "packaging/rpm/" + strings.TrimPrefix(name, "soda-") + "/" + name + ".spec"
 	command := b.dockerCommand([]string{"SOURCE_DATE_EPOCH=" + epoch}, "rpmbuild", "-bb",
 		"--define", "_topdir /src/.artifacts/rpmbuild",
+		"--define", "soda_version "+b.Spec.Identity.Version,
 		"--define", "_source_date_epoch "+epoch,
 		"--define", "use_source_date_epoch_as_buildtime 1",
 		"--define", "_buildhost soda-builder",

@@ -18,6 +18,7 @@ check:
     sh -n tests/acceptance/internal/bootc.sh
     tests/acceptance/unattended.sh --help >/dev/null
     ./scripts/check-complexity.sh
+	./scripts/check-release-identity.sh
     node --test cockpit/soda-projects/*.test.mjs
     go vet ./...
     go test ./...
