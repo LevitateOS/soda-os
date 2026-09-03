@@ -300,7 +300,7 @@ func writeUploadArtifacts(t *testing.T, spec config.DistroSpec, revision string)
 	require.NoError(t, err)
 	require.NoError(t, os.WriteFile(iso+".sha256", []byte(digest+"  "+filepath.Base(iso)+"\n"), 0o644))
 	record := Record{
-		SchemaVersion:       2,
+		SchemaVersion:       3,
 		SodaVersion:         spec.Identity.Version,
 		SourceRevision:      revision,
 		Platform:            spec.Base.Platform,
@@ -309,6 +309,8 @@ func writeUploadArtifacts(t *testing.T, spec config.DistroSpec, revision string)
 		SodaImageReference:  Repository + "@sha256:" + strings.Repeat("a", 64),
 		RPMInventorySHA256:  strings.Repeat("b", 64),
 		ISOChecksum:         digest,
+		QCOW2Checksum:       strings.Repeat("d", 64),
+		QCOW2ZSTChecksum:    strings.Repeat("e", 64),
 	}
 	recordPath := filepath.Join(directory, "soda-os-"+spec.Identity.Version+"-"+spec.Platform.Release.Channel+".release.json")
 	encoded, err := json.Marshal(record)

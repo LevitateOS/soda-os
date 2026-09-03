@@ -28,7 +28,7 @@ func (p *Publisher) inspect(img v1.Image, exactReference string) (Record, error)
 	if err != nil {
 		return Record{}, err
 	}
-	return Record{SchemaVersion: 2, SodaVersion: p.spec.Identity.Version, SourceRevision: revision, Platform: p.spec.Base.Platform, Channel: p.spec.Platform.Release.Channel, FedoraBaseReference: p.spec.Base.Reference, SodaImageReference: exactReference, RPMInventorySHA256: inventoryDigest}, nil
+	return Record{SchemaVersion: 3, SodaVersion: p.spec.Identity.Version, SourceRevision: revision, Platform: p.spec.Base.Platform, Channel: p.spec.Platform.Release.Channel, FedoraBaseReference: p.spec.Base.Reference, SodaImageReference: exactReference, RPMInventorySHA256: inventoryDigest}, nil
 }
 
 func (p *Publisher) inspectImageIdentity(configFile *v1.ConfigFile) (string, error) {
@@ -210,6 +210,30 @@ func sha256Hex(value []byte) string {
 func regularFile(path string) bool {
 	info, err := os.Stat(path)
 	return err == nil && info.Mode().IsRegular()
+}
+
+func inspectQCOW2Artifacts(rawPath, compressedPath string) (string, string, error) {
+	if filepath.Ext(rawPath) != ".qcow2" || filepath.Ext(compressedPath) != ".zst" || strings.TrimSuffix(compressedPath, ".zst") != rawPath {
+		return "", "", errors.New("release record QCOW2 paths must be a raw .qcow2 and its .qcow2.zst download")
+	}
+	for _, item := range []struct{ label, path string }{{"raw QCOW2", rawPath}, {"compressed QCOW2", compressedPath}, {"compressed QCOW2 checksum", compressedPath + ".sha256"}} {
+		info, err := os.Lstat(item.path)
+		if err != nil || !info.Mode().IsRegular() {
+			return "", "", fmt.Errorf("%s %q must be a regular non-symlink file", item.label, item.path)
+		}
+	}
+	rawChecksum, err := fileSHA256(rawPath)
+	if err != nil {
+		return "", "", fmt.Errorf("checksum raw QCOW2: %w", err)
+	}
+	compressedChecksum, err := fileSHA256(compressedPath)
+	if err != nil {
+		return "", "", fmt.Errorf("checksum compressed QCOW2: %w", err)
+	}
+	if err := validateSidecar(compressedPath+".sha256", compressedChecksum, filepath.Base(compressedPath)); err != nil {
+		return "", "", fmt.Errorf("validate compressed QCOW2 checksum: %w", err)
+	}
+	return rawChecksum, compressedChecksum, nil
 }
 
 func hexadecimal(value string) bool {

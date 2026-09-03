@@ -141,7 +141,7 @@ func writeInstallerInputRecord(t *testing.T, path, platform, iso string) {
 	require.NoError(t, err)
 	digest := sha256.Sum256(contents)
 	record, err := json.Marshal(map[string]any{
-		"schema_version": 2,
+		"schema_version": 3,
 		"platform":       platform,
 		"iso_sha256":     hex.EncodeToString(digest[:]),
 	})

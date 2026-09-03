@@ -46,5 +46,8 @@ builder-tools architecture:
 iso architecture archive:
     go run ./cmd/soda-image --architecture {{quote(architecture)}} iso --archive {{quote(archive)}}
 
-record architecture archive iso:
-    go run ./cmd/soda-image --architecture {{quote(architecture)}} record --archive {{quote(archive)}} --iso {{quote(iso)}}
+qcow2 architecture archive:
+    go run ./cmd/soda-image --architecture {{quote(architecture)}} qcow2 --archive {{quote(archive)}}
+
+record architecture archive iso qcow2 qcow2_zst:
+    go run ./cmd/soda-image --architecture {{quote(architecture)}} record --archive {{quote(archive)}} --iso {{quote(iso)}} --qcow2 {{quote(qcow2)}} --qcow2-zst {{quote(qcow2_zst)}}

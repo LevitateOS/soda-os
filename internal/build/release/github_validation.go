@@ -79,13 +79,13 @@ func inspectLocalAssets(paths []string) ([]localAsset, error) {
 }
 
 func validatePublicationRecord(record Record, spec config.DistroSpec, revision string) error {
-	if record.SchemaVersion != 2 || record.SodaVersion != spec.Identity.Version || record.SourceRevision != revision {
+	if record.SchemaVersion != 3 || record.SodaVersion != spec.Identity.Version || record.SourceRevision != revision {
 		return errors.New("release record identity differs from the clean Soda source revision")
 	}
 	if record.Platform != spec.Base.Platform || record.Channel != spec.Platform.Release.Channel || record.FedoraBaseReference != spec.Base.Reference {
 		return errors.New("release record platform differs from the selected Soda architecture")
 	}
-	if !isSodaDigestReference(record.SodaImageReference) || !validHexadecimal(record.RPMInventorySHA256, 64) || !validHexadecimal(record.ISOChecksum, 64) {
+	if !isSodaDigestReference(record.SodaImageReference) || !validHexadecimal(record.RPMInventorySHA256, 64) || !validHexadecimal(record.ISOChecksum, 64) || !validHexadecimal(record.QCOW2Checksum, 64) || !validHexadecimal(record.QCOW2ZSTChecksum, 64) {
 		return errors.New("release record contains invalid image or checksum provenance")
 	}
 	return nil

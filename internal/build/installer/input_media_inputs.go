@@ -104,7 +104,7 @@ func readInstallerInputReleaseRecord(path string) (installerInputReleaseRecord, 
 }
 
 func validateInstallerInputReleaseRecord(record installerInputReleaseRecord, expectedPlatform string) error {
-	if record.SchemaVersion != 2 {
+	if record.SchemaVersion != 3 {
 		return errors.New("installer release record schema is not supported")
 	}
 	if record.Platform != expectedPlatform {

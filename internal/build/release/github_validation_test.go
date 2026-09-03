@@ -66,7 +66,7 @@ func TestUploadArtifactValidationRejectsUnsafeFilesAndSidecars(t *testing.T) {
 func TestPublicationRecordRequiresExactIdentityAndProvenance(t *testing.T) {
 	spec := testArmPublicationSpec()
 	valid := Record{
-		SchemaVersion:       2,
+		SchemaVersion:       3,
 		SodaVersion:         spec.Identity.Version,
 		SourceRevision:      testRevision,
 		Platform:            spec.Base.Platform,
@@ -75,6 +75,8 @@ func TestPublicationRecordRequiresExactIdentityAndProvenance(t *testing.T) {
 		SodaImageReference:  Repository + "@sha256:" + strings.Repeat("a", 64),
 		RPMInventorySHA256:  strings.Repeat("b", 64),
 		ISOChecksum:         strings.Repeat("c", 64),
+		QCOW2Checksum:       strings.Repeat("d", 64),
+		QCOW2ZSTChecksum:    strings.Repeat("e", 64),
 	}
 	require.NoError(t, validatePublicationRecord(valid, spec, testRevision))
 
@@ -88,8 +90,10 @@ func TestPublicationRecordRequiresExactIdentityAndProvenance(t *testing.T) {
 		"image reference": func(record *Record) {
 			record.SodaImageReference = "example.invalid/image@sha256:" + strings.Repeat("a", 64)
 		},
-		"RPM checksum": func(record *Record) { record.RPMInventorySHA256 = "invalid" },
-		"ISO checksum": func(record *Record) { record.ISOChecksum = "invalid" },
+		"RPM checksum":              func(record *Record) { record.RPMInventorySHA256 = "invalid" },
+		"ISO checksum":              func(record *Record) { record.ISOChecksum = "invalid" },
+		"raw QCOW2 checksum":        func(record *Record) { record.QCOW2Checksum = "invalid" },
+		"compressed QCOW2 checksum": func(record *Record) { record.QCOW2ZSTChecksum = "invalid" },
 	}
 	for name, mutate := range mutations {
 		t.Run(name, func(t *testing.T) {
