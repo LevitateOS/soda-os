@@ -67,6 +67,8 @@ type PlatformBase struct {
 type PlatformBuilder struct {
 	BaseReference   string `toml:"base_reference"`
 	PackageLock     string `toml:"package_lock"`
+	GoVersion       string `toml:"go_version"`
+	GoURL           string `toml:"go_url"`
 	GoArchive       string `toml:"go_archive"`
 	GoArchiveSHA256 string `toml:"go_archive_sha256"`
 }
@@ -146,7 +148,8 @@ func validPlatformBase(spec PlatformBase) bool {
 }
 
 func validPlatformBuild(builder PlatformBuilder) bool {
-	return builder.BaseReference != "" && builder.PackageLock != "" && builder.GoArchive != "" && len(builder.GoArchiveSHA256) == 64
+	return builder.BaseReference != "" && builder.PackageLock != "" && builder.GoVersion != "" && builder.GoURL != "" &&
+		builder.GoArchive != "" && len(builder.GoArchiveSHA256) == 64
 }
 
 func validPlatformInstaller(installer PlatformInstaller, release PlatformRelease, artifactArchitecture string) bool {

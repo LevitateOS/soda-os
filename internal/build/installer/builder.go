@@ -58,11 +58,8 @@ func (b *Builder) ValidateISO(ctx context.Context, isoPath, reference, installer
 	if !regularFile(isoPath) || !regularFile(installerArchive) || !regularFile(toolLockPath) {
 		return "", errors.New("ISO validation requires the ISO, installer environment archive, and image-builder lock")
 	}
-	var lock toolLock
-	if _, err := toml.DecodeFile(toolLockPath, &lock); err != nil {
-		return "", fmt.Errorf("read image-builder lock: %w", err)
-	}
-	if err := validateToolLock(lock, b.Spec.Platform); err != nil {
+	lock, err := readToolLock(toolLockPath, b.Spec.Platform)
+	if err != nil {
 		return "", err
 	}
 	return b.inspectISOArtifact(ctx, isoPath, reference, installerArchive, lock)
@@ -315,27 +312,29 @@ func (b *Builder) validate(options Options) (toolLock, error) {
 	if b.Spec.Identity.Hostname != "soda" {
 		return toolLock{}, errors.New("installer default hostname must be soda")
 	}
+	return readToolLock(options.ToolLock, b.Spec.Platform)
+}
+
+func readToolLock(path string, platform config.PlatformSpec) (toolLock, error) {
 	var lock toolLock
-	if _, err := toml.DecodeFile(options.ToolLock, &lock); err != nil {
+	metadata, err := toml.DecodeFile(path, &lock)
+	if err != nil {
 		return toolLock{}, fmt.Errorf("read image-builder lock: %w", err)
 	}
-	if err := validateToolLock(lock, b.Spec.Platform); err != nil {
+	if len(metadata.Undecoded()) != 0 {
+		return toolLock{}, errors.New("image-builder lock contains unknown fields")
+	}
+	if err := validateToolLock(lock, platform); err != nil {
 		return toolLock{}, err
 	}
 	return lock, nil
 }
 
 func validateToolLock(lock toolLock, platform config.PlatformSpec) error {
-	if lock.Version != "81.0.0" || lock.Commit != "3130fb87ee1f684b6e9d1909f354861c43d7a092" ||
-		lock.Platform != platform.Architecture.Platform {
-		return errors.New("image-builder lock differs from the selected platform tool")
-	}
-	wantReference := map[string]string{
-		"aarch64": "ghcr.io/osbuild/image-builder@sha256:704dc05d6033799248a33c415f7f7253ec20b40f0b2bff03b06d8687179e058a",
-		"x86_64":  "ghcr.io/osbuild/image-builder@sha256:9ce9e1452483e3642f0e6d67ce522f71d1f1c6a45280dd09a16b90d63dfea9b7",
-	}[platform.Architecture.Name]
-	if lock.Reference != wantReference {
-		return errors.New("image-builder digest differs from the reviewed platform tool")
+	validReference := regexp.MustCompile(`^ghcr\.io/osbuild/image-builder@sha256:[0-9a-f]{64}$`).MatchString(lock.Reference)
+	if !regexp.MustCompile(`^[0-9]+\.[0-9]+\.[0-9]+$`).MatchString(lock.Version) ||
+		!regexp.MustCompile(`^[0-9a-f]{40}$`).MatchString(lock.Commit) || lock.Platform != platform.Architecture.Platform || !validReference {
+		return errors.New("image-builder lock is incomplete or invalid for the selected platform")
 	}
 	return nil
 }

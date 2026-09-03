@@ -224,12 +224,12 @@ func TestForgejoPackagingContract(t *testing.T) {
 func TestForgejoPAMPatchContract(t *testing.T) {
 	root := filepath.Join("..", "..", "..")
 	forgejoRoot := filepath.Join(root, "packaging", "rpm", "forgejo")
-	sourceLock, err := os.ReadFile(filepath.Join(root, "distro", "locks", "forgejo-source.toml"))
+	lock, err := readForgejoSourceLock(filepath.Join(root, "distro", "locks", "forgejo-source.toml"))
 	require.NoError(t, err)
-	require.Contains(t, string(sourceLock), `version = "15.0.7"`)
-	require.Contains(t, string(sourceLock), `sha256 = "`+forgejoSourceSHA256+`"`)
-	require.Contains(t, string(sourceLock), `patch_sha256 = "`+forgejoPatchSHA256+`"`)
-	require.Contains(t, string(sourceLock), `build_tags = "bindata timetzdata sqlite sqlite_unlock_notify pam"`)
+	require.Equal(t, "forgejo-src-"+lock.Version+".tar.gz", lock.SourceArchive)
+	require.True(t, validSHA256(lock.SHA256))
+	require.True(t, validSHA256(lock.PatchSHA256))
+	require.Contains(t, lock.BuildTags, "pam")
 
 	buildPipeline, err := os.ReadFile("rpm.go")
 	require.NoError(t, err)
@@ -239,7 +239,7 @@ func TestForgejoPAMPatchContract(t *testing.T) {
 	require.Contains(t, string(buildPipeline), `git apply --unidiff-zero /src/packaging/rpm/forgejo/sources/patches/0001-pam-do-not-retain-password.patch`)
 	require.Contains(t, string(buildPipeline), `! grep -F 'Passwd:      password' services/auth/source/pam/source_authenticate.go`)
 	require.Contains(t, string(buildPipeline), `go test ./services/auth/source/pam`)
-	require.Contains(t, string(buildPipeline), `TAGS='bindata timetzdata sqlite sqlite_unlock_notify pam' make backend`)
+	require.Contains(t, string(buildPipeline), `TAGS='" + lock.BuildTags + "' make backend`)
 
 	patch, err := os.ReadFile(filepath.Join(forgejoRoot, "sources", "patches", "0001-pam-do-not-retain-password.patch"))
 	require.NoError(t, err)

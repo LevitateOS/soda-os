@@ -48,14 +48,24 @@ func TestStageBunSourceUsesLockedNativeAsset(t *testing.T) {
 			archiveDigest := sha256.Sum256(archiveBytes)
 
 			lock := fmt.Sprintf(`version = "1.4.0"
+license_url = "https://example.invalid/LICENSE"
+license_upstream_sha256 = "%064x"
 license_sha256 = "%x"
+checksum_manifest_url = "https://example.invalid/SHASUMS256.txt"
+checksum_manifest_sha256 = "%064x"
 
-[asset.%s]
+[asset.x86_64]
 archive = "bun-test.zip"
-member = "%s"
+member = "bun-linux-x64-baseline/bun"
 url = "https://example.invalid/bun.zip"
 sha256 = "%x"
-`, licenseDigest, test.architecture, test.member, archiveDigest)
+
+[asset.aarch64]
+archive = "bun-test.zip"
+member = "bun-linux-aarch64/bun"
+url = "https://example.invalid/bun.zip"
+sha256 = "%x"
+`, 1, licenseDigest, 2, archiveDigest, archiveDigest)
 			require.NoError(t, os.WriteFile(filepath.Join(root, "distro", "locks", "bun-source.toml"), []byte(lock), 0o644))
 
 			sources := t.TempDir()

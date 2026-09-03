@@ -88,38 +88,31 @@ func (b *Builder) buildProductBinaries(ctx context.Context, revision string) err
 	return b.buildTea(ctx)
 }
 
-const (
-	forgejoVersion      = "15.0.7"
-	forgejoSourceSHA256 = "e11490f52542104651d81cfa7a23376a4c005397499e6dc1a7850e2fb8176ad6"
-	forgejoPatchSHA256  = "a4920d964f9a32ffc950dfbaeea8120dbd21d04f0a0f6cc77f8d0e75cd5cbd9e"
-)
-
 func (b *Builder) buildForgejo(ctx context.Context) error {
-	archive := b.artifactPath("tools", "forgejo-src-"+forgejoVersion+".tar.gz")
-	contents, err := os.ReadFile(archive)
+	lock, err := readForgejoSourceLock(b.path("distro/locks/forgejo-source.toml"))
 	if err != nil {
-		return fmt.Errorf("pinned Forgejo source is missing; run just forgejo-source: %w", err)
+		return err
 	}
-	hash := sha256.Sum256(contents)
-	if hex.EncodeToString(hash[:]) != forgejoSourceSHA256 {
-		return errors.New("Forgejo source archive checksum differs from the distribution contract")
+	archive := b.artifactPath("tools", lock.SourceArchive)
+	if err := verifyFileSHA256(archive, lock.SHA256); err != nil {
+		return fmt.Errorf("verify Forgejo source; run just forgejo-source: %w", err)
 	}
 	patch := b.path("packaging/rpm/forgejo/sources/patches/0001-pam-do-not-retain-password.patch")
-	if err = verifyFileSHA256(patch, forgejoPatchSHA256); err != nil {
+	if err = verifyFileSHA256(patch, lock.PatchSHA256); err != nil {
 		return fmt.Errorf("verify Forgejo PAM patch: %w", err)
 	}
 	script := strings.Join([]string{
 		"set -eu",
 		"rm -rf /src/.artifacts/build/forgejo-source",
 		"mkdir -p /src/.artifacts/build/forgejo-source /src/.artifacts/build/forgejo-go-cache /src/.artifacts/build/forgejo-go-tmp",
-		"tar -xzf /src/.artifacts/tools/forgejo-src-" + forgejoVersion + ".tar.gz -C /src/.artifacts/build/forgejo-source --strip-components=1",
+		"tar -xzf /src/.artifacts/tools/" + lock.SourceArchive + " -C /src/.artifacts/build/forgejo-source --strip-components=1",
 		"cd /src/.artifacts/build/forgejo-source",
 		"git apply --unidiff-zero /src/packaging/rpm/forgejo/sources/patches/0001-pam-do-not-retain-password.patch",
 		"! grep -F 'Passwd:      password' services/auth/source/pam/source_authenticate.go",
 		"go test ./services/auth/source/pam",
-		"TAGS='bindata timetzdata sqlite sqlite_unlock_notify pam' make backend",
+		"TAGS='" + lock.BuildTags + "' make backend",
 		"install -m 0755 gitea /src/.artifacts/build/forgejo",
-		"/src/.artifacts/build/forgejo --version | grep -F ': bindata, timetzdata, sqlite, sqlite_unlock_notify, pam'",
+		"/src/.artifacts/build/forgejo --version | grep -F ': " + strings.ReplaceAll(lock.BuildTags, " ", ", ") + "'",
 	}, "\n")
 	return b.docker(ctx, []string{
 		"CGO_ENABLED=1",
@@ -285,16 +278,16 @@ func (b *Builder) buildContainer(ctx context.Context) error {
 	goArchive := b.path(b.Spec.Platform.Builder.GoArchive)
 	contents, err := os.ReadFile(goArchive)
 	if err != nil {
-		return fmt.Errorf("pinned Go 1.27 builder input is missing; run just builder-tools %s: %w", b.Spec.Platform.Architecture.Name, err)
+		return fmt.Errorf("pinned Go builder input is missing; run just builder-tools %s: %w", b.Spec.Platform.Architecture.Name, err)
 	}
 	hash := sha256.Sum256(contents)
 	if hex.EncodeToString(hash[:]) != b.Spec.Platform.Builder.GoArchiveSHA256 {
-		return errors.New("Go 1.27 builder archive checksum differs from the selected platform contract")
+		return errors.New("Go builder archive checksum differs from the selected platform contract")
 	}
 	if err := copyFile(goArchive, b.artifactPath("builder", "go.tar.gz")); err != nil {
-		return fmt.Errorf("stage Go 1.27 builder toolchain: %w", err)
+		return fmt.Errorf("stage Go builder toolchain: %w", err)
 	}
-	return b.runner.Run(ctx, process.Command{Dir: b.Root, Name: "docker", Args: []string{"build", "--quiet", "--platform", b.Spec.Base.Platform, "--build-arg", "BUILDER_BASE_REFERENCE=" + b.Spec.Platform.Builder.BaseReference, "--file", "packaging/builder/Containerfile", "--tag", b.builderTag(), "."}})
+	return b.runner.Run(ctx, process.Command{Dir: b.Root, Name: "docker", Args: []string{"build", "--quiet", "--platform", b.Spec.Base.Platform, "--build-arg", "BUILDER_BASE_REFERENCE=" + b.Spec.Platform.Builder.BaseReference, "--build-arg", "GO_VERSION=" + b.Spec.Platform.Builder.GoVersion, "--file", "packaging/builder/Containerfile", "--tag", b.builderTag(), "."}})
 }
 
 func (b *Builder) docker(ctx context.Context, environment []string, name string, args ...string) error {

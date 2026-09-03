@@ -4,13 +4,9 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"regexp"
 
 	"github.com/BurntSushi/toml"
-)
-
-const (
-	teaVersion = "0.15.1"
-	teaCommit  = "f34697c5ed65928e265d6f48e16928819ce0f332"
 )
 
 type teaSourceLock struct {
@@ -23,6 +19,8 @@ type teaSourceLock struct {
 	LicenseURL    string `toml:"license_url"`
 	LicenseSHA256 string `toml:"license_sha256"`
 }
+
+var semanticVersionPattern = regexp.MustCompile(`^[0-9]+\.[0-9]+\.[0-9]+$`)
 
 func (b *Builder) stageTeaSource(sources string) error {
 	lock, err := readTeaSourceLock(b.path("distro/locks/tea-source.toml"))
@@ -59,7 +57,7 @@ func readTeaSourceLock(path string) (teaSourceLock, error) {
 }
 
 func (lock teaSourceLock) validate() error {
-	valid := lock.Version == teaVersion && lock.Commit == teaCommit &&
+	valid := semanticVersionPattern.MatchString(lock.Version) && validGitCommit(lock.Commit) &&
 		filepath.Base(lock.SourceArchive) == lock.SourceArchive && filepath.Ext(lock.SourceArchive) == ".gz" &&
 		lock.SourceURL != "" && validSHA256(lock.SourceSHA256) && validSHA256(lock.PatchSHA256) &&
 		lock.LicenseURL != "" && validSHA256(lock.LicenseSHA256)
@@ -67,4 +65,8 @@ func (lock teaSourceLock) validate() error {
 		return errors.New("Tea source lock differs from the selected source contract")
 	}
 	return nil
+}
+
+func validGitCommit(value string) bool {
+	return len(value) == 40 && regexp.MustCompile(`^[0-9a-f]{40}$`).MatchString(value)
 }

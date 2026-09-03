@@ -14,12 +14,14 @@ import (
 	"github.com/BurntSushi/toml"
 )
 
-const bunVersion = "1.4.0"
-
 type bunSourceLock struct {
-	Version       string                    `toml:"version"`
-	LicenseSHA256 string                    `toml:"license_sha256"`
-	Asset         map[string]bunSourceAsset `toml:"asset"`
+	Version                string                    `toml:"version"`
+	LicenseURL             string                    `toml:"license_url"`
+	LicenseUpstreamSHA256  string                    `toml:"license_upstream_sha256"`
+	LicenseSHA256          string                    `toml:"license_sha256"`
+	ChecksumManifestURL    string                    `toml:"checksum_manifest_url"`
+	ChecksumManifestSHA256 string                    `toml:"checksum_manifest_sha256"`
+	Asset                  map[string]bunSourceAsset `toml:"asset"`
 }
 
 type bunSourceAsset struct {
@@ -32,12 +34,16 @@ type bunSourceAsset struct {
 func (b *Builder) stageBunSource(sources string) error {
 	var lock bunSourceLock
 	lockPath := b.path("distro/locks/bun-source.toml")
-	if _, err := toml.DecodeFile(lockPath, &lock); err != nil {
+	metadata, err := toml.DecodeFile(lockPath, &lock)
+	if err != nil {
 		return fmt.Errorf("read Bun source lock: %w", err)
 	}
+	if len(metadata.Undecoded()) != 0 {
+		return errors.New("Bun source lock contains unknown fields")
+	}
 	asset, ok := lock.Asset[b.Spec.Platform.Architecture.Name]
-	if lock.Version != bunVersion || !ok || !validBunAsset(asset) || !validSHA256(lock.LicenseSHA256) {
-		return errors.New("Bun source lock differs from the selected architecture contract")
+	if !validBunSourceLock(lock, b.Spec.Platform.Architecture.Name) || !ok || !validBunAsset(asset) {
+		return errors.New("Bun source lock is incomplete or invalid for the selected architecture")
 	}
 	license := b.path("packaging/rpm/bun/sources/LICENSE.md")
 	if err := verifyFileSHA256(license, lock.LicenseSHA256); err != nil {
@@ -51,6 +57,18 @@ func (b *Builder) stageBunSource(sources string) error {
 		return fmt.Errorf("extract Bun source: %w", err)
 	}
 	return copyFile(license, filepath.Join(sources, "LICENSE.md"))
+}
+
+func validBunSourceLock(lock bunSourceLock, architecture string) bool {
+	if !semanticVersionPattern.MatchString(lock.Version) || lock.LicenseURL == "" || lock.ChecksumManifestURL == "" ||
+		!validSHA256(lock.LicenseUpstreamSHA256) || !validSHA256(lock.LicenseSHA256) || !validSHA256(lock.ChecksumManifestSHA256) {
+		return false
+	}
+	if len(lock.Asset) != 2 || !validBunAsset(lock.Asset["x86_64"]) || !validBunAsset(lock.Asset["aarch64"]) {
+		return false
+	}
+	_, ok := lock.Asset[architecture]
+	return ok
 }
 
 func validBunAsset(asset bunSourceAsset) bool {

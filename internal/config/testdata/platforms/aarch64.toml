@@ -17,6 +17,8 @@ runtime_package_lock = "distro/locks/runtime-aarch64.toml"
 [builder]
 base_reference = "registry.fedoraproject.org/fedora@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 package_lock = "distro/locks/builder-aarch64.toml"
+go_version = "go1.27.0"
+go_url = "https://go.dev/dl/go1.27.0.linux-arm64.tar.gz"
 go_archive = ".artifacts/tools/go1.27.0.linux-arm64.tar.gz"
 go_archive_sha256 = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 

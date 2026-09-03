@@ -1,8 +1,6 @@
 #!/bin/sh
 set -eu
 
-version=go1.27.0
-
 if [ "$#" -ne 1 ]; then
   echo "usage: $0 aarch64|x86_64" >&2
   exit 2
@@ -10,18 +8,52 @@ fi
 
 case "$1:$(uname -m)" in
   x86_64:x86_64|x86_64:amd64)
-    architecture=amd64
-    expected=675c26c449cbb18fc24b74650de1eabbae6e16f64326fd85a283fb3b58280685
+    platform=x86_64
     ;;
   aarch64:aarch64|aarch64:arm64)
-    architecture=arm64
-    expected=51798d2c42d0e1c6ed7fd9f48728b4193abac9e8aad6dbac2fe96a81f5909bda
+    platform=aarch64
     ;;
   *)
     echo "Go builder inputs for $1 require matching-native hardware" >&2
     exit 1
     ;;
 esac
+
+repo_root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd -P)
+lock="$repo_root/distro/platforms/$platform.toml"
+
+builder_value() {
+  key=$1
+  awk -v key="$key" '
+    /^\[builder\]$/ { in_builder = 1; next }
+    in_builder && /^\[/ { exit }
+    in_builder && $0 ~ "^" key "[[:space:]]*=" {
+      sub(/^[^=]*=[[:space:]]*"/, "")
+      sub(/"[[:space:]]*$/, "")
+      print
+      exit
+    }
+  ' "$lock"
+}
+
+version=$(builder_value go_version)
+url=$(builder_value go_url)
+archive=$(builder_value go_archive)
+expected=$(builder_value go_archive_sha256)
+for value in "$version" "$url" "$archive" "$expected"; do
+  if [ -z "$value" ]; then
+    echo "builder platform lock is incomplete for $platform" >&2
+    exit 1
+  fi
+done
+case "$archive" in
+  .artifacts/tools/*.tar.gz) ;;
+  *) echo "builder platform lock contains an invalid Go archive path" >&2; exit 1 ;;
+esac
+if ! printf '%s\n' "$expected" | grep -Eq '^[0-9a-f]{64}$'; then
+  echo "builder platform lock contains an invalid Go checksum" >&2
+  exit 1
+fi
 
 checksum() {
   if command -v sha256sum >/dev/null 2>&1; then
@@ -35,20 +67,18 @@ checksum() {
 }
 
 fetch_toolchain() {
-  architecture=$1
-  expected=$2
-  output=".artifacts/tools/${version}.linux-${architecture}.tar.gz"
+  output="$repo_root/$archive"
   if [ -f "$output" ] && [ "$(checksum "$output")" = "$expected" ]; then
     return
   fi
   mkdir -p "$(dirname "$output")"
-  curl --fail --location --output "$output.tmp" "https://go.dev/dl/${version}.linux-${architecture}.tar.gz"
+  curl --fail --location --output "$output.tmp" "$url"
   actual=$(checksum "$output.tmp")
   if [ "$actual" != "$expected" ]; then
-    echo "Go toolchain checksum mismatch for linux/$architecture: got $actual, expected $expected" >&2
+    echo "Go toolchain checksum mismatch for $platform: got $actual, expected $expected" >&2
     exit 1
   fi
   mv "$output.tmp" "$output"
 }
 
-fetch_toolchain "$architecture" "$expected"
+fetch_toolchain
