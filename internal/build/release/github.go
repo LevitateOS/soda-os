@@ -194,7 +194,8 @@ func (p *Publication) Publish(ctx context.Context, options PublishOptions) (Publ
 	if err != nil {
 		return PublicationResult{}, err
 	}
-	if err := p.verifySignedRecords(ctx, revision, options); err != nil {
+	records, err := p.verifySignedRecords(ctx, revision, options)
+	if err != nil {
 		return PublicationResult{}, err
 	}
 	if err := p.authenticate(ctx); err != nil {
@@ -205,6 +206,12 @@ func (p *Publication) Publish(ctx context.Context, options PublishOptions) (Publ
 		return PublicationResult{}, err
 	}
 	if err := requirePublishableAssets(view.Assets, p.version); err != nil {
+		return PublicationResult{}, err
+	}
+	if err := p.verifyPublishedImages(ctx, records); err != nil {
+		return PublicationResult{}, err
+	}
+	if err := p.requireRemoteReleaseBranch(ctx, revision); err != nil {
 		return PublicationResult{}, err
 	}
 	before := assetIdentities(view.Assets)
@@ -221,19 +228,62 @@ func (p *Publication) Publish(ctx context.Context, options PublishOptions) (Publ
 	return PublicationResult{Tag: p.tag(), Revision: revision, Assets: before}, nil
 }
 
-func (p *Publication) verifySignedRecords(ctx context.Context, revision string, options PublishOptions) error {
+func (p *Publication) verifySignedRecords(ctx context.Context, revision string, options PublishOptions) ([]releaseRecordPath, error) {
 	records, err := p.validateReleaseRecords(revision, options.AArch64RecordPath, options.X86RecordPath)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	for _, item := range records {
 		bundle := item.path + ".sigstore.json"
 		if err := requireRegularFile("signed release-record bundle", bundle); err != nil {
-			return err
+			return nil, err
 		}
 		if err := p.runner.Run(ctx, p.cosign("verify-blob", "--bundle", bundle, "--certificate-identity", p.releaseWorkflowIdentity(), "--certificate-oidc-issuer", githubOIDCIssuer, item.path)); err != nil {
-			return fmt.Errorf("verify %s signed release record: %w", item.architecture, err)
+			return nil, fmt.Errorf("verify %s signed release record: %w", item.architecture, err)
 		}
+	}
+	return records, nil
+}
+
+func (p *Publication) verifyPublishedImages(ctx context.Context, records []releaseRecordPath) error {
+	for _, item := range records {
+		versionTag := p.versionImageTag(p.specs[item.architecture])
+		if err := p.requireImageDigest(ctx, versionTag, item.record.SodaImageReference); err != nil {
+			return fmt.Errorf("verify %s immutable GHCR version tag: %w", item.architecture, err)
+		}
+		if err := p.requireAnonymousImageDigest(ctx, item.record.SodaImageReference); err != nil {
+			return fmt.Errorf("verify anonymous %s GHCR digest pull: %w", item.architecture, err)
+		}
+		if err := p.runner.Run(ctx, p.cosign("verify", "--certificate-identity", p.releaseWorkflowIdentity(), "--certificate-oidc-issuer", githubOIDCIssuer, item.record.SodaImageReference)); err != nil {
+			return fmt.Errorf("verify %s GHCR image signature: %w", item.architecture, err)
+		}
+		if err := p.runner.Run(ctx, p.cosign("verify-attestation", "--type", "slsaprovenance", "--certificate-identity", p.releaseWorkflowIdentity(), "--certificate-oidc-issuer", githubOIDCIssuer, item.record.SodaImageReference)); err != nil {
+			return fmt.Errorf("verify %s GHCR image provenance: %w", item.architecture, err)
+		}
+	}
+	return nil
+}
+
+func (p *Publication) requireAnonymousImageDigest(ctx context.Context, reference string) error {
+	output, err := p.runner.Output(ctx, p.skopeo("inspect", "--no-creds", "--format", "{{.Digest}}", "docker://"+reference))
+	if err != nil {
+		return fmt.Errorf("inspect exact GHCR digest anonymously: %w", err)
+	}
+	expected := strings.TrimPrefix(reference, Repository+"@")
+	if strings.TrimSpace(output) != expected {
+		return errors.New("anonymous GHCR digest pull differs from the Soda release record")
+	}
+	return nil
+}
+
+func (p *Publication) requireRemoteReleaseBranch(ctx context.Context, revision string) error {
+	output, err := p.runner.Output(ctx, process.Command{Dir: p.root, Name: "git", Args: []string{"ls-remote", "--exit-code", "origin", "refs/heads/release/" + p.version}})
+	if err != nil {
+		return fmt.Errorf("inspect remote release branch: %w", err)
+	}
+	fields := strings.Fields(output)
+	if len(fields) != 2 || fields[0] != revision || fields[1] != "refs/heads/release/"+p.version {
+		return errors.New("remote release branch does not point to the clean Soda source revision")
 	}
 	return nil
 }

@@ -15,14 +15,15 @@ import (
 )
 
 type publicationRunner struct {
-	commands      []process.Command
-	states        []string
-	views         []string
-	imageTags     []string
-	imageDigests  []string
-	revision      string
-	status        string
-	failRunPrefix string
+	commands       []process.Command
+	states         []string
+	views          []string
+	imageTags      []string
+	imageDigests   []string
+	remoteBranches []string
+	revision       string
+	status         string
+	failRunPrefix  string
 }
 
 func (r *publicationRunner) Run(_ context.Context, command process.Command) error {
@@ -48,6 +49,8 @@ func (r *publicationRunner) Output(_ context.Context, command process.Command) (
 		return popOutput(&r.imageTags)
 	case strings.HasPrefix(command.String(), "skopeo inspect "):
 		return popOutput(&r.imageDigests)
+	case command.String() == "git ls-remote --exit-code origin refs/heads/release/0.2.0":
+		return popOutput(&r.remoteBranches)
 	default:
 		return "", errors.New("unexpected output command: " + command.String())
 	}
@@ -206,6 +209,11 @@ func TestPublishRequiresCompleteAssetsAndPreservesThem(t *testing.T) {
 			releaseViewJSON(draftRelease, assets),
 			releaseViewJSON(publishedRelease, assets),
 		},
+		imageDigests: []string{
+			"sha256:" + strings.Repeat("a", 64), "sha256:" + strings.Repeat("a", 64),
+			"sha256:" + strings.Repeat("a", 64), "sha256:" + strings.Repeat("a", 64),
+		},
+		remoteBranches: []string{testRevision + "\trefs/heads/release/0.2.0\n"},
 	}
 	publication := testPublication(t, runner, "arm64")
 	options := writePublishOptions(t, testRevision)
@@ -226,8 +234,39 @@ func TestPublishRequiresCompleteAssetsAndPreservesThem(t *testing.T) {
 			cosignCommands = append(cosignCommands, command)
 		}
 	}
-	require.Len(t, cosignCommands, 2)
+	require.Len(t, cosignCommands, 6)
 	require.Equal(t, []string{"verify-blob", "--bundle", options.AArch64RecordPath + ".sigstore.json", "--certificate-identity", "https://github.com/LevitateOS/soda-os/.github/workflows/release.yml@refs/heads/release/0.2.0", "--certificate-oidc-issuer", githubOIDCIssuer, options.AArch64RecordPath}, cosignCommands[0].Args)
+	require.Equal(t, []string{"verify", "--certificate-identity", "https://github.com/LevitateOS/soda-os/.github/workflows/release.yml@refs/heads/release/0.2.0", "--certificate-oidc-issuer", githubOIDCIssuer, "ghcr.io/levitateos/soda-os@sha256:" + strings.Repeat("a", 64)}, cosignCommands[2].Args)
+	require.Equal(t, []string{"verify-attestation", "--type", "slsaprovenance", "--certificate-identity", "https://github.com/LevitateOS/soda-os/.github/workflows/release.yml@refs/heads/release/0.2.0", "--certificate-oidc-issuer", githubOIDCIssuer, "ghcr.io/levitateos/soda-os@sha256:" + strings.Repeat("a", 64)}, cosignCommands[3].Args)
+}
+
+func TestPublishRefusesRemoteBranchOrAnonymousDigestMismatchBeforeReleaseMutation(t *testing.T) {
+	assets := requiredRemoteAssets("0.2.0")
+	options := writePublishOptions(t, testRevision)
+	for name, runner := range map[string]*publicationRunner{
+		"anonymous digest": {
+			revision:     testRevision,
+			states:       []string{repositoryStateJSON(testRevision, draftRelease)},
+			views:        []string{releaseViewJSON(draftRelease, assets)},
+			imageDigests: []string{"sha256:" + strings.Repeat("a", 64), "sha256:" + strings.Repeat("b", 64)},
+		},
+		"remote branch": {
+			revision: testRevision,
+			states:   []string{repositoryStateJSON(testRevision, draftRelease)},
+			views:    []string{releaseViewJSON(draftRelease, assets)},
+			imageDigests: []string{
+				"sha256:" + strings.Repeat("a", 64), "sha256:" + strings.Repeat("a", 64),
+				"sha256:" + strings.Repeat("a", 64), "sha256:" + strings.Repeat("a", 64),
+			},
+			remoteBranches: []string{strings.Repeat("b", 40) + "\trefs/heads/release/0.2.0\n"},
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			_, err := testPublication(t, runner, "arm64").Publish(context.Background(), options)
+			require.Error(t, err)
+			require.NotContains(t, strings.Join(commandStrings(runner.commands), "\n"), "gh release edit")
+		})
+	}
 }
 
 func TestPublishRefusesIncompleteDraftWithoutMutation(t *testing.T) {
@@ -266,6 +305,11 @@ func TestPublishRejectsChangedOrInvalidRemoteAssets(t *testing.T) {
 				repositoryStateJSON(testRevision, publishedRelease),
 			},
 			views: []string{releaseViewJSON(draftRelease, before), releaseViewJSON(publishedRelease, after)},
+			imageDigests: []string{
+				"sha256:" + strings.Repeat("a", 64), "sha256:" + strings.Repeat("a", 64),
+				"sha256:" + strings.Repeat("a", 64), "sha256:" + strings.Repeat("a", 64),
+			},
+			remoteBranches: []string{testRevision + "\trefs/heads/release/0.2.0\n"},
 		}
 		_, err := testPublication(t, runner, "arm64").Publish(context.Background(), writePublishOptions(t, testRevision))
 		require.EqualError(t, err, "GitHub release assets changed while publishing")
