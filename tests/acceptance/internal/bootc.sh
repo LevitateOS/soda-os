@@ -782,8 +782,9 @@ cached_input=$(find /var/lib/cloud -type f \( -name 'user-data*' -o -name 'vendo
 test -z "$cached_input"
 echo "cloud-init-input-cache=absent"
 test "$(systemctl is-enabled soda-tailscale-enroll.service 2>/dev/null || true)" = disabled
-root_source=$(findmnt -n -o SOURCE /)
-root_bytes=$(findmnt -b -n -o SIZE /)
+root_source=$(findmnt -n -o SOURCE /sysroot)
+root_bytes=$(findmnt -b -n -o SIZE /sysroot)
+case "$root_source" in /dev/*) ;; *) exit 1 ;; esac
 disk_name=$(lsblk -n -o PKNAME "$root_source" | head -n 1)
 test -n "$disk_name"
 disk_bytes=$(lsblk -b -d -n -o SIZE "/dev/$disk_name")
