@@ -362,6 +362,7 @@ PY
 	protected_secret_file "$oemdrv" >/dev/null
 
 	host_docker run --detach --name "$registry_name" --publish "127.0.0.1:$registry_port:5000" \
+		--user "$(id -u):$(id -g)" \
 		--volume "$registry_data:/var/lib/registry" "$registry_image" \
 		>"$evidence_dir/registry-container-id.txt"
 	registry_started=true

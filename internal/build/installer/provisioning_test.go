@@ -221,6 +221,7 @@ func TestAcceptanceExposesOnePublicWorkflow(t *testing.T) {
 		`capture final`,
 		`SODA_ACCEPTANCE_LATER_PRIMARY_PASSWORD_FILE`,
 		`registry_data=$work_dir/registry`,
+		`--user "$(id -u):$(id -g)"`,
 		`--volume "$registry_data:/var/lib/registry"`,
 	} {
 		require.Contains(t, runner, expected)
