@@ -1,5 +1,5 @@
 Name:           soda-release
-Version:        0.4.0
+Version:        0.5.0
 Release:        1%{?dist}
 Summary:        Soda OS release identity
 License:        MIT OR Apache-2.0
@@ -15,23 +15,23 @@ for size in 16 24 32 48 64 128 256 512; do
 done
 cat > %{buildroot}%{_prefix}/lib/soda/os-release <<'EOF'
 NAME="Soda OS"
-VERSION="0.4.0"
+VERSION="0.5.0"
 ID="sodaos"
 ID_LIKE="fedora"
-VERSION_ID="0.4.0"
+VERSION_ID="0.5.0"
 PLATFORM_ID="platform:f44"
-PRETTY_NAME="Soda OS 0.4.0"
+PRETTY_NAME="Soda OS 0.5.0"
 ANSI_COLOR="0;38;2;16;215;232"
 HOME_URL="https://github.com/LevitateOS/soda-os"
 VARIANT="Remote Development Appliance"
 VARIANT_ID="appliance"
 EOF
 cat > %{buildroot}%{_prefix}/lib/soda/issue <<'EOF'
-Soda OS 0.4.0 \n \l
+Soda OS 0.5.0 \n \l
 
 EOF
 cat > %{buildroot}%{_prefix}/lib/soda/system-release <<'EOF'
-Soda OS release 0.4.0
+Soda OS release 0.5.0
 EOF
 install -m 0644 %{_sourcedir}/BASE_SYSTEM.md %{buildroot}%{_datadir}/doc/soda-release/BASE_SYSTEM.md
 install -m 0644 %{_sourcedir}/toolset-commands.txt %{buildroot}%{_datadir}/soda/toolset-commands.txt

@@ -1,5 +1,5 @@
 Name:           soda-projects
-Version:        0.4.0
+Version:        0.5.0
 Release:        2%{?dist}
 Summary:        Soda OS Projects package for stock Cockpit
 License:        MIT OR Apache-2.0

@@ -448,21 +448,21 @@ source = "fedora"
 
 [[package]]
 name = "soda-release"
-nevra = "soda-release-0:0.4.0-1.fc44.noarch"
+nevra = "soda-release-0:0.5.0-1.fc44.noarch"
 source = "local-rpm"
-file = "soda-release-0.4.0-1.fc44.noarch.rpm"
+file = "soda-release-0.5.0-1.fc44.noarch.rpm"
 
 [[package]]
 name = "soda-runtime"
-nevra = "soda-runtime-0:0.4.0-1.fc44.x86_64"
+nevra = "soda-runtime-0:0.5.0-1.fc44.x86_64"
 source = "local-rpm"
-file = "soda-runtime-0.4.0-1.fc44.x86_64.rpm"
+file = "soda-runtime-0.5.0-1.fc44.x86_64.rpm"
 
 [[package]]
 name = "soda-projects"
-nevra = "soda-projects-0:0.4.0-2.fc44.x86_64"
+nevra = "soda-projects-0:0.5.0-2.fc44.x86_64"
 source = "local-rpm"
-file = "soda-projects-0.4.0-2.fc44.x86_64.rpm"
+file = "soda-projects-0.5.0-2.fc44.x86_64.rpm"
 
 [[package]]
 name = "soda-forgejo"
