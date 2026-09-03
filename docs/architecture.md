@@ -176,12 +176,15 @@ behavior; platform files select only inputs that genuinely differ. Every RPM,
 image, ISO, installation, inspection, and acceptance claim must be produced on
 matching-native hardware. Evidence from one sibling does not qualify the other.
 
-At implementation checkpoint `3df4431`, a fresh native x86-64 installation
+At implementation checkpoint `0d6ca31`, a fresh native x86-64 installation
 proved the protected installer, initial Linux and Forgejo administrator,
 Tailscale enrollment and credential deletion, stock Cockpit, Projects,
 multi-user workspace isolation, direct SSH/SCP/SFTP, destructive ordering,
 immutable tools, rootless Podman, exact installed image digest, and installed
-absence of the deleted runtime control plane. Native B→A→B selection between
-two post-control-plane images preserved current mutable state. Matching-native
-AArch64 must repeat this final workflow before release-level architecture and
-acceptance completion; x86-64 evidence does not qualify the sibling.
+absence of the deleted runtime control plane. The same run proved Add person,
+native PAM-created Forgejo users without local verifiers, private per-human Tea
+credentials, and one-time Tea placement in workspaces. Native B→A→B selection
+from `0d6ca31` to `ba4de43` and forward again preserved current mutable state.
+Matching-native AArch64 must repeat this final workflow before release-level
+architecture and acceptance completion; x86-64 evidence does not qualify the
+sibling.

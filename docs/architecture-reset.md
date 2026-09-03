@@ -8,7 +8,7 @@ matching-native AArch64 repetition remains required before release completion.
 
 **Initial implementation snapshot reviewed:** `7f2c60b`
 
-**Current implementation checkpoint documented:** `699a326`
+**Current implementation checkpoint documented:** `0d6ca31`
 
 **Initial architecture record:** `e992e22`
 
@@ -23,11 +23,11 @@ deletion slices are present. A fresh native x86-64 installation has exercised
 the complete retained product, multi-user and destructive scenarios, installed
 absence of the deleted control plane, and B→A→B preservation between two
 post-control-plane images. These are implementation and test facts, not
-additional product authority. Matching-native AArch64 must repeat that final
-workflow before release completion. Later-primary Forgejo PAM authentication
-now has the authorized service-only password-verifier boundary in source and
-package evidence; final installed x86-64 and matching-native AArch64 evidence
-remain required.
+additional product authority. Native x86-64 acceptance at candidate B
+`0d6ca31` and fallback A `ba4de43` also proves the supported Add person,
+human-owned Tea, workspace Tea-copy, and PAM-without-local-verifier composition
+through a fresh installed B→A→B run. Matching-native AArch64 must repeat this
+final workflow; the x86-64 result does not qualify its sibling.
 
 ## Product contract
 

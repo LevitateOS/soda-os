@@ -144,10 +144,11 @@ proves that `soda-runtime` owns no daemon or API artifacts. Final issue #25
 closure occurs only after this post-capstone run passes on both matching-native
 architectures.
 
-The post-capstone workflow passed on native x86-64 at implementation checkpoint
-`3df4431`, including B→A→B preservation, all product scenarios, and final
-control-plane absence. Matching-native AArch64 repetition remains required for
-#25 closure and release-level completion.
+The final workflow passed on native x86-64 at candidate B `0d6ca31` and fallback
+A `ba4de43`, including Add person and Tea onboarding, PAM users without local
+verifiers, B→A→B preservation, all retained product scenarios, credential
+absence, and final control-plane absence. Matching-native AArch64 repetition
+remains required for issue #44 and release-level completion.
 
 ## Architecture notes
 

@@ -314,14 +314,18 @@ OEMDRV creation does.
 ## Current verification status
 
 The current installer path was exercised end to end on a fresh native x86-64
-guest at implementation checkpoint `3df4431`. The run proved OEMDRV protection,
+guest at implementation checkpoint `0d6ca31`. The run proved OEMDRV protection,
 guest ejection and exact host removal, stock-Anaconda installation, Linux and
 same-named Forgejo administrator creation, password and public-key SSH, correct
 home and key SELinux labels, one-attempt Tailscale enrollment and handoff
 deletion, stock Cockpit authentication and workspace rejection, Projects and
 multi-user workspace behavior, direct SSH/SCP/SFTP, destructive ordering, the
 immutable toolset, rootless Podman, obsolete-state absence, zero runtime
-control-plane surface, and the exact installed runtime digest.
+control-plane surface, and the exact installed runtime digest. It also proved
+the administrator's Tea login, Add person composition, later-primary PAM
+authentication without a Forgejo-local verifier, distinct human Tea identities,
+one-time workspace Tea placement, and preservation through exact B→A→B
+selection from `0d6ca31` to `ba4de43` and forward again.
 The artifact hashes and failure history are recorded in
 [bug-notes.md](bug-notes.md); they are local evidence, not a published release.
 

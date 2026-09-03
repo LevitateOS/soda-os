@@ -949,12 +949,14 @@ process termination, add cleanup state, or add a reconciliation service.
 Focused race tests pass for the exact-unit reset, the already-inactive case,
 the unload-during-reset race, unexpected state, and a native reset failure. The
 systemd user-manager boundary is kept in its own focused source file, and the
-complete repository source gate passes.
+complete repository source gate passes. Fresh native x86-64 acceptance with B
+`0d6ca31` and A `ba4de43` completed the destructive project and human scenarios,
+reported no failed units, preserved normalized state across B-to-A-to-B, and
+finished on exact B.
 
 ### Verification still required
 
-Rebuild both post-correction images and repeat fresh installed x86-64
-B-to-A-to-B acceptance. Matching-native AArch64 remains independently required.
+Matching-native AArch64 remains independently required.
 
 ### Secret, data-loss, and destructive-action notes
 
@@ -1026,18 +1028,60 @@ replacement discovery service, or runtime cleanup.
 ### Verification completed
 
 The focused image contract test and complete repository source gate pass. The
-failed run's secret scan passed, and its evidence remains preserved.
+failed run's secret scan passed, and its evidence remains preserved. Fresh
+native x86-64 images A `ba4de43` and B `0d6ca31` have RPM-inventory SHA-256
+`6a6b3d1b3e87ff70ffdbf4908916a53ef68261ddc201ded9d73409fbc06c9b5e`.
+The installed B-to-A-to-B run passed all product scenarios, reported
+`avahi-daemon.service=absent`, found no failed units, passed its credential scan,
+and finished on exact B. Its retained evidence is under
+`.artifacts/acceptance/44-x86-goal-20260903T044758Z`.
 
 ### Verification still required
 
-Build fresh post-correction A and B artifacts and repeat native x86-64 installed
-B-to-A-to-B acceptance. Matching-native AArch64 remains independently required.
+Matching-native AArch64 remains independently required.
 
 ### Rule we will reuse
 
 Deletion of a Soda-owned integration file does not prove that an upstream
 package's own service disappeared. Installed acceptance must inspect the final
 unit and package state at the ownership boundary it claims to remove.
+
+## 2026-09-03: final native x86-64 milestone 44 evidence
+
+The passing fresh-installed run is retained at
+`.artifacts/acceptance/44-x86-goal-20260903T044758Z`. Its normalized manifest,
+system, catalog, and Forgejo checksums are identical at B-current, A-selected,
+and B-restored. `summary.json` records `result=pass`; `secret-absence.txt`
+records no Tailscale key, administrator password, later-primary password, or
+administrator private key. The final guest had no failed units and was booted
+into exact B.
+
+| Evidence | Image A | Image B |
+|---|---|---|
+| Source revision | `ba4de430966603cb7a36cbe012db3b9c7a8e412e` | `0d6ca310702629fe9a13e486e1ad4f7f27fb2ae3` |
+| OCI archive SHA-256 | `93ddf4d8f3bbd0db84671e22dbb89336a8387cbb256cbca0ca960838829ffa05` | `af415ec88dd4da94e300acc4d5cdb1f7f1c10e5d7416fa49111bc855523eb3ce` |
+| Image digest | `sha256:4af73c5ffeaa49342745079d2fdfe51c60b30d146115dcbb5f0df909ab0e8341` | `sha256:10dfb9a4d3477a9c15cb1de237a5a5b514c4be4a9da2579e13968e58178c3e5d` |
+| ISO SHA-256 | `27d8612ecc61253a416c9a27c3b6935f9908e28b229ba709198fc5da43eef40f` | `3e4ea572731a854ab1cedd5c9af024cf55b65efde1c6bc8d417a66b05b3fc3b1` |
+| Release-record SHA-256 | `9de34d4227dbdf70753e16a9cfc1240bbcc8ba74efb5d32dbe7ef2d8afef2b27` | `01e70e6e38b9d0527a36fadb061bf36d25695076ffed49618fa3a5879f12dfb9` |
+
+Both images use runtime-lock SHA-256
+`61646b504ff39e75a7eba1ee3e78184353442b5f1218e3d522a30f4c14b51da6`,
+Fedora base
+`quay.io/fedora/fedora-bootc@sha256:7b7db1d22fe0291fa7e05bc6aeece054b51be5f4857a8ecdb1e69cd368e129d6`,
+and RPM-inventory SHA-256
+`6a6b3d1b3e87ff70ffdbf4908916a53ef68261ddc201ded9d73409fbc06c9b5e`.
+The installed Soda RPMs are `soda-forgejo-15.0.7-6.fc44.x86_64`,
+`soda-tea-0.15.1-2.fc44.x86_64`, `soda-bun-1.4.0-1.fc44.x86_64`,
+`soda-projects-0.4.0-2.fc44.x86_64`, `soda-runtime-0.4.0-1.fc44.x86_64`,
+and `soda-release-0.4.0-1.fc44.noarch`.
+
+The run proved installer-administrator Tea, Add person, distinct human Tea
+identities, PAM users without Forgejo-local verifiers, one-time workspace Tea
+placement, native Forgejo repository/issue/pull-request/release operations,
+workspace isolation, direct SSH/SCP/SFTP, destructive ordering, immutable tools,
+rootless Podman, exact image selection, and installed absence of the deleted
+control plane. This is x86-64 evidence only; matching-native AArch64 remains
+required before issue 44 can close.
 
 ## Checklist for the next installer investigation
 
