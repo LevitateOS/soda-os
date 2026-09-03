@@ -184,7 +184,8 @@ func (platform *NativePlatform) DeleteAccount(ctx context.Context, account Accou
 	if err != nil {
 		return err
 	}
-	if err = platform.terminateLogindUser(ctx, current); err != nil {
+	terminatedLogindUser, err := platform.terminateLogindUser(ctx, current)
+	if err != nil {
 		return err
 	}
 	for _, step := range accountTerminationSteps(current) {
@@ -195,11 +196,28 @@ func (platform *NativePlatform) DeleteAccount(ctx context.Context, account Accou
 	if err = platform.verifyNoOwnedProcesses(ctx, current); err != nil {
 		return err
 	}
+	if terminatedLogindUser {
+		if err = platform.resetFailedUserManager(ctx, current); err != nil {
+			return err
+		}
+	}
 	current, err = platform.revalidateAccountForDeletion(ctx, current)
 	if err != nil {
 		return err
 	}
 	return platform.removeLinuxAccount(ctx, current)
+}
+
+func (platform *NativePlatform) resetFailedUserManager(ctx context.Context, account Account) error {
+	unit := "user@" + strconv.Itoa(account.UID) + ".service"
+	result, err := platform.run(ctx, "/usr/bin/systemctl", "reset-failed", unit)
+	if err != nil {
+		return err
+	}
+	if result.ExitCode != 0 {
+		return fmt.Errorf("reset %s failure state: %s", unit, strings.TrimSpace(result.Stderr))
+	}
+	return nil
 }
 
 func (platform *NativePlatform) revalidateAccountForDeletion(ctx context.Context, expected Account) (Account, error) {
@@ -293,26 +311,26 @@ func accountTerminationSteps(account Account) []terminationStep {
 	}
 }
 
-func (platform *NativePlatform) terminateLogindUser(ctx context.Context, account Account) error {
+func (platform *NativePlatform) terminateLogindUser(ctx context.Context, account Account) (bool, error) {
 	result, err := platform.run(ctx, "/usr/bin/loginctl", "list-users", "--no-legend", "--no-pager")
 	if err != nil {
-		return err
+		return false, err
 	}
 	if result.ExitCode != 0 {
-		return fmt.Errorf("inspect logind users: %s", strings.TrimSpace(result.Stderr))
+		return false, fmt.Errorf("inspect logind users: %s", strings.TrimSpace(result.Stderr))
 	}
 	active, err := logindUserIsActive(result.Stdout, account)
 	if err != nil || !active {
-		return err
+		return false, err
 	}
 	result, err = platform.run(ctx, "/usr/bin/loginctl", "terminate-user", account.Username)
 	if err != nil {
-		return err
+		return false, err
 	}
 	if result.ExitCode != 0 {
-		return fmt.Errorf("terminate %s logind sessions: %s", account.Username, strings.TrimSpace(result.Stderr))
+		return false, fmt.Errorf("terminate %s logind sessions: %s", account.Username, strings.TrimSpace(result.Stderr))
 	}
-	return nil
+	return true, nil
 }
 
 func logindUserIsActive(output string, account Account) (bool, error) {
