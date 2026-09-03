@@ -923,6 +923,22 @@ its processes are gone, and reset only that exact `user@<uid>.service` failure
 before the final account revalidation and `userdel`. A reset failure leaves the
 account and higher-level catalog state intact for a visible retry.
 
+The first implementation assumed that an account which had been active would
+still have a loaded failed unit at that point. A fresh installed run with source
+`18c76bb`, image digest
+`sha256:9e753159b1a6530557e4e7b4e6b42b7f0762afe1822a75283ebe48714c17ef91`,
+and ISO SHA-256
+`865cd5bc4804051f2ceca1249bcf8b475f97d51c637eb882c1e23e7e725fcb5d`
+showed that systemd may instead unload the user manager before the reset. The
+exact reset then returned `Unit user@1002.service not loaded.` even though no
+failure state remained.
+
+The bounded deletion path now inspects only the exact user manager's
+`ActiveState`. An inactive unit needs no reset. A failed unit is reset. If the
+unit becomes inactive between inspection and reset, that race is also accepted.
+Any other state or a reset that leaves the unit failed remains a visible error,
+with the account and catalog entry retained.
+
 ### Rejected broader fixes
 
 Do not ignore failed units in acceptance, reset all systemd failures, weaken
@@ -930,8 +946,8 @@ process termination, add cleanup state, or add a reconciliation service.
 
 ### Verification completed
 
-Focused race tests and the repository-wide source gate pass for the exact-unit
-reset and its native failure path.
+Focused race tests pass for the exact-unit reset, the already-inactive case,
+the unload-during-reset race, unexpected state, and a native reset failure.
 
 ### Verification still required
 
