@@ -50,7 +50,7 @@ platform = "linux/arm64"
 	require.NotContains(t, commands, "containers-storage:"+exactReference)
 	require.Contains(t, commands, "--build-context fedora-base=docker-image://soda-fedora-bootc:sha256-950a52fa1244db4d7fe2673af57fd6784a605a83bec3cd2d716ed8c00ebd366d")
 	require.NotContains(t, commands, "--bootc-installer-payload-ref")
-	require.Contains(t, commands, "--bootc-pull-container")
+	require.NotContains(t, commands, "--bootc-pull-container")
 	require.NotContains(t, commands, root+"/.artifacts/installer/containers-storage:/var/lib/containers/storage")
 	require.Contains(t, commands, volumeName+":/var/lib/containers/storage")
 	require.Contains(t, commands, "--tmpdir /var/lib/containers/storage copy")

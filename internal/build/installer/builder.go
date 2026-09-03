@@ -262,7 +262,6 @@ func (b *Builder) buildInstallerISO(ctx context.Context, input isoBuildInput) (s
 		"--volume", input.volumeName + ":/var/lib/containers/storage",
 		"--volume", input.workspace.output + ":/output", input.lock.Reference,
 		"build", "--arch", b.Spec.Platform.Architecture.Installer, "--bootc-ref", input.installerTag,
-		"--bootc-pull-container",
 		"--bootc-default-fs", "ext4", "--output-dir", "/output",
 		"--output-name", outputName, "bootc-generic-iso",
 	}
