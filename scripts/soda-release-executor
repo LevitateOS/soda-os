@@ -1,6 +1,11 @@
 #!/bin/sh
 set -eu
 
+# The purpose account has a deliberately minimal login environment. Select the
+# reviewed host tools explicitly instead of depending on an interactive PATH.
+PATH=/usr/local/bin:/usr/bin:/bin
+export PATH
+
 # Install this root-owned executable as the login shell for soda-release-ci.
 # It accepts only the phases below; all work paths come from the run identity.
 config=/etc/soda-release-ci.conf

@@ -27,6 +27,7 @@ test "$(grep -Fc 'soda-release-executor emit-bundle' "$workflow")" -eq 1
 test "$(grep -Fc 'soda-release-executor upload' "$workflow")" -eq 1
 test "$(grep -Fc 'soda-release-record-bundle-' "$workflow")" -eq 3
 grep -Fq 'SSH command must invoke soda-release-executor' scripts/soda-release-executor
+grep -Fq 'PATH=/usr/local/bin:/usr/bin:/bin' scripts/soda-release-executor
 
 if grep -Eq '^[[:space:]]*uses:[[:space:]]*[^@[:space:]]+@[^[:space:]#]{1,39}([[:space:]#]|$)' "$workflow"; then
     echo 'release workflow contains an action that is not pinned by full commit SHA' >&2
