@@ -118,7 +118,7 @@ func cloudUserData(username, password, publicKey, tailscaleKey string) []byte {
 		"  - [ /usr/bin/install, -d, -o, root, -g, root, -m, '0700', /var/lib/soda-install/cloud ]",
 		"users:",
 		"  - name: " + yamlQuoted(username),
-		"    homedir: /home/" + username,
+		"    homedir: /var/home/" + username,
 		"    groups: [wheel]",
 		"    shell: /bin/bash",
 		"    lock_passwd: false",
@@ -134,6 +134,7 @@ func cloudUserData(username, password, publicKey, tailscaleKey string) []byte {
 		cloudWriteFile("administrator-authorized-key", publicKey),
 		cloudWriteFile("tailscale-auth-key", tailscaleKey),
 		"runcmd:",
+		"  - [ /usr/sbin/usermod, --home, /home/" + username + ", " + yamlQuoted(username) + " ]",
 		"  - [ /usr/libexec/soda/soda-cloud-finalize ]",
 		"",
 	}, "\n"))
