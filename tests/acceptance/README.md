@@ -20,11 +20,11 @@ single-use Tailscale key in a protected regular file; and a new evidence path.
 ```sh
 tests/acceptance/unattended.sh run \
   --evidence-dir .artifacts/acceptance/run-$(date -u +%Y%m%dT%H%M%SZ) \
-  --candidate-iso .artifacts/images/SodaOS-0.4.0-x86_64.iso \
-  --candidate-record .artifacts/releases/soda-os-0.4.0-x86_64.release.json \
-  --candidate-oci .artifacts/images/soda-os-0.4.0-x86_64.oci.tar \
-  --fallback-record .artifacts/fallback/soda-os-0.4.0-x86_64.release.json \
-  --fallback-oci .artifacts/fallback/soda-os-0.4.0-x86_64.oci.tar \
+  --candidate-iso .artifacts/images/SodaOS-0.5.0-x86_64.iso \
+  --candidate-record .artifacts/releases/soda-os-0.5.0-x86_64.release.json \
+  --candidate-oci .artifacts/images/soda-os-0.5.0-x86_64.oci.tar \
+  --fallback-record .artifacts/fallback/soda-os-0.5.0-x86_64.release.json \
+  --fallback-oci .artifacts/fallback/soda-os-0.5.0-x86_64.oci.tar \
   --tailscale-auth-key-file .tailscale_auth_key
 ```
 
