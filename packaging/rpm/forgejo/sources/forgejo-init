@@ -27,12 +27,14 @@ address=127.0.0.1
 port=30000
 root_url=http://127.0.0.1:${port}/
 
-# Forgejo binds only to the enrolled appliance's Tailnet interface. Until the
-# appliance is enrolled, retain the existing private loopback integration.
+# Before enrollment Forgejo retains the private loopback integration used by
+# the installer. After enrollment it listens on IPv4 so both that local Tea
+# login and the appliance's Tailnet address remain usable; Soda's nftables
+# policy admits this port only from loopback and tailscale0.
 if endpoint=$(/usr/libexec/soda/forgejo-tailnet 2>/dev/null); then
   set -- $endpoint
   identity=$1
-  address=$2
+  address=0.0.0.0
   root_url=http://${identity}:${port}/
 fi
 

@@ -270,12 +270,13 @@ func TestForgejoTailnetPackagingContract(t *testing.T) {
 	initialization, err := os.ReadFile(filepath.Join(forgejoRoot, "sources", "forgejo-init"))
 	require.NoError(t, err)
 	for _, expected := range []string{
-		"/usr/libexec/soda/forgejo-tailnet", "address=127.0.0.1", "port=30000", "root_url=http://127.0.0.1:${port}/",
+		"/usr/libexec/soda/forgejo-tailnet", "address=127.0.0.1", "address=0.0.0.0", "port=30000", "root_url=http://127.0.0.1:${port}/",
 		"HTTP_ADDR = ${address}", "HTTP_PORT = ${port}", "DOMAIN = ${identity}", "root_url=http://${identity}:${port}/", "ROOT_URL = ${root_url}",
 	} {
 		require.Contains(t, string(initialization), expected)
 	}
 	require.NotContains(t, string(initialization), "tailscale serve")
+	require.Contains(t, string(initialization), "nftables")
 
 	initUnit, err := os.ReadFile(filepath.Join(forgejoRoot, "sources", "systemd", "forgejo-init.service"))
 	require.NoError(t, err)
