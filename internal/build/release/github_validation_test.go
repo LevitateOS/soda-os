@@ -56,11 +56,23 @@ func TestUploadArtifactValidationRejectsUnsafeFilesAndSidecars(t *testing.T) {
 		require.ErrorContains(t, err, "checksum sidecar differs")
 	})
 
+	t.Run("compressed QCOW2 sidecar", func(t *testing.T) {
+		options, _ := writeUploadArtifacts(t, testArmPublicationSpec(), testRevision)
+		require.NoError(t, os.WriteFile(options.QCOW2ZSTPath+".sha256", []byte(strings.Repeat("a", 64)+"  wrong.qcow2.zst\n"), 0o644))
+		_, err := validateUploadArtifacts(testArmPublicationSpec(), testRevision, options)
+		require.ErrorContains(t, err, "checksum sidecar differs")
+	})
+
 	t.Run("source revision", func(t *testing.T) {
 		options, _ := writeUploadArtifacts(t, testArmPublicationSpec(), testRevision)
 		_, err := validateUploadArtifacts(testArmPublicationSpec(), strings.Repeat("c", 40), options)
 		require.ErrorContains(t, err, "clean Soda source revision")
 	})
+}
+
+func TestGitHubReleaseAssetSizeLimitIsStrict(t *testing.T) {
+	require.NoError(t, validateGitHubAssetSizes([]localAsset{{Name: "under-limit", Size: githubReleaseAssetLimit - 1}}))
+	require.EqualError(t, validateGitHubAssetSizes([]localAsset{{Name: "limit", Size: githubReleaseAssetLimit}}), `GitHub release asset "limit" exceeds the 2 GiB per-file limit`)
 }
 
 func TestPublicationRecordRequiresExactIdentityAndProvenance(t *testing.T) {

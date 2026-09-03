@@ -16,6 +16,8 @@ import (
 	"github.com/LevitateOS/soda-os/internal/config"
 )
 
+const githubReleaseAssetLimit = 2 << 30
+
 type localAsset struct {
 	Path   string
 	Name   string
@@ -25,12 +27,15 @@ type localAsset struct {
 
 func validateUploadArtifacts(spec config.DistroSpec, revision string, options UploadOptions) ([]localAsset, error) {
 	expectedISO := "SodaOS-" + spec.Identity.Version + "-" + spec.Platform.Architecture.Artifact + ".iso"
+	expectedQCOW2ZST := "SodaOS-" + spec.Identity.Version + "-" + spec.Platform.Architecture.Artifact + ".qcow2.zst"
 	expectedRecord := "soda-os-" + spec.Identity.Version + "-" + spec.Platform.Release.Channel + ".release.json"
-	if filepath.Base(options.ISOPath) != expectedISO || filepath.Base(options.RecordPath) != expectedRecord {
+	expectedBundle := expectedRecord + ".sigstore.json"
+	if filepath.Base(options.ISOPath) != expectedISO || filepath.Base(options.QCOW2ZSTPath) != expectedQCOW2ZST || filepath.Base(options.RecordPath) != expectedRecord || filepath.Base(options.RecordBundlePath) != expectedBundle {
 		return nil, errors.New("release artifact filenames differ from the selected Soda architecture")
 	}
-	sidecarPath := options.ISOPath + ".sha256"
-	paths := []string{options.ISOPath, sidecarPath, options.RecordPath}
+	isoSidecarPath := options.ISOPath + ".sha256"
+	qcow2SidecarPath := options.QCOW2ZSTPath + ".sha256"
+	paths := []string{options.ISOPath, isoSidecarPath, options.QCOW2ZSTPath, qcow2SidecarPath, options.RecordPath, options.RecordBundlePath}
 	if err := validateArtifactPaths(paths); err != nil {
 		return nil, err
 	}
@@ -48,10 +53,36 @@ func validateUploadArtifacts(spec config.DistroSpec, revision string, options Up
 	if record.ISOChecksum != isoDigest {
 		return nil, errors.New("installer ISO checksum differs from its release record")
 	}
-	if err := validateSidecar(sidecarPath, isoDigest, expectedISO); err != nil {
+	if err := validateSidecar(isoSidecarPath, isoDigest, expectedISO); err != nil {
 		return nil, err
 	}
-	return inspectLocalAssets(paths)
+	qcow2Digest, err := fileSHA256(options.QCOW2ZSTPath)
+	if err != nil {
+		return nil, fmt.Errorf("checksum compressed QCOW2: %w", err)
+	}
+	if record.QCOW2ZSTChecksum != qcow2Digest {
+		return nil, errors.New("compressed QCOW2 checksum differs from its release record")
+	}
+	if err := validateSidecar(qcow2SidecarPath, qcow2Digest, expectedQCOW2ZST); err != nil {
+		return nil, err
+	}
+	assets, err := inspectLocalAssets(paths)
+	if err != nil {
+		return nil, err
+	}
+	if err := validateGitHubAssetSizes(assets); err != nil {
+		return nil, err
+	}
+	return assets, nil
+}
+
+func validateGitHubAssetSizes(assets []localAsset) error {
+	for _, asset := range assets {
+		if asset.Size >= githubReleaseAssetLimit {
+			return fmt.Errorf("GitHub release asset %q exceeds the 2 GiB per-file limit", asset.Name)
+		}
+	}
+	return nil
 }
 
 func validateArtifactPaths(paths []string) error {
@@ -306,10 +337,12 @@ func remoteAssetsByName(assets []remoteAsset) (map[string]remoteAsset, error) {
 }
 
 func requiredAssetNames(version string) []string {
-	names := make([]string, 0, 6)
+	names := make([]string, 0, 12)
 	for _, architecture := range []string{"aarch64", "x86_64"} {
 		iso := "SodaOS-" + version + "-" + architecture + ".iso"
-		names = append(names, iso, iso+".sha256", "soda-os-"+version+"-"+architecture+".release.json")
+		qcow2 := "SodaOS-" + version + "-" + architecture + ".qcow2.zst"
+		record := "soda-os-" + version + "-" + architecture + ".release.json"
+		names = append(names, iso, iso+".sha256", qcow2, qcow2+".sha256", record, record+".sigstore.json")
 	}
 	return names
 }

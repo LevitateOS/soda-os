@@ -147,7 +147,7 @@ func TestUploadValidatesAndVerifiesOnlyNativeArchitectureAssets(t *testing.T) {
 
 	result, err := publication.Upload(context.Background(), options)
 	require.NoError(t, err)
-	require.Equal(t, []string{filepath.Base(options.ISOPath), filepath.Base(options.ISOPath) + ".sha256", filepath.Base(options.RecordPath)}, result.Assets)
+	require.Equal(t, []string{filepath.Base(options.ISOPath), filepath.Base(options.ISOPath) + ".sha256", filepath.Base(options.QCOW2ZSTPath), filepath.Base(options.QCOW2ZSTPath) + ".sha256", filepath.Base(options.RecordPath), filepath.Base(options.RecordBundlePath)}, result.Assets)
 
 	var upload process.Command
 	for _, command := range runner.commands {
@@ -156,7 +156,7 @@ func TestUploadValidatesAndVerifiesOnlyNativeArchitectureAssets(t *testing.T) {
 		}
 	}
 	require.Equal(t, "gh", upload.Name)
-	require.Equal(t, []string{"release", "upload", "v0.2.0", options.ISOPath, options.ISOPath + ".sha256", options.RecordPath, "--repo", "LevitateOS/soda-os"}, upload.Args)
+	require.Equal(t, []string{"release", "upload", "v0.2.0", options.ISOPath, options.ISOPath + ".sha256", options.QCOW2ZSTPath, options.QCOW2ZSTPath + ".sha256", options.RecordPath, options.RecordBundlePath, "--repo", "LevitateOS/soda-os"}, upload.Args)
 	require.NotContains(t, upload.Args, "--clobber")
 	requireGHEnvironment(t, runner.commands)
 }
@@ -199,7 +199,7 @@ func TestPublishRequiresCompleteAssetsAndPreservesThem(t *testing.T) {
 	publication := testPublication(t, runner, "arm64")
 	result, err := publication.Publish(context.Background())
 	require.NoError(t, err)
-	require.Len(t, result.Assets, 7)
+	require.Len(t, result.Assets, 13)
 	var edit process.Command
 	for _, command := range runner.commands {
 		if strings.HasPrefix(command.String(), "gh release edit ") {
@@ -283,6 +283,11 @@ func writeUploadArtifacts(t *testing.T, spec config.DistroSpec, revision string)
 	digest, err := fileSHA256(iso)
 	require.NoError(t, err)
 	require.NoError(t, os.WriteFile(iso+".sha256", []byte(digest+"  "+filepath.Base(iso)+"\n"), 0o644))
+	qcow2 := filepath.Join(directory, "SodaOS-"+spec.Identity.Version+"-"+spec.Platform.Architecture.Artifact+".qcow2.zst")
+	require.NoError(t, os.WriteFile(qcow2, []byte("compressed QCOW2"), 0o644))
+	qcow2Digest, err := fileSHA256(qcow2)
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(qcow2+".sha256", []byte(qcow2Digest+"  "+filepath.Base(qcow2)+"\n"), 0o644))
 	record := Record{
 		SchemaVersion:       3,
 		SodaVersion:         spec.Identity.Version,
@@ -295,14 +300,16 @@ func writeUploadArtifacts(t *testing.T, spec config.DistroSpec, revision string)
 			RPMInventorySHA256: strings.Repeat("b", 64),
 			ISOChecksum:        digest,
 			QCOW2Checksum:      strings.Repeat("d", 64),
-			QCOW2ZSTChecksum:   strings.Repeat("e", 64),
+			QCOW2ZSTChecksum:   qcow2Digest,
 		},
 	}
 	recordPath := filepath.Join(directory, "soda-os-"+spec.Identity.Version+"-"+spec.Platform.Release.Channel+".release.json")
 	encoded, err := json.Marshal(record)
 	require.NoError(t, err)
 	require.NoError(t, os.WriteFile(recordPath, append(encoded, '\n'), 0o644))
-	options := UploadOptions{Architecture: spec.Platform.Architecture.Name, ISOPath: iso, RecordPath: recordPath}
+	bundle := recordPath + ".sigstore.json"
+	require.NoError(t, os.WriteFile(bundle, []byte("{\"bundle\":true}\n"), 0o644))
+	options := UploadOptions{Architecture: spec.Platform.Architecture.Name, ISOPath: iso, QCOW2ZSTPath: qcow2, RecordPath: recordPath, RecordBundlePath: bundle}
 	local, err := validateUploadArtifacts(spec, revision, options)
 	require.NoError(t, err)
 	return options, local

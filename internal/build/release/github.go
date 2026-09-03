@@ -19,9 +19,11 @@ var ghEnvironment = []string{"GH_PROMPT_DISABLED=1", "GH_NO_UPDATE_NOTIFIER=1", 
 type DraftOptions struct{ NotesPath string }
 
 type UploadOptions struct {
-	Architecture string
-	ISOPath      string
-	RecordPath   string
+	Architecture     string
+	ISOPath          string
+	QCOW2ZSTPath     string
+	RecordPath       string
+	RecordBundlePath string
 }
 
 type PublicationResult struct {
@@ -140,7 +142,11 @@ func (p *Publication) Upload(ctx context.Context, options UploadOptions) (Public
 	if err := requireUploadNamesAbsent(view.Assets, artifacts); err != nil {
 		return PublicationResult{}, err
 	}
-	if err := p.runner.Run(ctx, p.gh("release", "upload", p.tag(), artifacts[0].Path, artifacts[1].Path, artifacts[2].Path, "--repo", p.repository)); err != nil {
+	paths := make([]string, 0, len(artifacts))
+	for _, artifact := range artifacts {
+		paths = append(paths, artifact.Path)
+	}
+	if err := p.runner.Run(ctx, p.gh(append([]string{"release", "upload", p.tag()}, append(paths, "--repo", p.repository)...)...)); err != nil {
 		return PublicationResult{}, fmt.Errorf("upload GitHub release assets: %w", err)
 	}
 	view, err = p.requireRelease(ctx, revision, draftRelease)

@@ -131,8 +131,10 @@ func uploadCommand(specPath *string, runner process.Runner) *cobra.Command {
 	}
 	command.Flags().StringVar(&options.Architecture, "architecture", "", "matching-native Soda architecture (aarch64 or x86_64)")
 	command.Flags().StringVar(&options.ISOPath, "iso", "", "matching-native Soda installer ISO")
+	command.Flags().StringVar(&options.QCOW2ZSTPath, "qcow2-zst", "", "matching-native compressed Soda QCOW2 download")
 	command.Flags().StringVar(&options.RecordPath, "record", "", "matching-native Soda release record")
-	for _, name := range []string{"architecture", "iso", "record"} {
+	command.Flags().StringVar(&options.RecordBundlePath, "record-bundle", "", "keyless-signed bundle for the matching-native release record")
+	for _, name := range []string{"architecture", "iso", "qcow2-zst", "record", "record-bundle"} {
 		_ = command.MarkFlagRequired(name)
 	}
 	return command
