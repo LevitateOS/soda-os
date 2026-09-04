@@ -155,12 +155,22 @@ func (state *runnerState) launch(ctx context.Context, relative, mode, disk, iso 
 	if err != nil {
 		return nil, err
 	}
-	if err = state.cleanup.Add(CleanupAction{Name: "QEMU " + relative, Run: vm.Stop}); err != nil {
+	if err = state.registerVMCleanup(relative, vm); err != nil {
 		stopCtx, cancel := StopDeadline()
 		defer cancel()
 		return nil, errors.Join(err, vm.Stop(stopCtx))
 	}
 	return vm, nil
+}
+
+func (state *runnerState) registerVMCleanup(relative string, vm *VM) error {
+	if err := state.cleanup.Add(CleanupAction{Name: "QEMU " + relative, Run: vm.Stop}); err != nil {
+		return err
+	}
+	if state.logout == nil {
+		return nil
+	}
+	return state.cleanup.Add(CleanupAction{Name: "guest Tailnet enrollment before QEMU " + relative, Run: state.logout})
 }
 
 func (state *runnerState) resolveGuest(ctx context.Context, before tailnetStatus) (string, []byte, error) {

@@ -185,7 +185,7 @@ func (state *runnerState) verifyToolScopes(ctx context.Context, scenario *scenar
 	if err := admin.Capture(ctx, "product/mise-scopes", []byte(script), "/bin/bash", "-s"); err != nil {
 		return err
 	}
-	boundary := "bob_home=$(getent passwd " + scenario.bobSpace + " | cut -d: -f6); test ! -e \"$bob_home/.local/share/mise/installs/node\"; test -z \"$(find /var/lib/soda/mise/kept/installs -name '*token*' -o -name '*credential*' -print -quit)\"\n"
+	boundary := "bob_home=$(getent passwd " + scenario.bobSpace + " | cut -d: -f6); test ! -e \"$bob_home/.local/share/mise/installs/node\"; test -z \"$(find /var/lib/soda/mise/kept/installs \\( -name '*token*' -o -name '*credential*' \\) -print -quit)\"\n"
 	return scenario.remote.Sudo(ctx, scenario.password, boundary, "product/mise-private-dependencies")
 }
 
