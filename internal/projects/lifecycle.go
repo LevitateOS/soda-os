@@ -83,21 +83,33 @@ func (lifecycle Lifecycle) prepareWorkspaceUnlocked(ctx context.Context, primary
 		return WorkspacePreparation{}, err
 	}
 	if !found {
-		keys, keyErr := lifecycle.Platform.ReadAuthorizedKeys(target.primary)
-		if keyErr != nil {
-			return WorkspacePreparation{}, keyErr
-		}
-		workspace, err = lifecycle.Platform.CreateWorkspace(ctx, target.primary, target.entry.ID)
+		workspace, err = lifecycle.createPreparedWorkspace(ctx, target)
 		if err != nil {
 			return WorkspacePreparation{}, err
 		}
-		if err = lifecycle.validateWorkspace(ctx, workspace, target); err != nil {
-			return WorkspacePreparation{}, fmt.Errorf("new workspace was retained because its Linux state is invalid: %w", err)
-		}
-		if err = lifecycle.Platform.InstallAuthorizedKeys(workspace, keys); err != nil {
-			return WorkspacePreparation{}, fmt.Errorf("workspace %s was retained because inbound SSH keys may be incomplete: %w", workspace.Username, err)
-		}
 	}
+	return lifecycle.workspacePreparation(ctx, workspace)
+}
+
+func (lifecycle Lifecycle) createPreparedWorkspace(ctx context.Context, target publishTarget) (Account, error) {
+	keys, err := lifecycle.Platform.ReadAuthorizedKeys(target.primary)
+	if err != nil {
+		return Account{}, err
+	}
+	workspace, err := lifecycle.Platform.CreateWorkspace(ctx, target.primary, target.entry.ID)
+	if err != nil {
+		return Account{}, err
+	}
+	if err = lifecycle.validateWorkspace(ctx, workspace, target); err != nil {
+		return Account{}, fmt.Errorf("new workspace was retained because its Linux state is invalid: %w", err)
+	}
+	if err = lifecycle.Platform.InstallAuthorizedKeys(workspace, keys); err != nil {
+		return Account{}, fmt.Errorf("workspace %s was retained because inbound SSH keys may be incomplete: %w", workspace.Username, err)
+	}
+	return workspace, nil
+}
+
+func (lifecycle Lifecycle) workspacePreparation(ctx context.Context, workspace Account) (WorkspacePreparation, error) {
 	publicKey, err := lifecycle.Platform.GenerateWorkspaceGitKey(ctx, workspace)
 	if err != nil {
 		return WorkspacePreparation{}, fmt.Errorf("workspace %s and its inbound SSH keys were retained; outbound Git key generation can be retried: %w", workspace.Username, err)
@@ -159,33 +171,38 @@ func (lifecycle Lifecycle) CompleteWorkspace(ctx context.Context, primaryUsernam
 	}
 	var username string
 	operationErr := lifecycle.Catalog.Exclusive(func() error {
-		target, completeErr := lifecycle.prepareWorkspaceTarget(ctx, primaryUsername, request)
-		if completeErr != nil {
-			return completeErr
-		}
-		workspace, found, completeErr := lifecycle.existingWorkspace(ctx, target)
-		if completeErr != nil {
-			return completeErr
-		}
-		if !found {
-			return errors.New("workspace preparation is required before cloning")
-		}
-		ready, completeErr := lifecycle.Platform.WorkspaceReady(workspace, target.entry.ID)
-		if completeErr != nil {
-			return completeErr
-		}
-		if !ready {
-			if completeErr = lifecycle.Platform.CloneWorkspace(ctx, workspace, target.entry.ID, target.entry.CanonicalURL); completeErr != nil {
-				return fmt.Errorf("workspace %s, its SSH keys, and outbound Git key were retained; clone can be retried: %w", workspace.Username, completeErr)
-			}
-		}
-		if completeErr = lifecycle.Platform.InstallMiseTools(ctx, workspace, target.entry.ID, target.workspaceTools, target.projectTools); completeErr != nil {
-			return fmt.Errorf("workspace %s and its complete clone were retained; mise setup can be retried: %w", workspace.Username, completeErr)
-		}
-		username = workspace.Username
-		return nil
+		var completeErr error
+		username, completeErr = lifecycle.completeWorkspaceUnlocked(ctx, primaryUsername, request)
+		return completeErr
 	})
 	return username, closeLockWithError(lock, operationErr, "workspace operations")
+}
+
+func (lifecycle Lifecycle) completeWorkspaceUnlocked(ctx context.Context, primaryUsername string, request HelperWorkspaceRequest) (string, error) {
+	target, err := lifecycle.prepareWorkspaceTarget(ctx, primaryUsername, request)
+	if err != nil {
+		return "", err
+	}
+	workspace, found, err := lifecycle.existingWorkspace(ctx, target)
+	if err != nil {
+		return "", err
+	}
+	if !found {
+		return "", errors.New("workspace preparation is required before cloning")
+	}
+	ready, err := lifecycle.Platform.WorkspaceReady(workspace, target.entry.ID)
+	if err != nil {
+		return "", err
+	}
+	if !ready {
+		if err = lifecycle.Platform.CloneWorkspace(ctx, workspace, target.entry.ID, target.entry.CanonicalURL); err != nil {
+			return "", fmt.Errorf("workspace %s, its SSH keys, and outbound Git key were retained; clone can be retried: %w", workspace.Username, err)
+		}
+	}
+	if err = lifecycle.Platform.InstallMiseTools(ctx, workspace, target.entry.ID, target.workspaceTools, target.projectTools); err != nil {
+		return "", fmt.Errorf("workspace %s and its complete clone were retained; mise setup can be retried: %w", workspace.Username, err)
+	}
+	return workspace.Username, nil
 }
 
 func (lifecycle Lifecycle) validateWorkspace(ctx context.Context, workspace Account, target publishTarget) error {

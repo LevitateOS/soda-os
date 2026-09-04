@@ -20,36 +20,56 @@ type fakePlatform struct {
 }
 
 type fakePlatformFailures struct {
-	unsafeCleanup bool
-	publishErr    error
-	cleanupErr    error
-	passwordErr   error
-	setupLockErr  error
-	unlockErr     error
-	installErr    error
-	preflightErr  error
-	forgejoErr    error
+	fakeWorkspaceFailures
+	fakeAccountFailures
+	fakeMiseFailures
+}
+
+type fakeWorkspaceFailures struct {
+	passwordErr  error
+	setupLockErr error
+	unlockErr    error
+	installErr   error
+	gitKeyErr    error
+	cloneErr     error
+}
+
+type fakeAccountFailures struct {
+	preflightErr error
+	forgejoErr   error
+}
+
+type fakeMiseFailures struct {
 	miseErr       error
 	removeMiseErr error
-	gitKeyErr     error
-	cloneErr      error
 }
 
 type fakePlatformCalls struct {
+	fakeWorkspaceCalls
+	fakeAccountCalls
+	fakeMiseCalls
+}
+
+type fakeWorkspaceCalls struct {
 	keyReads       int
-	deleted        []string
 	passwordChecks []string
-	reset          []string
 	locks          []string
 	installedKeys  map[string][]byte
+	gitKeys        []string
+	clones         []string
+}
+
+type fakeAccountCalls struct {
+	deleted        []string
 	preflights     []string
 	createdPrimary []string
 	publishedHuman []string
 	deletionEvents []string
-	miseInstalls   []string
-	miseRemovals   []string
-	gitKeys        []string
-	clones         []string
+}
+
+type fakeMiseCalls struct {
+	miseInstalls []string
+	miseRemovals []string
 }
 
 type fakeSetupLock struct {
@@ -207,13 +227,6 @@ func (platform *fakePlatform) InstallMiseTools(_ context.Context, account Accoun
 func (platform *fakePlatform) RemoveMiseProject(projectID string) error {
 	platform.calls.miseRemovals = append(platform.calls.miseRemovals, projectID)
 	return platform.failures.removeMiseErr
-}
-
-func (platform *fakePlatform) SafeToRemoveIncomplete(Account, string) error {
-	if platform.failures.unsafeCleanup {
-		return errors.New("unexpected user content")
-	}
-	return nil
 }
 
 func (platform *fakePlatform) PreflightDeleteAccount(_ context.Context, account Account) error {

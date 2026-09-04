@@ -28,26 +28,41 @@ func (platform *NativePlatform) InstallMiseTools(
 	if err != nil {
 		return err
 	}
-	if err = platform.runWorkspaceMise(ctx, workspace, workspace.Home, nil, "settings", "add", "shared_install_dirs", shared); err != nil {
+	if err = platform.configureWorkspaceMise(ctx, workspace, shared); err != nil {
 		return fmt.Errorf("no tool selections completed; configure mise shared install directory: %w", err)
 	}
-	completedWorkspace := []string{}
-	for index, tool := range workspaceTools {
-		if err = platform.runWorkspaceMise(ctx, workspace, workspaceCheckout(workspace, projectID), []string{"MISE_SHARED_INSTALL_DIRS="}, "use", "--env", "local", tool); err != nil {
-			return miseSelectionError("workspace", completedWorkspace, workspaceTools[index:], err)
-		}
-		completedWorkspace = append(completedWorkspace, tool)
+	if err = platform.installWorkspaceMise(ctx, workspace, projectID, workspaceTools); err != nil {
+		return err
 	}
-	completedProject := []string{}
-	sharedEnvironment := []string{"MISE_SHARED_INSTALL_DIRS=" + shared}
-	for index, tool := range projectTools {
-		if err = platform.runWorkspaceMise(ctx, workspace, workspace.Home, sharedEnvironment, "install", "--shared", shared, tool); err != nil {
-			return miseSelectionError("project", completedProject, projectTools[index:], err)
+	return platform.installProjectMise(ctx, workspace, projectID, shared, projectTools)
+}
+
+func (platform *NativePlatform) configureWorkspaceMise(ctx context.Context, workspace Account, shared string) error {
+	return platform.runWorkspaceMise(ctx, workspace, workspace.Home, nil, "settings", "add", "shared_install_dirs", shared)
+}
+
+func (platform *NativePlatform) installWorkspaceMise(ctx context.Context, workspace Account, projectID string, tools []string) error {
+	completed := []string{}
+	for index, tool := range tools {
+		if err := platform.runWorkspaceMise(ctx, workspace, workspaceCheckout(workspace, projectID), []string{"MISE_SHARED_INSTALL_DIRS="}, "use", "--env", "local", tool); err != nil {
+			return miseSelectionError("workspace", completed, tools[index:], err)
 		}
-		if err = platform.runWorkspaceMise(ctx, workspace, workspaceCheckout(workspace, projectID), sharedEnvironment, "use", tool); err != nil {
-			return fmt.Errorf("shared tool %s was installed; completed project selections %s; project selections %s remain: %w", tool, selectionList(completedProject), selectionList(projectTools[index:]), err)
+		completed = append(completed, tool)
+	}
+	return nil
+}
+
+func (platform *NativePlatform) installProjectMise(ctx context.Context, workspace Account, projectID, shared string, tools []string) error {
+	completed := []string{}
+	environment := []string{"MISE_SHARED_INSTALL_DIRS=" + shared}
+	for index, tool := range tools {
+		if err := platform.runWorkspaceMise(ctx, workspace, workspace.Home, environment, "install", "--shared", shared, tool); err != nil {
+			return miseSelectionError("project", completed, tools[index:], err)
 		}
-		completedProject = append(completedProject, tool)
+		if err := platform.runWorkspaceMise(ctx, workspace, workspaceCheckout(workspace, projectID), environment, "use", tool); err != nil {
+			return fmt.Errorf("shared tool %s was installed; completed project selections %s; project selections %s remain: %w", tool, selectionList(completed), selectionList(tools[index:]), err)
+		}
+		completed = append(completed, tool)
 	}
 	return nil
 }
