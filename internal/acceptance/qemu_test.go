@@ -37,3 +37,10 @@ func TestReusableQCOW2KeepsTheInteractiveConsoleVisible(t *testing.T) {
 	require.Contains(t, arguments, "-display gtk")
 	require.Equal(t, []string{"-display", "none"}, qemuDisplayArgs(VMConfig{Architecture: "x86_64", Mode: "installed"}))
 }
+
+func TestLinuxAArch64GraphicalFlowHasKeyboardAndPointer(t *testing.T) {
+	arguments := qemuDisplayArgs(VMConfig{Architecture: "aarch64", Mode: "install"})
+	require.Contains(t, arguments, "qemu-xhci")
+	require.Contains(t, arguments, "usb-kbd")
+	require.Contains(t, arguments, "usb-tablet")
+}

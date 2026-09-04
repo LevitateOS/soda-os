@@ -212,7 +212,7 @@ func qemuDisplayArgs(config VMConfig) []string {
 		return []string{"-device", "virtio-gpu-pci", "-display", "cocoa", "-device", "qemu-xhci", "-device", "usb-kbd", "-device", "usb-tablet"}
 	}
 	if config.Architecture == "aarch64" {
-		return []string{"-device", "virtio-gpu-pci", "-display", "gtk"}
+		return []string{"-device", "virtio-gpu-pci", "-display", "gtk", "-device", "qemu-xhci", "-device", "usb-kbd", "-device", "usb-tablet"}
 	}
 	return []string{"-device", "virtio-vga", "-display", "gtk"}
 }

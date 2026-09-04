@@ -48,7 +48,7 @@ func (state *runnerState) completeISOFlow(ctx context.Context, before tailnetSta
 	if err != nil {
 		return Remote{}, vm, err
 	}
-	if err = state.registerTailnetCleanup(remote, password); err != nil {
+	if err = state.registerTailnetCleanup(&remote, password); err != nil {
 		return Remote{}, vm, err
 	}
 	waitCtx, cancel := context.WithTimeout(ctx, 20*time.Minute)
@@ -56,7 +56,8 @@ func (state *runnerState) completeISOFlow(ctx context.Context, before tailnetSta
 	if err = remote.WaitReady(waitCtx); err != nil {
 		return Remote{}, vm, err
 	}
-	return state.completeInstalledAccess(ctx, remote, vm, password)
+	remote, vm, err = state.completeInstalledAccess(ctx, remote, vm, password)
+	return remote, vm, err
 }
 
 func (state *runnerState) completeInstalledAccess(ctx context.Context, remote Remote, vm *VM, password []byte) (Remote, *VM, error) {
@@ -66,13 +67,14 @@ func (state *runnerState) completeInstalledAccess(ctx context.Context, remote Re
 	if err := remote.Sudo(ctx, password, "/usr/libexec/soda/soda-setup status\n", "iso/setup-status"); err != nil {
 		return Remote{}, vm, err
 	}
-	if err := state.enableAndVerifyLAN(ctx, remote, password); err != nil {
+	local, err := state.enableAndVerifyLAN(ctx, remote, password)
+	if err != nil {
 		return Remote{}, vm, err
 	}
-	return remote, vm, state.captureQMP(ctx, vm, "iso/qmp-running.json")
+	return local, vm, state.captureQMP(ctx, vm, "iso/qmp-running.json")
 }
 
-func (state *runnerState) registerTailnetCleanup(remote Remote, password []byte) error {
+func (state *runnerState) registerTailnetCleanup(remote *Remote, password []byte) error {
 	attempted := false
 	state.logout = func(ctx context.Context) error {
 		if attempted {
@@ -110,13 +112,13 @@ func (state *runnerState) verifyForwardedIngressRejected(ctx context.Context) er
 	return state.evidence.Write("iso/public-ingress-rejection.txt", []byte("ssh=rejected\ncockpit=rejected\n"))
 }
 
-func (state *runnerState) enableAndVerifyLAN(ctx context.Context, tailnet Remote, password []byte) error {
+func (state *runnerState) enableAndVerifyLAN(ctx context.Context, tailnet Remote, password []byte) (Remote, error) {
 	script := `status=$(/usr/libexec/soda/soda-setup status)
 connection=$(jq -er 'first(.connections[] | select(.name != "tailscale0") | .name)' <<<"$status")
 jq -nc --arg connection "$connection" '{connection:$connection}' | /usr/libexec/soda/soda-setup allow-local-network
 `
 	if err := tailnet.Sudo(ctx, password, script, "iso/enable-lan-after-tailscale"); err != nil {
-		return err
+		return Remote{}, err
 	}
 	local := Remote{
 		Username: state.options.Administrator.Username, Host: "127.0.0.1", Port: state.options.Ports.SSH,
@@ -126,9 +128,12 @@ jq -nc --arg connection "$connection" '{connection:$connection}' | /usr/libexec/
 	waitCtx, cancel := context.WithTimeout(ctx, 5*time.Minute)
 	defer cancel()
 	if err := local.WaitReady(waitCtx); err != nil {
-		return fmt.Errorf("verify LAN after Tailscale: %w", err)
+		return Remote{}, fmt.Errorf("verify LAN after Tailscale: %w", err)
 	}
-	return local.Capture(ctx, "iso/lan-after-tailscale", []byte(localAccessCheck), "/bin/bash", "-s")
+	if err := local.Capture(ctx, "iso/lan-after-tailscale", []byte(localAccessCheck), "/bin/bash", "-s"); err != nil {
+		return Remote{}, err
+	}
+	return local, nil
 }
 
 func (state *runnerState) tailnetRemote(host string) Remote {
