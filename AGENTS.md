@@ -272,6 +272,18 @@ current values are not permanent product constraints.
 Distinguish source checks, artifact builds, live installation, and observed
 user behavior. Report only the level of evidence actually exercised.
 
+## Acceptance credentials
+
+Matching-native acceptance may use a protected, operator-owned reusable
+ephemeral Tailscale auth key. Do not require the operator to create a new
+non-reusable key for every iteration: that adds repeated human work without
+proving Soda behavior. The runner may consume the reusable key once for each
+disposable guest, must pass it only through the established secret-file and
+anonymous-descriptor boundaries, must never retain or print it, and must log
+the guest out during cleanup. Describe the credential truthfully in evidence;
+do not call a reusable key one-use. Require a non-reusable key only when the
+user or a concrete external security requirement explicitly requires one.
+
 ## Architecture and platform changes
 
 Development actively uses both x86-64 and AArch64 computers. Keep every

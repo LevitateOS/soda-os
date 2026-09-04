@@ -11,7 +11,7 @@ func TestQEMUInstallUsesOnlyCandidateISOAndTargetDisk(t *testing.T) {
 	config := VMConfig{
 		Architecture: "aarch64", Mode: "install", Disk: "/tmp/installed.qcow2",
 		ISO: "/tmp/candidate.iso", Directory: "/tmp/evidence", Host: "127.0.0.1",
-		SSHPort: 2222, CockpitPort: 19090,
+		SSHPort: 2222, CockpitPort: 19090, ForgejoPort: 13000,
 	}
 	arguments := strings.Join(qemuCommonArgs(config), " ")
 	require.Contains(t, arguments, "file=/tmp/candidate.iso,media=cdrom,format=raw,readonly=on,if=virtio")
@@ -19,10 +19,11 @@ func TestQEMUInstallUsesOnlyCandidateISOAndTargetDisk(t *testing.T) {
 	require.NotContains(t, arguments, "OEMDRV")
 	require.NotContains(t, arguments, "cidata")
 	require.NotContains(t, arguments, "config-2")
+	require.Contains(t, arguments, "hostfwd=tcp:127.0.0.1:13000-:3000")
 }
 
 func TestGuestChecksDoNotRestoreRejectedOrchestration(t *testing.T) {
-	checks := coreGuestChecks + qcow2GuestChecks + workspaceBoundaryChecks + stableManifestScript
+	checks := coreGuestChecks + setupCompleteChecks + qcow2GuestChecks + workspaceBoundaryChecks + stableManifestScript
 	require.NotContains(t, checks, "toolset-commands")
 	require.NotContains(t, checks, "tea-token")
 	require.NotContains(t, checks, "configdrive")
@@ -32,15 +33,28 @@ func TestGuestChecksDoNotRestoreRejectedOrchestration(t *testing.T) {
 	require.Contains(t, checks, ".config/gh/hosts.yml")
 }
 
+func TestOrdinaryCoreChecksDoNotInvokeRootOnlySetupCommand(t *testing.T) {
+	require.NotContains(t, coreGuestChecks, "/usr/libexec/soda/soda-setup")
+	require.Contains(t, setupCompleteChecks, "/usr/libexec/soda/soda-setup status")
+}
+
 func TestReusableQCOW2KeepsTheInteractiveConsoleVisible(t *testing.T) {
-	arguments := strings.Join(qemuDisplayArgs(VMConfig{Architecture: "x86_64", Mode: "qcow2"}), " ")
+	arguments := strings.Join(qemuDisplayArgsFor(VMConfig{Architecture: "x86_64", Mode: "qcow2"}, "linux"), " ")
 	require.Contains(t, arguments, "-display gtk")
 	require.Equal(t, []string{"-display", "none"}, qemuDisplayArgs(VMConfig{Architecture: "x86_64", Mode: "installed"}))
 }
 
 func TestLinuxAArch64GraphicalFlowHasKeyboardAndPointer(t *testing.T) {
-	arguments := qemuDisplayArgs(VMConfig{Architecture: "aarch64", Mode: "install"})
+	arguments := qemuDisplayArgsFor(VMConfig{Architecture: "aarch64", Mode: "install"}, "linux")
 	require.Contains(t, arguments, "qemu-xhci")
 	require.Contains(t, arguments, "usb-kbd")
 	require.Contains(t, arguments, "usb-tablet")
+}
+
+func TestDarwinAArch64GraphicalFlowUsesCocoaAndShortQMPSocket(t *testing.T) {
+	config := VMConfig{Architecture: "aarch64", Mode: "install", Directory: "/a/very/long/acceptance/evidence/path/that/must/not/become/a/darwin/unix/socket/path"}
+	arguments := qemuDisplayArgsFor(config, "darwin")
+	require.Contains(t, arguments, "cocoa")
+	require.NotContains(t, arguments, "gtk")
+	require.Less(t, len(qmpSocketFor(config, "darwin")), 104)
 }

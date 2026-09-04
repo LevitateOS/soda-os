@@ -32,3 +32,8 @@ func TestFallbackVerificationUsesReleaseIdentityAndExactDigest(t *testing.T) {
 	require.Contains(t, command.Args, "https://github.com/LevitateOS/soda-os/.github/workflows/release.yml@refs/heads/production")
 	require.Contains(t, command.Args, "https://token.actions.githubusercontent.com")
 }
+
+func TestAcceptanceHostPortsAreDistinct(t *testing.T) {
+	require.NoError(t, validateHostPorts(HostPorts{SSH: 2222, Cockpit: 19090, Forgejo: 13000, Registry: 5001}))
+	require.ErrorContains(t, validateHostPorts(HostPorts{SSH: 2222, Cockpit: 2222, Forgejo: 13000, Registry: 5001}), "distinct")
+}

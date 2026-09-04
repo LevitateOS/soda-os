@@ -13,7 +13,6 @@ StandardOutput=tty
 StandardError=tty
 TTYPath=/dev/console
 TTYReset=yes
-TTYVHangup=yes
 
 [Install]
 WantedBy=multi-user.target

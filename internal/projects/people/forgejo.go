@@ -16,9 +16,6 @@ type Forgejo struct {
 }
 
 func (forgejo Forgejo) DeleteUser(ctx context.Context, username string) error {
-	if err := ValidateUsername(username); err != nil {
-		return err
-	}
 	result, err := forgejo.Runner.Run(ctx, linuxhost.Command{
 		Name: "/usr/sbin/runuser",
 		Args: []string{

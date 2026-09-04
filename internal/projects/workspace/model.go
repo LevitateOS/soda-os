@@ -6,7 +6,6 @@ import (
 	"crypto/sha256"
 	"errors"
 	"fmt"
-	"regexp"
 	"strings"
 
 	"github.com/LevitateOS/soda-os/internal/linuxhost"
@@ -24,13 +23,11 @@ type Association struct {
 	ProjectID       string
 }
 
-var identityPattern = regexp.MustCompile(`^[a-z][a-z0-9-]{0,23}$`)
-
 // DerivedUsername returns the deterministic Linux account name for one
 // human-project pair.
 func DerivedUsername(primaryUsername, projectID string) (string, error) {
-	if !identityPattern.MatchString(primaryUsername) {
-		return "", errors.New("primary username must match [a-z][a-z0-9-]{0,23}")
+	if primaryUsername == "" || strings.ContainsAny(primaryUsername, "/\x00\r\n") {
+		return "", errors.New("primary username cannot be represented in a workspace marker")
 	}
 	if err := validateProjectID(projectID); err != nil {
 		return "", err

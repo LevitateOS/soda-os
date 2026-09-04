@@ -21,6 +21,13 @@ func TestDerivedAccountConvention(t *testing.T) {
 	require.Equal(t, "website", project)
 }
 
+func TestDerivedUsernameAcceptsLinuxOwnedPrimaryName(t *testing.T) {
+	t.Parallel()
+	username, err := DerivedUsername("alice_dev", "website")
+	require.NoError(t, err)
+	require.Regexp(t, `^soda-w-[0-9a-f]{24}$`, username)
+}
+
 func TestValidateAccountRequiresTheExactLinuxWorkspaceEvidence(t *testing.T) {
 	t.Parallel()
 	account := workspaceAccount(t, "alice", "website", 1001)

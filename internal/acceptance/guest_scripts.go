@@ -1,8 +1,6 @@
 package acceptance
 
 const coreGuestChecks = `set -euo pipefail
-status=$(/usr/libexec/soda/soda-setup status)
-jq -e '.dismissed and .can_dismiss and (.administrators | length == 1) and .administrators[0].password_set and .administrators[0].ssh_public_key and .administrators[0].forgejo_ready' <<<"$status" >/dev/null
 test "$(id -u)" -ge 1000
 id -nG | tr ' ' '\n' | grep -Fx wheel >/dev/null
 test -s "$HOME/.ssh/authorized_keys"
@@ -48,6 +46,12 @@ for path in \
   test ! -e "$path"
 done
 printf 'core-product-boundaries=pass\n'
+`
+
+const setupCompleteChecks = `set -euo pipefail
+status=$(/usr/libexec/soda/soda-setup status)
+jq -e '.dismissed and .can_dismiss and (.administrators | length == 1) and .administrators[0].password_set and .administrators[0].ssh_public_key and .administrators[0].forgejo_ready' <<<"$status" >/dev/null
+printf 'setup-complete=pass\n'
 `
 
 const qcow2GuestChecks = `set -euo pipefail

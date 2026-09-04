@@ -198,9 +198,15 @@ func TestNativeAccountsListsOnlyOrdinaryWheelAdministrators(t *testing.T) {
 	require.Equal(t, []Administrator{{Username: "ada", PasswordSet: true, SSHPublicKey: true}}, administrators)
 }
 
-func TestNativeAccountsRejectsUnsupportedWheelMember(t *testing.T) {
+func TestNativeAccountsUsesLinuxFactsForExistingWheelMember(t *testing.T) {
 	host := newNativeAccountsHost()
-	host.wheel.Members = map[string]bool{"bad name": true}
-	_, err := (NativeAccounts{Host: host}).Administrators(context.Background())
-	require.ErrorContains(t, err, "invalid member")
+	host.wheel.Members = map[string]bool{"alice_dev": true}
+	host.accounts["alice_dev"] = ordinaryPrimary("alice_dev", host.uidMin)
+	host.accounts["alice_dev"].Groups[linuxhost.AdministratorGroup] = true
+	host.passwords["alice_dev"] = linuxhost.PasswordSet
+	host.keys["alice_dev"] = []byte(testAdministratorKey(t) + "\n")
+
+	administrators, err := (NativeAccounts{Host: host}).Administrators(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, []Administrator{{Username: "alice_dev", PasswordSet: true, SSHPublicKey: true}}, administrators)
 }

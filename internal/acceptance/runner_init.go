@@ -57,6 +57,9 @@ func defaultRunOptions(options RunOptions) RunOptions {
 	if options.Ports.Cockpit == 0 {
 		options.Ports.Cockpit = 19090
 	}
+	if options.Ports.Forgejo == 0 {
+		options.Ports.Forgejo = 13000
+	}
 	if options.Ports.Registry == 0 {
 		options.Ports.Registry = 5001
 	}
@@ -68,7 +71,7 @@ func defaultRunOptions(options RunOptions) RunOptions {
 
 func validateRunOptions(options RunOptions) error {
 	if options.EvidenceDir == "" || options.TailscaleKey == "" {
-		return errors.New("evidence, one-use Tailscale key, and disposable administrator credential files are required")
+		return errors.New("evidence, reusable ephemeral Tailscale key, and disposable administrator credential files are required")
 	}
 	if err := validateAdministratorInput(options.Administrator); err != nil {
 		return err
@@ -115,10 +118,15 @@ func validateAdministratorInput(input AdministratorInput) error {
 }
 
 func validateHostPorts(ports HostPorts) error {
-	for _, port := range []int{ports.SSH, ports.Cockpit, ports.Registry} {
+	seen := map[int]bool{}
+	for _, port := range []int{ports.SSH, ports.Cockpit, ports.Forgejo, ports.Registry} {
 		if port < 1 || port > 65535 {
 			return errors.New("host ports must be inside the TCP range")
 		}
+		if seen[port] {
+			return errors.New("host ports must be distinct")
+		}
+		seen[port] = true
 	}
 	return nil
 }

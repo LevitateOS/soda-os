@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"net"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -12,7 +13,10 @@ import (
 )
 
 func TestQMPClientNegotiatesAndReturnsTypedResult(t *testing.T) {
-	socket := filepath.Join(t.TempDir(), "qmp.sock")
+	directory, err := os.MkdirTemp("/tmp", "soda-qmp-test-")
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, os.RemoveAll(directory)) })
+	socket := filepath.Join(directory, "qmp.sock")
 	listener, err := net.Listen("unix", socket)
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, listener.Close()) })

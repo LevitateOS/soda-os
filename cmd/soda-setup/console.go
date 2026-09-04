@@ -157,7 +157,7 @@ func (session consoleSession) allowLocalNetwork(connections []setup.Connection) 
 }
 
 func (session consoleSession) connectTailscale() error {
-	authKey, err := readSecret(session.input, session.output, "One-use Tailscale auth key: ")
+	authKey, err := readSecret(session.input, session.output, "Reusable ephemeral Tailscale auth key: ")
 	if err != nil {
 		return err
 	}

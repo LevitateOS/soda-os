@@ -40,6 +40,6 @@ test("Cockpit presents the approved setup and network contract", async () => {
   const html = await readFile(new URL("./index.html", import.meta.url), "utf8");
   assert.match(html, /<h2 id="soda-setup-title">Soda Setup<\/h2>/);
   assert.match(html, />Allow access from the local network\.<\/button>/);
-  assert.match(html, /One-use Tailscale auth key/);
+  assert.match(html, /Reusable ephemeral Tailscale auth key/);
   assert.doesNotMatch(html, /LAN detected|cloud detected|RFC1918|private address/i);
 });

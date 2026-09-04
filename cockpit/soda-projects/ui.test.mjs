@@ -135,6 +135,7 @@ test("workspace setup leaves SSH-key registration to every authoritative host", 
   assert.match(dialog, /reports the public key for you to register with that host before retrying/);
   assert.doesNotMatch(dialog, /Forgejo password/);
   assert.doesNotMatch(dialog, /bundled.*register/i);
+  assert.match(dialog, /data-form-notice role="alert" hidden/);
 });
 
 test("edit explains immutable repository replacement and exposes a read-only URL", async () => {
@@ -166,4 +167,10 @@ test("native synchronous diagnostics and outcomes remain visible", () => {
     successMessage("delete-human", { username: "bob" }, { ok: true }),
     "bob, their local Soda workspaces, and their Forgejo account were removed.",
   );
+});
+
+test("failed setup refreshes workspace existence and keeps its diagnostic in the open dialog", async () => {
+  const app = await readFile(new URL("./app.mjs", import.meta.url), "utf8");
+  assert.match(app, /if \(action === "setup"\) \{\s*await loadProjects\(\);\s*\}/);
+  assert.match(app, /showFormNotice\(form, message\)/);
 });

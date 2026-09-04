@@ -19,10 +19,10 @@ func TestPrimaryAndAdministratorClassificationUsesOnlyLinuxFacts(t *testing.T) {
 	require.True(t, IsAdministrator(administrator, 1000))
 
 	for name, account := range map[string]linuxhost.Account{
-		"system UID":   {Username: "alice", UID: 999, Shell: "/bin/bash", Groups: map[string]bool{}},
-		"invalid name": {Username: "Alice", UID: 1000, Shell: "/bin/bash", Groups: map[string]bool{}},
-		"no login":     {Username: "alice", UID: 1000, Shell: "/usr/sbin/nologin", Groups: map[string]bool{}},
-		"workspace":    {Username: "alice", UID: 1000, Shell: "/bin/bash", Groups: map[string]bool{"soda-workspaces": true}},
+		"system UID": {Username: "alice", UID: 999, Shell: "/bin/bash", Groups: map[string]bool{}},
+		"empty name": {Username: "", UID: 1000, Shell: "/bin/bash", Groups: map[string]bool{}},
+		"no login":   {Username: "alice", UID: 1000, Shell: "/usr/sbin/nologin", Groups: map[string]bool{}},
+		"workspace":  {Username: "alice", UID: 1000, Shell: "/bin/bash", Groups: map[string]bool{"soda-workspaces": true}},
 	} {
 		t.Run(name, func(t *testing.T) {
 			require.False(t, IsPrimary(account, 1000))
@@ -30,11 +30,7 @@ func TestPrimaryAndAdministratorClassificationUsesOnlyLinuxFacts(t *testing.T) {
 	}
 }
 
-func TestValidateUsernameUsesTheEstablishedPrimaryAccountShape(t *testing.T) {
-	for _, username := range []string{"alice", "a1", "team-admin"} {
-		require.NoError(t, ValidateUsername(username))
-	}
-	for _, username := range []string{"", "Alice", "1alice", "alice_", "alice@example", "this-username-is-far-too-long"} {
-		require.Error(t, ValidateUsername(username))
-	}
+func TestPrimaryClassificationAcceptsExistingLinuxUsername(t *testing.T) {
+	account := linuxhost.Account{Username: "alice_dev", UID: 1000, Shell: "/bin/bash", Groups: map[string]bool{"alice_dev": true}}
+	require.True(t, IsPrimary(account, 1000))
 }

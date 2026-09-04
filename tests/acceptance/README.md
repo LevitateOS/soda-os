@@ -155,7 +155,7 @@ go run ./cmd/soda-acceptance run \
 ```
 
 Use `aarch64` as the evidence-directory leaf on an AArch64 host. The protected
-Tailscale file contains one ephemeral, one-use guest key. The private key and
+Tailscale file contains one reusable ephemeral guest key. The private key and
 password are disposable test credentials; all three secret files must have
 mode `0600` or stricter. The runner creates no onboarding media. It opens the
 architecture-native QEMU graphical display for the operator to complete stock

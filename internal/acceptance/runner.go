@@ -14,6 +14,7 @@ import (
 type HostPorts struct {
 	SSH      int
 	Cockpit  int
+	Forgejo  int
 	Registry int
 }
 
@@ -96,11 +97,11 @@ func (state *runnerState) execute(ctx context.Context) error {
 	if err := state.prepareRegistry(ctx); err != nil {
 		return fmt.Errorf("registry: %w", err)
 	}
-	remote, vm, err := state.installAndOnboard(ctx)
+	scenario, vm, err := state.installAndOnboard(ctx)
 	if err != nil {
 		return fmt.Errorf("network ISO and first boot: %w", err)
 	}
-	if err = state.exerciseInstalledSystem(ctx, &remote, &vm); err != nil {
+	if err = state.exerciseInstalledSystem(ctx, &scenario, &vm); err != nil {
 		return err
 	}
 	if err = state.exerciseReusableQCOW2(ctx); err != nil {

@@ -11,53 +11,53 @@ import (
 	"time"
 )
 
-func (state *runnerState) installAndOnboard(ctx context.Context) (Remote, *VM, error) {
+func (state *runnerState) installAndOnboard(ctx context.Context) (scenarioState, *VM, error) {
 	tailnet, err := NewTailnet()
 	if err != nil {
-		return Remote{}, nil, err
+		return scenarioState{}, nil, err
 	}
 	state.tailnet = tailnet
 	before, raw, err := tailnet.Snapshot(ctx)
 	if err != nil {
-		return Remote{}, nil, err
+		return scenarioState{}, nil, err
 	}
 	if err = state.evidence.Write("iso/host-tailnet-before.json", raw); err != nil {
-		return Remote{}, nil, err
+		return scenarioState{}, nil, err
 	}
 	return state.completeISOFlow(ctx, before)
 }
 
-func (state *runnerState) completeISOFlow(ctx context.Context, before tailnetStatus) (Remote, *VM, error) {
+func (state *runnerState) completeISOFlow(ctx context.Context, before tailnetStatus) (scenarioState, *VM, error) {
 	vm, err := state.launch(ctx, "iso/install", "install", state.paths.installedDisk, state.artifacts.CandidateISO)
 	if err != nil {
-		return Remote{}, nil, err
+		return scenarioState{}, nil, err
 	}
-	fmt.Fprintf(state.output, "Complete stock graphical Anaconda and Soda Setup in the QEMU display. Use administrator %q and the protected values in:\n  password: %s\n  SSH public key: %s\n  one-use Tailscale key: %s\n", state.options.Administrator.Username, state.paths.password, state.paths.adminPublicKey, state.options.TailscaleKey)
+	fmt.Fprintf(state.output, "Complete stock graphical Anaconda and Soda Setup in the QEMU display. Use administrator %q and the protected values in:\n  password: %s\n  SSH public key: %s\n  reusable ephemeral Tailscale key: %s\n", state.options.Administrator.Username, state.paths.password, state.paths.adminPublicKey, state.options.TailscaleKey)
 	host, raw, err := state.resolveGuest(ctx, before)
 	if err != nil {
-		return Remote{}, vm, err
+		return scenarioState{}, vm, err
 	}
 	if err = state.evidence.Write("iso/host-tailnet-enrolled.json", raw); err != nil {
-		return Remote{}, vm, err
+		return scenarioState{}, vm, err
 	}
 	if err = state.evidence.Write("iso/tailnet-address.txt", []byte(host+"\n")); err != nil {
-		return Remote{}, vm, err
+		return scenarioState{}, vm, err
 	}
 	remote := state.tailnetRemote(host)
 	password, err := os.ReadFile(state.paths.password)
 	if err != nil {
-		return Remote{}, vm, err
+		return scenarioState{}, vm, err
 	}
 	if err = state.registerTailnetCleanup(&remote, password); err != nil {
-		return Remote{}, vm, err
+		return scenarioState{}, vm, err
 	}
 	waitCtx, cancel := context.WithTimeout(ctx, 20*time.Minute)
 	defer cancel()
 	if err = remote.WaitReady(waitCtx); err != nil {
-		return Remote{}, vm, err
+		return scenarioState{}, vm, err
 	}
 	remote, vm, err = state.completeInstalledAccess(ctx, remote, vm, password)
-	return remote, vm, err
+	return scenarioState{remote: remote, tailnetHost: host}, vm, err
 }
 
 func (state *runnerState) completeInstalledAccess(ctx context.Context, remote Remote, vm *VM, password []byte) (Remote, *VM, error) {
@@ -109,7 +109,16 @@ func (state *runnerState) verifyForwardedIngressRejected(ctx context.Context) er
 	if err == nil {
 		return errors.New("default-drop guest exposed Cockpit through the host-forwarded interface")
 	}
-	return state.evidence.Write("iso/public-ingress-rejection.txt", []byte("ssh=rejected\ncockpit=rejected\n"))
+	forgejoCtx, cancelForgejo := context.WithTimeout(ctx, 6*time.Second)
+	defer cancelForgejo()
+	err = RunCommand(forgejoCtx, CommandSpec{Name: "curl", Args: []string{
+		"--fail", "--silent", "--show-error", "--max-time", "5",
+		"http://127.0.0.1:" + fmt.Sprint(state.options.Ports.Forgejo) + "/api/healthz",
+	}})
+	if err == nil {
+		return errors.New("default-drop guest exposed Forgejo through the host-forwarded interface")
+	}
+	return state.evidence.Write("iso/public-ingress-rejection.txt", []byte("deployment=qemu-user-forwarded-interface\nssh=rejected\ncockpit=rejected\nforgejo=rejected\n"))
 }
 
 func (state *runnerState) enableAndVerifyLAN(ctx context.Context, tailnet Remote, password []byte) (Remote, error) {
@@ -130,7 +139,7 @@ jq -nc --arg connection "$connection" '{connection:$connection}' | /usr/libexec/
 	if err := local.WaitReady(waitCtx); err != nil {
 		return Remote{}, fmt.Errorf("verify LAN after Tailscale: %w", err)
 	}
-	if err := local.Capture(ctx, "iso/lan-after-tailscale", []byte(localAccessCheck), "/bin/bash", "-s"); err != nil {
+	if err := local.Sudo(ctx, password, localAccessCheck, "iso/lan-after-tailscale"); err != nil {
 		return Remote{}, err
 	}
 	if err := state.verifyTailnetAfterLAN(ctx, tailnet); err != nil {
@@ -145,7 +154,7 @@ func (state *runnerState) verifyTailnetAfterLAN(ctx context.Context, tailnet Rem
 	if err := tailnet.WaitReady(waitCtx); err != nil {
 		return fmt.Errorf("verify Tailnet after LAN: %w", err)
 	}
-	if err := tailnet.Capture(ctx, "iso/tailnet-after-lan", []byte(tailscaleAccessCheck), "/bin/bash", "-s"); err != nil {
+	if err := tailnet.Sudo(ctx, state.secret("administrator-password"), tailscaleAccessCheck, "iso/tailnet-after-lan"); err != nil {
 		return err
 	}
 	output, err := CommandOutput(ctx, CommandSpec{Name: "curl", Args: []string{
@@ -176,7 +185,7 @@ func (state *runnerState) launch(ctx context.Context, relative, mode, disk, iso 
 	config := VMConfig{
 		Architecture: nativeArchitecture(), Mode: mode, Disk: disk, ISO: iso,
 		Directory: directory, DiskSize: state.options.DiskSize, Host: "127.0.0.1",
-		SSHPort: state.options.Ports.SSH, CockpitPort: state.options.Ports.Cockpit,
+		SSHPort: state.options.Ports.SSH, CockpitPort: state.options.Ports.Cockpit, ForgejoPort: state.options.Ports.Forgejo,
 	}
 	vm, err := LaunchVM(ctx, config)
 	if err != nil {
@@ -222,6 +231,10 @@ func (state *runnerState) exerciseReusableQCOW2(ctx context.Context) error {
 	if err := cloneDisk(ctx, state.artifacts.CandidateQCOW2, state.paths.qcowDisk); err != nil {
 		return err
 	}
+	originalSize, err := state.growQCOW2(ctx)
+	if err != nil {
+		return err
+	}
 	vm, err := state.launch(ctx, "qcow2/first-boot", "qcow2", state.paths.qcowDisk, "")
 	if err != nil {
 		return err
@@ -237,13 +250,53 @@ func (state *runnerState) exerciseReusableQCOW2(ctx context.Context) error {
 	if err = remote.WaitReady(waitCtx); err != nil {
 		return err
 	}
-	if err = state.runQCOW2Checks(ctx, remote); err != nil {
+	if err = state.runQCOW2Checks(ctx, remote, originalSize); err != nil {
 		return err
 	}
 	if err = state.captureQMP(ctx, vm, "qcow2/qmp-running.json"); err != nil {
 		return err
 	}
 	return vm.PowerDown(ctx)
+}
+
+type qemuImageInfo struct {
+	VirtualSize int64 `json:"virtual-size"`
+}
+
+func (state *runnerState) growQCOW2(ctx context.Context) (int64, error) {
+	before, raw, err := inspectQEMUImage(ctx, state.paths.qcowDisk)
+	if err != nil {
+		return 0, err
+	}
+	if err = state.evidence.Write("qcow2/image-before-growth.json", raw); err != nil {
+		return 0, err
+	}
+	if err = RunCommand(ctx, CommandSpec{Name: "qemu-img", Args: []string{"resize", "--", state.paths.qcowDisk, state.options.DiskSize}}); err != nil {
+		return 0, fmt.Errorf("grow reusable QCOW2: %w", err)
+	}
+	after, raw, err := inspectQEMUImage(ctx, state.paths.qcowDisk)
+	if err != nil {
+		return 0, err
+	}
+	if after.VirtualSize <= before.VirtualSize {
+		return 0, fmt.Errorf("reusable QCOW2 did not grow beyond %d bytes", before.VirtualSize)
+	}
+	if err = state.evidence.Write("qcow2/image-after-growth.json", raw); err != nil {
+		return 0, err
+	}
+	return before.VirtualSize, nil
+}
+
+func inspectQEMUImage(ctx context.Context, path string) (qemuImageInfo, []byte, error) {
+	raw, err := CommandOutput(ctx, CommandSpec{Name: "qemu-img", Args: []string{"info", "--output=json", "--", path}})
+	if err != nil {
+		return qemuImageInfo{}, nil, err
+	}
+	var info qemuImageInfo
+	if err = json.Unmarshal(raw, &info); err != nil || info.VirtualSize <= 0 {
+		return qemuImageInfo{}, nil, errors.New("qemu-img returned an invalid virtual size")
+	}
+	return info, raw, nil
 }
 
 func cloneDisk(ctx context.Context, source, destination string) error {

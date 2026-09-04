@@ -55,9 +55,6 @@ func (accounts NativeAccounts) Administrators(ctx context.Context) ([]Administra
 	}
 	members := make([]string, 0, len(wheel.Members))
 	for member := range wheel.Members {
-		if validateAdministratorUsername(member) != nil {
-			return nil, errors.New("Linux wheel group contains an invalid member")
-		}
 		members = append(members, member)
 	}
 	sort.Strings(members)
@@ -246,7 +243,7 @@ func validateSupportedNewPrimary(account linuxhost.Account, username string, uid
 }
 
 func isPrimary(account linuxhost.Account, uidMin int) bool {
-	return account.UID >= uidMin && validateAdministratorUsername(account.Username) == nil &&
+	return account.Username != "" && account.UID >= uidMin &&
 		account.HasInteractiveShell() && !account.HasGroup(workspaceGroup)
 }
 
