@@ -3,6 +3,7 @@ package image
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/LevitateOS/soda-os/internal/config"
@@ -22,6 +23,21 @@ func TestGitHubRunnerLockBindsExactSiblingArchitectureAssets(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "actions-runner-linux-x64-2.337.0.tar.gz", x86.Archive)
 	require.NotEqual(t, arm.SHA256, x86.SHA256)
+
+	contents, err := os.ReadFile(filepath.Join(root, "distro", "locks", "github-runner-source.toml"))
+	require.NoError(t, err)
+	mirrored := strings.ReplaceAll(string(contents), "https://github.com/actions/runner/releases/tag/v2.337.0", "https://mirror.example/runner-release")
+	mirrored = strings.ReplaceAll(mirrored, "actions-runner-linux-arm64-2.337.0.tar.gz", "runner-reviewed-aarch64.tar.gz")
+	mirrored = strings.ReplaceAll(mirrored, "actions-runner-linux-x64-2.337.0.tar.gz", "runner-reviewed-x86_64.tar.gz")
+	mirrored = strings.ReplaceAll(mirrored, "https://github.com/actions/runner/releases/download/v2.337.0/runner-reviewed-aarch64.tar.gz", "https://mirror.example/runner-reviewed-aarch64.tar.gz")
+	mirrored = strings.ReplaceAll(mirrored, "https://github.com/actions/runner/releases/download/v2.337.0/runner-reviewed-x86_64.tar.gz", "https://mirror.example/runner-reviewed-x86_64.tar.gz")
+	path := filepath.Join(t.TempDir(), "github-runner-source.toml")
+	require.NoError(t, os.WriteFile(path, []byte(mirrored), 0o600))
+	lock, err = readGitHubRunnerSourceLock(path)
+	require.NoError(t, err)
+	asset, err := lock.asset("x86_64")
+	require.NoError(t, err)
+	require.Equal(t, "runner-reviewed-x86_64.tar.gz", asset.Archive)
 }
 
 func TestGitHubRunnerLockRejectsUnknownFields(t *testing.T) {
