@@ -10,6 +10,8 @@ import {
   humanDeletionHidden,
   payloadFor,
   projectRemovalHidden,
+  forgejoBrowserURL,
+  sshCommand,
   successMessage,
 } from "./ui.mjs";
 import { initializeSetup } from "./setup.mjs";
@@ -85,15 +87,13 @@ async function loadProjects() {
 }
 
 function render() {
-  const { projects, current_user: currentUser, forgejo_url: forgejoURL } = state.data;
+  const { projects, current_user: currentUser } = state.data;
   elements.summary.textContent = `${projects.length} ${projects.length === 1 ? "project" : "projects"} available to ${currentUser.username}.`;
   elements.rows.replaceChildren(...projects.map(projectRow));
   elements.tableWrap.hidden = projects.length === 0;
   elements.empty.hidden = projects.length !== 0;
   elements.humanPanel.hidden = humanDeletionHidden(currentUser);
-  elements.forgejoDescription.textContent = forgejoURL
-    ? `Creates an empty repository in your native Forgejo namespace at ${forgejoURL}.`
-    : "Creates an empty repository in your native Forgejo namespace.";
+  elements.forgejoDescription.textContent = `Creates an empty repository in your native Forgejo namespace at ${forgejoBrowserURL(window.location.hostname)}.`;
 }
 
 function projectRow(project) {
@@ -118,9 +118,7 @@ function projectRow(project) {
   guidance.textContent = project.workspace_ready ? "Ready" : "After setup";
   const command = document.createElement("code");
   command.className = "ssh-command";
-  command.textContent = state.data.ssh_host
-    ? `ssh ${project.workspace_username}@${state.data.ssh_host}`
-    : project.workspace_username;
+  command.textContent = sshCommand(project.workspace_username, window.location.hostname);
   workspace.append(guidance, command);
 
   const actionsCell = document.createElement("td");

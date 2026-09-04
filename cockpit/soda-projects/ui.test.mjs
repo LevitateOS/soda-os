@@ -6,12 +6,21 @@ import {
   clearPayloadSecrets,
   clearSecrets,
   errorMessage,
+  forgejoBrowserURL,
   formActions,
   humanDeletionHidden,
   payloadFor,
   projectRemovalHidden,
+  sshCommand,
   successMessage,
 } from "./ui.mjs";
+
+test("service guidance uses the browser connection host", () => {
+  assert.equal(forgejoBrowserURL("192.0.2.10"), "http://192.0.2.10:30000");
+  assert.equal(forgejoBrowserURL("2001:db8::10"), "http://[2001:db8::10]:30000");
+  assert.equal(sshCommand("soda-w-example", "192.0.2.10"), "ssh soda-w-example@192.0.2.10");
+  assert.equal(sshCommand("soda-w-example", "2001:db8::10"), "ssh soda-w-example@[2001:db8::10]");
+});
 
 test("every destructive and mutating form is wired to one supported action", async () => {
   const html = await readFile(new URL("./index.html", import.meta.url), "utf8");

@@ -13,18 +13,14 @@ import (
 	"github.com/LevitateOS/soda-os/internal/tailnet"
 )
 
-type EndpointSource interface {
-	Endpoints(context.Context) (forgejoURL, sshHost string, err error)
+type TailnetIdentitySource interface {
+	Identity(context.Context) (string, error)
 }
 
-type TailnetEndpoints struct{}
+type NativeTailnetIdentity struct{}
 
-func (TailnetEndpoints) Endpoints(ctx context.Context) (string, string, error) {
-	identity, err := tailnet.New(tailnet.Options{}).Identity(ctx)
-	if err != nil {
-		return "", "", err
-	}
-	return "http://" + identity + ":30000", identity, nil
+func (NativeTailnetIdentity) Identity(ctx context.Context) (string, error) {
+	return tailnet.New(tailnet.Options{}).Identity(ctx)
 }
 
 type PrivilegedProjects interface {
@@ -140,12 +136,14 @@ func (invoker PKExecInvoker) invoke(ctx context.Context, action string, request,
 }
 
 type Coordinator struct {
-	Catalog    *Catalog
-	Lifecycle  Lifecycle
-	Platform   Platform
-	Privileged PrivilegedProjects
-	Forgejo    ForgejoClient
-	Endpoints  EndpointSource
+	Catalog       *Catalog
+	Lifecycle     Lifecycle
+	Platform      Platform
+	Privileged    PrivilegedProjects
+	Forgejo       ForgejoClient
+	Tailnet       TailnetIdentitySource
+	Hostname      string
+	ForgejoAPIURL string
 }
 
 func (coordinator Coordinator) Execute(ctx context.Context, actorUsername, action string, input io.Reader) (any, error) {
@@ -307,15 +305,9 @@ func (coordinator Coordinator) list(ctx context.Context, primary Account, uidMin
 		}
 		views = append(views, view)
 	}
-	forgejoURL, sshHost, err := coordinator.Endpoints.Endpoints(ctx)
-	if err != nil {
-		return ListResponse{}, err
-	}
 	return ListResponse{
 		Projects:    views,
 		CurrentUser: CurrentUserView{Username: primary.Username, Administrator: primary.IsAdministrator(uidMin)},
-		ForgejoURL:  forgejoURL,
-		SSHHost:     sshHost,
 	}, nil
 }
 
@@ -333,12 +325,8 @@ func (coordinator Coordinator) createForgejo(ctx context.Context, primary Accoun
 			return MutationResponse{}, fmt.Errorf("project %q already exists", request.ID)
 		}
 	}
-	forgejoURL, _, err := coordinator.Endpoints.Endpoints(ctx)
-	if err != nil {
-		return MutationResponse{}, err
-	}
 	created, err := coordinator.Forgejo.Create(ctx, ForgejoCreateRequest{
-		BaseURL:  forgejoURL,
+		BaseURL:  coordinator.ForgejoAPIURL,
 		Username: primary.Username,
 		Password: request.Password,
 		ID:       request.ID,

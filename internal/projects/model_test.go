@@ -43,18 +43,15 @@ func TestCatalogEntryRejectsCredentialsAndNonRemotePaths(t *testing.T) {
 	}
 }
 
-func TestRemoteSSHHostIdentifiesBundledForgejoWithoutOwningExternalHosts(t *testing.T) {
+func TestSameHostNormalizesCaseAndTrailingDot(t *testing.T) {
 	t.Parallel()
-	for remote, expected := range map[string]bool{
-		"git@SODA.example.test:alice/site.git":       true,
-		"ssh://git@soda.example.test/alice/site.git": true,
-		"git@soda.example.test.:alice/site.git":      true,
-		"git@localhost:alice/site.git":               true,
-		"git@external.example.test:alice/site.git":   false,
+	for candidate, expected := range map[string]bool{
+		"SODA.example.test":  true,
+		"soda.example.test.": true,
+		"external.example":   false,
+		"":                   false,
 	} {
-		matched, err := remoteUsesBundledForgejo(remote, "soda.example.test")
-		require.NoError(t, err)
-		require.Equal(t, expected, matched, remote)
+		require.Equal(t, expected, sameHost(candidate, "soda.example.test"), candidate)
 	}
 }
 

@@ -61,7 +61,7 @@ func (state *runnerState) verifyIndependentWorkspaceUIDs(ctx context.Context, sc
 }
 
 func (state *runnerState) verifyWorkspaceForgejoAbsence(ctx context.Context, scenario *scenarioState) error {
-	script := "set -eu; url=$(printf '{}\\n' | /usr/libexec/soda/soda-projects list | jq -er .forgejo_url); for user in " + scenario.adminSpace + " " + scenario.aliceSpace + " " + scenario.bobSpace + "; do test \"$(curl --silent --output /dev/null --write-out '%{http_code}' \"$url/api/v1/users/$user\")\" = 404; done"
+	script := "set -eu; url=http://127.0.0.1:30000; for user in " + scenario.adminSpace + " " + scenario.aliceSpace + " " + scenario.bobSpace + "; do test \"$(curl --silent --output /dev/null --write-out '%{http_code}' \"$url/api/v1/users/$user\")\" = 404; done"
 	return scenario.remote.Capture(ctx, "product/workspace-forgejo-absence", []byte(script), "/bin/bash", "-s")
 }
 
@@ -224,7 +224,7 @@ func (state *runnerState) verifyProjectRemoval(ctx context.Context, scenario *sc
 	if err != nil {
 		return err
 	}
-	script := "! getent passwd " + adminSetup.WorkspaceUsername + " >/dev/null; ! getent passwd " + bobSetup.WorkspaceUsername + " >/dev/null; url=$(printf '{}\\n' | /usr/libexec/soda/soda-projects list | jq -er .forgejo_url); curl --fail --silent \"$url/api/v1/repos/" + state.options.Administrator.Username + "/removable\" >/dev/null"
+	script := "! getent passwd " + adminSetup.WorkspaceUsername + " >/dev/null; ! getent passwd " + bobSetup.WorkspaceUsername + " >/dev/null; curl --fail --silent \"http://127.0.0.1:30000/api/v1/repos/" + state.options.Administrator.Username + "/removable\" >/dev/null"
 	return scenario.remote.Capture(ctx, "product/project-removal-preserves-forgejo", []byte(script), "/bin/bash", "-s")
 }
 

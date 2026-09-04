@@ -104,16 +104,12 @@ func ValidateCanonicalURL(remote string) error {
 	return validateStructuredRemote(parsed)
 }
 
-func remoteUsesBundledForgejo(remote, advertisedHost string) (bool, error) {
-	host, err := sshRemoteHost(remote)
-	if err != nil {
-		return false, err
-	}
-	normalize := func(value string) string {
-		return strings.TrimSuffix(strings.ToLower(value), ".")
-	}
-	host = normalize(host)
-	return host == normalize(advertisedHost) || host == "localhost", nil
+func sameHost(left, right string) bool {
+	return normalizeHost(left) != "" && normalizeHost(left) == normalizeHost(right)
+}
+
+func normalizeHost(value string) string {
+	return strings.TrimSuffix(strings.ToLower(value), ".")
 }
 
 func sshRemoteHost(remote string) (string, error) {

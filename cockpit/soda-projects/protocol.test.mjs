@@ -45,7 +45,7 @@ test("request encoder accepts objects and rejects alternate wire shapes", () => 
   assert.throws(() => encodeRequest("list", null), /must be a JSON object/);
 });
 
-test("list response requires native user and service context", () => {
+test("list response requires native user context without connection identity", () => {
   const response = {
     projects: [{
       id: "website",
@@ -56,8 +56,6 @@ test("list response requires native user and service context", () => {
       workspace_ready: true,
     }],
     current_user: { username: "alice", administrator: true },
-    forgejo_url: "https://soda.tail.example/forgejo",
-    ssh_host: "soda.tail.example",
   };
   assert.deepEqual(decodeResponse("list", JSON.stringify(response)), response);
   assert.throws(

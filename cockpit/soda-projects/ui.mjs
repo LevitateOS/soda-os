@@ -12,6 +12,18 @@ export const formActions = Object.freeze([
 
 const formActionSet = new Set(formActions);
 
+function connectionHost(hostname) {
+  return hostname.includes(":") && !hostname.startsWith("[") ? `[${hostname}]` : hostname;
+}
+
+export function forgejoBrowserURL(hostname) {
+  return `http://${connectionHost(hostname)}:30000`;
+}
+
+export function sshCommand(username, hostname) {
+  return `ssh ${username}@${connectionHost(hostname)}`;
+}
+
 export function payloadFor(action, data, reportInvalid) {
   if (!formActionSet.has(action)) {
     throw new TypeError(`unsupported form action: ${action}`);

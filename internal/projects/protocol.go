@@ -101,8 +101,6 @@ type CurrentUserView struct {
 type ListResponse struct {
 	Projects    []ProjectView   `json:"projects"`
 	CurrentUser CurrentUserView `json:"current_user"`
-	ForgejoURL  string          `json:"forgejo_url"`
-	SSHHost     string          `json:"ssh_host"`
 }
 
 type MutationResponse struct {

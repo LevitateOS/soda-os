@@ -49,11 +49,7 @@ func (coordinator Coordinator) preparePerson(ctx context.Context, request AddPer
 	if err != nil {
 		return preparedPerson{}, err
 	}
-	forgejoURL, _, err := coordinator.Endpoints.Endpoints(ctx)
-	if err != nil {
-		return preparedPerson{}, err
-	}
-	return preparedPerson{request.Username, request.Password, key, forgejoURL}, nil
+	return preparedPerson{request.Username, request.Password, key, coordinator.ForgejoAPIURL}, nil
 }
 
 func (coordinator Coordinator) createPersonLinuxAccount(ctx context.Context, person preparedPerson) error {
