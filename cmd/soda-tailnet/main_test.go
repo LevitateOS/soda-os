@@ -17,7 +17,7 @@ func TestEnrollmentMessage(t *testing.T) {
 	}{
 		"not enrolled": {
 			status: tailnet.Status{BackendState: "NeedsLogin"},
-			want:   "Tailscale is not enrolled. Tailnet access is unavailable.\nInfrastructure owner: run `sudo tailscale up`, then open the one-time URL it prints to authorize this appliance. After authorization, run `sudo systemctl restart forgejo`",
+			want:   "Tailscale is not enrolled. Tailnet access is unavailable.\nInfrastructure owner: run `sudo tailscale up`, then open the one-time URL it prints to authorize this appliance. After authorization, run `sudo /usr/libexec/soda/forgejo-init refresh-tailnet`",
 			absent: "soda-cockpit",
 		},
 		"identity ready": {
