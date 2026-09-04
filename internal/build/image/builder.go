@@ -20,7 +20,7 @@ import (
 
 const sodaRegistry = "ghcr.io/levitateos/soda-os"
 
-var builtRPMs = []string{"soda-release", "soda-runtime", "soda-projects", "soda-forgejo", "soda-tea"}
+var builtRPMs = []string{"soda-release", "soda-runtime", "soda-projects", "soda-runners", "soda-forgejo", "soda-tea"}
 var externalRPMs = []string{"mise"}
 
 var requiredStockCockpitPackages = []string{
@@ -202,7 +202,7 @@ func validateLockedPackage(item lockedPackage, seen map[string]bool) error {
 }
 
 func (b *Builder) validateBuildInputs() error {
-	for _, path := range []string{"packaging/bootc/Containerfile", "packaging/builder/Containerfile", b.Spec.Platform.Builder.PackageLock, b.Spec.Platform.Installer.PackageLock, b.Spec.Platform.Installer.ToolLock, b.Spec.Platform.Installer.ISOConfig, "packaging/rpm/release/soda-release.spec", "packaging/rpm/runtime/soda-runtime.spec", "packaging/rpm/projects/soda-projects.spec", "packaging/rpm/forgejo/soda-forgejo.spec", "packaging/rpm/forgejo/sources/patches/0001-pam-do-not-retain-password.patch", "packaging/rpm/tea/soda-tea.spec", "packaging/rpm/tea/sources/LICENSE", "distro/locks/forgejo-source.toml", "distro/locks/mise-source.toml", "distro/locks/tea-source.toml"} {
+	for _, path := range []string{"packaging/bootc/Containerfile", "packaging/builder/Containerfile", b.Spec.Platform.Builder.PackageLock, b.Spec.Platform.Installer.PackageLock, b.Spec.Platform.Installer.ToolLock, b.Spec.Platform.Installer.ISOConfig, "packaging/rpm/release/soda-release.spec", "packaging/rpm/runtime/soda-runtime.spec", "packaging/rpm/projects/soda-projects.spec", "packaging/rpm/runners/soda-runners.spec", "packaging/rpm/forgejo/soda-forgejo.spec", "packaging/rpm/forgejo/sources/patches/0001-pam-do-not-retain-password.patch", "packaging/rpm/tea/soda-tea.spec", "packaging/rpm/tea/sources/LICENSE", "distro/locks/forgejo-source.toml", "distro/locks/github-runner-source.toml", "distro/locks/mise-source.toml", "distro/locks/tea-source.toml"} {
 		if !isFile(b.path(path)) {
 			return fmt.Errorf("required bootc build input %s is missing", path)
 		}

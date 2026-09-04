@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Runners</title>
+    <link rel="stylesheet" href="../soda-projects/app.css">
+    <link rel="stylesheet" href="app.css">
+    <script src="../base1/cockpit.js"></script>
+    <script type="module" src="app.mjs"></script>
+  </head>
+  <body>
+    <main class="page" aria-labelledby="page-title">
+      <header class="page-header">
+        <div>
+          <p class="eyebrow">Soda OS</p>
+          <h1 id="page-title">Runners</h1>
+          <p class="lede">Create and manage generic local capacity for provider-owned CI workflows.</p>
+        </div>
+        <div class="header-actions">
+          <button class="button secondary" id="refresh-runners" type="button">Refresh</button>
+          <button class="button primary" id="open-create-runner" type="button">Create local runner</button>
+        </div>
+      </header>
+
+      <div class="notice" id="notice" role="status" aria-live="polite" hidden></div>
+
+      <section class="panel warning-panel" aria-labelledby="security-title">
+        <div>
+          <h2 id="security-title">Runner jobs execute repository code</h2>
+          <p>Each local runner has its own unprivileged Linux account, one job slot, no sudo access, and no access to human home directories. Its files persist between jobs and it can use the network. Run jobs only for repositories and contributors you trust.</p>
+        </div>
+      </section>
+
+      <section class="panel" aria-labelledby="capacity-title">
+        <div class="panel-heading">
+          <div>
+            <h2 id="capacity-title">Local capacity</h2>
+            <p id="runner-summary">Loading local runner capacity…</p>
+          </div>
+        </div>
+        <div class="table-wrap" id="runners-table-wrap" hidden>
+          <table>
+            <thead><tr><th scope="col">Runner</th><th scope="col">Provider</th><th scope="col">Local listener</th><th scope="col">Capacity</th><th scope="col"><span class="visually-hidden">Actions</span></th></tr></thead>
+            <tbody id="runner-rows"></tbody>
+          </table>
+        </div>
+        <div class="empty-state" id="empty-runners" hidden>
+          <h3>No local runners</h3>
+          <p>Create generic Forgejo or GitHub capacity. Provider-hosted runners require no Soda configuration.</p>
+        </div>
+      </section>
+
+      <section class="panel boundary-panel" aria-labelledby="provider-title">
+        <div>
+          <h2 id="provider-title">Provider authority</h2>
+          <p>Forgejo and GitHub own runner registration, tokens, labels, workflows, scheduling, results, and history. Soda owns only this machine's account, service, status, capacity, and local lifecycle.</p>
+        </div>
+      </section>
+    </main>
+
+    <dialog id="create-runner-dialog" aria-labelledby="create-runner-title">
+      <form method="dialog" id="create-runner-form">
+        <header class="dialog-header">
+          <div><h2 id="create-runner-title">Create local runner</h2><p>The provider creates the registration input. Soda passes it only to that provider's runner.</p></div>
+          <button class="icon-button" type="button" data-dialog-close aria-label="Close">×</button>
+        </header>
+        <div class="form-body">
+          <label>Runner ID<input name="id" required pattern="[a-z][a-z0-9-]{0,15}" maxlength="16" autocomplete="off" aria-describedby="runner-id-help"></label>
+          <p class="field-help" id="runner-id-help">A stable lowercase local name. It is also the provider runner name for GitHub.</p>
+          <fieldset>
+            <legend>Provider</legend>
+            <label class="choice"><input type="radio" name="provider" value="forgejo" checked> Bundled Forgejo</label>
+            <label class="choice"><input type="radio" name="provider" value="github"> GitHub</label>
+          </fieldset>
+
+          <div id="forgejo-fields">
+            <p>Create a system runner in <a id="forgejo-runners-link" target="_blank" rel="noreferrer">Forgejo runner administration</a>, then copy its UUID and confidential token here.</p>
+            <label>Forgejo runner UUID<input name="registration_id" pattern="[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}" autocomplete="off"></label>
+            <label>Native Forgejo host labels<input name="forgejo_labels" value="soda-linux:host" pattern="[A-Za-z0-9][A-Za-z0-9._-]{0,63}:host(,[A-Za-z0-9][A-Za-z0-9._-]{0,63}:host)*" autocomplete="off"></label>
+            <p class="field-help">Use comma-separated <code>name:host</code> labels. Host jobs run directly as this runner's isolated Linux account.</p>
+          </div>
+
+          <div id="github-fields" hidden>
+            <p>In the repository, organization, or enterprise Actions settings, choose <strong>New self-hosted runner</strong> and copy the short-lived registration token.</p>
+            <label>GitHub registration URL<input name="registration_url" type="url" placeholder="https://github.com/owner/repository" autocomplete="off"></label>
+            <label>Custom GitHub labels<input name="github_labels" required value="soda-local" pattern="[A-Za-z0-9][A-Za-z0-9._-]{0,63}(,[A-Za-z0-9][A-Za-z0-9._-]{0,63})*" autocomplete="off"></label>
+            <p class="field-help">GitHub also adds its native <code>self-hosted</code>, <code>linux</code>, and architecture labels.</p>
+          </div>
+
+          <label>Provider registration token<input name="registration_token" required type="password" autocomplete="off"></label>
+          <p class="field-help">Used only through the provider's native registration input. Soda descriptors, command arguments, environment, and logs never contain it. The provider runner retains the credential it needs to reconnect.</p>
+        </div>
+        <footer class="dialog-actions"><button class="button secondary" type="button" data-dialog-close>Cancel</button><button class="button primary" value="default">Register and start</button></footer>
+      </form>
+    </dialog>
+
+    <dialog id="remove-runner-dialog" aria-labelledby="remove-runner-title">
+      <form method="dialog" id="remove-runner-form">
+        <header class="dialog-header">
+          <div><h2 id="remove-runner-title">Remove local runner</h2><p>This permanently stops the listener and deletes its Linux account, provider client state, working files, dependencies, and uncommitted job changes. Its provider record and CI history remain with Forgejo or GitHub; remove the offline record there.</p></div>
+          <button class="icon-button" type="button" data-dialog-close aria-label="Close">×</button>
+        </header>
+        <div class="form-body"><input name="id" type="hidden"><label>Type <code data-runner-id></code> to confirm<input name="confirmation" required autocomplete="off"></label></div>
+        <footer class="dialog-actions"><button class="button secondary" type="button" data-dialog-close>Cancel</button><button class="button danger" value="default">Remove local runner</button></footer>
+      </form>
+    </dialog>
+  </body>
+</html>

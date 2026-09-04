@@ -205,7 +205,9 @@ func TestForgejoPackagingContract(t *testing.T) {
 	require.Contains(t, string(configuration), "HTTP_PORT = 30000")
 	require.Contains(t, string(configuration), "START_SSH_SERVER = false")
 	require.Contains(t, string(configuration), "DISABLE_REGISTRATION = true")
-	require.Contains(t, string(configuration), "ENABLED = false")
+	require.Contains(t, string(configuration), "[actions]\nENABLED = true")
+	require.Contains(t, string(configuration), "[packages]\nENABLED = false")
+	require.Contains(t, string(configuration), "[federation]\nENABLED = false")
 	require.Contains(t, string(configuration), "SSH_USER = git")
 	require.Contains(t, string(configuration), "SSH_CREATE_AUTHORIZED_KEYS_FILE = true")
 

@@ -20,13 +20,13 @@ check:
     ./scripts/check-complexity.sh
     ./scripts/check-release-identity.sh
     ./scripts/check-release-ci.sh
-    node --test cockpit/soda-projects/*.test.mjs
+    node --test cockpit/soda-projects/*.test.mjs cockpit/soda-runners/*.test.mjs
     go vet ./...
     go test ./...
     go run ./cmd/soda-image --architecture aarch64 check
     go run ./cmd/soda-image --architecture x86_64 check
 
-rpm architecture: (builder-tools architecture) forgejo-source mise-rpm tea-source
+rpm architecture: (builder-tools architecture) forgejo-source (github-runner architecture) mise-rpm tea-source
     go run ./cmd/soda-image --architecture {{quote(architecture)}} rpm
 
 forgejo-source:
@@ -38,7 +38,10 @@ mise-rpm:
 tea-source:
     ./scripts/fetch-tea-source.sh
 
-oci architecture: (builder-tools architecture) forgejo-source mise-rpm tea-source
+github-runner architecture:
+    ./scripts/fetch-github-runner.sh {{quote(architecture)}}
+
+oci architecture: (builder-tools architecture) forgejo-source (github-runner architecture) mise-rpm tea-source
     go run ./cmd/soda-image --architecture {{quote(architecture)}} oci
 
 builder-tools architecture:
