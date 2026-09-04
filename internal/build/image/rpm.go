@@ -172,6 +172,9 @@ func (b *Builder) buildGoBinaries(ctx context.Context, revision string) error {
 	for _, target := range []struct{ output, pkg string }{
 		{"soda-projects", "./cmd/soda-projects"},
 		{"soda-workspace-helper", "./cmd/soda-workspace-helper"},
+		{"soda-runners", "./cmd/soda-runners"},
+		{"soda-runner-helper", "./cmd/soda-runner-helper"},
+		{"soda-runner-launch", "./cmd/soda-runner-launch"},
 		{"soda-tailnet", "./cmd/soda-tailnet"},
 		{"soda-forgejo-tailnet", "./cmd/soda-forgejo-tailnet"},
 	} {
@@ -186,13 +189,35 @@ func (b *Builder) stageRPMSources(build, sources string) error {
 	if err := b.stageTeaSource(sources); err != nil {
 		return err
 	}
+	if err := b.stageGitHubRunnerSource(sources); err != nil {
+		return err
+	}
 	return b.stageNonBunRPMSources(build, sources)
+}
+
+func (b *Builder) stageGitHubRunnerSource(sources string) error {
+	lock, err := readGitHubRunnerSourceLock(b.path("distro/locks/github-runner-source.toml"))
+	if err != nil {
+		return err
+	}
+	asset, err := lock.asset(b.Spec.Platform.Architecture.Name)
+	if err != nil {
+		return err
+	}
+	archive := b.artifactPath("tools", asset.Archive)
+	if err = verifyFileSHA256(archive, asset.SHA256); err != nil {
+		return fmt.Errorf("verify GitHub runner source; run just github-runner %s: %w", asset.Architecture, err)
+	}
+	return copyFile(archive, filepath.Join(sources, "github-actions-runner.tar.gz"))
 }
 
 func (b *Builder) stageNonBunRPMSources(build, sources string) error {
 	files := [][2]string{
 		{filepath.Join(build, "soda-projects"), filepath.Join(sources, "soda-projects")},
 		{filepath.Join(build, "soda-workspace-helper"), filepath.Join(sources, "soda-workspace-helper")},
+		{filepath.Join(build, "soda-runners"), filepath.Join(sources, "soda-runners")},
+		{filepath.Join(build, "soda-runner-helper"), filepath.Join(sources, "soda-runner-helper")},
+		{filepath.Join(build, "soda-runner-launch"), filepath.Join(sources, "soda-runner-launch")},
 		{filepath.Join(build, "soda-tailnet"), filepath.Join(sources, "soda-tailnet")},
 		{filepath.Join(build, "forgejo"), filepath.Join(sources, "forgejo")},
 		{b.path("packaging/rpm/runtime/sources/systemd/soda-tailscale-enroll.service"), filepath.Join(sources, "soda-tailscale-enroll.service")},
@@ -215,6 +240,16 @@ func (b *Builder) stageNonBunRPMSources(build, sources string) error {
 		{b.path("cockpit/soda-projects/protocol.mjs"), filepath.Join(sources, "soda-projects-protocol.mjs")},
 		{b.path("cockpit/soda-projects/ui.mjs"), filepath.Join(sources, "soda-projects-ui.mjs")},
 		{b.path("cockpit/soda-projects/app.css"), filepath.Join(sources, "soda-projects-app.css")},
+		{b.path("packaging/rpm/runners/sources/polkit/org.sodaos.runners.policy"), filepath.Join(sources, "org.sodaos.runners.policy")},
+		{b.path("packaging/rpm/runners/sources/tmpfiles/soda-runners.conf"), filepath.Join(sources, "soda-runners.tmpfiles")},
+		{b.path("packaging/rpm/runners/sources/sysusers/soda-runners.conf"), filepath.Join(sources, "soda-runners.sysusers")},
+		{b.path("packaging/rpm/runners/sources/systemd/soda-runner@.service"), filepath.Join(sources, "soda-runner@.service")},
+		{b.path("cockpit/soda-runners/manifest.json"), filepath.Join(sources, "soda-runners-manifest.json")},
+		{b.path("cockpit/soda-runners/index.html"), filepath.Join(sources, "soda-runners-index.html")},
+		{b.path("cockpit/soda-runners/app.mjs"), filepath.Join(sources, "soda-runners-app.mjs")},
+		{b.path("cockpit/soda-runners/protocol.mjs"), filepath.Join(sources, "soda-runners-protocol.mjs")},
+		{b.path("cockpit/soda-runners/ui.mjs"), filepath.Join(sources, "soda-runners-ui.mjs")},
+		{b.path("cockpit/soda-runners/app.css"), filepath.Join(sources, "soda-runners-app.css")},
 		{b.path("packaging/rpm/projects/sources/branding/sodaos/branding.css"), filepath.Join(sources, "soda-projects-branding.css")},
 		{b.path("assets/branding/source/soda-symbol.svg"), filepath.Join(sources, "soda-projects-symbol.svg")},
 		{b.path("packaging/rpm/forgejo/sources/systemd/forgejo.service"), filepath.Join(sources, "forgejo.service")},

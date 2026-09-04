@@ -1,0 +1,37 @@
+.warning-panel {
+  border-color: #d99b19;
+  background: #fff8e5;
+}
+
+.boundary-panel {
+  border-style: dashed;
+}
+
+.choice {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin-right: 1.25rem;
+}
+
+.choice input {
+  width: auto;
+}
+
+.status.good {
+  color: #0b6b3a;
+}
+
+.status.bad {
+  color: #a30000;
+}
+
+.status.neutral {
+  color: #5d6570;
+}
+
+td > a,
+td > code,
+td > strong {
+  display: block;
+}

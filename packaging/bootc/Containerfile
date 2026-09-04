@@ -20,6 +20,7 @@ LABEL org.opencontainers.image.title="Soda OS" \
 COPY --from=rpm-inputs /soda-release-*.rpm /var/tmp/soda-rpms/
 COPY --from=rpm-inputs /soda-runtime-*.rpm /var/tmp/soda-rpms/
 COPY --from=rpm-inputs /soda-projects-*.rpm /var/tmp/soda-rpms/
+COPY --from=rpm-inputs /soda-runners-*.rpm /var/tmp/soda-rpms/
 COPY --from=rpm-inputs /soda-forgejo-*.rpm /var/tmp/soda-rpms/
 COPY --from=rpm-inputs /soda-tea-*.rpm /var/tmp/soda-rpms/
 COPY --from=rpm-inputs /mise-*.rpm /var/tmp/soda-rpms/
@@ -43,7 +44,7 @@ RUN dnf -y --setopt=install_weak_deps=False --enablerepo=updates-testing install
       /var/log/dnf5.log \
       /run/dnf \
       /var/tmp/soda-rpms \
-    && systemd-sysusers /usr/lib/sysusers.d/soda-projects.conf /usr/lib/sysusers.d/forgejo.conf \
+    && systemd-sysusers /usr/lib/sysusers.d/soda-projects.conf /usr/lib/sysusers.d/soda-runners.conf /usr/lib/sysusers.d/forgejo.conf \
     && checkmodule -M -m -o /run/soda_forgejo_shadow.mod /usr/share/soda/selinux/soda-forgejo-shadow.te \
     && semodule_package -o /run/soda_forgejo_shadow.pp -m /run/soda_forgejo_shadow.mod \
     && semodule -i /run/soda_forgejo_shadow.pp \
@@ -68,6 +69,9 @@ RUN dnf -y --setopt=install_weak_deps=False --enablerepo=updates-testing install
     && printf '%s\n' "${SODA_HOSTNAME}" > /etc/hostname \
     && rm -f /etc/redhat-release \
     && semanage fcontext -a -t var_lib_t '/var/lib/soda(/.*)?' \
+    && semanage fcontext -a -t bin_t '/var/lib/soda/runners/[^/]+/state/actions-runner/[^/]+\.sh' \
+    && semanage fcontext -a -t bin_t '/var/lib/soda/runners/[^/]+/state/actions-runner/bin(/.*)?' \
+    && semanage fcontext -a -t bin_t '/var/lib/soda/runners/[^/]+/state/actions-runner/externals(/.*)?' \
     && semanage fcontext -a -t ssh_home_t '/var/lib/forgejo/.ssh(/.*)?' \
     && restorecon -RF /var/lib/forgejo/.ssh \
     && ssh-keygen -q -t ed25519 -N '' -f /run/soda-sshd-hostkey \
