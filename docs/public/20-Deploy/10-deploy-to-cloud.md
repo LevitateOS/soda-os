@@ -75,6 +75,44 @@ used through Tailscale after enrollment.
 The VM still needs outbound access for Tailscale, Forgejo-related Git hosts,
 development dependencies, and later OS image retrieval.
 
+## Deploy on Scaleway
+
+Use Scaleway's snapshot import path for the verified, decompressed QCOW2.
+You need permissions for Instances, Object Storage, and security groups in the
+chosen Scaleway project, plus an authenticated Scaleway CLI.
+
+1. Choose an Instance type whose architecture matches the Soda image and an
+   Availability Zone for the server. Create an Object Storage bucket in the
+   same region as that zone.
+2. Upload the `.qcow2` file to the bucket. Keep its `.qcow2` extension; do not
+   upload the compressed `.zst` file as the disk image.
+3. Import the object as an Instance snapshot in the chosen zone. Scaleway's
+   [snapshot import guide](https://www.scaleway.com/en/docs/instances/how-to/snapshot-import-export-feature/)
+   describes the console path; its
+   [CLI guide](https://www.scaleway.com/en/docs/instances/api-cli/managing-instance-snapshot-via-cli/)
+   documents Block Storage imports and the required volume size. Wait for the
+   import to complete before creating the server.
+4. Create a dedicated
+   [security group](https://www.scaleway.com/en/docs/instances/how-to/use-security-groups/)
+   in the same zone. Enable stateful filtering, set inbound traffic to drop,
+   allow outbound traffic, and add no public ingress rules for Soda services.
+   Stateful filtering permits replies to connections the server initiates.
+5. Use the
+   [Instance CLI](https://cli.scaleway.com/instance/#create-server)
+   to create the server from that snapshot with `stopped=true`,
+   `security-group-id` set to the dedicated group, and local disk boot. Select
+   the root-volume option for the snapshot's storage type and size it for the
+   team's data. Confirm the attached boot volume and security group before
+   starting the Instance. Do not provide a cloud-init script.
+6. Start the Instance, then open **Console** from its overview in Scaleway.
+   The [serial console](https://www.scaleway.com/en/docs/instances/how-to/use-serial-console/)
+   is available independently of public SSH access. Complete Soda Setup there
+   using the next section; Soda's first administrator is created by setup, so
+   no public-SSH password bootstrap is needed.
+
+Keep the security group in place after enrollment. Connect to Soda through its
+Tailscale address, not the Instance's public address.
+
 ## Boot and finish setup
 
 Start the VM and open its console. **Soda Setup** appears. Complete it as
