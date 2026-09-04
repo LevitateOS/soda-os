@@ -314,7 +314,7 @@ func TestValidateExtractedPayloadAcceptsNoContainerStorage(t *testing.T) {
 }
 
 func TestISOConfigRequiresExactStage2KernelAndInitrdContract(t *testing.T) {
-	expected := []byte("label: \"SodaOS-Installer\"\ngrub2:\n  default: 0\n  timeout: 10\n  entries:\n    - name: \"Install Soda OS\"\n      linux: \"/images/pxeboot/vmlinuz inst.stage2=hd:LABEL=SodaOS-Installer inst.ks=hd:LABEL=OEMDRV:/ks.cfg inst.nosave=all_ks console=tty0 inst.graphical enforcing=0\"\n      initrd: \"/images/pxeboot/initrd.img\"\n")
+	expected := []byte("label: \"SodaOS-Installer\"\ngrub2:\n  default: 0\n  timeout: 10\n  entries:\n    - name: \"Install Soda OS\"\n      linux: \"/images/pxeboot/vmlinuz inst.stage2=hd:LABEL=SodaOS-Installer console=tty0 inst.graphical enforcing=0\"\n      initrd: \"/images/pxeboot/initrd.img\"\n")
 	root := t.TempDir()
 	inspectDir := t.TempDir()
 	expectedDir := filepath.Join(root, "packaging", "installer")

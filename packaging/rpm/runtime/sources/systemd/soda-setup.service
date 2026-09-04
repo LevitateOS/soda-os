@@ -1,0 +1,19 @@
+[Unit]
+Description=Soda Setup
+Wants=network-online.target forgejo.service
+After=network-online.target forgejo.service
+Before=getty.target
+
+[Service]
+Type=oneshot
+ExecCondition=/usr/libexec/soda/soda-setup pending
+ExecStart=/usr/libexec/soda/soda-setup console
+StandardInput=tty-force
+StandardOutput=tty
+StandardError=tty
+TTYPath=/dev/console
+TTYReset=yes
+TTYVHangup=yes
+
+[Install]
+WantedBy=multi-user.target

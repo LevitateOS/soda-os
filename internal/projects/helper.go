@@ -102,7 +102,7 @@ func (helper Helper) humanPublish(ctx context.Context, actor Account, input io.R
 	if err = DecodeRequest(input, &request); err != nil {
 		return MutationResponse{}, err
 	}
-	key, err := canonicalAuthorizedKey(request.AuthorizedKey)
+	key, err := CanonicalAuthorizedKey(request.AuthorizedKey)
 	if err != nil {
 		return MutationResponse{}, err
 	}

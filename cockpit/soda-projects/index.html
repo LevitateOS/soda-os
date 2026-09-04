@@ -25,6 +25,36 @@
 
       <div class="notice" id="notice" role="status" aria-live="polite" hidden></div>
 
+      <section class="panel setup-panel" aria-labelledby="soda-setup-title">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">Post-install configuration</p>
+            <h2 id="soda-setup-title">Soda Setup</h2>
+            <p id="soda-setup-summary">Loading machine setup…</p>
+          </div>
+          <button class="button secondary" id="refresh-setup" type="button">Refresh setup</button>
+        </div>
+        <div class="setup-body" id="soda-setup-body" hidden>
+          <dl class="fact-list" id="soda-setup-facts"></dl>
+          <div class="setup-actions">
+            <button class="button primary" id="open-setup-administrator" type="button">Create administrator…</button>
+            <form id="allow-local-network-form">
+              <label for="setup-connection">NetworkManager connection</label>
+              <select id="setup-connection" name="connection" required></select>
+              <button class="button secondary" type="submit">Allow access from the local network.</button>
+            </form>
+            <form id="connect-tailscale-form">
+              <label for="setup-auth-key">One-use Tailscale auth key</label>
+              <input id="setup-auth-key" name="auth_key" type="password" required autocomplete="off">
+              <p class="field-help">Requested only after installation, used once through Tailscale, and not retained by Soda.</p>
+              <button class="button secondary" type="submit">Connect Tailscale</button>
+            </form>
+            <button class="button primary" id="dismiss-setup" type="button">Dismiss Soda Setup</button>
+          </div>
+          <p class="field-help">Local-network access and Tailscale are independent. Connecting Tailscale does not disable a selected local network.</p>
+        </div>
+      </section>
+
       <section class="panel" aria-labelledby="catalog-title">
         <div class="panel-heading">
           <div>
@@ -64,6 +94,41 @@
         </div>
       </section>
     </main>
+
+    <dialog id="setup-administrator-dialog" aria-labelledby="setup-administrator-title">
+      <form method="dialog" id="setup-administrator-form">
+        <header class="dialog-header">
+          <div>
+            <h2 id="setup-administrator-title">Create the first administrator</h2>
+            <p>Creates one ordinary primary Linux administrator, makes Forgejo ready for that administrator, and installs the same public SSH key in both native systems.</p>
+          </div>
+          <button class="icon-button" type="button" data-dialog-close aria-label="Close">×</button>
+        </header>
+        <div class="form-body">
+          <label>
+            Linux username
+            <input name="username" required pattern="[a-z][a-z0-9-]{0,23}" maxlength="24" autocomplete="off">
+          </label>
+          <label>
+            Password
+            <input name="password" required type="password" autocomplete="new-password">
+          </label>
+          <label>
+            Confirm password
+            <input name="password_confirmation" required type="password" autocomplete="new-password">
+          </label>
+          <label>
+            SSH public key
+            <textarea name="authorized_key" required rows="4" spellcheck="false" autocomplete="off"></textarea>
+          </label>
+          <p class="field-help">The password is used only by the native Linux and Forgejo operations and is not retained by Soda.</p>
+        </div>
+        <footer class="dialog-actions">
+          <button class="button secondary" type="button" data-dialog-close>Cancel</button>
+          <button class="button primary" value="default">Create administrator</button>
+        </footer>
+      </form>
+    </dialog>
 
     <dialog id="add-existing-dialog" aria-labelledby="add-existing-title">
       <form method="dialog" data-action-form="add-existing">

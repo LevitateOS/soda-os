@@ -20,6 +20,8 @@ install -m 0644 %{_sourcedir}/soda-projects-index.html %{buildroot}%{_datadir}/c
 install -m 0644 %{_sourcedir}/soda-projects-app.mjs %{buildroot}%{_datadir}/cockpit/soda-projects/app.mjs
 install -m 0644 %{_sourcedir}/soda-projects-protocol.mjs %{buildroot}%{_datadir}/cockpit/soda-projects/protocol.mjs
 install -m 0644 %{_sourcedir}/soda-projects-ui.mjs %{buildroot}%{_datadir}/cockpit/soda-projects/ui.mjs
+install -m 0644 %{_sourcedir}/soda-projects-setup.mjs %{buildroot}%{_datadir}/cockpit/soda-projects/setup.mjs
+install -m 0644 %{_sourcedir}/soda-projects-setup-protocol.mjs %{buildroot}%{_datadir}/cockpit/soda-projects/setup-protocol.mjs
 install -m 0644 %{_sourcedir}/soda-projects-app.css %{buildroot}%{_datadir}/cockpit/soda-projects/app.css
 install -m 0644 %{_sourcedir}/soda-projects-branding.css %{buildroot}%{_datadir}/cockpit/branding/sodaos/branding.css
 install -m 0644 %{_sourcedir}/soda-projects-symbol.svg %{buildroot}%{_datadir}/cockpit/branding/sodaos/soda-symbol.svg

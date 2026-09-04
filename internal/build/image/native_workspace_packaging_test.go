@@ -29,6 +29,7 @@ func TestNativeWorkspaceBinariesAreBuilt(t *testing.T) {
 	joined := strings.Join(commands, "\n")
 	require.Contains(t, joined, "-o /src/.artifacts/build/soda-projects ./cmd/soda-projects")
 	require.Contains(t, joined, "-o /src/.artifacts/build/soda-workspace-helper ./cmd/soda-workspace-helper")
+	require.Contains(t, joined, "-o /src/.artifacts/build/soda-setup ./cmd/soda-setup")
 }
 
 func TestNativeWorkspaceCockpitPackagesAreLockedForSiblingArchitectures(t *testing.T) {
@@ -85,16 +86,17 @@ func TestNativeWorkspaceSourcesAreStagedForRPMBuild(t *testing.T) {
 	build := t.TempDir()
 	sources := t.TempDir()
 	for _, name := range []string{
-		"soda-projects", "soda-workspace-helper", "soda-runners", "soda-runner-helper", "soda-runner-launch", "soda-tailnet", "soda-forgejo-tailnet", "forgejo",
+		"soda-projects", "soda-workspace-helper", "soda-setup", "soda-runners", "soda-runner-helper", "soda-runner-launch", "soda-tailnet", "soda-forgejo-tailnet", "forgejo",
 	} {
 		require.NoError(t, os.WriteFile(filepath.Join(build, name), []byte(name), 0o755))
 	}
 
 	require.NoError(t, (&Builder{Root: root}).stageProductRPMSources(build, sources))
 	for _, name := range []string{
-		"soda-projects", "soda-workspace-helper", "soda-projects-manifest.json",
+		"soda-projects", "soda-workspace-helper", "soda-setup", "soda-projects-manifest.json",
 		"soda-projects-index.html", "soda-projects-app.mjs", "soda-projects-protocol.mjs",
-		"soda-projects-ui.mjs", "soda-projects-app.css", "soda-projects-branding.css", "soda-projects-symbol.svg",
+		"soda-projects-ui.mjs", "soda-projects-setup.mjs", "soda-projects-setup-protocol.mjs",
+		"soda-projects-app.css", "soda-projects-branding.css", "soda-projects-symbol.svg",
 		"org.sodaos.projects.policy", "soda-projects.tmpfiles", "soda-projects.sysusers", "cockpit-stock.pam",
 		"soda-runners", "soda-runner-helper", "soda-runner-launch", "soda-runners-manifest.json",
 		"soda-runners-index.html", "soda-runners-app.mjs", "soda-runners-protocol.mjs", "soda-runners-ui.mjs",
@@ -191,7 +193,6 @@ func TestNativeWorkspaceRPMOwnsTheStockCockpitProjectsSurface(t *testing.T) {
 	tmpfiles, err := os.ReadFile(filepath.Join(root, "packaging", "rpm", "projects", "sources", "tmpfiles", "soda-projects.conf"))
 	require.NoError(t, err)
 	require.Equal(t, []string{
-		"d /var/lib/soda 0755 root root -",
 		"d /var/lib/soda/catalog 0755 root root -",
 		`f /var/lib/soda/catalog/projects.json 0644 root root - []\n`,
 		"d /var/lib/soda/mise 0755 root root -",
@@ -199,8 +200,6 @@ func TestNativeWorkspaceRPMOwnsTheStockCockpitProjectsSurface(t *testing.T) {
 		"f /run/lock/soda/workspace-operations.lock 0444 root root -",
 	}, packagingNonCommentLines(string(tmpfiles)))
 
-	_, err = os.Stat(filepath.Join(root, "packaging", "rpm", "runtime", "sources", "tmpfiles", "soda.conf"))
-	require.ErrorIs(t, err, os.ErrNotExist)
 }
 
 func specRequires(contents string) map[string]bool {

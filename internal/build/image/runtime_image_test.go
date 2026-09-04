@@ -114,7 +114,14 @@ func TestRuntimeImageStateDirectoriesAndSELinuxContract(t *testing.T) {
 
 	projectTmpfiles, err := os.ReadFile(filepath.Join("..", "..", "..", "packaging", "rpm", "projects", "sources", "tmpfiles", "soda-projects.conf"))
 	require.NoError(t, err)
-	require.Contains(t, packagingNonCommentLines(string(projectTmpfiles)), "d /var/lib/soda 0755 root root -")
+	require.NotContains(t, packagingNonCommentLines(string(projectTmpfiles)), "d /var/lib/soda 0755 root root -")
+	runtimeTmpfiles, err := os.ReadFile(filepath.Join(runtimeRoot, "tmpfiles", "soda-runtime.conf"))
+	require.NoError(t, err)
+	require.Equal(t, []string{
+		"d /var/lib/soda 0755 root root -",
+		"d /run/lock/soda 0755 root root -",
+		"f /run/lock/soda/setup.lock 0600 root root -",
+	}, packagingNonCommentLines(string(runtimeTmpfiles)))
 }
 
 func TestRuntimeImageRPMStagingContract(t *testing.T) {
@@ -123,7 +130,7 @@ func TestRuntimeImageRPMStagingContract(t *testing.T) {
 	require.NotContains(t, string(staging), "soda-state-directories.service")
 	require.NotContains(t, string(staging), "opt-soda-toolchains.mount")
 	require.NotContains(t, string(staging), "toolset-commands.txt")
-	require.Contains(t, string(staging), `b.path("packaging/rpm/runtime/sources/systemd/soda-tailscale-enroll.service"), filepath.Join(sources, "soda-tailscale-enroll.service")`)
+	require.NotContains(t, string(staging), "soda-tailscale-enroll.service")
 	require.Contains(t, string(staging), `b.path("packaging/rpm/runtime/sources/soda-local-access"), filepath.Join(sources, "soda-local-access")`)
 	require.Contains(t, string(staging), `b.path("packaging/rpm/runtime/sources/firewalld/zones/soda-tailnet.xml"), filepath.Join(sources, "soda-tailnet.xml")`)
 	require.NotContains(t, string(staging), "soda-installer-import.service")
@@ -145,12 +152,13 @@ func TestRuntimeHostCompositionRPMContract(t *testing.T) {
 	require.NoError(t, err)
 	require.NotContains(t, string(runtimeSpec), "soda-state-directories.service")
 	require.NotContains(t, string(runtimeSpec), "opt-soda-toolchains.mount")
-	require.Contains(t, string(runtimeSpec), "install -m 0644 %{_sourcedir}/soda-tailscale-enroll.service %{buildroot}%{_unitdir}/soda-tailscale-enroll.service")
-	require.Contains(t, string(runtimeSpec), "%{_unitdir}/soda-tailscale-enroll.service")
+	require.NotContains(t, string(runtimeSpec), "soda-tailscale-enroll.service")
 	require.Contains(t, string(runtimeSpec), "tailscale")
 	require.Contains(t, string(runtimeSpec), "firewalld")
 	require.Contains(t, string(runtimeSpec), "NetworkManager")
 	require.Contains(t, string(runtimeSpec), "install -m 0755 %{_sourcedir}/soda-local-access %{buildroot}%{_bindir}/soda-local-access")
+	require.Contains(t, string(runtimeSpec), "install -m 0755 %{_sourcedir}/soda-setup %{buildroot}%{_libexecdir}/soda/soda-setup")
+	require.Contains(t, string(runtimeSpec), "install -m 0644 %{_sourcedir}/soda-setup.service %{buildroot}%{_unitdir}/soda-setup.service")
 	require.Contains(t, string(runtimeSpec), "install -m 0644 %{_sourcedir}/soda-tailnet.xml %{buildroot}%{_sysconfdir}/firewalld/zones/soda-tailnet.xml")
 	require.Contains(t, string(runtimeSpec), "%config(noreplace) %{_sysconfdir}/firewalld/zones/soda-tailnet.xml")
 	require.NotContains(t, string(runtimeSpec), "soda-installer-import.service")
@@ -289,7 +297,8 @@ func TestForgejoTailnetPackagingContract(t *testing.T) {
 	require.NoError(t, err)
 	require.Contains(t, string(initUnit), "Wants=tailscaled.service")
 	require.NotContains(t, string(initUnit), "Wants=soda-tailscale-enroll.service")
-	require.Contains(t, string(initUnit), "After=systemd-sysusers.service systemd-tmpfiles-setup.service tailscaled.service soda-tailscale-enroll.service")
+	require.Contains(t, string(initUnit), "After=systemd-sysusers.service systemd-tmpfiles-setup.service tailscaled.service")
+	require.NotContains(t, string(initUnit), "soda-tailscale-enroll.service")
 	require.Contains(t, string(initUnit), "ExecStartPre=/usr/bin/systemd-tmpfiles --create forgejo.conf")
 	require.Contains(t, string(initUnit), "ExecStartPre=-/usr/bin/tailscale wait --timeout=30s")
 }
@@ -298,19 +307,21 @@ func TestRuntimeImageSystemdHostCompositionContract(t *testing.T) {
 	runtimeSources := filepath.Join("..", "..", "..", "packaging", "rpm", "runtime", "sources")
 	preset, err := os.ReadFile(filepath.Join(runtimeSources, "systemd", "90-soda.preset"))
 	require.NoError(t, err)
-	for _, unit := range []string{"sshd.service", "forgejo.service", "cockpit.socket", "tailscaled.service", "firewalld.service"} {
+	for _, unit := range []string{"sshd.service", "forgejo.service", "cockpit.socket", "tailscaled.service", "firewalld.service", "soda-setup.service"} {
 		require.True(t, strings.Contains(string(preset), "enable "+unit))
 	}
-	require.Contains(t, string(preset), "disable soda-tailscale-enroll.service")
+	setupUnit, err := os.ReadFile(filepath.Join(runtimeSources, "systemd", "soda-setup.service"))
+	require.NoError(t, err)
+	require.Contains(t, string(setupUnit), "ExecCondition=/usr/libexec/soda/soda-setup pending")
+	require.Contains(t, string(setupUnit), "ExecStart=/usr/libexec/soda/soda-setup console")
+	require.Contains(t, string(setupUnit), "TTYPath=/dev/console")
+	require.NotContains(t, string(preset), "soda-tailscale-enroll.service")
 	for _, obsolete := range []string{"soda-authd.service", "soda-cockpit.service", "avahi-daemon.service", "var-srv-soda-projects.mount"} {
 		require.NotContains(t, string(preset), obsolete)
 	}
 
-	enrollment, err := os.ReadFile(filepath.Join(runtimeSources, "systemd", "soda-tailscale-enroll.service"))
-	require.NoError(t, err)
-	require.Contains(t, string(enrollment), "--auth-key=file:/var/lib/soda-install/tailscale-auth-key")
-	require.Contains(t, string(enrollment), "ExecStopPost=-/usr/bin/unlink /var/lib/soda-install/tailscale-auth-key")
-	require.NotContains(t, string(enrollment), "Restart=")
+	_, err = os.Stat(filepath.Join(runtimeSources, "systemd", "soda-tailscale-enroll.service"))
+	require.ErrorIs(t, err, os.ErrNotExist)
 
 	tailnetZone, err := os.ReadFile(filepath.Join(runtimeSources, "firewalld", "zones", "soda-tailnet.xml"))
 	require.NoError(t, err)

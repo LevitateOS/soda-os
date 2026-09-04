@@ -42,11 +42,6 @@ nevra = "clippy-0:1.98.0-1.fc44.aarch64"
 source = "fedora"
 
 [[package]]
-name = "cloud-init"
-nevra = "cloud-init-0:26.1-1.fc44.noarch"
-source = "fedora"
-
-[[package]]
 name = "cmake"
 nevra = "cmake-0:4.3.0-1.fc44.aarch64"
 source = "fedora"
