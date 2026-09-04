@@ -49,13 +49,17 @@ func (summary RunSummary) Validate() error {
 	if !gitRevision(summary.SourceRevision) || !gitRevision(summary.SuiteRevision) {
 		return errors.New("run summary revisions must be full Git SHAs")
 	}
-	if !digest(summary.CandidateDigest) || !digest(summary.FallbackDigest) {
-		return errors.New("run summary image digests must be exact sha256 digests")
+	if !validDigestPair(summary.CandidateDigest, summary.FallbackDigest) {
+		return errors.New("run summary image digests must be exact sha256 digests and must differ")
 	}
 	if _, err := time.Parse(time.RFC3339, summary.CompletedAt); err != nil {
 		return errors.New("run summary completion time must be RFC3339")
 	}
 	return validateScenarioResults(summary.Scenarios)
+}
+
+func validDigestPair(candidate, fallback string) bool {
+	return digest(candidate) && digest(fallback) && candidate != fallback
 }
 
 func gitRevision(value string) bool {

@@ -173,12 +173,19 @@ revisions, combine and sign them:
 ```text
 go run ./cmd/soda-acceptance record \
   --x86-summary PATH --aarch64-summary PATH \
+  --aarch64-release-record PATH \
+  --expected-revision EXACT_MAIN_SHA \
   --output PATH \
   --approved-signer SIGSTORE_CERTIFICATE_IDENTITY \
   --oidc-issuer SIGSTORE_OIDC_ISSUER
 ```
 
-This invokes Cosign for signing and immediate verification. Release CI will
-consume the signed record as a prerequisite when issue #48 connects that
-transport boundary; it does not run QEMU or receive a guest Tailscale
-credential.
+The AArch64 release record is parsed with the strict schema-3 decoder and must
+bind the AArch64 run's candidate digest, `linux/arm64` platform, and exact main
+revision. Both summaries must name that same revision as their source and suite
+revision. The maintained `Native acceptance evidence` workflow accepts only
+base64-encoded copies of those three credential-free records, invokes this
+command with its exact `main` SHA, signs and immediately verifies the combined
+record, and retains only the five small record files for one day. It does not
+run QEMU, receive a guest Tailscale credential, publish an image, or create a
+release.

@@ -37,8 +37,12 @@ matching-native machines. It covers:
 Fallback uses the previous signed published OCI image by immutable digest. Do
 not rebuild the previous image or any unused historical ISO/QCOW2.
 
-The completed sibling runs produce one strict JSON acceptance record for the
-exact source commit. It contains:
+The completed sibling runs are submitted to the maintained `Native acceptance
+evidence` workflow on exact `main`, together with the strict AArch64 candidate
+release record. Each decoded input is limited to 12 KiB. The workflow requires
+both summaries' source and suite revisions to equal its own source SHA, binds
+the AArch64 candidate digest to its schema-3 release record, and produces one
+strict JSON acceptance record containing:
 
 - schema;
 - exact source commit;
@@ -49,8 +53,12 @@ exact source commit. It contains:
 - completion time; and
 - approved signer identity.
 
-The record is signed and verified through Cosign/Sigstore. It authenticates the
-claim about the pre-release runs; it does not claim that the later CI-built
+The record is signed and verified through Cosign/Sigstore with the fixed
+`native-acceptance-evidence.yml@refs/heads/main` workflow identity. The two
+summaries, AArch64 release record, combined record, and signature bundle remain
+available as a one-day Actions artifact. The workflow receives no credentials,
+runs no VM, publishes no image, and creates no release. Its record authenticates
+the claim about the pre-release runs; it does not claim that any later CI-built
 bytes were boot-tested. Soda creates no attestation service.
 
 ## Build-once production workflow
