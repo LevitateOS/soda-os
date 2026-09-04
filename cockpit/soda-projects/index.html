@@ -212,7 +212,7 @@
         <header class="dialog-header">
           <div>
             <h2 id="delete-human-title">Remove person from Soda OS</h2>
-            <p>This permanently removes local Soda workspaces, then the Forgejo account, then the primary Linux account. Forgejo may refuse its native account deletion; in that case the Linux account remains so an administrator can retry.</p>
+            <p>This permanently removes local Soda workspaces, then asks Forgejo to delete the account without <code>--purge</code>, then removes the primary Linux account. Forgejo deletes the account, its SSH and GPG keys, access tokens, email addresses, settings, and user data. Its native rules keep issues, pull requests, and comments as deleted-user history, except configured recent-comment deletion. Forgejo refuses if the person owns a repository or package, belongs to an organization, or is its last administrator; then the Linux account remains so an administrator can retry.</p>
           </div>
           <button class="icon-button" type="button" data-dialog-close aria-label="Close">×</button>
         </header>
