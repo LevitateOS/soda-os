@@ -28,6 +28,7 @@ type fakePlatformFailures struct {
 	unlockErr     error
 	installErr    error
 	preflightErr  error
+	forgejoErr    error
 }
 
 type fakePlatformCalls struct {
@@ -39,8 +40,9 @@ type fakePlatformCalls struct {
 	installedKeys  map[string][]byte
 	preflights     []string
 	createdPrimary []string
-	installedTea   []string
 	publishedHuman []string
+	deletedForgejo []string
+	deletionEvents []string
 }
 
 type fakeSetupLock struct {
@@ -178,13 +180,8 @@ func (platform *fakePlatform) CreatePrimary(_ context.Context, username, _ strin
 	return account, nil
 }
 
-func (platform *fakePlatform) PublishHuman(_ context.Context, _ Account, username string, _ []byte) error {
+func (platform *fakePlatform) PublishHuman(_ context.Context, username string, _ []byte) error {
 	platform.calls.publishedHuman = append(platform.calls.publishedHuman, username)
-	return nil
-}
-
-func (platform *fakePlatform) InstallWorkspaceTea(primary, workspace Account) error {
-	platform.calls.installedTea = append(platform.calls.installedTea, primary.Username+":"+workspace.Username)
 	return nil
 }
 
@@ -221,11 +218,18 @@ func (platform *fakePlatform) PreflightDeleteAccount(_ context.Context, account 
 	return platform.failures.preflightErr
 }
 
+func (platform *fakePlatform) DeleteForgejoUser(_ context.Context, username string) error {
+	platform.calls.deletionEvents = append(platform.calls.deletionEvents, "forgejo:"+username)
+	platform.calls.deletedForgejo = append(platform.calls.deletedForgejo, username)
+	return platform.failures.forgejoErr
+}
+
 func (platform *fakePlatform) DeleteAccount(_ context.Context, account Account) error {
 	if platform.onDelete != nil {
 		platform.onDelete(account)
 	}
 	platform.calls.deleted = append(platform.calls.deleted, account.Username)
+	platform.calls.deletionEvents = append(platform.calls.deletionEvents, "linux:"+account.Username)
 	delete(platform.accounts, account.Username)
 	delete(platform.published, account.Username)
 	return nil

@@ -149,6 +149,36 @@ func TestHumanDeletionDeletesDerivedAccountsAndPrimaryLast(t *testing.T) {
 
 	require.NoError(t, lifecycle.DeleteHuman(context.Background(), "admin", "alice"))
 	require.Equal(t, []string{workspace.Username, "alice"}, platform.calls.deleted)
+	require.Equal(t, []string{"alice"}, platform.calls.deletedForgejo)
+	require.Equal(t, []string{"linux:" + workspace.Username, "forgejo:alice", "linux:alice"}, platform.calls.deletionEvents)
+}
+
+func TestHumanDeletionStopsAfterForgejoFailureAndReportsRemainingAccounts(t *testing.T) {
+	catalog := testCatalog(t)
+	platform := newFakePlatform()
+	platform.accounts["admin"] = primaryAccount("admin", primaryRoleAdministrator)
+	platform.accounts["alice"] = primaryAccount("alice", primaryRoleUser)
+	workspace, err := platform.CreateWorkspace(context.Background(), platform.accounts["alice"], "site")
+	require.NoError(t, err)
+	platform.failures.forgejoErr = errors.New("Forgejo refuses users that own repositories")
+	lifecycle := Lifecycle{Catalog: catalog, Platform: platform}
+
+	err = lifecycle.DeleteHuman(context.Background(), "admin", "alice")
+	require.ErrorContains(t, err, "removed Soda workspaces for alice; Forgejo account and primary Linux account remain")
+	require.Equal(t, []string{"linux:" + workspace.Username, "forgejo:alice"}, platform.calls.deletionEvents)
+	require.Contains(t, platform.accounts, "alice")
+}
+
+func TestHumanDeletionRetriesAfterForgejoAccountWasAlreadyRemoved(t *testing.T) {
+	platform := newFakePlatform()
+	platform.accounts["admin"] = primaryAccount("admin", primaryRoleAdministrator)
+	platform.accounts["alice"] = primaryAccount("alice", primaryRoleUser)
+	platform.failures.forgejoErr = ErrForgejoUserNotFound
+	lifecycle := Lifecycle{Catalog: testCatalog(t), Platform: platform}
+
+	require.NoError(t, lifecycle.DeleteHuman(context.Background(), "admin", "alice"))
+	require.Equal(t, []string{"forgejo:alice", "linux:alice"}, platform.calls.deletionEvents)
+	require.NotContains(t, platform.accounts, "alice")
 }
 
 func TestHumanDeletionRetainsPrimaryWhenWorkspacePasswordIsNotLocked(t *testing.T) {

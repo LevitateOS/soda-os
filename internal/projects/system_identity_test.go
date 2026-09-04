@@ -64,6 +64,25 @@ func TestNativeWorkspaceCreationUsesRepresentableLinuxState(t *testing.T) {
 	require.NotContains(t, runner.calls[0].Args, "--password", "useradd's native no-password creation must leave the password locked")
 }
 
+func TestNativeForgejoDeletionUsesTheNonPurgeForgejoBoundary(t *testing.T) {
+	runner := &nativeIdentityRunner{results: map[string]CommandResult{
+		identityCommandKey("/usr/sbin/runuser", "--user", "git", "--", "/usr/bin/forgejo", "admin", "user", "delete", "--config", "/etc/forgejo/app.ini", "--username", "alice"): {},
+	}}
+	platform := &NativePlatform{Runner: runner}
+
+	require.NoError(t, platform.DeleteForgejoUser(context.Background(), "alice"))
+	require.Len(t, runner.calls, 1)
+	require.NotContains(t, runner.calls[0].Args, "--purge")
+}
+
+func TestNativeForgejoDeletionRecognizesCompletedNativeDeletion(t *testing.T) {
+	runner := &nativeIdentityRunner{results: map[string]CommandResult{
+		identityCommandKey("/usr/sbin/runuser", "--user", "git", "--", "/usr/bin/forgejo", "admin", "user", "delete", "--config", "/etc/forgejo/app.ini", "--username", "alice"): {ExitCode: 1, Stderr: "user does not exist [name: alice]"},
+	}}
+	err := (&NativePlatform{Runner: runner}).DeleteForgejoUser(context.Background(), "alice")
+	require.ErrorIs(t, err, ErrForgejoUserNotFound)
+}
+
 func TestWorkspaceAccountsEnumeratesEveryLinuxEvidenceSource(t *testing.T) {
 	t.Parallel()
 	const passwd = "" +

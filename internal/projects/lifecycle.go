@@ -139,12 +139,6 @@ func (lifecycle Lifecycle) createAndPublishWorkspace(ctx context.Context, target
 		}
 		return "", lifecycle.deleteNewWorkspace(ctx, workspace, err)
 	}
-	if err = lifecycle.Platform.InstallWorkspaceTea(target.primary, workspace); err != nil {
-		if safetyErr := lifecycle.Platform.SafeToRemoveIncomplete(workspace, target.entry.ID); safetyErr != nil {
-			return "", errors.Join(err, fmt.Errorf("incomplete workspace was retained: %w", safetyErr))
-		}
-		return "", lifecycle.deleteNewWorkspace(ctx, workspace, err)
-	}
 	if err = lifecycle.Platform.InstallAuthorizedKeys(workspace, keys); err != nil {
 		return "", lifecycle.handleKeyInstallFailure(ctx, workspace, target.entry.ID, err)
 	}
@@ -269,7 +263,13 @@ func (lifecycle Lifecycle) deleteHumanUnlocked(ctx context.Context, actorUsernam
 			return fmt.Errorf("delete workspace %s: %w", account.Username, err)
 		}
 	}
-	return lifecycle.Platform.DeleteAccount(ctx, target)
+	if err = lifecycle.Platform.DeleteForgejoUser(ctx, target.Username); err != nil && !errors.Is(err, ErrForgejoUserNotFound) {
+		return fmt.Errorf("removed Soda workspaces for %s; Forgejo account and primary Linux account remain: delete Forgejo account: %w", target.Username, err)
+	}
+	if err = lifecycle.Platform.DeleteAccount(ctx, target); err != nil {
+		return fmt.Errorf("removed Soda workspaces and Forgejo account for %s; primary Linux account remains: %w", target.Username, err)
+	}
+	return nil
 }
 
 func (lifecycle Lifecycle) authorizeHumanDeletion(ctx context.Context, actorUsername, targetUsername string) (Account, int, error) {

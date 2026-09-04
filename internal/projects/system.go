@@ -9,7 +9,10 @@ import (
 	"os/exec"
 )
 
-var ErrAccountNotFound = errors.New("Linux account not found")
+var (
+	ErrAccountNotFound     = errors.New("Linux account not found")
+	ErrForgejoUserNotFound = errors.New("Forgejo account not found")
+)
 
 type CommandResult struct {
 	Stdout   string
@@ -69,12 +72,12 @@ type Platform interface {
 	ValidatePasswordLocked(context.Context, Account) error
 	CreateWorkspace(context.Context, Account, string) (Account, error)
 	CreatePrimary(context.Context, string, string) (Account, error)
-	PublishHuman(context.Context, Account, string, []byte) error
-	InstallWorkspaceTea(Account, Account) error
+	PublishHuman(context.Context, string, []byte) error
 	InstallAuthorizedKeys(Account, []byte) error
 	PublishWorkspace(context.Context, Account, Account, string) error
 	SafeToRemoveIncomplete(Account, string) error
 	PreflightDeleteAccount(context.Context, Account) error
+	DeleteForgejoUser(context.Context, string) error
 	DeleteAccount(context.Context, Account) error
 }
 

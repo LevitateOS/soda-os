@@ -81,7 +81,7 @@ func (helper Helper) humanPublish(ctx context.Context, actor Account, input io.R
 	if err != nil {
 		return MutationResponse{}, err
 	}
-	if err = helper.Lifecycle.Platform.PublishHuman(ctx, actor, request.Username, []byte(key)); err != nil {
+	if err = helper.Lifecycle.Platform.PublishHuman(ctx, request.Username, []byte(key)); err != nil {
 		return MutationResponse{}, err
 	}
 	return MutationResponse{OK: true}, nil

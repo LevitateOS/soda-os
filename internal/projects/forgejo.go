@@ -25,6 +25,13 @@ type ForgejoCreateRequest struct {
 	ID       string
 }
 
+type ForgejoKeyRequest struct {
+	BaseURL   string
+	Username  string
+	Password  string
+	PublicKey string
+}
+
 type forgejoRepositoryResponse struct {
 	Name     string `json:"name"`
 	CloneURL string `json:"clone_url"`
@@ -32,6 +39,14 @@ type forgejoRepositoryResponse struct {
 	Owner    struct {
 		Login string `json:"login"`
 	} `json:"owner"`
+}
+
+type forgejoUserResponse struct {
+	Login string `json:"login"`
+}
+
+type forgejoKeyResponse struct {
+	Key string `json:"key"`
 }
 
 // ForgejoClient uses Forgejo's initiating-user endpoint. It has no Soda-global
@@ -59,6 +74,127 @@ func (ForgejoClient) Create(ctx context.Context, creation ForgejoCreateRequest) 
 		return CreatedRepository{}, forgejoRejection(response)
 	}
 	return decodeCreatedForgejoRepository(response.Body, creation)
+}
+
+// RegisterPublicKey authenticates the person once through Forgejo's native PAM
+// boundary. Forgejo owns the resulting account and public-key record; Soda
+// retains neither a token nor an identity mirror.
+func (ForgejoClient) RegisterPublicKey(ctx context.Context, registration ForgejoKeyRequest) error {
+	if err := validateForgejoKeyRegistration(registration); err != nil {
+		return err
+	}
+	httpClient, err := directForgejoHTTPClient()
+	if err != nil {
+		return err
+	}
+	if err = confirmForgejoUser(ctx, httpClient, registration); err != nil {
+		return err
+	}
+	keys, err := listForgejoKeys(ctx, httpClient, registration)
+	if err != nil {
+		return err
+	}
+	for _, key := range keys {
+		if strings.TrimSpace(key.Key) == registration.PublicKey {
+			return nil
+		}
+	}
+	return createForgejoKey(ctx, httpClient, registration)
+}
+
+func validateForgejoKeyRegistration(registration ForgejoKeyRequest) error {
+	if !projectIDPattern.MatchString(registration.Username) {
+		return errors.New("username is not supported by Forgejo")
+	}
+	if err := validateHumanPassword(registration.Password); err != nil {
+		return err
+	}
+	key, err := canonicalAuthorizedKey(registration.PublicKey)
+	if err != nil || key != registration.PublicKey {
+		return errors.New("Forgejo public key is invalid")
+	}
+	return nil
+}
+
+func confirmForgejoUser(ctx context.Context, httpClient *http.Client, registration ForgejoKeyRequest) error {
+	request, err := newForgejoUserRequest(ctx, http.MethodGet, registration, "/api/v1/user", nil)
+	if err != nil {
+		return err
+	}
+	response, err := httpClient.Do(request)
+	if err != nil {
+		return fmt.Errorf("authenticate Forgejo user: %w", err)
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusOK {
+		return forgejoRejection(response)
+	}
+	var user forgejoUserResponse
+	if err = json.NewDecoder(io.LimitReader(response.Body, 1<<20)).Decode(&user); err != nil {
+		return fmt.Errorf("decode Forgejo user: %w", err)
+	}
+	if user.Login != registration.Username {
+		return errors.New("Forgejo authenticated an unexpected user")
+	}
+	return nil
+}
+
+func listForgejoKeys(ctx context.Context, httpClient *http.Client, registration ForgejoKeyRequest) ([]forgejoKeyResponse, error) {
+	request, err := newForgejoUserRequest(ctx, http.MethodGet, registration, "/api/v1/user/keys", nil)
+	if err != nil {
+		return nil, err
+	}
+	response, err := httpClient.Do(request)
+	if err != nil {
+		return nil, fmt.Errorf("list Forgejo SSH keys: %w", err)
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusOK {
+		return nil, forgejoRejection(response)
+	}
+	var keys []forgejoKeyResponse
+	if err = json.NewDecoder(io.LimitReader(response.Body, 1<<20)).Decode(&keys); err != nil {
+		return nil, fmt.Errorf("decode Forgejo SSH keys: %w", err)
+	}
+	return keys, nil
+}
+
+func createForgejoKey(ctx context.Context, httpClient *http.Client, registration ForgejoKeyRequest) error {
+	payload, err := json.Marshal(struct {
+		Title string `json:"title"`
+		Key   string `json:"key"`
+	}{Title: "Soda OS", Key: registration.PublicKey})
+	if err != nil {
+		return err
+	}
+	request, err := newForgejoUserRequest(ctx, http.MethodPost, registration, "/api/v1/user/keys", bytes.NewReader(payload))
+	if err != nil {
+		return err
+	}
+	request.Header.Set("Content-Type", "application/json")
+	response, err := httpClient.Do(request)
+	if err != nil {
+		return fmt.Errorf("register Forgejo SSH key: %w", err)
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusCreated {
+		return forgejoRejection(response)
+	}
+	return nil
+}
+
+func newForgejoUserRequest(ctx context.Context, method string, registration ForgejoKeyRequest, endpoint string, body io.Reader) (*http.Request, error) {
+	base, err := url.Parse(registration.BaseURL)
+	if err != nil || base.Host == "" || (base.Scheme != "http" && base.Scheme != "https") || base.User != nil || base.RawQuery != "" || base.Fragment != "" {
+		return nil, errors.New("Forgejo URL is invalid")
+	}
+	base.Path = strings.TrimSuffix(base.Path, "/") + endpoint
+	request, err := http.NewRequestWithContext(ctx, method, base.String(), body)
+	if err != nil {
+		return nil, err
+	}
+	request.SetBasicAuth(registration.Username, registration.Password)
+	return request, nil
 }
 
 func validateForgejoCreation(creation ForgejoCreateRequest) error {
