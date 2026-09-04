@@ -1,8 +1,11 @@
+%global __brp_mangle_shebangs %{nil}
+
 Name:           soda-runners
 Version:        %{soda_version}
 Release:        1%{?dist}
 Summary:        Soda OS local CI runner composition
 License:        MIT AND (MIT OR Apache-2.0)
+AutoReqProv:     no
 Requires:       cockpit-system, coreutils, forgejo-runner, libicu, policycoreutils, polkit, shadow-utils, soda-projects, systemd
 
 %description

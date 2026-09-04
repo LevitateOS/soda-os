@@ -50,6 +50,8 @@ func TestRunnerPackageOwnsOnlyFocusedLocalComposition(t *testing.T) {
 	} {
 		require.Contains(t, spec, expected)
 	}
+	require.Contains(t, spec, "AutoReqProv:     no")
+	require.Contains(t, spec, "%global __brp_mangle_shebangs %{nil}")
 	for _, absent := range []string{"project_id", "workflow", "database", "queue", "scheduler", "external runner"} {
 		require.NotContains(t, strings.ToLower(spec), absent)
 	}
