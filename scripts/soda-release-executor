@@ -14,7 +14,6 @@ config=/etc/soda-release-ci.conf
 . "$config"
 : "${SODA_RELEASE_ROOT:?SODA_RELEASE_ROOT is required}"
 : "${SODA_RELEASE_REPOSITORY:?SODA_RELEASE_REPOSITORY is required}"
-: "${SODA_RESET_BASE_SHA:?SODA_RESET_BASE_SHA is required}"
 
 die() { echo "soda-release-executor: $*" >&2; exit 1; }
 
@@ -32,7 +31,6 @@ require_run_identity() {
 
 run_directory() { printf '%s/runs/%s-%s-%s-%s\n' "$SODA_RELEASE_ROOT" "$1" "$2" "$3" "$4"; }
 worktree() { printf '%s/source\n' "$1"; }
-fallback_worktree() { printf '%s/fallback\n' "$1"; }
 
 read_secret_line() {
     variable=$1
@@ -111,50 +109,12 @@ prepare() {
     run=$(run_directory "$@")
     [ ! -e "$run" ] || die 'derived release run directory already exists'
     github_token=$(read_secret_line github_token)
-    iso_guest_key=$(read_secret_line iso_acceptance_guest_key)
-    nocloud_guest_key=$(read_secret_line nocloud_acceptance_guest_key)
-    configdrive_guest_key=$(read_secret_line configdrive_acceptance_guest_key)
-    for guest_key in "$iso_guest_key" "$nocloud_guest_key" "$configdrive_guest_key"; do
-        case "$guest_key" in tskey-auth-*) ;; *) die 'acceptance guest key is not a Tailscale auth key' ;; esac
-    done
     umask 077
     install -d -m 0700 "$run"
     source_tree=$(worktree "$run")
-    fallback_tree=$(fallback_worktree "$run")
     checkout_source "$source_tree" "$3"
-    checkout_source "$fallback_tree" "$SODA_RESET_BASE_SHA"
-    build_and_stage "$fallback_tree" "$run" "$SODA_RESET_BASE_SHA" "$4" "$github_token"
     build_and_stage "$source_tree" "$run" "$3" "$4" "$github_token"
-    artifact_paths "$source_tree" "$4"
-    candidate_archive=$archive
-    candidate_iso=$iso
-    candidate_qcow2=$qcow2
-    candidate_record=$record
-    artifact_paths "$fallback_tree" "$4"
-    guest_key_file=$run/acceptance-tailscale-auth-key
-    nocloud_key_file=$run/nocloud-tailscale-auth-key
-    configdrive_key_file=$run/configdrive-tailscale-auth-key
-    printf '%s\n' "$iso_guest_key" >"$guest_key_file"
-    printf '%s\n' "$nocloud_guest_key" >"$nocloud_key_file"
-    printf '%s\n' "$configdrive_guest_key" >"$configdrive_key_file"
-    chmod 0600 "$guest_key_file" "$nocloud_key_file" "$configdrive_key_file"
-    evidence=$run/evidence
-    (
-	trap 'rm -f "$guest_key_file" "$nocloud_key_file" "$configdrive_key_file"' 0 1 2 15
-        cd "$source_tree"
-        tests/acceptance/unattended.sh run \
-            --evidence-dir "$evidence" \
-            --candidate-iso "$candidate_iso" \
-            --candidate-record "$candidate_record" \
-            --candidate-oci "$candidate_archive" \
-            --candidate-qcow2 "$candidate_qcow2" \
-            --fallback-record "$record" \
-            --fallback-oci "$archive" \
-            --tailscale-auth-key-file "$guest_key_file" \
-            --nocloud-tailscale-auth-key-file "$nocloud_key_file" \
-            --configdrive-tailscale-auth-key-file "$configdrive_key_file"
-    )
-    unset github_token guest_key iso_guest_key nocloud_guest_key configdrive_guest_key
+    unset github_token
 }
 
 emit_record() {

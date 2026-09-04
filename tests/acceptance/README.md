@@ -109,24 +109,48 @@ process IDs, logs, and raw secret material. It records stable account, group,
 home, key, catalog, workspace, Git, Forgejo, Tailscale, SSH, and deployment
 facts.
 
-## Current implementation
+## Go runner
 
-The current public shell entry point is:
+Run one architecture on its matching-native machine from the clean source
+revision named by the candidate release record:
 
 ```text
-tests/acceptance/unattended.sh run
+go run ./cmd/soda-acceptance run \
+  --evidence .artifacts/acceptance/x86_64 \
+  --candidate-record PATH --candidate-oci PATH \
+  --candidate-iso PATH --candidate-qcow2 PATH \
+  --fallback-record PATH --fallback-oci PATH \
+  --tailscale-auth-key-file PATH \
+  --administrator-private-key PATH \
+  --administrator-public-key PATH \
+  --administrator-password-file PATH
 ```
 
-At checkpoint `5cf31df`, that runner still orchestrates protected OEMDRV,
-NoCloud, ConfigDrive, copied Tea credentials, the exact three-field catalog,
-the broad immutable toolset, Tailnet-only ingress, person deletion that
-preserves Forgejo, and locally rebuilt fallback A.
+Use `aarch64` as the evidence-directory leaf on an AArch64 host. The protected
+Tailscale file contains one ephemeral, one-use guest key. The private key and
+password are disposable test credentials; all three secret files must have
+mode `0600` or stricter. The runner creates no onboarding media. It opens the
+architecture-native QEMU graphical display for the operator to complete stock
+Anaconda and the common Soda Setup. The runner prints only the protected input
+paths, then resumes through native SSH and Tailscale readiness.
 
-Those assertions are historical implementation evidence and conflict with the
-required scenarios above. The runner must be replaced rather than used to sign
-the new acceptance record. Issue #43 owns the understandable Go orchestration;
-issue #25 owns the signed matching-native evidence boundary.
+The successful run leaves `summary.json` and normalized credential-free
+evidence, but removes its exact QEMU processes, disposable loopback registry,
+generated keys, passwords, and VM disks. A failed run retains sanitized
+diagnostics and reports cleanup failures explicitly.
 
-Release CI verifies the resulting signed record and performs structural
-artifact checks only. It does not run this suite or receive Tailscale guest
-credentials.
+After matching x86-64 and AArch64 summaries name the same source and suite
+revisions, combine and sign them:
+
+```text
+go run ./cmd/soda-acceptance record \
+  --x86-summary PATH --aarch64-summary PATH \
+  --output PATH \
+  --approved-signer SIGSTORE_CERTIFICATE_IDENTITY \
+  --oidc-issuer SIGSTORE_OIDC_ISSUER
+```
+
+This invokes Cosign for signing and immediate verification. Release CI will
+consume the signed record as a prerequisite when issue #48 connects that
+transport boundary; it does not run QEMU or receive a guest Tailscale
+credential.

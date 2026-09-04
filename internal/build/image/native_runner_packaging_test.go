@@ -121,3 +121,12 @@ func TestSiblingRuntimeLocksContainNativeRunnerInputs(t *testing.T) {
 		})
 	}
 }
+
+func TestBootcImageRepairsPinnedForgejoRunnerSysusersInput(t *testing.T) {
+	root := filepath.Join("..", "..", "..")
+	contents, err := os.ReadFile(filepath.Join(root, "packaging", "bootc", "Containerfile"))
+	require.NoError(t, err)
+	containerfile := string(contents)
+	require.Contains(t, containerfile, "sed -i '/^[[:space:]]*$/d' /usr/lib/sysusers.d/forgejo-runner.conf")
+	require.Contains(t, containerfile, "systemd-sysusers --dry-run /usr/lib/sysusers.d/forgejo-runner.conf")
+}

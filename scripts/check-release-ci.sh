@@ -3,7 +3,6 @@ set -eu
 
 workflow=.github/workflows/release.yml
 test -f "$workflow"
-test -x scripts/release-create-vm-auth-key.sh
 test -x scripts/soda-release-executor
 
 grep -Fq 'branches:' "$workflow"
@@ -29,12 +28,17 @@ test "$(grep -Fc 'soda-release-record-bundle-' "$workflow")" -eq 3
 grep -Fq 'SSH command must invoke soda-release-executor' scripts/soda-release-executor
 grep -Fq 'PATH=/usr/local/bin:/usr/bin:/bin' scripts/soda-release-executor
 
+if grep -Eq 'acceptance|guest[_-]key|NoCloud|ConfigDrive|cloud-input|installer-input|OEMDRV' "$workflow" scripts/soda-release-executor; then
+    echo 'release CI must verify pre-release evidence, not run matching-native acceptance' >&2
+    exit 1
+fi
+
 if grep -Eq '^[[:space:]]*uses:[[:space:]]*[^@[:space:]]+@[^[:space:]#]{1,39}([[:space:]#]|$)' "$workflow"; then
     echo 'release workflow contains an action that is not pinned by full commit SHA' >&2
     exit 1
 fi
 
-if grep -Eq '(TS_AUTHKEY|tailscale.*authkey|authkey:)' "$workflow" scripts/release-create-vm-auth-key.sh; then
+if grep -Eqi '(TS_AUTHKEY|tailscale.*authkey|authkey:)' "$workflow"; then
     echo 'release CI must use workload identity federation, not a reusable auth key' >&2
     exit 1
 fi
