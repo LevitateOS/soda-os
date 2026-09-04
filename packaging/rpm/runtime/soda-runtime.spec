@@ -18,7 +18,6 @@ install -m 0755 %{_sourcedir}/soda-cloud-finalize %{buildroot}%{_libexecdir}/sod
 install -m 0644 %{_sourcedir}/99-soda-datasources.cfg %{buildroot}%{_sysconfdir}/cloud/cloud.cfg.d/99-soda-datasources.cfg
 install -m 0644 %{_sourcedir}/soda-tailscale-enroll.service %{buildroot}%{_unitdir}/soda-tailscale-enroll.service
 install -m 0644 %{_sourcedir}/90-soda.preset %{buildroot}%{_presetdir}/90-soda.preset
-install -m 0644 %{_sourcedir}/firewalld.conf %{buildroot}%{_sysconfdir}/firewalld/firewalld.conf
 install -m 0644 %{_sourcedir}/soda-tailnet.xml %{buildroot}%{_sysconfdir}/firewalld/zones/soda-tailnet.xml
 install -m 0644 %{_sourcedir}/10-soda-console.conf %{buildroot}%{_unitdir}/getty@tty1.service.d/10-soda-console.conf
 install -m 0644 %{_sourcedir}/60-soda-console.conf %{buildroot}%{_sysctldir}/60-soda-console.conf
@@ -32,7 +31,6 @@ install -m 0644 %{_sourcedir}/soda-console-welcome.sh %{buildroot}%{_sysconfdir}
 %{_sysconfdir}/cloud/cloud.cfg.d/99-soda-datasources.cfg
 %{_unitdir}/soda-tailscale-enroll.service
 %{_presetdir}/90-soda.preset
-%config(noreplace) %{_sysconfdir}/firewalld/firewalld.conf
 %config(noreplace) %{_sysconfdir}/firewalld/zones/soda-tailnet.xml
 %{_unitdir}/getty@tty1.service.d/10-soda-console.conf
 %{_sysctldir}/60-soda-console.conf

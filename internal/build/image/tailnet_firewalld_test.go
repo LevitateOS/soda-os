@@ -17,6 +17,10 @@ func TestTailnetIngressSurvivesFirewalldDefaultDrop(t *testing.T) {
 			t.Skipf("requires %s", binary)
 		}
 	}
+	probe := exec.Command("unshare", "-Urn", "true")
+	if output, err := probe.CombinedOutput(); err != nil {
+		t.Skipf("requires usable user and network namespaces: %s", output)
+	}
 
 	// Tailscale's input chain accepts packets at filter priority. Firewalld
 	// evaluates later, at filter + 10, so its default drop still wins unless

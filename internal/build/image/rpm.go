@@ -198,7 +198,6 @@ func (b *Builder) stageNonBunRPMSources(build, sources string) error {
 		{b.path("packaging/rpm/runtime/sources/systemd/soda-tailscale-enroll.service"), filepath.Join(sources, "soda-tailscale-enroll.service")},
 		{b.path("packaging/rpm/runtime/sources/systemd/90-soda.preset"), filepath.Join(sources, "90-soda.preset")},
 		{b.path("packaging/rpm/runtime/sources/soda-local-access"), filepath.Join(sources, "soda-local-access")},
-		{b.path("packaging/rpm/runtime/sources/firewalld/firewalld.conf"), filepath.Join(sources, "firewalld.conf")},
 		{b.path("packaging/rpm/runtime/sources/firewalld/zones/soda-tailnet.xml"), filepath.Join(sources, "soda-tailnet.xml")},
 		{b.path("packaging/rpm/runtime/sources/systemd/getty@tty1.service.d/10-soda-console.conf"), filepath.Join(sources, "10-soda-console.conf")},
 		{b.path("packaging/rpm/runtime/sources/sysctl/60-soda-console.conf"), filepath.Join(sources, "60-soda-console.conf")},

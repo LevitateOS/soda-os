@@ -357,13 +357,18 @@ nevra = "python3-dbus-0:1.4.0-9.fc44.x86_64"
 source = "fedora"
 
 [[package]]
+name = "python3-distro"
+nevra = "python3-distro-0:1.9.0-11.fc44.noarch"
+source = "fedora"
+
+[[package]]
 name = "python3-firewall"
 nevra = "python3-firewall-0:2.4.4-1.fc44.noarch"
 source = "fedora"
 
 [[package]]
-name = "python3-distro"
-nevra = "python3-distro-0:1.9.0-11.fc44.noarch"
+name = "python3-gobject-base"
+nevra = "python3-gobject-base-0:3.56.3-1.fc44.x86_64"
 source = "fedora"
 
 [[package]]
@@ -399,6 +404,11 @@ source = "fedora"
 [[package]]
 name = "python3-libsemanage"
 nevra = "python3-libsemanage-0:3.11-1.fc44.x86_64"
+source = "fedora"
+
+[[package]]
+name = "python3-nftables"
+nevra = "python3-nftables-1:1.1.6-2.fc44.noarch"
 source = "fedora"
 
 [[package]]
