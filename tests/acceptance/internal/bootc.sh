@@ -679,10 +679,11 @@ EOF
 emit_installed_ownership_checks() {
 	cat <<'EOF'
 set -eu
-rules=$(nft list chain inet soda_ingress input)
-printf '%s\n' "$rules"
-printf '%s\n' "$rules" | grep -F 'iifname { "lo", "tailscale0" } tcp dport { 22, 9090, 30000 } accept' >/dev/null
-printf '%s\n' "$rules" | grep -F 'tcp dport { 22, 9090, 30000 } reject with tcp reset' >/dev/null
+test "$(systemctl is-enabled firewalld.service)" = enabled
+test "$(systemctl is-enabled nftables.service 2>/dev/null || true)" != enabled
+test "$(firewall-cmd --get-default-zone)" = drop
+firewall-cmd --zone=soda-tailnet --list-interfaces | tr ' ' '\n' | grep -Fx tailscale0 >/dev/null
+test -x /usr/bin/soda-local-access
 members=$(getent group soda-workspaces | cut -d: -f4 | tr ',' ' ')
 for username in $members; do
 	id -nG "$username" | tr ' ' '\n' | grep -Fx soda-workspaces >/dev/null

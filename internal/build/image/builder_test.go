@@ -63,6 +63,7 @@ func TestBootcContractForEqualSiblingArchitectures(t *testing.T) {
 			require.Contains(t, lock.Package, lockedPackage{Name: "bootc", NEVRA: expected[0], Source: "fedora"})
 			tailscaleNEVRA := "tailscale-0:1.98.8-1.fc44." + architecture
 			require.Contains(t, lock.Package, lockedPackage{Name: "tailscale", NEVRA: tailscaleNEVRA, Source: "fedora"})
+			require.Contains(t, lock.Package, lockedPackage{Name: "firewalld", NEVRA: "firewalld-0:2.4.4-1.fc44.noarch", Source: "fedora"})
 			require.Contains(t, lock.Package, lockedPackage{Name: "soda-forgejo", NEVRA: expected[1], Source: "local-rpm", File: strings.ReplaceAll(expected[1], "-0:", "-") + ".rpm"})
 			require.Contains(t, lock.Package, lockedPackage{Name: "mise", NEVRA: "mise-0:2026.9.1-1.fc44." + architecture, Source: "external-rpm", File: "mise-2026.9.1-1.fc44." + architecture + ".rpm"})
 			require.Equal(t, expected[2], builder.Spec.Image.PackageLock)
