@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -36,4 +37,18 @@ func TestForgejoConfigurationUsesNativeTokenFileAndOneHostSlot(t *testing.T) {
 	info, err := os.Stat(filepath.Join(state, "forgejo-token"))
 	require.NoError(t, err)
 	require.Equal(t, os.FileMode(0o600), info.Mode().Perm())
+}
+
+func TestGitHubRegistrationSelectsNativeDefaultGroupWithoutExposingToken(t *testing.T) {
+	request := CreateRequest{
+		ID: "github-one", Provider: ProviderGitHub, RegistrationURL: "https://github.com/example/repository",
+		Labels: "soda", RegistrationToken: "provider-input",
+	}
+	command := githubRegistrationCommand("/runner", "/state", identity{UID: 1200, GID: 1300}, request)
+	require.Equal(t, []string{
+		"--url", request.RegistrationURL, "--name", request.ID, "--runnergroup", "default", "--work", "_work",
+		"--replace", "--disableupdate", "--labels", request.Labels,
+	}, command.Args)
+	require.NotContains(t, strings.Join(command.Args, " "), request.RegistrationToken)
+	require.NotContains(t, strings.Join(command.Environment, " "), request.RegistrationToken)
 }

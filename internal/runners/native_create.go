@@ -203,7 +203,7 @@ func (native *Native) copyGitHubRunner(ctx context.Context, state string, owner 
 }
 
 func githubRegistrationCommand(app, state string, owner identity, request CreateRequest) Command {
-	args := []string{"--url", request.RegistrationURL, "--name", request.ID, "--work", "_work", "--replace", "--disableupdate"}
+	args := []string{"--url", request.RegistrationURL, "--name", request.ID, "--runnergroup", "default", "--work", "_work", "--replace", "--disableupdate"}
 	if request.Labels != "" {
 		args = append(args, "--labels", request.Labels)
 	}
