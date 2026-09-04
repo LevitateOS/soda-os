@@ -232,13 +232,51 @@ forgejo_user_status() {
 	"
 }
 
+person_key_path() {
+	username=$1
+	printf '%s\n' "$username" | LC_ALL=C grep -Eq '^[a-z][a-z0-9-]{0,23}$' ||
+		die "invalid acceptance person-key username $username"
+	directory=${SODA_ACCEPTANCE_PERSON_KEYS_DIR:-}
+	[ -n "$directory" ] || die "SODA_ACCEPTANCE_PERSON_KEYS_DIR is required"
+	printf '%s/%s\n' "$directory" "$username"
+}
+
+ensure_person_key() {
+	username=$1
+	printf '%s\n' "$username" | LC_ALL=C grep -Eq '^[a-z][a-z0-9-]{0,23}$' ||
+		die "invalid acceptance person-key username $username"
+	if [ "$username" = "$admin" ]; then
+		key=${SODA_ACCEPTANCE_ADMIN_KEY:-}
+		[ -n "$key" ] || die "SODA_ACCEPTANCE_ADMIN_KEY is required"
+		need_file "$key"
+		need_file "$key.pub"
+		printf '%s\n' "$key"
+		return
+	fi
+	key=$(person_key_path "$username")
+	if test -f "$key" && test -f "$key.pub"; then
+		printf '%s\n' "$key"
+		return
+	fi
+	if test -e "$key" || test -e "$key.pub"; then
+		die "acceptance person key for $username is incomplete"
+	fi
+	need ssh-keygen
+	directory=$(dirname "$key")
+	mkdir -p "$directory"
+	chmod 0700 "$directory"
+	ssh-keygen -q -t ed25519 -N '' -C "soda-acceptance-$username" -f "$key"
+	chmod 0600 "$key"
+	printf '%s\n' "$key"
+}
+
 forgejo_public_key_registered() {
 	username=$1
 	output=$2
 	printf '%s\n' "$username" | LC_ALL=C grep -Eq '^[a-z][a-z0-9-]{0,31}$' ||
 		die "invalid Forgejo public-key fixture username $username"
-	need_file "${SODA_ACCEPTANCE_ADMIN_KEY:-}.pub"
-	key=$(awk 'NF == 2 || NF == 3 {print $1 " " $2; exit}' "${SODA_ACCEPTANCE_ADMIN_KEY}.pub")
+	person_key=$(ensure_person_key "$username")
+	key=$(awk 'NF == 2 || NF == 3 {print $1 " " $2; exit}' "$person_key.pub")
 	test -n "$key" || die "acceptance public key is invalid"
 	admin_ssh "
 		set -eu
@@ -1140,8 +1178,8 @@ add_person_request() {
 	username=$1
 	printf '%s\n' "$username" | LC_ALL=C grep -Eq '^[a-z][a-z0-9-]{0,23}$' || die "invalid person fixture username"
 	fixture=$(later_primary_password_file)
-	need_file "$admin_key.pub"
-	jq -cn --rawfile password "$fixture" --rawfile authorized_key "$admin_key.pub" --arg username "$username" \
+	person_key=$(ensure_person_key "$username")
+	jq -cn --rawfile password "$fixture" --rawfile authorized_key "$person_key.pub" --arg username "$username" \
 		'{username:$username,password:($password|gsub("[\\r\\n]+$";"")),authorized_key:($authorized_key|gsub("[\\r\\n]+$";""))}' |
 		admin_ssh /usr/libexec/soda/soda-projects add-person
 }
@@ -1149,9 +1187,10 @@ add_person_request() {
 primary_ssh() {
 	username=$1
 	shift
+	person_key=$(ensure_person_key "$username")
 	need_file "$(known_hosts_path)"
 	ssh -T -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
-		-o "UserKnownHostsFile=$(known_hosts_path)" -i "$SODA_ACCEPTANCE_ADMIN_KEY" -p "$guest_ssh_port" \
+		-o "UserKnownHostsFile=$(known_hosts_path)" -i "$person_key" -p "$guest_ssh_port" \
 		"$username@$guest_host" "$@"
 }
 
@@ -1659,12 +1698,15 @@ capture_forgejo_state() {
 }
 
 fallback_workspace_ssh() {
-	workspace_target=$1
+	primary_username=$1
+	workspace_target=$2
 	shift
+	shift
+	printf '%s\n' "$primary_username" | LC_ALL=C grep -Eq '^[a-z][a-z0-9-]{0,23}$' ||
+		die "invalid workspace primary username $primary_username"
 	printf '%s\n' "$workspace_target" | LC_ALL=C grep -Eq '^soda-w-[0-9a-f]{24}$' ||
 		die "invalid derived workspace username $workspace_target"
-	workspace_key=${SODA_ACCEPTANCE_WORKSPACE_KEY:-${SODA_ACCEPTANCE_ADMIN_KEY:-}}
-	[ -n "$workspace_key" ] || die "SODA_ACCEPTANCE_WORKSPACE_KEY or SODA_ACCEPTANCE_ADMIN_KEY is required"
+	workspace_key=$(ensure_person_key "$primary_username")
 	need_file "$workspace_key"
 	need_file "$(known_hosts_path)"
 	ssh -T -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
@@ -1676,7 +1718,7 @@ fallback_workspace_process() {
 	checkpoint=$1
 	workspace_target=$(printf '{}\n' | admin_ssh /usr/libexec/soda/soda-projects list |
 		jq -er '.projects[] | select(.id == "kept") | .workspace_username')
-	fallback_workspace_ssh "$workspace_target" '
+	fallback_workspace_ssh "$admin" "$workspace_target" '
 		set -eu
 		state=$HOME/.local/state/soda-acceptance
 		mkdir -p "$state"
@@ -1790,17 +1832,19 @@ primary_project_request() {
 	action=$2
 	request=$3
 	printf '%s\n' "$username" | LC_ALL=C grep -Eq '^[a-z][a-z0-9-]{0,23}$' || die "invalid primary username $username"
+	person_key=$(ensure_person_key "$username")
 	need_file "$(known_hosts_path)"
 	printf '%s\n' "$request" | ssh -T -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
-		-o "UserKnownHostsFile=$(known_hosts_path)" -i "$SODA_ACCEPTANCE_ADMIN_KEY" -p "$guest_ssh_port" \
+		-o "UserKnownHostsFile=$(known_hosts_path)" -i "$person_key" -p "$guest_ssh_port" \
 		"$username@$guest_host" "/usr/libexec/soda/soda-projects '$action'"
 }
 
 missing_key_project_request() {
 	request=$1
+	person_key=$(ensure_person_key nokey)
 	need_file "$(known_hosts_path)"
 	printf '%s\n' "$request" | ssh -T -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
-		-o "UserKnownHostsFile=$(known_hosts_path)" -i "$SODA_ACCEPTANCE_ADMIN_KEY" -p "$guest_ssh_port" \
+		-o "UserKnownHostsFile=$(known_hosts_path)" -i "$person_key" -p "$guest_ssh_port" \
 		"nokey@$guest_host" 'rm -f "$HOME/.ssh/authorized_keys"; exec /usr/libexec/soda/soda-projects setup'
 }
 
@@ -1945,37 +1989,42 @@ scenario_product() {
 	alice_workspace=$(jq -er '.workspace_username' "$operations/alice-setup.json")
 	bob_workspace=$(jq -er '.workspace_username' "$operations/bob-setup.json")
 	[ "$alice_workspace" != "$bob_workspace" ] || die "two humans received the same workspace account"
-	for workspace in "$alice_workspace" "$bob_workspace"; do
+	for association in "alice:$alice_workspace" "bob:$bob_workspace"; do
+		primary=${association%%:*}
+		workspace=${association#*:}
 		printf '%s\n' "$workspace" | LC_ALL=C grep -Eq '^soda-w-[0-9a-f]{24}$' || die "invalid workspace username"
-		fallback_workspace_ssh "$workspace" 'test "$(id -u)" -eq "$(stat -c %u "$HOME")"; test -d "$HOME/Projects/kept/.git"; printf "%s\n" "$(id -un):$(id -u):$HOME"'
+		fallback_workspace_ssh "$primary" "$workspace" 'test "$(id -u)" -eq "$(stat -c %u "$HOME")"; test -d "$HOME/Projects/kept/.git"; printf "%s\n" "$(id -un):$(id -u):$HOME"'
 	done >"$operations/workspace-identities.txt"
-	for workspace in "$alice_workspace" "$bob_workspace"; do
-		fallback_workspace_ssh "$workspace" 'test ! -e "$HOME/.config/tea/config.yml"; test ! -e "$HOME/.config/gh/hosts.yml"'
+	for association in "alice:$alice_workspace" "bob:$bob_workspace"; do
+		primary=${association%%:*}
+		workspace=${association#*:}
+		fallback_workspace_ssh "$primary" "$workspace" 'test ! -e "$HOME/.config/tea/config.yml"; test ! -e "$HOME/.config/gh/hosts.yml"'
 	done
-	[ "$(fallback_workspace_ssh "$alice_workspace" 'id -u')" != "$(fallback_workspace_ssh "$bob_workspace" 'id -u')" ] ||
+	[ "$(fallback_workspace_ssh alice "$alice_workspace" 'id -u')" != "$(fallback_workspace_ssh bob "$bob_workspace" 'id -u')" ] ||
 		die "two humans received the same workspace UID"
-	fallback_workspace_ssh "$alice_workspace" 'printf alice-private >"$HOME/Projects/kept/alice-private.txt"; nohup sleep 300 </dev/null > /dev/null 2>&1 & echo $! >"$HOME/alice-process.pid"'
-	fallback_workspace_ssh "$bob_workspace" 'test ! -e "$HOME/Projects/kept/alice-private.txt"; printf bob-private >"$HOME/Projects/kept/bob-private.txt"'
+	fallback_workspace_ssh alice "$alice_workspace" 'printf alice-private >"$HOME/Projects/kept/alice-private.txt"; nohup sleep 300 </dev/null > /dev/null 2>&1 & echo $! >"$HOME/alice-process.pid"'
+	fallback_workspace_ssh bob "$bob_workspace" 'test ! -e "$HOME/Projects/kept/alice-private.txt"; printf bob-private >"$HOME/Projects/kept/bob-private.txt"'
 
 	# Direct command, SCP, and SFTP use ordinary OpenSSH as the derived UID.
-	fallback_workspace_ssh "$alice_workspace" 'test "$(id -un)" = '"$alice_workspace"'; pwd' >"$operations/direct-command.txt"
+	alice_key=$(ensure_person_key alice)
+	fallback_workspace_ssh alice "$alice_workspace" 'test "$(id -un)" = '"$alice_workspace"'; pwd' >"$operations/direct-command.txt"
 	printf 'id -un\nexit\n' | ssh -T -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
-		-o "UserKnownHostsFile=$(known_hosts_path)" -i "${SODA_ACCEPTANCE_ADMIN_KEY}" -p "$guest_ssh_port" \
+		-o "UserKnownHostsFile=$(known_hosts_path)" -i "$alice_key" -p "$guest_ssh_port" \
 		"$alice_workspace@$guest_host" >"$operations/direct-shell.txt"
 	grep -Fx "$alice_workspace" "$operations/direct-shell.txt" >/dev/null || die "direct workspace shell did not run as the derived UID"
 	printf 'scp-product-evidence\n' >"$operations/scp-input.txt"
 	scp -q -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
-		-o "UserKnownHostsFile=$(known_hosts_path)" -i "${SODA_ACCEPTANCE_ADMIN_KEY}" -P "$guest_ssh_port" \
+		-o "UserKnownHostsFile=$(known_hosts_path)" -i "$alice_key" -P "$guest_ssh_port" \
 		"$operations/scp-input.txt" "$alice_workspace@$guest_host:scp-input.txt"
-	fallback_workspace_ssh "$alice_workspace" 'test "$(cat "$HOME/scp-input.txt")" = scp-product-evidence'
+	fallback_workspace_ssh alice "$alice_workspace" 'test "$(cat "$HOME/scp-input.txt")" = scp-product-evidence'
 	printf 'pwd\nls -l scp-input.txt\nquit\n' | sftp -q -b - \
 		-o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
-		-o "UserKnownHostsFile=$(known_hosts_path)" -i "${SODA_ACCEPTANCE_ADMIN_KEY}" -P "$guest_ssh_port" \
+		-o "UserKnownHostsFile=$(known_hosts_path)" -i "$alice_key" -P "$guest_ssh_port" \
 		"$alice_workspace@$guest_host" >"$operations/sftp.txt"
 
 	# Projects choose non-conflicting host ports without a Soda port registry.
-	fallback_workspace_ssh "$alice_workspace" 'nohup python3 -m http.server 18080 --directory "$HOME/Projects/kept" </dev/null >"$HOME/port.log" 2>&1 & echo $! >"$HOME/port.pid"'
-	fallback_workspace_ssh "$bob_workspace" 'nohup python3 -m http.server 18081 --directory "$HOME/Projects/kept" </dev/null >"$HOME/port.log" 2>&1 & echo $! >"$HOME/port.pid"'
+	fallback_workspace_ssh alice "$alice_workspace" 'nohup python3 -m http.server 18080 --directory "$HOME/Projects/kept" </dev/null >"$HOME/port.log" 2>&1 & echo $! >"$HOME/port.pid"'
+	fallback_workspace_ssh bob "$bob_workspace" 'nohup python3 -m http.server 18081 --directory "$HOME/Projects/kept" </dev/null >"$HOME/port.log" 2>&1 & echo $! >"$HOME/port.pid"'
 	for port_and_file in 18080:alice-private.txt 18081:bob-private.txt; do
 		port=${port_and_file%%:*}
 		file=${port_and_file#*:}
@@ -1987,12 +2036,12 @@ scenario_product() {
 	done
 
 	# Catalog edits do not reconcile an already published workspace.
-	before_remote=$(fallback_workspace_ssh "$kept_workspace" 'git -C "$HOME/Projects/kept" remote get-url origin')
+	before_remote=$(fallback_workspace_ssh "$admin" "$kept_workspace" 'git -C "$HOME/Projects/kept" remote get-url origin')
 	kept_url=$(jq -er '.[] | select(.id == "kept") | .canonical_url' "$operations/catalog-before.json")
 	jq -cn --arg id kept --arg display_name 'Kept after catalog edit' --arg canonical_url "$kept_url" \
 		'{id:$id,display_name:$display_name,canonical_url:$canonical_url}' |
 		admin_ssh /usr/libexec/soda/soda-projects edit >"$operations/catalog-edit.json"
-	[ "$(fallback_workspace_ssh "$kept_workspace" 'git -C "$HOME/Projects/kept" remote get-url origin')" = "$before_remote" ] ||
+	[ "$(fallback_workspace_ssh "$admin" "$kept_workspace" 'git -C "$HOME/Projects/kept" remote get-url origin')" = "$before_remote" ] ||
 		die "catalog edit reconciled an existing checkout"
 
 	# Soda-aware human deletion is cascading and deletes the primary last.
@@ -2021,7 +2070,7 @@ scenario_product() {
 	primary_project_request alice setup '{"id":"removable","git_username":"","git_password":""}' >"$operations/removable-alice-setup.json"
 	removable_admin=$(jq -er '.workspace_username' "$operations/removable-admin-setup.json")
 	removable_alice=$(jq -er '.workspace_username' "$operations/removable-alice-setup.json")
-	fallback_workspace_ssh "$removable_alice" 'nohup sleep 300 </dev/null >/dev/null 2>&1 &'
+	fallback_workspace_ssh alice "$removable_alice" 'nohup sleep 300 </dev/null >/dev/null 2>&1 &'
 	project_request remove removable >"$operations/removable-remove.json"
 	admin_ssh "! getent passwd '$removable_admin' >/dev/null; ! getent passwd '$removable_alice' >/dev/null; jq -e 'all(.[]; .id != \"removable\")' /var/lib/soda/catalog/projects.json >/dev/null"
 	admin_ssh 'forgejo_url=$(printf "{}\n" | /usr/libexec/soda/soda-projects list | jq -er .forgejo_url); curl --fail --silent "$forgejo_url/api/v1/repos/soda-test/removable" >/dev/null'

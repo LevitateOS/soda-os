@@ -229,6 +229,7 @@ func TestAcceptanceExposesOnePublicWorkflow(t *testing.T) {
 		`scenario product`,
 		`capture final`,
 		`SODA_ACCEPTANCE_LATER_PRIMARY_PASSWORD_FILE`,
+		`SODA_ACCEPTANCE_PERSON_KEYS_DIR`,
 		`registry_data=$work_dir/registry`,
 		`--user "$(id -u):$(id -g)"`,
 		`--volume "$registry_data:/var/lib/registry"`,
@@ -241,6 +242,7 @@ func TestAcceptanceExposesOnePublicWorkflow(t *testing.T) {
 	require.NotContains(t, runner, "final-pre-capstone")
 	bootRunner := readInstallerFixture(t, root, "tests/acceptance/internal/bootc.sh")
 	for _, expected := range []string{
+		`ensure_person_key`,
 		`forgejo_pam_request alice wrong 401`,
 		`forgejo_pam_request alice correct 200`,
 		`forgejo_pam_request bob correct 200`,
