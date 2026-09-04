@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { clearRegistrationSecret, createPayload, forgejoBrowserURL, providerURL, statusText, successMessage } from "./ui.mjs";
+import { clearRegistrationSecret, createPayload, forgejoBrowserURL, providerURL, setProviderRequirements, statusText, successMessage } from "./ui.mjs";
 
 function formData(values) { return { get: name => values[name] ?? "" }; }
 
@@ -17,6 +17,19 @@ test("registration input is cleared from form and payload", () => {
   clearRegistrationSecret({ elements: { namedItem: name => name === "registration_token" ? token : null } }, payload);
   assert.equal(token.value, "");
   assert.equal(payload.registration_token, "");
+});
+
+test("only the selected provider fields participate in validation", () => {
+  const forgejoInputs = [{ required: false }, { required: false }];
+  const githubInputs = [{ required: false }, { required: false }];
+
+  setProviderRequirements(forgejoInputs, githubInputs, "github");
+  assert.deepEqual(forgejoInputs.map(input => input.required), [false, false]);
+  assert.deepEqual(githubInputs.map(input => input.required), [true, true]);
+
+  setProviderRequirements(forgejoInputs, githubInputs, "forgejo");
+  assert.deepEqual(forgejoInputs.map(input => input.required), [true, true]);
+  assert.deepEqual(githubInputs.map(input => input.required), [false, false]);
 });
 
 test("local status never claims provider availability or idle capacity", () => {

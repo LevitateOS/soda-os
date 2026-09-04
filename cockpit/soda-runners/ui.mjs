@@ -10,6 +10,11 @@ export function createPayload(data) {
   };
 }
 
+export function setProviderRequirements(forgejoInputs, githubInputs, provider) {
+  for (const input of forgejoInputs) input.required = provider === "forgejo";
+  for (const input of githubInputs) input.required = provider === "github";
+}
+
 export function clearRegistrationSecret(form, payload) {
   const input = form.elements.namedItem("registration_token");
   if (input) {

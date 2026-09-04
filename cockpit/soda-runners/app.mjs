@@ -1,5 +1,5 @@
 import { coordinatorCommand, decodeResponse, encodeRequest } from "./protocol.mjs";
-import { clearRegistrationSecret, createPayload, errorMessage, forgejoBrowserURL, providerName, providerURL, statusClass, statusText, successMessage } from "./ui.mjs";
+import { clearRegistrationSecret, createPayload, errorMessage, forgejoBrowserURL, providerName, providerURL, setProviderRequirements, statusClass, statusText, successMessage } from "./ui.mjs";
 
 const cockpit = window.cockpit;
 const state = { data: null, busy: false };
@@ -122,8 +122,7 @@ function renderProviderFields() {
   const provider = elements.create.querySelector("input[name=provider]:checked").value;
   elements.forgejoFields.hidden = provider !== "forgejo";
   elements.githubFields.hidden = provider !== "github";
-  elements.forgejoFields.querySelectorAll("input").forEach(input => { input.required = provider === "forgejo"; });
-  elements.githubFields.querySelector("input[name=registration_url]").required = provider === "github";
+  setProviderRequirements(elements.forgejoFields.querySelectorAll("input"), elements.githubFields.querySelectorAll("input"), provider);
 }
 
 async function createRunner(event) {
