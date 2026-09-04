@@ -54,6 +54,11 @@ func TestKickstartKeepsStockInteractiveFlowAndExactDigest(t *testing.T) {
 	require.NotContains(t, contents, "user --name")
 }
 
+func TestInstallerInitramfsRequiresInteractiveDefaults(t *testing.T) {
+	require.NoError(t, validateInstallerInitramfs("-rw-r--r-- usr/share/anaconda/interactive-defaults.ks"))
+	require.EqualError(t, validateInstallerInitramfs("-rw-r--r-- usr/share/anaconda/other.ks"), "installer initramfs lacks the interactive defaults")
+}
+
 func TestInstallerStorageUsesOnePlainExt4Root(t *testing.T) {
 	root := filepath.Join("..", "..", "..")
 	contents, err := os.ReadFile(filepath.Join(root, "packaging", "installer", "soda-storage.conf"))
