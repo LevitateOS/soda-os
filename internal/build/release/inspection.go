@@ -28,7 +28,7 @@ func (p *Publisher) inspect(img v1.Image, exactReference string) (Record, error)
 	if err != nil {
 		return Record{}, err
 	}
-	return Record{SchemaVersion: 3, SodaVersion: p.spec.Identity.Version, SourceRevision: revision, Platform: p.spec.Base.Platform, Channel: p.spec.Platform.Release.Channel, FedoraBaseReference: p.spec.Base.Reference, SodaImageReference: exactReference, ArtifactChecksums: ArtifactChecksums{RPMInventorySHA256: inventoryDigest}}, nil
+	return Record{SchemaVersion: 4, SodaVersion: p.spec.Identity.Version, SourceRevision: revision, Platform: p.spec.Base.Platform, Channel: p.spec.Platform.Release.Channel, FedoraBaseReference: p.spec.Base.Reference, SodaImageReference: exactReference, ArtifactChecksums: ArtifactChecksums{RPMInventorySHA256: inventoryDigest}}, nil
 }
 
 func (p *Publisher) inspectImageIdentity(configFile *v1.ConfigFile) (string, error) {

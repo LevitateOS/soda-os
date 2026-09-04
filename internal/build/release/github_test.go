@@ -207,6 +207,32 @@ func testPublication(t *testing.T, runner process.Runner, host string) *Publicat
 	return publication
 }
 
+func TestImageProvenanceBindsTheRecordedRuntimeLock(t *testing.T) {
+	publication := testPublication(t, &publicationRunner{}, "arm64")
+	options, _ := writeUploadArtifacts(t, testArmPublicationSpec(), testRevision)
+	record, err := readStrictRecord(options.RecordPath)
+	require.NoError(t, err)
+
+	path, cleanup, err := publication.writeImageProvenance(record, testArmPublicationSpec())
+	require.NoError(t, err)
+	defer cleanup()
+	contents, err := os.ReadFile(path)
+	require.NoError(t, err)
+	var statement imageProvenance
+	require.NoError(t, json.Unmarshal(contents, &statement))
+	inputs := statement.Predicate.BuildDefinition.ExternalParameters
+	require.Equal(t, record.FedoraBaseReference, inputs.FedoraBaseReference)
+	require.Equal(t, record.RuntimePackageLock, inputs.RuntimePackageLock)
+	require.Equal(t, record.RuntimeLockSHA256, inputs.RuntimeLockSHA256)
+
+	record.RuntimeLockSHA256 = strings.Repeat("0", 64)
+	_, cleanup, err = publication.writeImageProvenance(record, testArmPublicationSpec())
+	if cleanup != nil {
+		cleanup()
+	}
+	require.ErrorContains(t, err, "runtime package lock checksum differs")
+}
+
 func testArmPublicationSpec() config.DistroSpec {
 	spec := testSpec()
 	spec.Distribution.GitHubRepository = "LevitateOS/soda-os"
@@ -235,12 +261,14 @@ func writeUploadArtifacts(t *testing.T, spec config.DistroSpec, revision string)
 	require.NoError(t, err)
 	require.NoError(t, os.WriteFile(qcow2+".sha256", []byte(qcow2Digest+"  "+filepath.Base(qcow2)+"\n"), 0o644))
 	record := Record{
-		SchemaVersion:       3,
+		SchemaVersion:       4,
 		SodaVersion:         spec.Identity.Version,
 		SourceRevision:      revision,
 		Platform:            spec.Base.Platform,
 		Channel:             spec.Platform.Release.Channel,
 		FedoraBaseReference: spec.Base.Reference,
+		RuntimePackageLock:  spec.Platform.Base.RuntimePackageLock,
+		RuntimeLockSHA256:   sha256Hex([]byte("runtime lock\n")),
 		SodaImageReference:  Repository + "@sha256:" + strings.Repeat("a", 64),
 		ArtifactChecksums: ArtifactChecksums{
 			RPMInventorySHA256: strings.Repeat("b", 64),

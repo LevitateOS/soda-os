@@ -154,6 +154,7 @@ type provenanceInputs struct {
 	SourceRevision      string `json:"source_revision"`
 	Architecture        string `json:"architecture"`
 	FedoraBaseReference string `json:"fedora_base_reference"`
+	RuntimePackageLock  string `json:"runtime_package_lock"`
 	RuntimeLockSHA256   string `json:"runtime_lock_sha256"`
 	RPMInventorySHA256  string `json:"rpm_inventory_sha256"`
 	ISOChecksum         string `json:"iso_sha256"`
@@ -176,10 +177,16 @@ type provenanceRunDetails struct {
 }
 
 func (p *Publication) writeImageProvenance(record Record, spec config.DistroSpec) (string, func(), error) {
-	lockPath := filepath.Join(p.root, spec.Platform.Base.RuntimePackageLock)
+	if record.RuntimePackageLock != spec.Platform.Base.RuntimePackageLock {
+		return "", nil, errors.New("release record runtime package lock differs from the selected platform")
+	}
+	lockPath := filepath.Join(p.root, record.RuntimePackageLock)
 	lockSHA256, err := fileSHA256(lockPath)
 	if err != nil {
 		return "", nil, fmt.Errorf("checksum %s runtime package lock: %w", spec.Platform.Architecture.Name, err)
+	}
+	if lockSHA256 != record.RuntimeLockSHA256 {
+		return "", nil, errors.New("release record runtime package lock checksum differs from the selected platform")
 	}
 	imageDigest := strings.TrimPrefix(record.SodaImageReference, Repository+"@sha256:")
 	_, baseDigest, found := strings.Cut(record.FedoraBaseReference, "@sha256:")
@@ -195,7 +202,7 @@ func (p *Publication) writeImageProvenance(record Record, spec config.DistroSpec
 				BuildType: "https://github.com/LevitateOS/soda-os/.github/workflows/release.yml",
 				ExternalParameters: provenanceInputs{
 					SourceRevision: record.SourceRevision, Architecture: spec.Platform.Architecture.Name,
-					FedoraBaseReference: record.FedoraBaseReference, RuntimeLockSHA256: lockSHA256,
+					FedoraBaseReference: record.FedoraBaseReference, RuntimePackageLock: record.RuntimePackageLock, RuntimeLockSHA256: record.RuntimeLockSHA256,
 					RPMInventorySHA256: record.RPMInventorySHA256, ISOChecksum: record.ISOChecksum,
 					QCOW2Checksum: record.QCOW2Checksum, QCOW2ZSTChecksum: record.QCOW2ZSTChecksum,
 				},
