@@ -98,16 +98,22 @@ func TestRPMBuilderContractPinsFedoraBaseAndInstalledInventory(t *testing.T) {
 	require.NoError(t, err)
 	containerfile := string(contents)
 	require.Contains(t, containerfile, "FROM ${BUILDER_BASE_REFERENCE}")
-	require.Regexp(t, regexp.MustCompile(`FROM \$\{BUILDER_BASE_REFERENCE\}\n\n(?:#.*\n)*ARG GO_VERSION`), containerfile)
 	require.Contains(t, containerfile, "COPY .artifacts/builder/packages.lock")
-	require.Contains(t, containerfile, "COPY .artifacts/builder/go.tar.gz")
-	require.Contains(t, containerfile, "ARG GO_VERSION")
-	require.Contains(t, containerfile, "go version ${GO_VERSION}")
 	require.Contains(t, containerfile, "GOTOOLCHAIN=local")
 	require.Contains(t, containerfile, "dnf -y install --setopt=install_weak_deps=False $(awk")
 	require.Contains(t, containerfile, "%{ARCH}\\n' | LC_ALL=C sort")
 	require.Contains(t, containerfile, "test \"$actual\" = \"$expected\"")
 	require.NotContains(t, containerfile, "registry.fedoraproject.org/fedora:44")
+	for architecture, nevra := range map[string]string{
+		"aarch64": "golang-0:1.26.7-1.fc44.aarch64",
+		"x86_64":  "golang-0:1.26.7-1.fc44.x86_64",
+	} {
+		builder, err := NewBuilder(root, "distro/soda.toml", architecture, &recordingRunner{})
+		require.NoError(t, err)
+		lock, err := readBuilderPackageLock(builder.path(builder.Spec.Platform.Builder.PackageLock), builder.Spec.Platform)
+		require.NoError(t, err)
+		require.Contains(t, lock.Package, lockedPackage{Name: "golang", NEVRA: nevra})
+	}
 }
 
 func TestRPMBuildPinsHeaderTimeAndHost(t *testing.T) {

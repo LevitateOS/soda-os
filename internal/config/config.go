@@ -66,12 +66,8 @@ type PlatformBase struct {
 }
 
 type PlatformBuilder struct {
-	BaseReference   string `toml:"base_reference"`
-	PackageLock     string `toml:"package_lock"`
-	GoVersion       string `toml:"go_version"`
-	GoURL           string `toml:"go_url"`
-	GoArchive       string `toml:"go_archive"`
-	GoArchiveSHA256 string `toml:"go_archive_sha256"`
+	BaseReference string `toml:"base_reference"`
+	PackageLock   string `toml:"package_lock"`
 }
 
 type PlatformInstaller struct {
@@ -139,7 +135,7 @@ func RequireNativeHostArchitecture(architecture, hostArchitecture string) error 
 func validatePlatformSpec(spec PlatformSpec, requested string) error {
 	expected := architectureContract[requested]
 	if spec.SchemaVersion != 1 || !validPlatformArchitecture(spec.Architecture, requested, expected) ||
-		!validPlatformBase(spec.Base) || !validPlatformBuild(spec.Builder, expected.oci) ||
+		!validPlatformBase(spec.Base) || !validPlatformBuild(spec.Builder) ||
 		!validPlatformInstaller(spec.Installer, spec.Release, expected.artifact) {
 		return fmt.Errorf("platform specification for %s differs from the Soda architecture contract", requested)
 	}
@@ -156,9 +152,8 @@ func validPlatformBase(spec PlatformBase) bool {
 		validSHA256(spec.ArchiveSHA256) && spec.BootcNEVRA != "" && spec.RuntimePackageLock != ""
 }
 
-func validPlatformBuild(builder PlatformBuilder, _ string) bool {
-	return digestReference(builder.BaseReference) && builder.PackageLock != "" && builder.GoVersion != "" && builder.GoURL != "" &&
-		builder.GoArchive != "" && validSHA256(builder.GoArchiveSHA256)
+func validPlatformBuild(builder PlatformBuilder) bool {
+	return digestReference(builder.BaseReference) && builder.PackageLock != ""
 }
 
 func validPlatformInstaller(installer PlatformInstaller, release PlatformRelease, artifactArchitecture string) bool {

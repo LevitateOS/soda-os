@@ -12,7 +12,6 @@ target/
 !.artifacts/builder/
 .artifacts/builder/**
 !.artifacts/builder/packages.lock
-!.artifacts/builder/go.tar.gz
 !.artifacts/installer/
 .artifacts/installer/**
 !.artifacts/installer/context/

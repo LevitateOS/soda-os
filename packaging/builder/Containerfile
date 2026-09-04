@@ -1,13 +1,7 @@
 ARG BUILDER_BASE_REFERENCE
-ARG GO_VERSION
 FROM ${BUILDER_BASE_REFERENCE}
 
-# Docker build arguments declared before FROM must be redeclared for later RUN
-# instructions. Keep the pinned Go archive check bound to the reviewed version.
-ARG GO_VERSION
-
 COPY .artifacts/builder/packages.lock /usr/share/soda-builder/packages.lock
-COPY .artifacts/builder/go.tar.gz /usr/share/soda-builder/go.tar.gz
 
 RUN dnf -y install --setopt=install_weak_deps=False $(awk -F '"' '/^nevra = / { print $2 }' /usr/share/soda-builder/packages.lock) \
     && actual="$(rpm -qa --qf '%{NAME}-%{EPOCHNUM}:%{VERSION}-%{RELEASE}.%{ARCH}\n' | LC_ALL=C sort | sha256sum | awk '{print $1}')" \
@@ -15,11 +9,6 @@ RUN dnf -y install --setopt=install_weak_deps=False $(awk -F '"' '/^nevra = / { 
     && test "$actual" = "$expected" \
     && dnf clean all
 
-RUN rm -rf /usr/local/go \
-    && tar -C /usr/local -xzf /usr/share/soda-builder/go.tar.gz \
-    && test "$(/usr/local/go/bin/go version)" = "go version ${GO_VERSION} linux/$(uname -m | sed 's/x86_64/amd64/; s/aarch64/arm64/')"
-
-ENV PATH="/usr/local/go/bin:${PATH}" \
-    GOTOOLCHAIN=local
+ENV GOTOOLCHAIN=local
 
 WORKDIR /src
