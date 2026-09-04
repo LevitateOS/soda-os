@@ -2,37 +2,32 @@
 
 Complete Soda Setup and connect through the trusted local network, Tailscale, or both.
 
-**Soda Setup** appears after an ISO installation and on the first boot of a
-QCOW2. It runs on the physical or virtual console and is also available through
-Cockpit. Both surfaces use the same setup state and underlying operations.
-Soda Setup can always be opened again later.
+ISO installation uses stock graphical Anaconda for storage, networking, bootc
+deployment, Linux user creation, and administrator selection. Root stays locked.
+Reboot and log in normally before Soda Setup appears. ISO installation creates
+`/etc/cloud/cloud-init.disabled`, preventing cloud-init from altering those accounts.
 
-## Prerequisites
+QCOW2 deployments use standard Fedora cloud-init delivered by VM tooling. Supply
+the Linux account, personal SSH public key, optional password hash, and optional
+network configuration through user-data. No Soda checkout or manually built
+credential ISO is required. A key alone enables SSH authentication; it does not
+supply a password for console, Cockpit, PAM, or password-based sudo.
 
-- Console access to the installed Soda machine.
-- A username and strong password for the first administrator.
-- The administrator's SSH public key, such as the contents of
-  `~/.ssh/id_ed25519.pub` on their client.
-- For cloud deployment, a Tailscale auth key and working outbound network.
-- For local deployment, either a Tailscale auth key or a trusted current local
-  network connection.
+Soda Setup is temporary and handles only missing network trust or Tailscale
+enrollment. It starts after an authenticated administrator logs in on an
+interactive machine console and uses ordinary privilege elevation. Cancellation
+or failure returns to the logged-in shell. SSH, SCP, and SFTP do not launch it.
+Native network readiness skips automatic Setup. Administrators can reopen it
+with `sudo /usr/libexec/soda/soda-setup console` or through Cockpit.
 
-## Complete Soda Setup
+Default-drop protection remains in place. Explicitly trust only a trusted LAN
+connection; cloud services remain private through Tailscale. Tailscale never
+disables the existing trusted-LAN path.
 
-Soda Setup remains available at startup until the machine-wide checklist is
-complete and you dismiss it. Dismissal is enabled only after all five
-conditions are satisfied:
-
-1. An administrator account exists.
-2. Its password is set.
-3. Its SSH public key is installed.
-4. The same-named Forgejo administrator is ready.
-5. Tailscale is connected, or **Allow access from the local network** is
-   selected for the current connection.
-
-Enter the administrator details and public key exactly as prompted. Soda uses
-Linux for the account and password, OpenSSH for the public key, and Forgejo for
-the repository account.
+After native Tailscale enrollment, run
+`sudo /usr/libexec/soda/forgejo-init refresh-tailnet` to apply the address
+when needed. Setup performs this step automatically; the cloud-init example
+includes it. A refresh failure needs attention even when enrollment succeeded.
 
 ## Choose the access path
 
@@ -41,7 +36,7 @@ the repository account.
 Create a suitably scoped auth key by following Tailscale's [auth-key
 guide](https://tailscale.com/docs/features/access-control/auth-keys) and [device
 setup guide](https://tailscale.com/docs/features/access-control/device-management/how-to/set-up).
-Enter the key only in Soda Setup. Soda uses it for enrollment once and
+Enter the key in Soda Setup or supply protected cloud-init user-data. Soda uses it for enrollment once and
 removes it immediately afterward.
 
 Confirm the new node in the Tailscale admin console and record its MagicDNS
@@ -68,9 +63,8 @@ Tailnet address.
 Open Cockpit with the LAN hostname or Tailnet name that developers should use.
 The Projects page builds its SSH guidance from that browser hostname; it does
 not choose or require a Tailscale identity. Before Tailnet enrollment, bundled
-Forgejo advertises the machine's static hostname. After enrollment, restarting
-Forgejo lets it advertise the Tailnet identity while the LAN path remains
-available.
+Forgejo advertises the machine's static hostname. After enrollment, the conditional native address refresh applies the Tailnet
+identity when needed while the LAN path remains available.
 
 | Service | LAN installation | Cloud installation |
 |---|---|---|
@@ -89,28 +83,36 @@ From the administrator's client:
 ssh ADMINISTRATOR@SODA_HOST
 ```
 
-Replace `ADMINISTRATOR` and `SODA_HOST` with the values shown during setup.
+Replace `ADMINISTRATOR` and `SODA_HOST` with your Linux username and the reachable machine address.
 Open Cockpit at `https://SODA_HOST:9090` and sign in with the same Linux
 account. Open Forgejo at `http://SODA_HOST:30000` and sign in with the
-same-named administrator account created during setup.
+independent Forgejo account you register yourself.
 
 Use the host identity shown by Soda instead of disabling SSH host-key or TLS
 warnings. Investigate any unexpected identity change.
 
+## Register the Forgejo owner first
+
+The owner registers the first Forgejo account through the normal trusted LAN
+or Tailnet before teammates sign in. Native first-user signup grants Forgejo
+administration. Use independent Forgejo credentials, even with the same username
+as the Linux owner. PAM remains active. Later Linux users' first successful PAM
+login creates ordinary Forgejo accounts. Linux wheel membership grants no
+Forgejo role. The team controls ongoing registration policy; there is no
+mandatory registration-closing step or associated restart.
+
 ## Expected result
 
-The Soda Setup checklist is complete, the setup screen can be dismissed, SSH
-accepts the administrator's public key, Cockpit accepts the Linux login, and
-Forgejo recognizes the administrator.
+Network access works, SSH accepts the installed personal key, Cockpit accepts
+the Linux password, and Forgejo recognizes its independent administrator.
 
 ## If something fails
 
-- **SSH:** confirm the username, host, route, and public key installed during
-  setup.
+- **SSH:** confirm the username, host, route, and public key in the Linux account authorized_keys.
 - **Cockpit:** confirm port 9090 is reachable on the selected LAN or Tailnet
   path and use the Linux password.
 - **Forgejo:** confirm port 30000 and use the Forgejo administrator credentials
-  created by setup.
+  chosen during native signup.
 - **Tailscale:** correct the key or outbound networking from Soda Setup;
   a failed key is not retained for background retry.
 

@@ -98,8 +98,8 @@ Tailscale and are not exposed to the public Internet.
 - A developer can remove only their own workspace.
 - An administrator can remove a project, which permanently deletes its shared
   Soda entry and every local workspace. The canonical Git repository remains.
-- An administrator can remove a person, deleting their workspaces first,
-  Forgejo account second, and primary Linux account last.
+- An administrator can remove a person, deleting their local workspaces first
+  and primary Linux account last. Forgejo deletion is separate inside Forgejo.
 
 Soda stops on partial failure and reports what succeeded and what remains. It
 does not silently roll back completed deletions.

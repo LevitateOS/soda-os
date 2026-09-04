@@ -19,7 +19,7 @@ approval, archive, transfer, preservation, or recovery workflow.
 |---|---|---|
 | Remove my workspace | That user's local workspace and uncommitted data | Project entry, other workspaces, canonical repository |
 | Remove project | Shared entry and every local workspace | Canonical Forgejo or external repository |
-| Remove person | Workspaces, Forgejo account, primary Linux account | Only data unaffected by Forgejo's verified native deletion consequences |
+| Remove person | Local workspaces and primary Linux account | Forgejo account and data |
 | Image update or fallback | No supported mutable state | Accounts, homes, Forgejo, catalog, workspaces, Tailscale, SSH state |
 
 Deletion is permanent for local files. A canonical repository cannot recover a
@@ -54,29 +54,16 @@ The canonical Forgejo or external repository remains intact.
 
 ## Before removing a person
 
-1. Ask the person to preserve needed workspace data.
-2. Inspect whether their Forgejo account owns repositories, organizations, or
-   packages.
-3. Resolve that ownership through Forgejo before starting. Forgejo refuses its
-   normal non-purge account deletion while any of those objects remain owned by
-   the person.
-4. Review Forgejo access, keys, tokens, issue work, and pull-request work whose
-   ownership or attribution matters to the team.
-5. Start the administrator-only person removal from Projects.
+1. Ask the person to preserve needed local data and stop workspace processes.
+2. Review the Linux account and local workspaces selected in Projects.
+3. Start the administrator-only person removal.
 
-The operation deletes in this order:
-
-1. Every validated local workspace belonging to the person.
-2. The Forgejo account.
-3. The primary Linux account and home.
-
-Forgejo's normal account deletion removes that person's access tokens,
-registered SSH keys, repository collaborations, organization memberships, and
-other personal access records. Authored issue and comment history remains as
-deleted-user history. Owned repositories, organizations, or packages block the
-operation rather than being purged. Consult the [Forgejo user
-guide](https://forgejo.org/docs/latest/user/) before changing repository-owned
-data.
+Soda's administrator-only person removal deletes local workspaces first and the
+primary Linux account last. It neither inspects nor deletes a same-named
+Forgejo account. Forgejo availability, ownership, and deletion restrictions do
+not block Linux-person deletion. Delete Forgejo accounts explicitly inside
+Forgejo. Linux preflight checks, partial-failure reporting, and generic
+non-cascading Cockpit/Linux deletion remain unchanged.
 
 ## Partial failure
 
@@ -87,7 +74,7 @@ already deleted data.
 Before retrying:
 
 1. Read the full result.
-2. Inspect the remaining objects through Projects, Cockpit, Linux, and Forgejo.
+2. Inspect the remaining objects through Projects, Cockpit, and Linux.
 3. Correct only the reported cause.
 4. Repeat the same supported action. Completed steps are recognized; ambiguous
    or conflicting state stops for explicit inspection.

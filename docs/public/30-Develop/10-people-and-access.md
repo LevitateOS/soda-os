@@ -14,6 +14,9 @@ identity at first normal login, and grant administrator capability only through
 
 Development happens in workspace accounts, not in the primary home.
 
+The owner must complete native first-owner signup before teammates begin
+signing in. Ongoing Forgejo registration policy belongs to the team.
+
 ## Prerequisites
 
 - Sign in to Cockpit as a primary account in `wheel`.
@@ -28,8 +31,9 @@ Development happens in workspace accounts, not in the primary home.
 2. Open stock Cockpit's **Accounts** page and create an ordinary Linux user with
    the person's stable username and initial password. Do not grant administrator
    capability unless that is intended.
-3. Install the person's public key in the primary account's standard
-   `~/.ssh/authorized_keys` file through ordinary Linux administration.
+3. Ask the person to open **Cockpit → Accounts → their account → Authorized
+   public SSH keys** and add their personal public key before the first workspace.
+   Cockpit writes standard authorized_keys; cloud-init may already supply it.
 4. Ask the person to sign in to Forgejo normally with the same Linux username
    and password. Forgejo uses PAM to authenticate the login and creates its
    account at that time.
@@ -62,9 +66,8 @@ Use Cockpit **Accounts** or native Linux tools for primary-account passwords.
 Use standard `~/.ssh/authorized_keys` files for Linux SSH access and Forgejo's
 native SSH-key interface for repository access. The [Forgejo user
 guide](https://forgejo.org/docs/latest/user/) covers its account and repository
-features. Soda Setup is the one composition point that creates the initial
-Linux and Forgejo administrator and installs that administrator's Forgejo key;
-later people follow the native flow above.
+features. The owner registers the first Forgejo administrator natively with
+independent credentials before teammates sign in. Setup handles only networking.
 
 Workspace setup copies the person's current public authorized keys once. A
 later primary-key change does not silently modify existing workspaces; update
@@ -102,8 +105,8 @@ person-creation workflow to roll back or resume.
 
 Person removal is destructive and administrator-only. Read [Data safety and
 removal](../40-Operate-Soda-OS/30-data-safety-and-removal.md) before using it.
-The operation deletes the person's workspaces first, Forgejo account second,
-and primary Linux account last.
+The operation deletes local workspaces first and the primary Linux account
+last. Forgejo accounts and data remain; delete them separately inside Forgejo.
 
 ## Next step
 

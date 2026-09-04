@@ -15,11 +15,18 @@ On a trusted LAN, OpenSSH, Cockpit, and Forgejo are directly reachable. Cloud
 deployments use Tailscale and never expose those services to the public
 Internet.
 
-Soda Setup composes the first Linux and Forgejo administrator and installs that
-administrator's public SSH key in Linux and registers it with Forgejo. Later
-people are created through stock Cockpit or Linux, and their first normal
-Forgejo sign-in creates the matching profile through PAM. They manage Forgejo
-keys through Forgejo's native interface.
+Anaconda creates ISO Linux accounts; standard cloud-init provisions QCOW2.
+Log in normally before temporary network-only Soda Setup. Add a personal SSH
+public key through Cockpit Accounts before the first workspace; cloud-init may
+already supply it. Workspace creation copies those authorized keys once.
+
+The owner registers the first Forgejo account through the normal trusted LAN
+or Tailnet before teammates sign in. Native first-user signup grants Forgejo
+administration. Use independent Forgejo credentials, even with the same username
+as the Linux owner. PAM remains active. Later Linux users' first successful PAM
+login creates ordinary Forgejo accounts. Linux wheel membership grants no
+Forgejo role. The team controls ongoing registration policy; there is no
+mandatory registration-closing step or associated restart.
 
 Repositories are created through the authoritative Git host and added to
 Projects with an SSH clone URL. Each workspace keeps its outbound private Git

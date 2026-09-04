@@ -30,18 +30,35 @@ separate Soda-owned post-install setup. It does not require moving every setup
 screen into a renamed custom installer; the final ownership split remains to
 be proven against Fedora's native installation boundaries.
 
-For the current release, one finished network ISO boots stock graphical
-Anaconda. Anaconda handles storage, networking, bootloader, firmware, and bootc
-deployment. The installed system then presents **Soda Setup**, the temporary
-post-install workaround also used by QCOW2. Its console and Cockpit surfaces use
-the same state and bounded operations.
+ISO installation uses stock graphical Anaconda for storage, networking, bootc
+deployment, Linux user creation, and administrator selection. Root stays locked.
+Reboot and log in normally before Soda Setup appears. ISO installation creates
+`/etc/cloud/cloud-init.disabled`, preventing cloud-init from altering those accounts.
 
-Soda Setup cannot be dismissed until an administrator, password, SSH public
-key, Forgejo administrator, and either a Tailscale connection or explicit
-trust of the current connection through **Allow access from the local network**
-exist. A Tailscale key is used once and removed. There is no
-human OEMDRV, cloud-init provisioning path, second input image, or public-SSH
-bootstrap.
+QCOW2 deployments use standard Fedora cloud-init delivered by VM tooling. Supply
+the Linux account, personal SSH public key, optional password hash, and optional
+network configuration through user-data. No Soda checkout or manually built
+credential ISO is required. A key alone enables SSH authentication; it does not
+supply a password for console, Cockpit, PAM, or password-based sudo.
+
+Soda Setup is temporary and handles only missing network trust or Tailscale
+enrollment. It starts after an authenticated administrator logs in on an
+interactive machine console and uses ordinary privilege elevation. Cancellation
+or failure returns to the logged-in shell. SSH, SCP, and SFTP do not launch it.
+Native network readiness skips automatic Setup. Administrators can reopen it
+with `sudo /usr/libexec/soda/soda-setup console` or through Cockpit.
+
+Default-drop protection remains in place. Explicitly trust only a trusted LAN
+connection; cloud services remain private through Tailscale. Tailscale never
+disables the existing trusted-LAN path.
+
+After successful cloud-init Tailscale enrollment and verification, invoke
+`/usr/libexec/soda/forgejo-init refresh-tailnet`. Interactive Setup uses this same
+entry point. It compares DOMAIN, SSH_DOMAIN, and ROOT_URL against the native
+Tailnet identity. Matching values cause no writes or restart. Stale values cause
+the existing Forgejo service restart; its inactive oneshot initializer applies
+the address before the replacement process starts. Forgejo never waits for
+cloud-final. Report enrollment success separately from refresh failure.
 
 Managed services are directly reachable on a trusted LAN. Cloud deployments
 use Tailscale and never expose SSH, Cockpit, or Forgejo to the public Internet.
@@ -51,13 +68,13 @@ the Projects protocol does not select a LAN or Tailnet host.
 
 ### Accounts, Forgejo, and workspaces
 
-Each person has one ordinary primary Linux account. Development happens only in
-derived workspace accounts. Soda Setup creates the initial same-named Linux and
-Forgejo administrator, installs that administrator's public SSH key in Linux,
-and registers it with Forgejo. Later primary accounts are created through stock
-Cockpit or Linux, and the person's first normal Forgejo sign-in creates the
-matching profile through PAM. People manage their Forgejo keys through Forgejo's
-native interface. Git uses SSH.
+The owner registers the first Forgejo account through the normal trusted LAN
+or Tailnet before teammates sign in. Native first-user signup grants Forgejo
+administration. Use independent Forgejo credentials, even with the same username
+as the Linux owner. PAM remains active. Later Linux users' first successful PAM
+login creates ordinary Forgejo accounts. Linux wheel membership grants no
+Forgejo role. The team controls ongoing registration policy; there is no
+mandatory registration-closing step or associated restart.
 
 Workspace setup copies only current public authorized keys. Tea and gh are
 present in every workspace and authenticated manually and separately there.
@@ -91,8 +108,8 @@ A person removes only their own workspace. An administrator may remove an
 entire project, permanently deleting the shared entry and all local workspaces,
 including uncommitted work, while preserving the canonical Forgejo repository.
 
-Person deletion removes workspaces, the Forgejo account, and then the primary
-Linux account. Both destructive operations stop at the first failure, report
+Person deletion removes local workspaces and then the primary Linux account.
+Forgejo account deletion remains separate inside Forgejo. Both destructive operations stop at the first failure, report
 the partial result, and allow explicit retry without rollback or hidden state.
 
 ### Development tools and lifecycle
@@ -120,12 +137,12 @@ implementation debt:
 | Current source | Approved replacement |
 | --- | --- |
 | Mandatory OEMDRV and installer-time administrator/Forgejo provisioning | One ISO followed by the current Soda Setup workaround |
-| Separate NoCloud, ConfigDrive, and cloud finalizer | The same Soda Setup state and operations for QCOW2 |
+| Soda-owned cloud provisioning and finalizer | Standard Fedora cloud-init through VM tooling |
 | Tailnet-only managed-service firewall | Direct trusted-LAN access plus cloud Tailscale access |
 | Exact three-field catalog | No closed metadata field list |
 | Soda-created Tea PAT/config and workspace copying | Manual Tea and gh login in each workspace |
 | Custom `soda-bun` and broad immutable tool manifest | `mise`-owned tool installation and versions |
-| Human deletion preserves Forgejo user | Workspaces, then Forgejo account, then Linux account |
+| Coordinated Linux/Forgejo deletion | Local workspaces then Linux; independent native Forgejo deletion |
 | Release CI rebuilds fallback A and runs VM acceptance | Prior signed A digest plus signed pre-release evidence |
 
 Current package, path, group, account-marker, polkit, staging, and process

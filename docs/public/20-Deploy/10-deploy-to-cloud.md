@@ -1,6 +1,6 @@
 # Deploy to a cloud
 
-Import the architecture-matched Soda QCOW2, protect its services from public ingress, and finish setup from the VM console.
+Import the architecture-matched Soda QCOW2, protect its services from public ingress, and provision it with standard cloud-init user-data.
 
 ## Prerequisites
 
@@ -12,9 +12,10 @@ Import the architecture-matched Soda QCOW2, protect its services from public ing
 - A firewall or security group that can block public ingress.
 - One SSH public key and a Tailscale auth key.
 
-Soda cloud onboarding does not use cloud metadata or public SSH. If the
-provider cannot expose a VM console, it cannot complete the supported setup
-path.
+Supply standard cloud-init user-data through the provider or VM tooling.
+Keep console access for native administration; public SSH is not an onboarding
+path. If enrollment is omitted, supply a Linux password hash so an administrator
+can log in on the console and complete network configuration.
 
 ## Download and verify the image
 
@@ -103,30 +104,88 @@ chosen Scaleway project, plus an authenticated Scaleway CLI.
    `security-group-id` set to the dedicated group, and local disk boot. Select
    the root-volume option for the snapshot's storage type and size it for the
    team's data. Confirm the attached boot volume and security group before
-   starting the Instance. Do not provide a cloud-init script.
+   starting the Instance. Supply standard cloud-init user-data through the
+   platform before first boot, including the Linux account and network enrollment.
 6. Start the Instance, then open **Console** from its overview in Scaleway.
    The [serial console](https://www.scaleway.com/en/docs/instances/how-to/use-serial-console/)
-   is available independently of public SSH access. Complete Soda Setup there
-   using the next section; Soda's first administrator is created by setup, so
-   no public-SSH password bootstrap is needed.
+   is available independently of public SSH access. Use the cloud-init-created
+   Linux login if console administration is needed; provide a password hash
+   when console, Cockpit, or PAM login is required.
 
 Keep the security group in place after enrollment. Connect to Soda through its
 Tailscale address, not the Instance's public address.
 
-## Boot and finish setup
+## Provision and boot
 
-Start the VM and open its console. **Soda Setup** appears. Complete it as
-described in [Make the first
-connection](30-first-connection.md).
+Use the VM platform's native user-data facility before first boot. For local
+libvirt VMs, virt-install can deliver a user-data file with its native
+cloud-init option. No Soda checkout or manually created credential ISO is
+needed. Replace the account and public-key values in this standard example:
 
-Do not close the console until setup confirms that an administrator is ready
-and Tailscale is connected. On a cloud machine, do not select **Allow access
-from the local network** as a substitute for Tailscale.
+```yaml
+#cloud-config
+# Supply through your VM platform's user-data facility. Replace the public key.
+users:
+  - name: owner
+    groups: [wheel]
+    shell: /bin/bash
+    ssh_authorized_keys:
+      - ssh-ed25519 REPLACE_WITH_YOUR_PERSONAL_PUBLIC_KEY
+    # To enable console, Cockpit, PAM, and password-based sudo, also supply:
+    # lock_passwd: false
+    # hashed_passwd: '$6$REPLACE_WITH_YOUR_PASSWORD_HASH'
+disable_root: true
+
+# Optional Tailnet enrollment: uncomment and supply a protected auth key.
+# Cloud-init/provider copies of user-data may retain this key after enrollment.
+# write_files:
+#   - path: /run/soda-tailscale-auth-key
+#     permissions: '0600'
+#     owner: root:root
+#     content: tskey-auth-REPLACE
+# runcmd:
+#   - |
+#     set -eu
+#     trap 'rm -f /run/soda-tailscale-auth-key' EXIT
+#     tailscale up --auth-key=file:/run/soda-tailscale-auth-key
+#     tailscale wait --timeout=30s
+#     printf 'Tailscale enrollment succeeded.\n'
+#     if ! /usr/libexec/soda/forgejo-init refresh-tailnet; then
+#       printf 'Tailscale enrolled, but Forgejo address refresh failed.\n' >&2
+#       exit 1
+#     fi
+
+# For LAN-only provisioning instead, explicitly select a trusted NetworkManager
+# connection. Never trust a cloud public-facing connection.
+# runcmd:
+#   - [nmcli, connection, modify, YOUR_TRUSTED_CONNECTION, connection.zone, trusted]
+#   - [nmcli, connection, up, YOUR_TRUSTED_CONNECTION]
+```
+
+Store user-data with restricted permissions. A personal public key is not a
+password: key-only provisioning enables SSH but does not enable password login
+to the console, Cockpit, or Forgejo PAM. Supply a password hash when those
+logins are required. Use native Linux administration for later password changes.
+
+Cloud-init and the provider may retain user-data, including auth keys and
+password hashes. Removing the temporary enrollment file does not erase those
+copies. Apply the team's provider and cloud-init retention policy, and never
+publish user-data or enrollment credentials.
+
+After enrollment, the native conditional Forgejo refresh applies its Tailnet
+address even if Forgejo started first. A refresh failure is a provisioning
+failure despite successful enrollment; inspect cloud-init and Forgejo logs,
+correct the cause, and explicitly rerun the refresh. It does nothing when the
+address already matches.
 
 ## Expected result
 
-The QCOW2 boots from the enlarged disk, Soda Setup is visible on the
-console, and no Soda service is reachable from the public Internet.
+The QCOW2 boots from the enlarged disk, cloud-init provisions the Linux account
+and chosen private network access, and native readiness skips interactive
+Setup. No Soda service is reachable from the public Internet. If networking
+still needs configuration, log in on the console as a provisioned administrator
+and use network-only Setup. Register the first Forgejo owner before teammates
+begin signing in, as described in [Make the first connection](30-first-connection.md).
 
 ## If something fails
 

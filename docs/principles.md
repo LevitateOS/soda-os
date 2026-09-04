@@ -213,8 +213,8 @@ and pushing anything that must be preserved. Soda does not add approval,
 ownership-transfer, archive, rollback, or recovery workflows.
 
 The supported administrator-only human deletion action removes that person's
-workspaces first, the Forgejo account second, and the primary Linux account
-last. If any step fails, Soda reports exactly what succeeded and remains so an
+local workspaces first and the primary Linux account last. Forgejo deletion
+remains a separate explicit action inside Forgejo. If any step fails, Soda reports exactly what succeeded and remains so an
 administrator can retry. There is no rollback. Generic Cockpit or command-line
 account deletion remains an ordinary non-cascading Linux action.
 
@@ -222,14 +222,13 @@ account deletion remains an ordinary non-cascading Linux action.
 
 Soda includes Forgejo as its built-in Git forge.
 
-Soda Setup currently creates the initial same-named Linux and Forgejo
-administrator accounts, installs that administrator's public SSH key in Linux,
-and registers it with Forgejo.
-
-Later primary accounts are created through stock Cockpit or Linux. A person's
-first normal Forgejo sign-in creates the corresponding profile through PAM, and
-the person manages public keys through Forgejo's native interface. Soda does not
-pre-provision later Forgejo accounts or keys. Git uses SSH.
+The owner registers the first Forgejo account through the normal trusted LAN
+or Tailnet before teammates sign in. Native first-user signup grants Forgejo
+administration. Use independent Forgejo credentials, even with the same username
+as the Linux owner. PAM remains active. Later Linux users' first successful PAM
+login creates ordinary Forgejo accounts. Linux wheel membership grants no
+Forgejo role. The team controls ongoing registration policy; there is no
+mandatory registration-closing step or associated restart.
 
 Derived workspace accounts are Linux development identities only. They are not
 Forgejo users.

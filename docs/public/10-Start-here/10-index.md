@@ -27,7 +27,8 @@ accounts, services, and ownership boundaries behind these tasks.
    [Install on premises](../20-Deploy/20-install-on-premises.md), then choose
    the artifact for the machine's architecture.
 2. Install with the network ISO or import the reusable QCOW2.
-3. Complete **Soda Setup** from the machine console.
+3. Log in normally; use network-only **Soda Setup** if native provisioning has
+   not already configured access. Register the Forgejo owner before teammates.
 4. Connect over the LAN or Tailscale with SSH, Cockpit, and Forgejo.
 5. Add each later primary account through stock Cockpit or native Linux, then
    let that person sign in to Forgejo normally and manage repository keys there.

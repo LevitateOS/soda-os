@@ -14,6 +14,11 @@ Entries below are a historical engineering log. They must not be read as
 current requirements, implementation instructions, release gates, or supported
 user journeys.
 
+The [2026-09-05 native onboarding correction](native-onboarding.md) supersedes
+older restrictions on Anaconda account creation and standard cloud-init, plus
+Setup-owned Forgejo signup/keys and coordinated Linux/Forgejo deletion. The
+historical list below describes the earlier reconciliation only.
+
 The 2026-09-04 product reconciliation superseded every historical note that
 assumes any of the following:
 

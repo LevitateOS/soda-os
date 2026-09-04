@@ -11,6 +11,19 @@ Maintain the shared project list and create one isolated Linux workspace for eac
   setting up a private repository, and be able to add an SSH public key to your
   account there.
 
+## Prepare the right SSH inputs
+
+| Input | Native owner and purpose |
+|---|---|
+| Personal SSH public key | Before the first workspace, use **Cockpit → Accounts → your account → Authorized public SSH keys**. Cockpit writes standard authorized_keys; cloud-init may already supply it. |
+| Workspace Git key pair | The private key stays in the workspace. Register its public key with Forgejo or the applicable Git host, then retry workspace setup. |
+| Repository SSH clone address | Enter the repository address in Cockpit's project catalog. It is an address, not a key. |
+
+Workspace creation still requires personal authorized keys before mutation and
+copies them once into the new workspace. There is no Soda key database, key
+entry screen, or synchronization. Forgejo owns its account administration and
+Git-key registration.
+
 ## Use the shared project list
 
 Open **Projects** in Cockpit. Every primary user may view and edit the shared

@@ -68,10 +68,11 @@ machinery, or architecture that only its authors can understand.
   update service or shadow deployment state.
 - AArch64 and x86-64 are equal sibling architectures. Neither is a default,
   fallback, experimental, or second-class target.
-- Human installation uses one completed network ISO, stock graphical Anaconda
-  for installation-owned responsibilities, and one common interactive
-  Soda Setup shared with QCOW2. There is no human-facing OEMDRV, second
-  credential image, cloud-init provisioning path, or public-SSH bootstrap.
+- ISO installation uses graphical Anaconda including Linux account creation,
+  followed by normal login. QCOW2 uses standard Fedora cloud-init delivered by
+  VM tooling; ISO uses its native disabled file. Temporary Soda Setup handles
+  only missing post-login network configuration. No Soda checkout, manually
+  built credential ISO, or public-SSH bootstrap is required.
 
 ### Standing commit authorization
 
@@ -150,7 +151,8 @@ smallest Soda-specific project workflow. The target behavior is:
 - stable primary usernames and a Linux-native distinction between primary and
   workspace accounts, without a Soda identity database or rename
   reconciliation;
-- Soda Setup creation of the initial Linux/Forgejo administrator and its key;
+- Anaconda or cloud-init creation of the initial Linux administrator;
+  independent native first-owner Forgejo signup with separate credentials;
   later primary humans created through stock Cockpit or Linux, first normal
   Forgejo PAM login, native manual key registration, and no workspace-account
   Forgejo identities or ongoing role synchronization;
@@ -178,8 +180,8 @@ smallest Soda-specific project workflow. The target behavior is:
   deletes the shared entry and every local workspace, including uncommitted
   work, while always preserving the canonical Forgejo repository;
 - administrator-only Soda-aware human deletion that removes derived local
-  workspaces first, the Forgejo account second, and the primary Linux account
-  last, without a watcher for out-of-band Linux deletion;
+  local workspaces first and the primary Linux account last; Forgejo account
+  deletion is separate inside Forgejo, without cross-system dependencies;
 - direct `mise`-owned development tools and repository configuration, with
   workspace-private installed dependencies and assistants;
 - administrator-controlled native `bootc` operations and an account-preserving

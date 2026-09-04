@@ -69,18 +69,22 @@ device. Double-check the target before starting.
    disks Anaconda will erase or reformat.
 5. Configure networking and the hostname. The network must be usable before
    installation begins.
-6. Start installation. Anaconda retrieves and deploys the exact Soda OCI
+6. Open **User Creation**, create your Linux account and password, and select
+   administrator capability. Root remains locked.
+7. Start installation. Anaconda retrieves and deploys the exact Soda OCI
    digest named by the release.
-7. Wait for successful completion, remove the installer media, and reboot into
+8. Wait for successful completion, remove the installer media, and reboot into
    the installed system.
 
-Administrator credentials and the Tailscale choice are completed after reboot,
-not through separate installation media.
+Anaconda creates the Linux administrator. After reboot, log in normally.
+Network-only Soda Setup appears if neither a trusted LAN nor Tailscale is ready.
+ISO installation disables cloud-init so it cannot alter the Anaconda accounts.
 
 ## Expected result
 
 The machine boots the installed Soda image from its target disk and presents
-Soda Setup on the console.
+the normal login prompt. After administrator login, Setup handles any missing
+network configuration.
 
 ## If something fails
 

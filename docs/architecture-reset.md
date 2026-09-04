@@ -39,42 +39,35 @@ For the current release, Soda Setup is the supported temporary workaround. Its
 complete user journey remains required until a proven replacement provides the
 same accepted outcomes.
 
-Human installation uses one completed architecture-matched network ISO:
+ISO installation uses stock graphical Anaconda for storage, networking, bootc
+deployment, Linux user creation, and administrator selection. Root stays locked.
+Reboot and log in normally before Soda Setup appears. ISO installation creates
+`/etc/cloud/cloud-init.disabled`, preventing cloud-init from altering those accounts.
 
-1. Boot the ISO.
-2. Use stock graphical Anaconda for storage, networking, bootloader, firmware,
-   and bootc deployment responsibilities that cannot safely move.
-3. Boot the installed system.
-4. Complete Soda Setup after the installed system boots.
+QCOW2 deployments use standard Fedora cloud-init delivered by VM tooling. Supply
+the Linux account, personal SSH public key, optional password hash, and optional
+network configuration through user-data. No Soda checkout or manually built
+credential ISO is required. A key alone enables SSH authentication; it does not
+supply a password for console, Cockpit, PAM, or password-based sudo.
 
-The same Soda Setup state and operations serve ISO-installed and reusable
-QCOW2 systems. Soda Setup appears on the physical, VM, or supported cloud
-console and is also available in stock Cockpit. These are two surfaces for one
-setup, not two onboarding implementations, and Soda Setup can always be opened
-again later.
+Soda Setup is temporary and handles only missing network trust or Tailscale
+enrollment. It starts after an authenticated administrator logs in on an
+interactive machine console and uses ordinary privilege elevation. Cancellation
+or failure returns to the logged-in shell. SSH, SCP, and SFTP do not launch it.
+Native network readiness skips automatic Setup. Administrators can reopen it
+with `sudo /usr/libexec/soda/soda-setup console` or through Cockpit.
 
-Soda Setup remains available on startup until machine-wide dismissal.
-Dismissal is disabled until all of these are true:
+Default-drop protection remains in place. Explicitly trust only a trusted LAN
+connection; cloud services remain private through Tailscale. Tailscale never
+disables the existing trusted-LAN path.
 
-- a primary Linux administrator exists;
-- its password is set;
-- its SSH public key is installed;
-- the same-named Forgejo administrator is ready; and
-- Tailscale is connected or the owner explicitly selected **Allow access from
-  the local network** for the current connection.
-
-A Tailscale authentication key, when used, is entered after installation,
-consumed once, and removed. Trusting the current local connection requires no
-Tailscale key. Tailscale remains a separate choice, can be configured later,
-and never disables trusted local-network access.
-
-There is no human-facing repository checkout, internal Go or xorriso command,
-OEMDRV, second credential image, separate provisioning medium, NoCloud,
-ConfigDrive, partial cloud-data merge, `soda-image cloud-input`, or public-SSH
-bootstrap. Supported cloud environments must provide a usable VM console.
-
-Automatic LAN/cloud detection and Anaconda enable/disable choices are future
-ideas, not current requirements.
+After successful cloud-init Tailscale enrollment and verification, invoke
+`/usr/libexec/soda/forgejo-init refresh-tailnet`. Interactive Setup uses this same
+entry point. It compares DOMAIN, SSH_DOMAIN, and ROOT_URL against the native
+Tailnet identity. Matching values cause no writes or restart. Stale values cause
+the existing Forgejo service restart; its inactive oneshot initializer applies
+the address before the replacement process starts. Forgejo never waits for
+cloud-final. Report enrollment success separately from refresh failure.
 
 ## Access and networking
 
@@ -134,13 +127,13 @@ collaboration, issues, pull requests, releases, sessions, tokens, and native
 deletion consequences. External Git hosts own the equivalent facts for their
 repositories.
 
-Soda Setup creates the initial same-named Linux and Forgejo administrator and
-installs that administrator's public SSH key in Linux and registers it with
-Forgejo. Later primary accounts are created through stock Cockpit or Linux. A
-later person's first normal Forgejo sign-in authenticates through PAM and
-creates the matching ordinary Forgejo profile; that person manages public keys
-through Forgejo's native interface. Soda has no later-person creation or Forgejo
-pre-provisioning path. Git uses SSH.
+The owner registers the first Forgejo account through the normal trusted LAN
+or Tailnet before teammates sign in. Native first-user signup grants Forgejo
+administration. Use independent Forgejo credentials, even with the same username
+as the Linux owner. PAM remains active. Later Linux users' first successful PAM
+login creates ordinary Forgejo accounts. Linux wheel membership grants no
+Forgejo role. The team controls ongoing registration policy; there is no
+mandatory registration-closing step or associated restart.
 
 Workspace accounts remain Linux-only development identities and never become
 Forgejo users. Linux `wheel` membership does not grant Forgejo administration.
@@ -197,16 +190,12 @@ archive, preservation, rollback, recovery, or hostile-admin policy. If a step
 fails, stop and report exactly what succeeded and remains so an administrator
 can retry explicitly.
 
-Supported person deletion is administrator-only and ordered:
-
-1. remove that person's workspaces;
-2. delete the Forgejo account and report Forgejo's native consequences; and
-3. delete the primary Linux account last.
-
-Failure stops immediately and exposes the partial result. There is no rollback
-or hidden completion. Soda does not invent repository transfer, archival, or
-preservation. Generic Cockpit or `userdel` account deletion remains a
-non-cascading Linux operation and triggers no watcher or reconciliation.
+Soda's administrator-only person removal deletes local workspaces first and the
+primary Linux account last. It neither inspects nor deletes a same-named
+Forgejo account. Forgejo availability, ownership, and deletion restrictions do
+not block Linux-person deletion. Delete Forgejo accounts explicitly inside
+Forgejo. Linux preflight checks, partial-failure reporting, and generic
+non-cascading Cockpit/Linux deletion remain unchanged.
 
 ## Cockpit and privileged operations
 
@@ -322,7 +311,7 @@ The source still implements several superseded paths:
 - an exact three-field catalog contract;
 - Soda-created Tea tokens/configuration and copying into workspaces;
 - the custom `soda-bun` build and broad immutable tool manifest;
-- person deletion that does not delete the Forgejo account; and
+- coordinated Linux and Forgejo account deletion; and
 - release CI that rebuilds fallback A and runs VM/Tailscale acceptance.
 
 These are implementation debt, not accepted behavior. Existing tests and old
@@ -339,8 +328,8 @@ The following remain engineering questions, not product decisions:
    complete installation journey without a separate Soda-owned post-install
    setup.
 2. Exact LAN and cloud firewall/service binding on Fedora 44.
-3. Soda Setup's initial-administrator public-key registration through the exact
-   shipped Forgejo version.
+3. Native first-owner signup, later PAM account creation under both team
+   registration policies, and manual Git-key registration on the shipped Forgejo.
 4. Catalog syntax, path, additional fields required by approved UI, and
    concurrency; project identity and canonical-URL immutability are settled.
 5. Workspace naming, classification, staging, and process removal.
@@ -359,18 +348,14 @@ fallback package manager, retry queue, or reconciliation service.
 
 The reset is complete when both matching-native architectures demonstrate:
 
-1. One network ISO reaches graphical Anaconda and Soda Setup
-   without separate human provisioning media.
-2. The same Soda Setup state completes on ISO and QCOW2 through console or
-   Cockpit, and cannot be dismissed before all required outcomes or explicit
-   trust of the current local connection.
+1. Graphical Anaconda creates ISO accounts; normal login precedes Setup.
+2. Standard cloud-init provisions QCOW2 and native readiness skips Setup.
 3. LAN exposes SSH, Cockpit, Forgejo, and normal development-server links;
    cloud exposes them only through Tailscale.
 4. Linux and `wheel` remain authoritative for people and administrators.
-5. Soda Setup registers the initial administrator's public SSH key in Forgejo;
-   later Forgejo profiles are created through normal PAM sign-in, people manage
-   their Forgejo keys natively, workspace keys are registered manually with the
-   authoritative Git host, and Git uses SSH.
+5. Native first-owner signup grants independent Forgejo administration; later
+   PAM accounts are ordinary. Cockpit manages personal authorized keys; users
+   register workspace Git public keys with their authoritative Git host.
 6. Every selected person-project pair receives a separate Linux account, home,
    full clone, dependencies, processes, and mutable state; the interface reports
    Linux account existence honestly while an incomplete clone remains retryable.
@@ -383,8 +368,8 @@ The reset is complete when both matching-native architectures demonstrate:
 9. A person removes only their own workspace; an administrator removes a whole
    project and every local workspace while preserving the canonical Forgejo
    repository.
-10. Person deletion removes workspaces, then the Forgejo account, then the
-    primary Linux account, exposing partial failure without rollback.
+10. Person deletion removes local workspaces then the Linux account, preserving
+    the Forgejo account and reporting partial failures.
 11. Normal development-server links work over LAN and Tailscale without Soda
     port or process tracking.
 12. People invoke and configure `mise` directly in workspaces without a Soda
@@ -411,3 +396,7 @@ The current dependency order is:
 [Issue #46](https://github.com/LevitateOS/soda-os/issues/46) is a separate WSL
 feasibility investigation. [Issue #47](https://github.com/LevitateOS/soda-os/issues/47)
 is a separate local-runner product and must not become Soda workflow authority.
+
+See [native onboarding acceptance](native-onboarding.md#installed-acceptance)
+for cloud-init late enrollment, conditional refresh, reboot, LAN-only, and
+service-ordering checks required on both matching architectures.

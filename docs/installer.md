@@ -22,92 +22,45 @@ document preserves that complete current journey until a proven replacement
 exists; it does not prescribe moving every setup screen into a renamed custom
 installer.
 
-### Network installer
+ISO installation uses stock graphical Anaconda for storage, networking, bootc
+deployment, Linux user creation, and administrator selection. Root stays locked.
+Reboot and log in normally before Soda Setup appears. ISO installation creates
+`/etc/cloud/cloud-init.disabled`, preventing cloud-init from altering those accounts.
 
-The public human journey uses one finished ISO:
+QCOW2 deployments use standard Fedora cloud-init delivered by VM tooling. Supply
+the Linux account, personal SSH public key, optional password hash, and optional
+network configuration through user-data. No Soda checkout or manually built
+credential ISO is required. A key alone enables SSH authentication; it does not
+supply a password for console, Cockpit, PAM, or password-based sudo.
 
-1. Boot the architecture-matched ISO.
-2. Use stock graphical Anaconda for storage, networking, firmware, bootloader,
-   and bootc deployment.
-3. Reboot into the installed system.
-4. Complete Soda Setup after the installed system boots.
+Soda Setup is temporary and handles only missing network trust or Tailscale
+enrollment. It starts after an authenticated administrator logs in on an
+interactive machine console and uses ordinary privilege elevation. Cancellation
+or failure returns to the logged-in shell. SSH, SCP, and SFTP do not launch it.
+Native network readiness skips automatic Setup. Administrators can reopen it
+with `sudo /usr/libexec/soda/soda-setup console` or through Cockpit.
 
-The ISO installs an exact architecture-specific GHCR digest and does not embed
-the Soda runtime payload. A network or registry failure is a native installation
-failure. Soda adds no mirror, embedded fallback image, alternate installer, or
-download service.
+Default-drop protection remains in place. Explicitly trust only a trusted LAN
+connection; cloud services remain private through Tailscale. Tailscale never
+disables the existing trusted-LAN path.
 
-The human supplies no Kickstart, OEMDRV, second credential disk, repository
-checkout, Go command, xorriso command, or other provisioning medium.
-
-### Reusable QCOW2
-
-The reusable QCOW2 is built from the same exact OCI image as the installer.
-After boot it uses the same Soda Setup state and operations as an ISO-installed
-system. Soda Setup appears on the VM or supported cloud console and is also
-available in Cockpit after network access exists.
-
-Supported cloud platforms must provide console access. Soda does not consume
-NoCloud or ConfigDrive user data, merge cloud metadata, accept a separate
-`cloud-input`, install provider agents, or expose a public SSH bootstrap.
-Until Soda Setup is complete, the machine remains unconfigured.
-
-The image grows its final partition and filesystem to the supplied virtual
-disk. The raw QCOW2 is a matching-native build artifact; the compressed image,
-checksum, release record, and signing evidence are release outputs.
-
-### Current Soda Setup workaround
-
-Soda Setup is machine-wide and shared by ISO and QCOW2. It is available on a
-physical, VM, or supported cloud console and through Cockpit via the same
-bounded underlying operations. Both surfaces use the same state, and Soda
-Setup can always be opened again later.
-
-It remains available at startup until explicitly dismissed. Dismissal is not
-available until:
-
-- one primary Linux administrator exists;
-- its password is set;
-- its public SSH key is installed;
-- the same-named Forgejo site administrator is ready; and
-- Tailscale is connected or **Allow access from the local network** is
-  explicitly selected for the current connection.
-
-When the owner enters a Tailscale authentication key, Soda Setup passes it once
-to Tailscale and removes it. Trusting the current local connection requires no
-key. Tailscale remains a separate choice, can be configured later, and never
-disables trusted local-network access.
-
-The setup leaves no password, Tailscale key, bootstrap account, enabled
-provisioning path, runtime status database, retry record, or background setup
-service. A failure remains visible and is retried explicitly through the same
-setup; Soda adds no recovery engine or reconciliation loop.
-
-Automatic LAN/cloud detection and choosing setup enablement inside Anaconda are
-not part of the current release contract. The long-term single-journey goal
-does not select either mechanism.
+After successful cloud-init Tailscale enrollment and verification, invoke
+`/usr/libexec/soda/forgejo-init refresh-tailnet`. Interactive Setup uses this same
+entry point. It compares DOMAIN, SSH_DOMAIN, and ROOT_URL against the native
+Tailnet identity. Matching values cause no writes or restart. Stale values cause
+the existing Forgejo service restart; its inactive oneshot initializer applies
+the address before the replacement process starts. Forgejo never waits for
+cloud-final. Report enrollment success separately from refresh failure.
 
 ## Installed ownership
 
-After Soda Setup:
-
-- Linux owns the administrator, password, `wheel` membership, home, and
-  standard authorized key;
-- Forgejo owns the same-named site administrator and registered SSH public key;
-- Tailscale owns its node identity when enrolled;
-- stock Cockpit owns browser administration; and
-- Soda owns only completion of the current bounded Soda Setup composition.
-
-Later primary humans are created through the supported administrator workflow,
-which is stock Cockpit or ordinary Linux account management. Their first normal
-Forgejo sign-in creates the corresponding profile through PAM, and they manage
-public keys through Forgejo's native interface. Soda Setup does not create or
-pre-provision later people. Workspace accounts are Linux-only identities, and
-their outbound Git public keys are registered manually with the authoritative
-Git host rather than through Projects.
-
-Tea and gh are available in workspaces but are never configured during
-installation or Soda Setup. Each workspace login is manual and separate.
+The owner registers the first Forgejo account through the normal trusted LAN
+or Tailnet before teammates sign in. Native first-user signup grants Forgejo
+administration. Use independent Forgejo credentials, even with the same username
+as the Linux owner. PAM remains active. Later Linux users' first successful PAM
+login creates ordinary Forgejo accounts. Linux wheel membership grants no
+Forgejo role. The team controls ongoing registration policy; there is no
+mandatory registration-closing step or associated restart.
 
 ## Persistent host state
 

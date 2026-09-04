@@ -1,5 +1,20 @@
 # Soda postmortem decision ledger
 
+## Native onboarding correction, 2026-09-05
+
+The accepted [native onboarding contract](native-onboarding.md) supersedes the
+earlier account creation, dismissal, QCOW2, Forgejo signup/key, and coordinated
+person-deletion decisions recorded below. Anaconda creates ISO accounts;
+standard cloud-init provisions QCOW2; Setup handles only missing post-login
+network configuration. The owner registers Forgejo independently. Cockpit
+manages personal authorized keys, Git hosts manage workspace Git public keys,
+and Forgejo deletion stays separate. Registration policy belongs to the team.
+Conditional address refresh after enrollment preserves normal service ordering;
+Forgejo must never wait for cloud-final. The other decisions remain unchanged.
+
+The following dated record retains earlier discussion as historical context.
+
+
 This document records decisions Vince explicitly confirmed during the postmortem. It is not an implementation plan and does not authorize implementation.
 
 ## Review method
