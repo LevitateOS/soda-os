@@ -45,7 +45,7 @@ func (coordinator Coordinator) preparePerson(ctx context.Context, request AddPer
 	if err := validateHumanPassword(request.Password); err != nil {
 		return preparedPerson{}, err
 	}
-	key, err := canonicalAuthorizedKey(request.AuthorizedKey)
+	key, err := CanonicalAuthorizedKey(request.AuthorizedKey)
 	if err != nil {
 		return preparedPerson{}, err
 	}
@@ -82,7 +82,7 @@ func validateHumanPassword(password string) error {
 	return nil
 }
 
-func canonicalAuthorizedKey(input string) (string, error) {
+func CanonicalAuthorizedKey(input string) (string, error) {
 	publicKey, _, options, rest, err := ssh.ParseAuthorizedKey([]byte(input))
 	if err != nil || len(options) != 0 || len(bytes.TrimSpace(rest)) != 0 {
 		return "", errors.New("authorized key must contain exactly one valid OpenSSH public key")

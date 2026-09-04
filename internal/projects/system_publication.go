@@ -67,7 +67,7 @@ func (platform *NativePlatform) workspaceGitPublicKey(ctx context.Context, works
 	if result.ExitCode != 0 {
 		return "", fmt.Errorf("read workspace outbound Git key: %s", strings.TrimSpace(result.Stderr))
 	}
-	key, err := canonicalAuthorizedKey(result.Stdout)
+	key, err := CanonicalAuthorizedKey(result.Stdout)
 	if err != nil {
 		return "", fmt.Errorf("read workspace outbound Git key: %w", err)
 	}

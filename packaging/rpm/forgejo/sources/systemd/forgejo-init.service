@@ -1,7 +1,7 @@
 [Unit]
 Description=Initialize Soda OS built-in Git service
 Wants=tailscaled.service
-After=systemd-sysusers.service systemd-tmpfiles-setup.service tailscaled.service soda-tailscale-enroll.service
+After=systemd-sysusers.service systemd-tmpfiles-setup.service tailscaled.service
 
 [Service]
 Type=oneshot

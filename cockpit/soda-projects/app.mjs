@@ -12,6 +12,7 @@ import {
   projectRemovalHidden,
   successMessage,
 } from "./ui.mjs";
+import { initializeSetup } from "./setup.mjs";
 
 const cockpit = window.cockpit;
 const state = {
@@ -56,6 +57,7 @@ elements.rows.addEventListener("click", event => {
 });
 
 loadProjects();
+initializeSetup({ cockpit, showNotice, setBusy });
 
 async function invoke(action, payload) {
   const process = cockpit.spawn(coordinatorCommand(action), { err: "message" });
@@ -215,8 +217,8 @@ async function submitAction(event) {
 
 function setBusy(busy) {
   state.busy = busy;
-  document.querySelectorAll("button, input, textarea").forEach(element => {
-    element.disabled = busy;
+  document.querySelectorAll("button, input, select, textarea").forEach(element => {
+    element.disabled = busy || element.dataset.disabled === "true";
   });
   document.body.setAttribute("aria-busy", String(busy));
 }

@@ -110,7 +110,7 @@ func validateForgejoKeyRegistration(registration ForgejoKeyRequest) error {
 	if err := validateHumanPassword(registration.Password); err != nil {
 		return err
 	}
-	key, err := canonicalAuthorizedKey(registration.PublicKey)
+	key, err := CanonicalAuthorizedKey(registration.PublicKey)
 	if err != nil || key != registration.PublicKey {
 		return errors.New("Forgejo public key is invalid")
 	}
