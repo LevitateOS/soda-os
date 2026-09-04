@@ -1,6 +1,7 @@
 package runners
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -9,6 +10,15 @@ import (
 
 	"github.com/stretchr/testify/require"
 )
+
+type recordingCommandRunner struct{ commands []Command }
+
+func (runner *recordingCommandRunner) Run(_ context.Context, command Command) (CommandResult, error) {
+	runner.commands = append(runner.commands, command)
+	return CommandResult{}, nil
+}
+
+func (*recordingCommandRunner) RunSecret(context.Context, Command, string) error { return nil }
 
 func TestForgejoConfigurationUsesNativeTokenFileAndOneHostSlot(t *testing.T) {
 	state := t.TempDir()
@@ -39,16 +49,41 @@ func TestForgejoConfigurationUsesNativeTokenFileAndOneHostSlot(t *testing.T) {
 	require.Equal(t, os.FileMode(0o600), info.Mode().Perm())
 }
 
-func TestGitHubRegistrationSelectsNativeDefaultGroupWithoutExposingToken(t *testing.T) {
+func TestGitHubRegistrationIsUnattendedAndDoesNotReplaceProviderRecords(t *testing.T) {
 	request := CreateRequest{
 		ID: "github-one", Provider: ProviderGitHub, RegistrationURL: "https://github.com/example/repository",
 		Labels: "soda", RegistrationToken: "provider-input",
 	}
 	command := githubRegistrationCommand("/runner", "/state", identity{UID: 1200, GID: 1300}, request)
 	require.Equal(t, []string{
-		"--url", request.RegistrationURL, "--name", request.ID, "--runnergroup", "default", "--work", "_work",
-		"--replace", "--disableupdate", "--labels", request.Labels,
+		"--unattended", "--url", request.RegistrationURL, "--name", request.ID, "--runnergroup", "default",
+		"--work", "_work", "--disableupdate", "--labels", request.Labels,
 	}, command.Args)
+	require.NotContains(t, command.Args, "--replace")
 	require.NotContains(t, strings.Join(command.Args, " "), request.RegistrationToken)
 	require.NotContains(t, strings.Join(command.Environment, " "), request.RegistrationToken)
+
+	request.Labels = ""
+	command = githubRegistrationCommand("/runner", "/state", identity{UID: 1200, GID: 1300}, request)
+	require.Contains(t, command.Args, "--unattended")
+	require.NotContains(t, command.Args, "--labels")
+}
+
+func TestLifecycleActionsPersistListenerStateAcrossBoot(t *testing.T) {
+	root := t.TempDir()
+	runner := &recordingCommandRunner{}
+	native := &Native{RootPath: root, Runner: runner}
+	id := "one"
+	require.NoError(t, os.MkdirAll(filepath.Join(root, id), 0o755))
+	require.NoError(t, native.writeDescriptor(Descriptor{ID: id, Provider: ProviderGitHub, Account: "soda-runner-one"}))
+
+	require.NoError(t, native.Start(context.Background(), id))
+	require.NoError(t, native.Stop(context.Background(), id))
+	require.NoError(t, native.Restart(context.Background(), id))
+	require.Equal(t, []Command{
+		{Name: "systemctl", Args: []string{"enable", "--now", "soda-runner@one.service"}},
+		{Name: "systemctl", Args: []string{"disable", "--now", "soda-runner@one.service"}},
+		{Name: "systemctl", Args: []string{"enable", "soda-runner@one.service"}},
+		{Name: "systemctl", Args: []string{"restart", "soda-runner@one.service"}},
+	}, runner.commands)
 }

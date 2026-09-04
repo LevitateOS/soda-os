@@ -110,14 +110,17 @@ func (native *Native) runnerView(ctx context.Context, id string) (RunnerView, er
 }
 
 func (native *Native) Start(ctx context.Context, id string) error {
-	return native.serviceAction(ctx, id, "start")
+	return native.serviceAction(ctx, id, "enable", "--now")
 }
 
 func (native *Native) Stop(ctx context.Context, id string) error {
-	return native.serviceAction(ctx, id, "stop")
+	return native.serviceAction(ctx, id, "disable", "--now")
 }
 
 func (native *Native) Restart(ctx context.Context, id string) error {
+	if err := native.serviceAction(ctx, id, "enable"); err != nil {
+		return err
+	}
 	return native.serviceAction(ctx, id, "restart")
 }
 
@@ -143,11 +146,12 @@ func (native *Native) Remove(ctx context.Context, id string) error {
 	return nil
 }
 
-func (native *Native) serviceAction(ctx context.Context, id, action string) error {
+func (native *Native) serviceAction(ctx context.Context, id, action string, options ...string) error {
 	if _, err := native.readDescriptor(id); err != nil {
 		return err
 	}
-	if _, err := native.run(ctx, "systemctl", action, native.unit(id)); err != nil {
+	arguments := append([]string{action}, options...)
+	if _, err := native.run(ctx, "systemctl", append(arguments, native.unit(id))...); err != nil {
 		return fmt.Errorf("%s local runner listener", action)
 	}
 	return nil
