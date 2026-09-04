@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"path/filepath"
 	"regexp"
-	"strings"
 
 	"github.com/BurntSushi/toml"
 )
@@ -38,7 +37,8 @@ func readForgejoSourceLock(path string) (forgejoSourceLock, error) {
 
 func (lock forgejoSourceLock) validate() error {
 	if !forgejoVersionPattern.MatchString(lock.Version) || filepath.Base(lock.SourceArchive) != lock.SourceArchive ||
-		!strings.HasSuffix(lock.SourceArchive, ".tar.gz") || lock.URL == "" || !validSHA256(lock.SHA256) ||
+		lock.SourceArchive != "forgejo-src-"+lock.Version+".tar.gz" ||
+		lock.URL != "https://codeberg.org/forgejo/forgejo/releases/download/v"+lock.Version+"/"+lock.SourceArchive || !validSHA256(lock.SHA256) ||
 		!validSHA256(lock.PatchSHA256) || lock.BuildTags == "" {
 		return errors.New("Forgejo source lock is incomplete or invalid")
 	}

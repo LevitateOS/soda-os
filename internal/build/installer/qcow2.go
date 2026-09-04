@@ -58,6 +58,12 @@ func (b *Builder) prepareQCOW2(options QCOW2Options) (qcow2Input, error) {
 	if !regularFile(options.ArchivePath) || !regularFile(options.ToolLock) {
 		return qcow2Input{}, errors.New("QCOW2 construction requires a local OCI archive and image-builder lock")
 	}
+	if err := b.validateInstallerInputs(); err != nil {
+		return qcow2Input{}, err
+	}
+	if err := b.validateSelectedToolLock(options.ToolLock, "QCOW2 construction"); err != nil {
+		return qcow2Input{}, err
+	}
 	lock, err := readToolLock(options.ToolLock, b.Spec.Platform)
 	if err != nil {
 		return qcow2Input{}, err

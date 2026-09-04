@@ -12,7 +12,7 @@ func TestForgejoSourceLockAcceptsReviewedFieldsAndRejectsDrift(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "forgejo-source.toml")
 	valid := `version = "15.0.7"
 source_archive = "forgejo-src-15.0.7.tar.gz"
-url = "https://example.invalid/forgejo-src-15.0.7.tar.gz"
+url = "https://codeberg.org/forgejo/forgejo/releases/download/v15.0.7/forgejo-src-15.0.7.tar.gz"
 sha256 = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 patch_sha256 = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
 build_tags = "bindata timetzdata sqlite sqlite_unlock_notify pam"

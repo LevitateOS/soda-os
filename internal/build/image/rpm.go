@@ -2,9 +2,6 @@ package image
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -25,6 +22,13 @@ func (b *Builder) BuildRPMs(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	if err := b.verifyFetchedBuildInputs(); err != nil {
+		return err
+	}
+	return b.buildRPMs(ctx, revision)
+}
+
+func (b *Builder) buildRPMs(ctx context.Context, revision string) error {
 	if err := b.buildContainer(ctx); err != nil {
 		return err
 	}
@@ -192,7 +196,7 @@ func (b *Builder) stageRPMSources(build, sources string) error {
 	if err := b.stageGitHubRunnerSource(sources); err != nil {
 		return err
 	}
-	return b.stageNonBunRPMSources(build, sources)
+	return b.stageProductRPMSources(build, sources)
 }
 
 func (b *Builder) stageGitHubRunnerSource(sources string) error {
@@ -211,7 +215,7 @@ func (b *Builder) stageGitHubRunnerSource(sources string) error {
 	return copyFile(archive, filepath.Join(sources, "github-actions-runner.tar.gz"))
 }
 
-func (b *Builder) stageNonBunRPMSources(build, sources string) error {
+func (b *Builder) stageProductRPMSources(build, sources string) error {
 	files := [][2]string{
 		{filepath.Join(build, "soda-projects"), filepath.Join(sources, "soda-projects")},
 		{filepath.Join(build, "soda-workspace-helper"), filepath.Join(sources, "soda-workspace-helper")},
@@ -312,18 +316,20 @@ func (b *Builder) buildContainer(ctx context.Context) error {
 		return fmt.Errorf("stage builder package lock: %w", err)
 	}
 	goArchive := b.path(b.Spec.Platform.Builder.GoArchive)
-	contents, err := os.ReadFile(goArchive)
-	if err != nil {
-		return fmt.Errorf("pinned Go builder input is missing; run just builder-tools %s: %w", b.Spec.Platform.Architecture.Name, err)
-	}
-	hash := sha256.Sum256(contents)
-	if hex.EncodeToString(hash[:]) != b.Spec.Platform.Builder.GoArchiveSHA256 {
-		return errors.New("Go builder archive checksum differs from the selected platform contract")
+	if err := b.verifyGoBuilderArchive(); err != nil {
+		return err
 	}
 	if err := copyFile(goArchive, b.artifactPath("builder", "go.tar.gz")); err != nil {
 		return fmt.Errorf("stage Go builder toolchain: %w", err)
 	}
 	return b.runner.Run(ctx, process.Command{Dir: b.Root, Name: "docker", Args: []string{"build", "--quiet", "--platform", b.Spec.Base.Platform, "--build-arg", "BUILDER_BASE_REFERENCE=" + b.Spec.Platform.Builder.BaseReference, "--build-arg", "GO_VERSION=" + b.Spec.Platform.Builder.GoVersion, "--file", "packaging/builder/Containerfile", "--tag", b.builderTag(), "."}})
+}
+
+func (b *Builder) verifyGoBuilderArchive() error {
+	if err := verifyFileSHA256(b.path(b.Spec.Platform.Builder.GoArchive), b.Spec.Platform.Builder.GoArchiveSHA256); err != nil {
+		return fmt.Errorf("verify Go builder input; run just builder-tools %s: %w", b.Spec.Platform.Architecture.Name, err)
+	}
+	return nil
 }
 
 func (b *Builder) docker(ctx context.Context, environment []string, name string, args ...string) error {

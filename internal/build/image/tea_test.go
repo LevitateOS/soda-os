@@ -61,9 +61,9 @@ func testTeaSourceLock(licenseDigest [sha256.Size]byte, extra string) string {
 	return fmt.Sprintf(`version = "0.15.1"
 commit = "f34697c5ed65928e265d6f48e16928819ce0f332"
 source_archive = "tea-src-0.15.1.tar.gz"
-source_url = "https://example.invalid/tea.tar.gz"
+source_url = "https://gitea.com/gitea/tea/archive/v0.15.1.tar.gz"
 source_sha256 = "%064x"
-license_url = "https://example.invalid/LICENSE"
+license_url = "https://gitea.com/gitea/tea/raw/tag/v0.15.1/LICENSE"
 license_sha256 = "%x"
 %s`, 1, licenseDigest, extra)
 }
