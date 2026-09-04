@@ -42,6 +42,13 @@ type CatalogEntry struct {
 }
 
 func (entry CatalogEntry) Validate() error {
+	if err := validateCatalogRequiredFields(entry); err != nil {
+		return err
+	}
+	return validateCatalogAdditionalFields(entry.Additional)
+}
+
+func validateCatalogRequiredFields(entry CatalogEntry) error {
 	if !projectIDPattern.MatchString(entry.ID) {
 		return errors.New("project id must match [a-z][a-z0-9-]{0,23}")
 	}
@@ -54,7 +61,11 @@ func (entry CatalogEntry) Validate() error {
 	if err := ValidateCanonicalURL(entry.CanonicalURL); err != nil {
 		return fmt.Errorf("canonical URL: %w", err)
 	}
-	for field, value := range entry.Additional {
+	return nil
+}
+
+func validateCatalogAdditionalFields(additional map[string]json.RawMessage) error {
+	for field, value := range additional {
 		if field == "" || !utf8.ValidString(field) {
 			return errors.New("additional catalog field names must be non-empty UTF-8")
 		}

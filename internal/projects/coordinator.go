@@ -153,30 +153,27 @@ func (coordinator Coordinator) Execute(ctx context.Context, actorUsername, actio
 	if err != nil {
 		return nil, err
 	}
-	switch action {
-	case "list":
-		return coordinator.executeList(ctx, primary, uidMin, input)
-	case "add-existing":
-		return coordinator.executeAddExisting(ctx, primary, input)
-	case "create-forgejo":
-		return coordinator.executeCreateForgejo(ctx, primary, input)
-	case "edit":
-		return coordinator.executeEdit(ctx, primary, input)
-	case "setup":
-		return coordinator.executeSetup(ctx, primary, input)
-	case "remove-workspace":
-		return coordinator.executeRemoveWorkspace(ctx, input)
-	case "install-tools":
-		return coordinator.executeInstallTools(ctx, input)
-	case "remove":
-		return coordinator.executeRemove(ctx, input)
-	case "delete-human":
-		return coordinator.executeDeleteHuman(ctx, input)
-	case "add-person":
-		return coordinator.executeAddPerson(ctx, primary, uidMin, input)
-	default:
+	return coordinator.dispatch(ctx, primary, uidMin, action, input)
+}
+
+func (coordinator Coordinator) dispatch(ctx context.Context, primary Account, uidMin int, action string, input io.Reader) (any, error) {
+	handlers := map[string]func() (any, error){
+		"list":             func() (any, error) { return coordinator.executeList(ctx, primary, uidMin, input) },
+		"add-existing":     func() (any, error) { return coordinator.executeAddExisting(ctx, primary, input) },
+		"create-forgejo":   func() (any, error) { return coordinator.executeCreateForgejo(ctx, primary, input) },
+		"edit":             func() (any, error) { return coordinator.executeEdit(ctx, primary, input) },
+		"setup":            func() (any, error) { return coordinator.executeSetup(ctx, primary, input) },
+		"remove-workspace": func() (any, error) { return coordinator.executeRemoveWorkspace(ctx, input) },
+		"install-tools":    func() (any, error) { return coordinator.executeInstallTools(ctx, input) },
+		"remove":           func() (any, error) { return coordinator.executeRemove(ctx, input) },
+		"delete-human":     func() (any, error) { return coordinator.executeDeleteHuman(ctx, input) },
+		"add-person":       func() (any, error) { return coordinator.executeAddPerson(ctx, primary, uidMin, input) },
+	}
+	handler, found := handlers[action]
+	if !found {
 		return nil, fmt.Errorf("unsupported soda-projects action %q", action)
 	}
+	return handler()
 }
 
 func (coordinator Coordinator) executeInstallTools(ctx context.Context, input io.Reader) (any, error) {
@@ -398,15 +395,8 @@ func (coordinator Coordinator) setupLocked(ctx context.Context, primary Account,
 	if !prepared.OK || prepared.WorkspaceUsername == "" || prepared.WorkspacePublicKey == "" {
 		return MutationResponse{}, errors.New("workspace helper returned incomplete outbound Git key evidence")
 	}
-	forgejoURL, _, err := coordinator.Endpoints.Endpoints(ctx)
-	if err != nil {
+	if err = coordinator.registerWorkspaceKey(ctx, primary, request, prepared); err != nil {
 		return MutationResponse{}, err
-	}
-	if err = coordinator.Forgejo.RegisterPublicKey(ctx, ForgejoKeyRequest{
-		BaseURL: forgejoURL, Username: primary.Username, Password: request.ForgejoPassword, PublicKey: prepared.WorkspacePublicKey,
-		Title: "Soda OS workspace " + prepared.WorkspaceUsername,
-	}); err != nil {
-		return MutationResponse{}, fmt.Errorf("workspace %s and its local outbound Git key were retained; Forgejo key registration can be retried: %w", prepared.WorkspaceUsername, err)
 	}
 	response, err := coordinator.Privileged.WorkspacePublish(ctx, HelperWorkspaceRequest{
 		ID: entry.ID, CanonicalURL: entry.CanonicalURL,
@@ -419,6 +409,18 @@ func (coordinator Coordinator) setupLocked(ctx context.Context, primary Account,
 		return MutationResponse{}, errors.New("workspace helper returned an incomplete clone result")
 	}
 	return response, nil
+}
+
+func (coordinator Coordinator) registerWorkspaceKey(ctx context.Context, primary Account, request SetupRequest, prepared MutationResponse) error {
+	forgejoURL, _, err := coordinator.Endpoints.Endpoints(ctx)
+	if err != nil {
+		return err
+	}
+	err = coordinator.Forgejo.RegisterPublicKey(ctx, ForgejoKeyRequest{BaseURL: forgejoURL, Username: primary.Username, Password: request.ForgejoPassword, PublicKey: prepared.WorkspacePublicKey, Title: "Soda OS workspace " + prepared.WorkspaceUsername})
+	if err != nil {
+		return fmt.Errorf("workspace %s and its local outbound Git key were retained; Forgejo key registration can be retried: %w", prepared.WorkspaceUsername, err)
+	}
+	return nil
 }
 
 func (coordinator Coordinator) projectResult(ctx context.Context, primary Account, entry CatalogEntry) (MutationResponse, error) {

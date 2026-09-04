@@ -50,6 +50,22 @@ func (lock synchronizedOperationLock) Close() error {
 	return lock.Closer.Close()
 }
 
+func newWorkspaceForgejoServer(t *testing.T) *httptest.Server {
+	t.Helper()
+	return httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		switch request.URL.Path {
+		case "/api/v1/user":
+			_, _ = writer.Write([]byte(`{"login":"alice"}`))
+		case "/api/v1/user/keys":
+			if request.Method == http.MethodGet {
+				_, _ = writer.Write([]byte(`[]`))
+				return
+			}
+			writer.WriteHeader(http.StatusCreated)
+		}
+	}))
+}
+
 func TestSetupOperationLockBlocksProjectAndHumanRemoval(t *testing.T) {
 	catalog := testCatalog(t)
 	require.NoError(t, catalog.Add(CatalogEntry{
@@ -80,18 +96,7 @@ func TestSetupOperationLockBlocksProjectAndHumanRemoval(t *testing.T) {
 		workspacePublicKey: strings.TrimSpace(string(testAuthorizedKey(t))),
 		publishStarted:     publishStarted, publishRelease: releasePublish,
 	}
-	forgejo := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		switch request.URL.Path {
-		case "/api/v1/user":
-			_, _ = writer.Write([]byte(`{"login":"alice"}`))
-		case "/api/v1/user/keys":
-			if request.Method == http.MethodGet {
-				_, _ = writer.Write([]byte(`[]`))
-				return
-			}
-			writer.WriteHeader(http.StatusCreated)
-		}
-	}))
+	forgejo := newWorkspaceForgejoServer(t)
 	defer forgejo.Close()
 	coordinator := Coordinator{
 		Catalog:    catalog,

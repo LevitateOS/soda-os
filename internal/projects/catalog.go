@@ -324,27 +324,15 @@ func decodeCatalogFieldName(decoder *json.Decoder, values map[string]json.RawMes
 }
 
 func catalogEntryFromValues(values map[string]json.RawMessage) (CatalogEntry, error) {
-	for _, field := range []string{"id", "display_name", "canonical_url"} {
-		if _, present := values[field]; !present {
-			return CatalogEntry{}, fmt.Errorf("catalog entry is missing %q", field)
-		}
+	if err := requireCatalogFields(values); err != nil {
+		return CatalogEntry{}, err
 	}
 	entry := CatalogEntry{Additional: map[string]json.RawMessage{}}
 	for field, value := range values {
-		switch field {
-		case "id":
-			if err := json.Unmarshal(value, &entry.ID); err != nil {
-				return CatalogEntry{}, errors.New("catalog field \"id\" must be a string")
-			}
-		case "display_name":
-			if err := json.Unmarshal(value, &entry.DisplayName); err != nil {
-				return CatalogEntry{}, errors.New("catalog field \"display_name\" must be a string")
-			}
-		case "canonical_url":
-			if err := json.Unmarshal(value, &entry.CanonicalURL); err != nil {
-				return CatalogEntry{}, errors.New("catalog field \"canonical_url\" must be a string")
-			}
-		default:
+		if err := decodeCatalogRequiredField(&entry, field, value); err != nil {
+			return CatalogEntry{}, err
+		}
+		if !isCatalogRequiredField(field) {
 			entry.Additional[field] = append(json.RawMessage(nil), value...)
 		}
 	}
@@ -352,6 +340,37 @@ func catalogEntryFromValues(values map[string]json.RawMessage) (CatalogEntry, er
 		entry.Additional = nil
 	}
 	return entry, nil
+}
+
+func requireCatalogFields(values map[string]json.RawMessage) error {
+	for _, field := range []string{"id", "display_name", "canonical_url"} {
+		if _, present := values[field]; !present {
+			return fmt.Errorf("catalog entry is missing %q", field)
+		}
+	}
+	return nil
+}
+
+func decodeCatalogRequiredField(entry *CatalogEntry, field string, value json.RawMessage) error {
+	var target *string
+	switch field {
+	case "id":
+		target = &entry.ID
+	case "display_name":
+		target = &entry.DisplayName
+	case "canonical_url":
+		target = &entry.CanonicalURL
+	default:
+		return nil
+	}
+	if err := json.Unmarshal(value, target); err != nil {
+		return fmt.Errorf("catalog field %q must be a string", field)
+	}
+	return nil
+}
+
+func isCatalogRequiredField(field string) bool {
+	return field == "id" || field == "display_name" || field == "canonical_url"
 }
 
 func requireJSONDelimiter(decoder *json.Decoder, expected json.Delim, message string) error {
