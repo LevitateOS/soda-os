@@ -233,6 +233,19 @@ func TestImageProvenanceBindsTheRecordedRuntimeLock(t *testing.T) {
 	require.ErrorContains(t, err, "runtime package lock checksum differs")
 }
 
+func TestImageSigningChecksRecordedRuntimeLockBeforeCosign(t *testing.T) {
+	runner := &publicationRunner{}
+	publication := testPublication(t, runner, "arm64")
+	options, _ := writeUploadArtifacts(t, testArmPublicationSpec(), testRevision)
+	record, err := readStrictRecord(options.RecordPath)
+	require.NoError(t, err)
+	record.RuntimeLockSHA256 = strings.Repeat("0", 64)
+
+	err = publication.signAndAttestImage(context.Background(), record, testArmPublicationSpec())
+	require.ErrorContains(t, err, "runtime package lock checksum differs")
+	require.Empty(t, runner.commands)
+}
+
 func testArmPublicationSpec() config.DistroSpec {
 	spec := testSpec()
 	spec.Distribution.GitHubRepository = "LevitateOS/soda-os"

@@ -99,14 +99,14 @@ func (p *Publication) signAndAttestImage(ctx context.Context, record Record, spe
 	if p.workflowRunURL == "" {
 		return errors.New("image signing requires a GitHub Actions workflow run identity")
 	}
-	if err := p.runner.Run(ctx, p.cosign("sign", "--yes", record.SodaImageReference)); err != nil {
-		return fmt.Errorf("keylessly sign exact GHCR image digest: %w", err)
-	}
 	predicate, cleanup, err := p.writeImageProvenance(record, spec)
 	if err != nil {
 		return err
 	}
 	defer cleanup()
+	if err := p.runner.Run(ctx, p.cosign("sign", "--yes", record.SodaImageReference)); err != nil {
+		return fmt.Errorf("keylessly sign exact GHCR image digest: %w", err)
+	}
 	if err := p.runner.Run(ctx, p.cosign("attest", "--yes", "--type", "slsaprovenance", "--predicate", predicate, record.SodaImageReference)); err != nil {
 		return fmt.Errorf("attach exact GHCR image provenance: %w", err)
 	}
