@@ -204,7 +204,7 @@ func qemuARMCommand(config VMConfig) ([]string, string, error) {
 
 func qemuCommonArgs(config VMConfig) []string {
 	args := []string{"-drive", "file=" + config.Disk + ",if=virtio,format=qcow2"}
-	if config.Mode == "install" {
+	if config.ISO != "" {
 		cdrom := "file=" + config.ISO + ",media=cdrom,format=raw,readonly=on"
 		if config.Architecture == "aarch64" {
 			cdrom += ",if=virtio"
@@ -213,7 +213,7 @@ func qemuCommonArgs(config VMConfig) []string {
 	} else {
 		args = append(args, "-boot", "order=c")
 	}
-	network := fmt.Sprintf("user,id=net0,hostfwd=tcp:%s:%d-:22,hostfwd=tcp:%s:%d-:9090,hostfwd=tcp:%s:%d-:3000,hostfwd=tcp:%s:18080-:18080,hostfwd=tcp:%s:18081-:18081", config.Host, config.SSHPort, config.Host, config.CockpitPort, config.Host, config.ForgejoPort, config.Host, config.Host)
+	network := fmt.Sprintf("user,id=net0,hostfwd=tcp:%s:%d-:22,hostfwd=tcp:%s:%d-:9090,hostfwd=tcp:%s:%d-:30000,hostfwd=tcp:%s:18080-:18080,hostfwd=tcp:%s:18081-:18081", config.Host, config.SSHPort, config.Host, config.CockpitPort, config.Host, config.ForgejoPort, config.Host, config.Host)
 	args = append(args, "-netdev", network, "-device", "virtio-net-pci,netdev=net0")
 	args = append(args, "-serial", "file:"+filepath.Join(config.Directory, "serial.log"), "-monitor", "none", "-qmp", "unix:"+qmpSocket(config)+",server=on,wait=off")
 	return append(args, qemuDisplayArgs(config)...)

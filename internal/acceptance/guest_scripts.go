@@ -21,7 +21,7 @@ test ! -e "$HOME/.config/tea/config.yml"
 test ! -e "$HOME/.config/gh/hosts.yml"
 test "$(systemctl is-enabled bootc-fetch-apply-updates.timer 2>/dev/null || true)" = masked
 test "$(firewall-cmd --get-default-zone)" = drop
-for unit in soda-authd.service soda-cockpit.service sodad.service avahi-daemon.service var-srv-soda-projects.mount soda-tailscale-enroll.service; do
+for unit in soda-authd.service soda-cockpit.service sodad.service avahi-daemon.service var-srv-soda-projects.mount soda-tailscale-enroll.service soda-setup.service; do
   ! systemctl cat "$unit" >/dev/null 2>&1
 done
 for path in \
@@ -50,17 +50,18 @@ printf 'core-product-boundaries=pass\n'
 
 const setupCompleteChecks = `set -euo pipefail
 status=$(/usr/libexec/soda/soda-setup status)
-jq -e '.dismissed and .can_dismiss and (.administrators | length == 1) and .administrators[0].password_set and .administrators[0].ssh_public_key and .administrators[0].forgejo_ready' <<<"$status" >/dev/null
+jq -e '.ready and (.administrators | length >= 1)' <<<"$status" >/dev/null
 printf 'setup-complete=pass\n'
 `
 
 const qcow2GuestChecks = `set -euo pipefail
 status=$(/usr/libexec/soda/soda-setup status)
-jq -e '.dismissed and .can_dismiss and .local_network_allowed and (.tailscale_connected | not)' <<<"$status" >/dev/null
-test -f /var/lib/soda/setup-complete
-test ! -e /var/lib/cloud/instance
+jq -e '.ready and .local_network_allowed and (.tailscale_connected | not)' <<<"$status" >/dev/null
+test ! -e /var/lib/soda/setup-complete
+test -e /var/lib/cloud/instance
+cloud-init status --wait
 test ! -e /run/soda-installer
-printf 'reusable-qcow2-console-setup=pass\n'
+printf 'reusable-qcow2-cloud-init=pass\n'
 `
 
 const workspaceBoundaryChecks = `set -euo pipefail
@@ -126,14 +127,14 @@ jq -cn --argjson accounts "$accounts" --argjson groups "$groups" --argjson homes
 
 const localAccessCheck = `set -euo pipefail
 status=$(/usr/libexec/soda/soda-setup status)
-jq -e '.local_network_allowed and .dismissed' <<<"$status" >/dev/null
+jq -e '.local_network_allowed and .ready' <<<"$status" >/dev/null
 firewall-cmd --get-active-zones
 printf 'local-network-access=pass\n'
 `
 
 const tailscaleAccessCheck = `set -euo pipefail
 status=$(/usr/libexec/soda/soda-setup status)
-jq -e '.tailscale_connected and .dismissed' <<<"$status" >/dev/null
+jq -e '.tailscale_connected and .ready' <<<"$status" >/dev/null
 firewall-cmd --zone=soda-tailnet --list-interfaces | tr ' ' '\n' | grep -Fx tailscale0 >/dev/null
 printf 'tailscale-access=pass\n'
 `

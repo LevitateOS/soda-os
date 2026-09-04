@@ -19,7 +19,7 @@ func TestQEMUInstallUsesOnlyCandidateISOAndTargetDisk(t *testing.T) {
 	require.NotContains(t, arguments, "OEMDRV")
 	require.NotContains(t, arguments, "cidata")
 	require.NotContains(t, arguments, "config-2")
-	require.Contains(t, arguments, "hostfwd=tcp:127.0.0.1:13000-:3000")
+	require.Contains(t, arguments, "hostfwd=tcp:127.0.0.1:13000-:30000")
 }
 
 func TestGuestChecksDoNotRestoreRejectedOrchestration(t *testing.T) {

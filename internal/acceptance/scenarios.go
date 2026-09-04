@@ -26,6 +26,9 @@ func (state *runnerState) exerciseInstalledSystem(ctx context.Context, scenario 
 		return err
 	}
 	scenario.password = password
+	if err = state.verifyNativeOwner(ctx, scenario.remote, "http://"+urlHost(scenario.tailnetHost)+":30000"); err != nil {
+		return err
+	}
 	if err = state.captureCore(ctx, scenario.remote, "iso"); err != nil {
 		return fmt.Errorf("installed product boundaries: %w", err)
 	}

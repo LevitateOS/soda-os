@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -22,7 +21,7 @@ func (state *runnerState) exerciseProductScenarios(ctx context.Context, scenario
 		state.verifyCockpitAndRoles,
 		state.verifyExternalSSHRepository,
 		state.verifyProjectRemoval,
-		state.verifyPartialPersonDeletion,
+		state.verifyIndependentPersonDeletion,
 	}
 	for _, step := range steps {
 		if err := step(ctx, scenario); err != nil {
@@ -276,7 +275,7 @@ func (state *runnerState) verifyProjectRemoval(ctx context.Context, scenario *sc
 	return scenario.remote.Capture(ctx, "product/project-removal-preserves-forgejo", []byte(script), "/bin/bash", "-s")
 }
 
-func (state *runnerState) verifyPartialPersonDeletion(ctx context.Context, scenario *scenarioState) error {
+func (state *runnerState) verifyIndependentPersonDeletion(ctx context.Context, scenario *scenarioState) error {
 	if err := state.addNativePerson(ctx, scenario.remote, "obsolete", scenario.password, "product/obsolete-add"); err != nil {
 		return err
 	}
@@ -287,40 +286,13 @@ func (state *runnerState) verifyPartialPersonDeletion(ctx context.Context, scena
 	if _, err := state.createNativeForgejoRepository(ctx, obsolete, scenario.password, "owned", "product/owned-create"); err != nil {
 		return err
 	}
-	payload, _ := json.Marshal(map[string]any{"username": "obsolete"})
-	err := scenario.remote.Capture(ctx, "product/obsolete-delete-blocked", append(payload, '\n'), "/usr/libexec/soda/soda-projects", "delete-human")
-	if err == nil {
-		return errors.New("Forgejo accepted deletion of a repository owner")
-	}
-	if err = state.verifyBlockedDeletionEvidence(scenario); err != nil {
+	if _, err := state.projectCall(ctx, scenario.remote, "delete-human", map[string]any{"username": "obsolete"}, "product/obsolete-delete"); err != nil {
 		return err
 	}
-	if err = state.deleteOwnedRepository(ctx, obsolete, scenario.password); err != nil {
-		return err
-	}
-	if _, err = state.projectCall(ctx, scenario.remote, "delete-human", map[string]any{"username": "obsolete"}, "product/obsolete-delete-retry"); err != nil {
-		return err
-	}
-	return scenario.remote.Sudo(ctx, scenario.password, "! getent passwd obsolete >/dev/null\n", "product/obsolete-deleted")
-}
-
-func (state *runnerState) verifyBlockedDeletionEvidence(scenario *scenarioState) error {
-	path := filepath.Join(state.evidence.Root, "product/obsolete-delete-blocked.stderr")
-	contents, err := os.ReadFile(path)
-	if err != nil {
-		return err
-	}
-	message := string(contents)
-	if !strings.Contains(message, "removed Soda workspaces") || !strings.Contains(message, "Forgejo account and primary Linux account obsolete remain") {
-		return errors.New("partial deletion diagnostic did not state completed and remaining identities")
-	}
-	return nil
-}
-
-func (state *runnerState) deleteOwnedRepository(ctx context.Context, remote Remote, password []byte) error {
-	config := fmt.Sprintf("user = %s\nrequest = \"DELETE\"\nurl = %s\nfail-with-body\nsilent\nshow-error\n", curlConfigQuote("obsolete:"+string(bytes.TrimSpace(password))), curlConfigQuote(forgejoLoopbackEndpoint+"/api/v1/repos/obsolete/owned"))
-	_, err := remote.Exchange(ctx, "product/owned-native-delete", []byte(config), "curl", "--config", "-")
-	return err
+	script := "! getent passwd obsolete >/dev/null\n" +
+		"curl --fail --silent " + forgejoLoopbackEndpoint + "/api/v1/users/obsolete >/dev/null\n" +
+		"curl --fail --silent " + forgejoLoopbackEndpoint + "/api/v1/repos/obsolete/owned >/dev/null\n"
+	return scenario.remote.Sudo(ctx, scenario.password, script, "product/linux-deletion-preserves-forgejo")
 }
 
 func scpArgs(remote Remote) []string {

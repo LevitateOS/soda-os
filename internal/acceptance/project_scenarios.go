@@ -131,6 +131,7 @@ func (state *runnerState) createCatalogedForgejoProject(ctx context.Context, rem
 }
 
 func (state *runnerState) createNativeForgejoRepository(ctx context.Context, remote Remote, password []byte, id, evidence string) (string, error) {
+	password = state.forgejoPassword(remote.Username, password)
 	config := fmt.Sprintf("user = %s\nsilent\nshow-error\nfail-with-body\nurl = %s\n", curlConfigQuote(remote.Username+":"+string(bytes.TrimSpace(password))), curlConfigQuote(forgejoLoopbackEndpoint+"/api/v1/user/repos"))
 	payload, err := json.Marshal(map[string]any{"name": id, "auto_init": false})
 	if err != nil {

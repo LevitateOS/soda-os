@@ -32,7 +32,7 @@ func (state *runnerState) completeISOFlow(ctx context.Context, before tailnetSta
 	if err != nil {
 		return scenarioState{}, nil, err
 	}
-	fmt.Fprintf(state.output, "Complete stock graphical Anaconda and Soda Setup in the QEMU display. Use administrator %q and the protected values in:\n  password: %s\n  SSH public key: %s\n  reusable ephemeral Tailscale key: %s\n", state.options.Administrator.Username, state.paths.password, state.paths.adminPublicKey, state.options.TailscaleKey)
+	fmt.Fprintf(state.output, "Create Linux administrator %q through graphical Anaconda, reboot, and log in normally. Complete only missing network configuration in Setup. Add the personal public key through Cockpit Accounts before continuing. Protected input paths:\n  password: %s\n  SSH public key: %s\n  reusable ephemeral Tailscale key: %s\n", state.options.Administrator.Username, state.paths.password, state.paths.adminPublicKey, state.options.TailscaleKey)
 	host, raw, err := state.resolveGuest(ctx, before)
 	if err != nil {
 		return scenarioState{}, vm, err
@@ -235,11 +235,15 @@ func (state *runnerState) exerciseReusableQCOW2(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	vm, err := state.launch(ctx, "qcow2/first-boot", "qcow2", state.paths.qcowDisk, "")
+	seed, err := state.prepareQCOW2UserData(ctx)
 	if err != nil {
 		return err
 	}
-	fmt.Fprintf(state.output, "Complete Soda Setup for the reusable QCOW2 in the QEMU display. Use administrator %q, the protected password at %s, the public key at %s, and allow local-network access.\n", state.options.Administrator.Username, state.paths.password, state.paths.adminPublicKey)
+	vm, err := state.launch(ctx, "qcow2/first-boot", "qcow2", state.paths.qcowDisk, seed)
+	if err != nil {
+		return err
+	}
+	fmt.Fprintf(state.output, "Cloud-init is provisioning reusable QCOW2 administrator %q using the protected password at %s and public key at %s. The disposable test LAN is explicitly trusted; interactive Setup must be skipped.\n", state.options.Administrator.Username, state.paths.password, state.paths.adminPublicKey)
 	knownHosts := filepath.Join(state.paths.work, "qcow-known-hosts")
 	remote := Remote{
 		Username: state.options.Administrator.Username, Host: "127.0.0.1", Port: state.options.Ports.SSH,
@@ -248,6 +252,9 @@ func (state *runnerState) exerciseReusableQCOW2(ctx context.Context) error {
 	waitCtx, cancel := context.WithTimeout(ctx, 20*time.Minute)
 	defer cancel()
 	if err = remote.WaitReady(waitCtx); err != nil {
+		return err
+	}
+	if err = state.verifyNativeOwner(ctx, remote, fmt.Sprintf("http://127.0.0.1:%d", state.options.Ports.Forgejo)); err != nil {
 		return err
 	}
 	if err = state.runQCOW2Checks(ctx, remote, originalSize); err != nil {

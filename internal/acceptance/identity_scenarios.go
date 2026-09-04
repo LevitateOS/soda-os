@@ -17,18 +17,17 @@ type forgejoKey struct {
 }
 
 type scenarioIdentity struct {
-	primary            string
-	workspace          string
-	key                string
-	primaryPublic      string
-	setupAdministrator bool
+	primary       string
+	workspace     string
+	key           string
+	primaryPublic string
 }
 
 func (state *runnerState) verifyWorkspaceGitKeys(ctx context.Context, scenario *scenarioState) error {
 	identities := []scenarioIdentity{
-		{state.options.Administrator.Username, scenario.adminSpace, state.paths.adminKey, state.paths.adminPublicKey, true},
-		{"alice", scenario.aliceSpace, state.personKeyPath("alice"), state.personKeyPath("alice") + ".pub", false},
-		{"bob", scenario.bobSpace, state.personKeyPath("bob"), state.personKeyPath("bob") + ".pub", false},
+		{state.options.Administrator.Username, scenario.adminSpace, state.paths.adminKey, state.paths.adminPublicKey},
+		{"alice", scenario.aliceSpace, state.personKeyPath("alice"), state.personKeyPath("alice") + ".pub"},
+		{"bob", scenario.bobSpace, state.personKeyPath("bob"), state.personKeyPath("bob") + ".pub"},
 	}
 	for _, identity := range identities {
 		if err := state.verifyForgejoKeys(ctx, scenario, identity); err != nil {
@@ -52,15 +51,12 @@ func (state *runnerState) verifyForgejoKeys(
 	if err != nil {
 		return err
 	}
-	keys, err := forgejoKeys(ctx, scenario.remote.As(identity.primary, identity.key), identity.primary, scenario.password)
+	keys, err := forgejoKeys(ctx, scenario.remote.As(identity.primary, identity.key), identity.primary, state.forgejoPassword(identity.primary, scenario.password))
 	if err != nil {
 		return err
 	}
 	if err = requireForgejoKey(keys, workspacePublic, "manually registered workspace", identity.primary); err != nil {
 		return err
-	}
-	if identity.setupAdministrator {
-		return requireForgejoKey(keys, primaryPublic, "Soda Setup-installed administrator", identity.primary)
 	}
 	return rejectForgejoKey(keys, primaryPublic, "Linux", identity.primary)
 }
@@ -90,6 +86,7 @@ func rejectForgejoKey(keys []forgejoKey, rejected []byte, label, username string
 const forgejoLoopbackEndpoint = "http://127.0.0.1:30000"
 
 func (state *runnerState) registerForgejoKey(ctx context.Context, remote Remote, password, publicKey []byte, evidence string) error {
+	password = state.forgejoPassword(remote.Username, password)
 	payload, err := json.Marshal(map[string]string{
 		"key":   strings.TrimSpace(string(publicKey)),
 		"title": "Soda OS acceptance " + evidence,

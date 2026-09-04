@@ -3,6 +3,7 @@ package acceptance
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
 	"errors"
 	"fmt"
 	"io"
@@ -82,7 +83,7 @@ func validateRunOptions(options RunOptions) error {
 	if err := validateCredentialFiles(options); err != nil {
 		return err
 	}
-	return RequireCommands("cosign", "curl", "docker", "git", "qemu-img", "ssh", "ssh-keygen", "ssh-keyscan")
+	return RequireCommands("cosign", "curl", "docker", "git", "qemu-img", "cloud-localds", "openssl", "ssh", "ssh-keygen", "ssh-keyscan")
 }
 
 func validateCredentialFiles(options RunOptions) error {
@@ -234,7 +235,12 @@ func (state *runnerState) loadSecrets(password []byte) error {
 	if err != nil {
 		return err
 	}
+	ownerPassword := []byte(rand.Text())
+	if err = os.WriteFile(filepath.Join(state.paths.work, "forgejo-owner-password"), ownerPassword, 0600); err != nil {
+		return err
+	}
 	state.secrets = []Secret{
+		{Label: "forgejo-owner-password", Value: ownerPassword},
 		{Label: "tailscale-auth-key", Value: tailscaleKey},
 		{Label: "administrator-password", Value: password},
 		{Label: "administrator-private-key", Value: privateKey},

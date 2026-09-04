@@ -12,7 +12,7 @@ import (
 
 var RequiredScenarios = []string{
 	"installation-first-boot",
-	"qcow2-console-onboarding",
+	"qcow2-cloud-init-lan",
 	"lan-and-tailscale-access",
 	"public-ingress-rejection",
 	"ssh-cockpit-projects-forgejo",

@@ -29,20 +29,29 @@ pre-release runs, not a claim that release CI's later-built bytes were booted.
 
 ## Required scenarios
 
-### Installation and Soda Setup
+### Installation and native onboarding
 
-- One architecture-matched network ISO boots stock graphical Anaconda without
-  human OEMDRV or other provisioning media.
-- The installed system presents Soda Setup.
-- A reusable QCOW2 presents the same Soda Setup state through its console.
-- The same bounded Soda Setup operations are available through Cockpit, and
-  the setup can always be reopened.
-- Dismissal remains unavailable until the Linux/Forgejo administrator,
-  password, SSH public key, and either Tailscale or explicit trust of the
-  current connection through **Allow access from the local network** exist.
-- A supplied Tailscale key is used once and removed.
-- No NoCloud, ConfigDrive, cloud-input, public-SSH bootstrap, or alternate
-  onboarding path exists.
+After separately authorized builds, run on both matching architectures:
+
+1. Complete graphical Anaconda account creation, reboot, and verify normal login,
+   home ownership, administrator privilege, and cloud-init-disabled ISO startup.
+2. Provision QCOW2 through VM tooling; check key/password behavior, network
+   protection, persistence, and skipping unnecessary interactive Setup.
+3. Start Forgejo before cloud-init finishes Tailscale enrollment. Verify the
+   conditional refresh reruns native initialization and advertises the intended
+   reachable Tailnet address. After native signup and workspace Git-key
+   registration, clone using Forgejo's displayed SSH URL from the intended client.
+4. Repeat address, reachability, and clone checks after reboot. Exercise a matching
+   address and verify the running Forgejo process remains unchanged.
+5. Cover LAN-only provisioning and preserved LAN access after enrollment. Verify
+   the complete packaged service graph, including Fedora cloud-init and
+   multi-user.target, has no ordering cycle; inspect boot logs for discarded jobs.
+6. Verify independent owner credentials, native administrator privileges, and
+   later ordinary PAM accounts with self-registration both enabled and disabled
+   by team policy. Verify Cockpit key entry, real authorized_keys, one-time
+   copying, and incoming workspace SSH.
+7. Delete a Linux person through Soda and verify the same-named Forgejo account
+   and its data remain. Source tests are not installed-system acceptance.
 
 ### Access
 
@@ -65,12 +74,10 @@ pre-release runs, not a claim that release CI's later-built bytes were booted.
 - Linux owns one primary account per person; `wheel` alone owns administrator
   status.
 - Development occurs only in derived workspace accounts.
-- Soda Setup composes the first Linux and Forgejo administrator. Later
-  people are created through stock Linux/Cockpit account management, and
-  Forgejo creates their matching profile through PAM on first sign-in.
-- Soda Setup installs the initial administrator's Forgejo public key. A later
-  user's first PAM login creates only their Forgejo profile; Projects does not
-  automatically register that primary account's Linux SSH key.
+- Native owner-first signup grants independent Forgejo administration. Later
+  Linux users authenticate through PAM and receive ordinary accounts.
+- Cockpit manages personal authorized keys. Neither Setup nor PAM registers
+  those keys with Forgejo.
 - Git uses SSH.
 - Workspace accounts never become Forgejo users.
 - Workspace creation copies only current public authorized keys once.
@@ -106,8 +113,8 @@ pre-release runs, not a claim that release CI's later-built bytes were booted.
 - Only an administrator can remove a whole project; it deletes the shared Soda
   entry and every local workspace, including uncommitted work, while preserving
   the canonical Forgejo repository.
-- Person deletion removes workspaces, the Forgejo account, and the primary
-  Linux account in that order.
+- Person deletion removes local workspaces then the primary Linux account,
+  preserving the same-named Forgejo account and owned repositories.
 - Injected failures expose exactly what succeeded and remains; an explicit
   retry continues without rollback or hidden workflow state.
 - `mise` is available for people to invoke directly in each workspace; project
@@ -157,9 +164,12 @@ go run ./cmd/soda-acceptance run \
 Use `aarch64` as the evidence-directory leaf on an AArch64 host. The protected
 Tailscale file contains one reusable ephemeral guest key. The private key and
 password are disposable test credentials; all three secret files must have
-mode `0600` or stricter. The runner creates no onboarding media. It opens the
-architecture-native QEMU graphical display for the operator to complete stock
-Anaconda and Soda Setup. The runner prints only the protected input
+mode `0600` or stricter. The ISO uses only the installer. For the QCOW2 LAN fixture, the runner uses
+cloud-localds to deliver native cloud-init user-data automatically; install
+cloud-localds and openssl on the matching host. Protected fixture files stay in
+the disposable work directory and are removed during cleanup. The operator
+creates the ISO Linux administrator in Anaconda, logs in, configures the network,
+and adds the personal key through Cockpit Accounts. The runner prints only the protected input
 paths, then resumes through native SSH and Tailscale readiness.
 
 The successful run leaves `summary.json` and normalized credential-free
@@ -189,3 +199,15 @@ command with its exact `main` SHA, signs and immediately verifies the combined
 record, and retains only the five small record files for one day. It does not
 run QEMU, receive a guest Tailscale credential, publish an image, or create a
 release.
+
+The runner QCOW2 fixture covers cloud-init with an explicitly trusted disposable
+LAN. The late-enrollment Tailnet, native Cockpit key UI, first-signup, registration
+policy, and reboot matrix above still requires separately recorded installed
+acceptance; a runner summary alone does not prove those interactive checks.
+
+Run `sudo tests/acceptance/check-native-service-ordering.sh` on each installed
+candidate after provisioning, and repeat after reboot and on the cloud-init-disabled
+ISO. It inspects the actual Fedora and Forgejo units and boot journal.
+The runner generates a separate protected Forgejo owner password and pauses for
+native first-owner signup before creating teammate fixtures. It verifies the
+owner role and that the Linux password does not authenticate that local account.
