@@ -1,127 +1,64 @@
-Soda OS turns one powerful Linux machine into a private remote development
-system for a trusted team. Developers keep using their own laptops, editors,
-and terminals, while builds, tests, language tools, databases, agents, and
-project processes run on the Soda machine.
-
-You will encounter Soda OS first when an owner installs the machine, then when
-an administrator adds people, and finally when each developer creates a
-personal workspace for a project.
-
-> **Pre-release documentation:** Soda OS has no public release, downloadable
-> installer, or production update channel yet. This handbook explains the
-> accepted product behavior and clearly identifies what the current pre-release
-> implementation has and has not demonstrated.
+Soda OS turns one powerful Linux machine into a remote development system for
+a trusted team. Developers keep using their laptops, editors, terminals, and
+browsers while builds, tests, agents, databases, and project processes run on
+the Soda machine.
 
 ## Product contract
 
-### The mental model
+### From one ISO to development
 
-Soda OS is an opinionated Fedora system built as a **bootc** image. Bootc is the
-native image-based mechanism used to replace the operating-system deployment;
-it does not replace the machine's accounts, homes, repositories, or other
-machine-specific data.
+The owner boots one architecture-matched network ISO and uses stock graphical
+Anaconda for storage, networking, and installation. After reboot, the common
+interactive first-boot setup creates the administrator, installs the SSH public
+key, prepares Forgejo, and selects Tailscale or LAN-only access.
 
-The machine stays private behind a **Tailnet**: the private network created by
-Tailscale for an organization or group of devices. Developers reach the Soda
-machine over that network with ordinary OpenSSH rather than through a custom
-Soda connection service.
+Reusable QCOW2 systems use that same setup through their console. The same
+bounded setup operations can be reopened in Cockpit.
 
-Each person has two kinds of Linux identity:
+### People and workspaces
 
-- A **primary account** represents the human. It is used to sign in to Cockpit,
-  discover projects, set up workspaces, and—when supported—sign in to Forgejo.
-- A **workspace account** represents one person working on one project. It has
-  its own Linux user ID, private home, complete Git clone, dependencies, data,
-  caches, and processes.
+Each person has one primary Linux account for identity and administration.
+Linux `wheel` membership means administrator. Development happens in a separate
+workspace account for each person-project pair.
 
-The **project catalog** is the short, machine-wide list of repositories offered
-to developers. It is not a permission database or a record of Git activity.
-For each entry, a developer can select **Set up for me** to create their own
-workspace.
+Every workspace has its own Linux UID, private home, full Git clone,
+dependencies, processes, and mutable state. Developers connect directly to it
+through ordinary OpenSSH.
 
-Soda includes two familiar browser tools:
+### Projects and Git
 
-- **Cockpit** is Fedora's web interface for administering a Linux machine.
-  Soda uses stock Cockpit with its own branding and one focused **Projects**
-  page.
-- **Forgejo** is the bundled Git hosting and collaboration service. Teams may
-  also catalog repositories hosted by an external Git provider.
+Stock Cockpit supplies host administration and one Soda Projects page. Everyone
+can view and edit the shared project list, add an existing repository, create a
+native empty Forgejo repository, and set up their own workspace.
 
-### Who does what
+Forgejo or the external Git host owns repositories, permissions, and
+collaboration. Soda registers each person's public SSH key with Forgejo, and
+Git uses SSH.
 
-The owner or technical decision-maker chooses the machine, controls its private
-network, and decides who may administer it.
+Tea and GitHub CLI are available in every workspace. Sign in to each manually
+inside that workspace; Soda does not copy tokens or configuration.
 
-An administrator installs Soda OS, manages Linux accounts and administrator
-membership, operates OS updates, and uses the supported Soda-aware action when
-removing a person and all of that person's local workspaces.
+### Tools and services
 
-A developer signs in with a primary account to discover projects, then works
-through a separate workspace account for each selected project. Developers
-collaborate through Git branches, pushes, reviews, and the canonical Git host;
-they do not share one writable checkout.
+`mise` installs and selects development tools for one workspace or for the
+project. Shared project tools are stored once and use upstream-native caches.
+Soda does not run a toolchain downloader or maintain a version database.
 
-### From installation to development
+On a trusted LAN, SSH, Cockpit, Forgejo, and development servers are directly
+reachable. Cloud deployments use Tailscale and never expose those services to
+the public Internet.
 
-The intended journey is:
+### Destructive actions
 
-1. Install an image that matches the machine's architecture.
-2. Create the first Linux administrator and enroll the machine in its Tailnet.
-3. Use stock Cockpit and Linux to add other primary accounts.
-4. Add an existing repository in **Projects**, or create an empty repository
-   in the bundled Forgejo service.
-5. Select **Set up for me** to receive a workspace account and complete clone.
-6. Connect directly to that workspace with SSH-capable terminals, editors, and
-   development tools.
+Each person can remove only their own workspace. An administrator can remove a
+whole project, permanently deleting every local workspace and uncommitted file
+while leaving the canonical Forgejo repository intact.
 
-Read [Installation model](installation-model.md) for the owner journey,
-[Accounts and workspaces](accounts-and-workspaces.md) for the identity model,
-or [Projects and Git](projects-and-git.md) for the daily setup flow.
+Removing a person deletes their workspaces first, their Forgejo account second,
+and their primary Linux account last. Failures show exactly what succeeded and
+remains. The trusted team coordinates before destructive actions; Soda adds no
+approval, archive, transfer, rollback, or recovery workflow.
 
-### Clear ownership and data boundaries
-
-Linux owns accounts, permissions, homes, and processes. Tailscale owns private
-reachability. OpenSSH owns remote sessions. Cockpit owns general machine
-administration. Forgejo or the external canonical Git host owns repositories,
-access, and collaboration. Bootc owns operating-system deployments.
-
-Soda joins those systems into one workflow. It owns the installable
-composition, the project catalog, the workspace convention, and the focused
-Projects experience. It does not replace them with a second set of Soda-owned
-accounts, permissions, sessions, or deployment state.
-
-Removing a project from Soda permanently deletes every local workspace for
-that project, including homes, clones, dependencies, project-local data, and
-uncommitted or unpushed work. It does not delete the canonical Git repository.
-See [Administration](administration.md) before using any removal action.
-
-## Current implementation
-
-Soda OS is pre-release. The current Fedora 44 bootc image definitions cover
-x86-64 and AArch64 as equal product targets, but there is no public release or
-production update channel to install from.
-
-One fresh installation on native x86-64 has exercised the complete final
-installed path: protected installer input, the initial Linux and Forgejo
-administrator, Tailnet enrollment, stock Cockpit, Projects, separate Alice and
-Bob workspaces, direct SSH/SCP/SFTP, destructive ordering, the installed
-development toolset, rootless Podman, the exact installed image, and absence of
-the deleted Soda control plane. Native B→A→B selection between two
-post-control-plane images also preserved current mutable state.
-
-Matching-native x86-64 and AArch64 reset-completion construction, installation,
-and installed-product evidence has passed. Each later release candidate still
-requires its own architecture-native artifacts and installed evidence; one
-sibling's result never qualifies the other.
-
-Later-created primary users use Forgejo's native PAM source with their Linux
-username and password. The first successful login creates an ordinary Forgejo
-user; Linux `wheel` membership does not make that user a Forgejo administrator.
-Only the Forgejo service process receives the dedicated read group needed for
-PAM password verification, and workspace accounts remain rejected.
-
-The complete multi-user, destructive-ordering, and native-failure scenarios
-have installed x86-64 and AArch64 reset-completion evidence.
-
-Soda ships no runtime daemon, general control CLI, local control socket, or API.
-Stock Cockpit and ordinary Linux tools expose native host status.
+Read [Installation model](installation-model.md),
+[Accounts and workspaces](accounts-and-workspaces.md), or
+[Projects and Git](projects-and-git.md) to continue.

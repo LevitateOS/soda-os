@@ -177,10 +177,13 @@ bootstrap contract, generalized bundle, multiple transports, first-boot
 operation, retry semantics, runtime verification, documentation set, and
 architecture issue before demonstrating an upstream gap.
 
-The correct default hypothesis was native installer composition plus acceptance
-testing, with no persistent Soda runtime authority. A bounded installer hook or
-one-shot adapter is discussable only after the exact supported path demonstrates
-a concrete limitation, and it must leave no private Soda bootstrap state.
+That conclusion was later superseded by an explicit product decision. Human
+installation now uses one finished network ISO, graphical Anaconda only for
+installation-owned responsibilities, and a common Fedora-native interactive
+first-boot setup shared by ISO and QCOW2. There is no human-facing OEMDRV,
+cloud-init provisioning path, second credential image, or separate onboarding
+implementation. The reusable lesson remains: required composition does not
+authorize durable bootstrap state or a general control plane.
 
 ## Project-environment incident
 

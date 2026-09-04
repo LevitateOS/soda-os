@@ -13,8 +13,9 @@ development appliance.
 
 The machine may be a powerful computer in my home or a machine hosted in the
 cloud. My MacBook Air or another lightweight computer acts as the thin client.
-Codex, Claude Code, Zed, VS Code, ordinary terminals, and other SSH-capable
-development tools connect to the Soda machine through OpenSSH over Tailscale.
+On a trusted local network, development tools connect directly over the LAN.
+In the cloud, they connect privately through Tailscale. Neither path exposes
+Soda services to the public Internet.
 
 The Soda machine runs the expensive work:
 
@@ -31,10 +32,9 @@ The Soda machine runs the expensive work:
 The client remains the interface. The powerful remote machine is the actual
 development system.
 
-Soda should provide this without requiring public DNS or exposing its
-administration and development services directly to the public Internet.
-Tailscale provides private reachability. OpenSSH provides remote development
-access.
+Soda should provide this without requiring public DNS. Tailscale provides
+private cloud reachability, while ordinary LAN routing provides local access.
+OpenSSH provides remote development access in both cases.
 
 ## The operating-system foundation
 
@@ -42,8 +42,8 @@ Soda OS should be an opinionated Fedora bootc appliance.
 
 The operating-system base is image-based and updated through bootc. Soda selects
 and configures the packages needed to provide a useful remote development
-machine, including OpenSSH, Tailscale, Cockpit, Forgejo, Git, and a broad
-curated collection of development tools.
+machine, including OpenSSH, Tailscale, Cockpit, Forgejo, Git, `mise`, Tea, and
+GitHub CLI.
 
 Soda does not replace Fedora, Linux administration, OpenSSH, Tailscale, Cockpit,
 Forgejo, Git, Podman, or bootc. Its value is combining them into one coherent,
@@ -53,6 +53,11 @@ Linux administrators manage image updates through native bootc operations.
 The supported fallback to an earlier image must preserve current Linux account
 and workspace state. Soda does not add a runtime update service or parallel
 deployment model merely to provide that outcome.
+
+Development-tool installation, versions, and project toolchain configuration
+belong to `mise`. Soda may provide convenient initial selections, shared
+project scope, and workspace scope, but it does not build a competing package
+manager, downloader, cache, profile system, or version database.
 
 ## Human and workspace accounts
 
@@ -65,7 +70,7 @@ That primary account represents the human for:
 - Linux administrator status;
 - project discovery and setup.
 
-Development work does not need to run directly as the primary account.
+Development work runs in derived workspaces rather than in the primary account.
 
 For every project that a person sets up, Soda creates one derived Linux
 workspace account for that person-project pair.
@@ -137,7 +142,11 @@ Through the Soda Projects page, a person can:
 - create a new project without supplying a repository URL;
 - select **Set up for me**;
 - edit a catalog entry;
-- remove a project from Soda.
+- remove their own workspace.
+
+Only an administrator removes an entire project from Soda. The catalog does
+not have an assumed closed metadata field list; new user-visible project facts
+remain explicit product decisions.
 
 When no repository URL is supplied, the new repository is created in the
 initiating human's native Forgejo namespace.
@@ -179,26 +188,25 @@ This may permanently destroy:
 
 It does not delete the canonical Git repository.
 
-The development team is responsible for coordinating project removal and
-pushing or transferring anything that must be preserved. Soda does not add
-approval, ownership-transfer, archive, rollback, or recovery workflows.
+The trusted development team is responsible for coordinating project removal
+and pushing anything that must be preserved. Soda does not add approval,
+ownership-transfer, archive, rollback, or recovery workflows.
 
-The supported administrator-only human deletion action in Soda Projects removes
-that person's local workspace accounts and Soda-managed local data before
-deleting the primary Linux account. Generic Cockpit or command-line account
-deletion remains an ordinary non-cascading Linux action. Forgejo accounts and
-canonical repositories remain separate Forgejo-native concerns.
+The supported administrator-only human deletion action removes that person's
+workspaces first, the Forgejo account second, and the primary Linux account
+last. If any step fails, Soda reports exactly what succeeded and remains so an
+administrator can retry. There is no rollback. Generic Cockpit or command-line
+account deletion remains an ordinary non-cascading Linux action.
 
 ## Forgejo
 
 Soda includes Forgejo as its built-in Git forge.
 
-The first installer-created Linux administrator also receives the initial
-same-named Forgejo site-administrator account.
+The first-boot setup creates the initial same-named Linux and Forgejo
+administrator accounts.
 
-Later primary Linux users authenticate to Forgejo through Forgejo's native PAM
-support. Forgejo creates its own ordinary native user record on their first
-successful login.
+Each later primary human receives a corresponding Forgejo account and has their
+public SSH key registered there. Git uses SSH.
 
 Derived workspace accounts are Linux development identities only. They are not
 Forgejo users.
@@ -208,6 +216,10 @@ Linux and Forgejo remain independent after account creation:
 - Linux owns Linux passwords, UIDs, homes, and `wheel` membership;
 - Forgejo owns Forgejo profiles, roles, keys, repositories, and permissions;
 - Soda does not synchronize roles or repair differences between them.
+
+Tea and GitHub CLI are available in every workspace. A person authenticates
+each client manually and separately in that workspace. Soda copies no Tea
+configuration, token, private key, or GitHub credential.
 
 ## Cockpit
 
@@ -232,8 +244,8 @@ for Cockpit.
 Soda owns:
 
 - the branded Fedora bootc image;
-- installer composition, including Tailscale and OpenSSH configuration for
-  private access;
+- one-ISO installation and the common interactive first-boot composition;
+- Tailscale and LAN/OpenSSH access composition;
 - package and service configuration;
 - the project catalog;
 - the primary-human-to-workspace-account convention;
@@ -241,6 +253,7 @@ Soda owns:
 - the narrow synchronous operations needed for catalog mutation, workspace
   setup and removal, and supported cascading human deletion;
 - connection guidance for SSH-capable development tools;
+- `mise`-backed workspace and shared-project tool scope; and
 - product-level installation and acceptance tests.
 
 These are the parts that turn a collection of existing Linux tools into a
@@ -279,7 +292,8 @@ discrepancy. It does not give Soda ownership of the surrounding subsystem.
 
 > Soda OS is an opinionated Fedora bootc appliance that turns a powerful
 > private machine into a multi-user remote development system. Lightweight
-> clients connect through Tailscale and OpenSSH, each person-project pair gets
+> clients connect over a trusted LAN or through Tailscale and OpenSSH, each
+> person-project pair gets
 > an independent Linux workspace account, Forgejo or the external canonical
 > Git host provides collaboration, and Cockpit provides administration and
 > project onboarding.

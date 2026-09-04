@@ -14,10 +14,8 @@ in the installer.
 
 The 823 MB excess was an entire Fedora bootc root at `/sysroot` inside Soda's
 installer SquashFS. It was inherited by using the bootc base as the installer
-container base. The installer now uses the separately locked Fedora installer
-base and names its actual requirements explicitly: graphical Anaconda,
-bootc-install support, kernel/modules, firmware boot packages, OEMDRV input,
-and the installer-only provisioning tools.
+container base. The current installer now uses the separately locked Fedora
+installer base and names its requirements explicitly.
 
 The ISO inspection rejects an installer SquashFS that contains `/sysroot`.
 Package-root additions require a direct installer ownership reason and updated
@@ -26,6 +24,11 @@ matching-native size evidence. This x86-64 result is not AArch64 evidence.
 The direct-composition ISO passed source checks, artifact inspection, and a
 native raw-QEMU graphical boot to the branded Anaconda welcome screen. A full
 network installation is not claimed by this evidence: its exact runtime digest
-was not anonymously available from GHCR. Final installed acceptance therefore
-belongs after immutable candidate publication, using this same ISO without a
-local registry substitute.
+was not anonymously available from GHCR.
+
+This report predates the approved common first-boot design. Its package closure
+still includes OEMDRV and installer-only provisioning inputs that are now
+deletion targets. The next size comparison must begin from the one-ISO,
+graphical-Anaconda contract and attribute every retained installer package to
+Anaconda, bootc, firmware, branding, or network installation. Historical byte
+counts remain useful evidence but do not preserve the old onboarding path.

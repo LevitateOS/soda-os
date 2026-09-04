@@ -1,101 +1,44 @@
-Soda OS changes its operating-system image with native **bootc** operations.
-Bootc is Fedora's image-based deployment tool: it can inspect, download, and
-select a complete OS image while machine-specific data remains outside the
-replaceable image layer.
-
-Administrators encounter this workflow when moving to a newer known Soda image
-or deliberately selecting an earlier known image. There is no public Soda OS
-release or production update channel to use today.
+Soda changes its operating-system image with native bootc operations while
+Linux and the owning services retain machine-specific state.
 
 ## Product contract
 
 ### Updates are explicit administrator actions
 
-A Linux administrator chooses the exact Soda image reference, inspects current
-deployment state, downloads the image, makes it the next bootable deployment,
-and performs a controlled reboot. An exact reference identifies immutable
-image content rather than a moving version label.
+An administrator chooses an exact signed Soda OCI digest, inspects deployment
+state, downloads the image, selects it as the next deployment, and controls the
+reboot.
 
-Soda does not automatically discover releases, poll an update service,
-download images, activate deployments, or reboot the machine. Fedora's
-automatic bootc update timer is disabled. There is no Soda update daemon,
+Soda does not discover, download, activate, or reboot for updates automatically.
+The automatic bootc update timer is disabled. There is no Soda updater,
 deployment database, custom update page, or wrapper command.
 
-Publication is a separate concern. A website may eventually link to release
-artifacts, but it is not update authority; the exact published image digest is.
+### Preserve authoritative state
 
-### State that an image change must preserve
+Update and supported fallback preserve:
 
-Normal image replacement and supported fallback must preserve current
-machine-specific state, including:
+- primary and workspace accounts, passwords, groups, and `wheel` membership;
+- homes, authorized keys, workspace clones, and project-local data;
+- the shared project catalog;
+- Forgejo users, repositories, and mutable state;
+- Tailscale node identity; and
+- SSH host state.
 
-- primary human accounts and per-person, per-project workspace accounts;
-- passwords, groups, and administrator membership;
-- homes, workspace clones, and project-local data;
-- the Soda project catalog, which lists the repositories offered on the
-  machine;
-- Forgejo repositories and mutable state;
-- the Tailscale node identity; and
-- SSH host and authorized-key state.
+Those facts belong to Linux and the owning services rather than the replaceable
+image.
 
-That data is owned by Linux and the relevant services, not by the replaceable
-Soda image.
+### Select an earlier signed image for fallback
 
-### Fallback means selecting an earlier known image
+Supported fallback selects the previous signed published OCI image by immutable
+digest through the same native deployment mechanism. It does not rebuild the
+old release.
 
-The supported recovery path creates a new deployment from an explicitly
-selected earlier Soda image using the same native bootc switch mechanism as a
-forward image change. The administrator must know the exact earlier image
-reference; Soda does not provide a release-discovery or recovery catalog.
+Direct `bootc rollback` is unsupported because it may restore historical
+`/etc` state instead of preserving current accounts and groups.
 
-Direct `bootc rollback` is unsupported. That command can restore the previous
-deployment's historical `/etc`, which may also restore historical account and
-group state. Soda's supported fallback must keep the machine's current account
-state instead.
+An earlier image is not a backup of deleted workspace data. Project and person
+removal permanently delete local files and are not undone by image fallback.
 
-An earlier image is not a backup of deleted workspace data. Project removal
-and Soda-aware human removal permanently delete local files and are not undone
-by selecting another OS image.
-
-See [Administration](administration.md) for destructive account and project
-actions and [Installation model](installation-model.md) for fresh installation.
-
-## Current implementation
-
-There is currently no public production release, signed artifact set,
-published update digest, or supported production channel. The commands below
-describe the current native mechanism, but there is no public Soda image
-reference to substitute into them today:
-
-```sh
-sudo bootc status
-sudo bootc switch --download-only <exact-soda-image-reference>
-sudo bootc status
-sudo bootc switch --from-downloaded
-sudo systemctl reboot
-```
-
-The download-only step does not change the running deployment. The later
-switch selects the already downloaded image for a deployment, and the
-administrator controls when to reboot. Supported fallback repeats this
-sequence with an earlier exact Soda reference; it does not use `bootc
-rollback`.
-
-The current image keeps native bootc commands, masks the automatic update
-timer, and no longer includes Soda's former runtime updater, release-discovery
-client, translated deployment state, update API, or update page.
-
-A native x86-64 A-to-B-to-A-to-B exercise has selected an earlier exact image
-and then moved forward again while preserving current Linux accounts,
-workspaces, catalog data, Forgejo state, Tailscale identity, SSH state, and
-other captured mutable state. This is installed-system evidence for x86-64,
-not a public recovery guarantee or a published update channel.
-
-Matching-native AArch64 still needs to repeat the current image-selection and
-state-preservation exercise. Direct `bootc rollback` remains unsupported on
-both architectures.
-
-Production publication is not ready. Local unsigned candidate artifacts and
-test records are development evidence only. Soda ships no runtime daemon or
-control CLI for update checks, image selection, activation, fallback, or
-recovery.
+Use the exact digest and native bootc sequence published for the release. Read
+[Administration](administration.md) before destructive project or person
+actions.

@@ -1,191 +1,134 @@
-# Soda OS 0.5.0 release operations
+# Soda OS release operations
 
-Soda releases have three independent outputs:
+This is an internal operator document. The accepted release contract is in
+[architecture-reset.md](architecture-reset.md). No command in this document is
+evidence that a public release exists.
 
-1. GHCR holds one bootc OCI image per architecture. Its exact manifest digest
-   is the installed system's update authority.
-2. GitHub Releases holds a network installer ISO and checksum per architecture.
-3. GitHub Releases holds a compressed reusable QCOW2 and checksum per
-   architecture.
+## Product contract
 
-The raw QCOW2 is a matching-native build artifact, not a download. `aarch64`
-and `x86_64` are equal sibling targets: each host builds, signs, publishes,
-installs, and validates only its own architecture. `just check` is a source
-contract check, never sibling-architecture artifact evidence.
+A push to protected `production` coordinates one release for x86-64 and
+AArch64. Each architecture produces:
 
-## Identity and immutable outputs
+- one bootc OCI image stored in GHCR;
+- one network installer ISO and checksum stored in GitHub Releases;
+- one compressed reusable QCOW2 and checksum stored in GitHub Releases;
+- one strict release record and signing bundle; and
+- image signatures and provenance attached to the exact OCI digest.
 
-`distro/soda.toml` is the reviewed source of Soda identity. The `0.5.0`
-release uses the protected `production` branch. A successful production workflow
-derives and creates tag `v0.5.0` from `distro/soda.toml`; people do not create a
-release branch or tag by hand. The release then uses these single-platform tags:
+GHCR images are first-class update artifacts. GitHub Releases stores downloads.
+OIDC supplies short-lived authentication and stores nothing.
 
-```text
-ghcr.io/levitateos/soda-os:0.5.0-aarch64
-ghcr.io/levitateos/soda-os:0.5.0-x86_64
-```
+Version and product identity derive from `distro/soda.toml`. The protected
+production commit, Git tag, both OCI digests, artifact names, checksums, signed
+records, release notes, and remote assets must agree.
 
-Each is created once. Exact references are authoritative:
+## Evidence before release CI
 
-```text
-ghcr.io/levitateos/soda-os@sha256:<aarch64-digest>
-ghcr.io/levitateos/soda-os@sha256:<x86_64-digest>
-```
+Expensive product validation runs before the production push on user-controlled
+matching-native machines. It covers:
 
-There is no `latest`, `stable`, `edge`, moving version tag, or multi-platform
-index. Source-revision candidates are
-`sha-<full-source-revision>-<architecture>` and are not cleaned up
-automatically after failure.
+- graphical one-ISO installation;
+- common first boot on ISO and reusable QCOW2;
+- LAN and cloud/Tailscale access;
+- identities, Forgejo SSH keys, Projects, workspaces, `mise`, and deletion;
+- manual update and account-preserving fallback; and
+- absence of forbidden Soda control planes and copied credentials.
 
-## Native artifacts
+Fallback uses the previous signed published OCI image by immutable digest. Do
+not rebuild the previous image or any unused historical ISO/QCOW2.
 
-Each matching-native builder consumes its reviewed architecture-owned locks and
-produces the OCI archive, network ISO, raw QCOW2, compressed QCOW2, checksums,
-and schema-3 release record:
+The completed sibling runs produce one strict JSON acceptance record for the
+exact source commit. It contains:
 
-```sh
-ARCH=x86_64 # use aarch64 only on a matching-native AArch64 host
-just check
-just rpm "$ARCH"
-just oci "$ARCH"
-ARCHIVE=".artifacts/images/soda-os-0.5.0-${ARCH}.oci.tar"
-just iso "$ARCH" "$ARCHIVE"
-just qcow2 "$ARCH" "$ARCHIVE"
-just record "$ARCH" "$ARCHIVE" \
-  ".artifacts/images/SodaOS-0.5.0-${ARCH}.iso" \
-  ".artifacts/images/SodaOS-0.5.0-${ARCH}.qcow2" \
-  ".artifacts/images/SodaOS-0.5.0-${ARCH}.qcow2.zst"
-```
+- schema;
+- exact source commit;
+- acceptance-suite revision or digest;
+- both architectures;
+- required scenario names and pass results;
+- previous fallback OCI digest;
+- completion time; and
+- approved signer identity.
 
-The network ISO contains no embedded Soda payload. Its Kickstart names one
-exact, anonymously retrievable GHCR digest. A record binds that digest, Fedora
-base reference, source revision, RPM inventory, ISO, raw QCOW2, and compressed
-QCOW2 checksums.
+The record is signed and verified through Cosign/Sigstore. It authenticates the
+claim about the pre-release runs; it does not claim that the later CI-built
+bytes were boot-tested. Soda creates no attestation service.
 
-Protected OEMDRV remains the installer input boundary. It is mode `0600`, is
-ejected before installation proceeds, and is removed only after QMP proves the
-tray is open.
+## Build-once production workflow
 
-## Fixed publication boundary
+Release CI follows this order:
 
-`soda-release` is an operator-side wrapper around Git, Skopeo, Cosign, and
-GitHub CLI. It is not installed in Soda OS and creates no runtime release
-service, release index, credential store, retry queue, or workflow state.
+1. Verify protected branch identity, clean source identity, version, collision
+   state, and the signed acceptance record.
+2. Run cheap source and unit checks once.
+3. Start x86-64 and AArch64 matching-native build jobs in parallel.
+4. Build each architecture's release image B exactly once.
+5. Structurally inspect that OCI output and publish its immutable candidate
+   digest to GHCR.
+6. Build the network ISO and raw/compressed QCOW2 from that same OCI output.
+7. Check only artifact structure, architecture, identity, checksum, size,
+   signature, provenance, and remote publication facts.
+8. Promote the accepted OCI digests to the release's immutable architecture
+   tags.
+9. Create and sign the strict release records.
+10. Create the Git tag and draft GitHub Release, upload both architecture asset
+    sets, and re-read every remote fact.
+11. Publish the draft only after all OCI, file, record, signature, provenance,
+    source, and production-branch identities agree.
 
-```text
-soda-release image-stage --architecture ARCH --archive PATH
-soda-release image-promote --architecture ARCH --record PATH
-soda-release record-sign --architecture ARCH --record PATH
-soda-release draft --notes-file PATH --aarch64-record PATH --x86_64-record PATH
-soda-release upload --architecture ARCH --iso PATH --qcow2-zst PATH --record PATH --record-bundle PATH
-soda-release publish --aarch64-record PATH --x86_64-record PATH
-```
+CI publishes the exact checked files unchanged. It never rebuilds a release
+copy and never builds fallback A.
 
-`image-stage` publishes and verifies an immutable source-revision candidate.
-`image-promote` refuses an existing version tag, keylessly signs the exact
-digest, attaches an SLSA provenance predicate, verifies both, then creates the
-version tag. The predicate records source revision, architecture, Fedora base
-digest, runtime-lock checksum, RPM inventory, and ISO/QCOW2 checksums.
+Release CI runs no QEMU, graphical installation, first-boot provisioning,
+product acceptance, update/fallback suite, NoCloud, ConfigDrive, or
+acceptance-only Tailscale enrollment. It receives no guest Tailscale keys.
 
-`record-sign` creates `<record>.sigstore.json` and immediately verifies it.
-Image and record signing require a GitHub Actions workflow identity. `draft`
-requires both records and notes containing both exact image digests. `upload`
-accepts exactly six assets per architecture:
+## Publication boundaries
 
-```text
-SodaOS-0.5.0-<architecture>.iso
-SodaOS-0.5.0-<architecture>.iso.sha256
-SodaOS-0.5.0-<architecture>.qcow2.zst
-SodaOS-0.5.0-<architecture>.qcow2.zst.sha256
-soda-os-0.5.0-<architecture>.release.json
-soda-os-0.5.0-<architecture>.release.json.sigstore.json
-```
+Soda release tooling remains a fixed wrapper around Git, Skopeo, Cosign, and
+GitHub CLI. Those tools own authentication, transport, registry, Sigstore, and
+GitHub protocols. Soda validates its own fixed inputs and resulting remote
+facts.
 
-`publish` refuses to change a draft unless all twelve assets, both signed
-records, both immutable version tags, anonymous exact-digest pulls, image
-signatures, SLSA attestations, release notes, and the remote `production` branch
-revision agree. It runs only `gh release edit --draft=false --latest`; it never
-overwrites, deletes, compensates for, or repairs a partial remote result.
+Known input errors and collisions fail before mutation. If an external action
+partially succeeds, report the exact remote state and stop. Do not overwrite,
+delete, compensate, retry automatically, or reconcile partial state.
 
-OIDC is short-lived authentication only. GHCR stores OCI images, signatures,
-and attestations; GitHub Releases stores downloadable assets and signed records.
+The release has a 30-minute wall-clock target. At 45 minutes, the workflow must
+identify the active or slow stage and continue. This is a warning, not a
+timeout.
 
-## Protected CI
+## Final publication gate
 
-`.github/workflows/ci.yml` is read-only source verification.
-`.github/workflows/release.yml` runs only on `production`, derives the reviewed
-Soda version from `distro/soda.toml`, creates the corresponding tag itself, and
-serializes release runs without cancellation.
+Publication refuses to proceed unless:
 
-Native jobs use GitHub-hosted x86-64 or AArch64 orchestrators, then join the
-Tailnet through the SHA-pinned Tailscale action and workload identity
-federation. The identity has `id-token: write`, the configured client ID and
-audience, and `tag:soda-release-ci`; it does not use a reusable Tailnet key or
-attach a persistent GitHub self-hosted runner.
+- the signed acceptance record matches the exact source commit;
+- each architecture built B once on matching-native hardware;
+- each exact OCI digest is anonymously retrievable;
+- image signatures and provenance verify against the release workflow;
+- ISO and QCOW2 structures, architectures, identities, and checksums pass;
+- signed records bind the correct source, architecture, base, image, and file
+  checksums;
+- all expected remote assets exist once with the exact checked bytes;
+- release notes name both exact OCI update digests; and
+- the remote `production` head remains the original release commit.
 
-The hosted runner reaches only a matching tagged builder through Tailscale SSH
-as `soda-release-ci`. The root-owned login shell is
-`soda-release-executor`, which accepts only `prepare`, `emit-record`,
-`emit-bundle`, `promote`, and `upload`, deriving every path from run ID,
-attempt, source SHA, and architecture. The two emit operations expose only the
-non-secret record and its verified Sigstore bundle. The executor accepts no
-caller path or arbitrary command. Both native `prepare` jobs must pass before
-either `promote` job may run, and both promotion jobs and signed-bundle captures
-must pass before GitHub creates the tag and empty draft. Upload is a later fixed
-phase and cannot sign or promote an image.
+No moving OCI tag policy is implied without a separate decision. No release
+daemon, workflow database, credential store, retry engine, or reconciliation
+system is allowed.
 
-Each network-ISO, NoCloud, and ConfigDrive acceptance VM gets its own new
-one-use ephemeral `tag:soda-ci-guest` key. The no-datasource VM receives none.
-`scripts/release-create-vm-auth-key.sh` exchanges the GitHub OIDC JWT for a
-short-lived Tailscale API token, creates the key, prints it only to stdout, and
-deletes local token material. The workflow pipes it directly to the executor;
-it is never an argument, environment value, artifact, evidence file, or repo
-file.
+## Current implementation
 
-The native-host administrator separately provisions this account and root
-configuration before enabling the workflow:
+At checkpoint `5cf31df`, the repository contains release tooling, a production
+workflow, strict records, OCI/ISO/QCOW2 construction, Cosign integration, and
+matching-native executor support. It still performs work rejected by the
+contract above:
 
-```text
-account: soda-release-ci
-password: locked
-home: private; no personal GitHub, Codex, or SSH state
-sudo/linger/cron/user services: none
-groups: docker and kvm only
-login shell: root-owned soda-release-executor
-config: /etc/soda-release-ci.conf
-```
+- rebuilds fallback A from source;
+- runs installed VM and B-to-A-to-B acceptance in paid release CI;
+- creates acceptance-only Tailscale guest keys;
+- exercises NoCloud and ConfigDrive provisioning; and
+- repeats source checks across architecture/build phases.
 
-The configuration supplies only the root-owned release workspace, read-only
-Soda repository URL, and immutable `SODA_RESET_BASE_SHA`. Docker membership is
-root-equivalent on a shared host; that is an explicit accepted risk, not an
-isolation claim. GitHub environments/rulesets, GHCR visibility, the Tailscale
-federated identity and ACLs, and host account creation are external operations
-that repository commits do not perform.
-
-## Acceptance and updates
-
-The native `prepare` phase builds post-reset fallback A and release B, stages
-both candidates, creates network/QCOW2 artifacts, and runs the sole public
-installed-product workflow:
-
-```sh
-tests/acceptance/unattended.sh run
-```
-
-It proves installation, Tailnet enrollment, onboarding, Projects, direct SSH,
-immutable tools, zero obsolete control plane, and B-to-A-to-B preservation.
-NoCloud, ConfigDrive, and no-datasource QCOW2 scenarios are architecture-native
-release evidence too.
-
-Installed administrators choose an exact published GHCR digest:
-
-```sh
-sudo bootc status
-sudo bootc switch --download-only ghcr.io/levitateos/soda-os@sha256:<digest>
-sudo bootc switch --from-downloaded
-sudo systemctl reboot
-```
-
-Fallback uses the same sequence with an earlier exact Soda digest. Direct
-`bootc rollback` is unsupported. Soda has no runtime release discovery,
-automatic download, activation, or update service.
+The current workflow and operator commands must not be used as release-day
+instructions until those differences are removed and the signed pre-release
+record boundary is implemented. No public `0.5.0` release is claimed here.

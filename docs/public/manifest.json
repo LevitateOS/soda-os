@@ -8,7 +8,7 @@
         {
           "slug": "index",
           "title": "Soda OS documentation",
-          "description": "Understand the Soda OS product model, its current pre-release state, and where to begin.",
+          "description": "Understand the Soda OS product model and the path from installation to a private development workspace.",
           "source": "overview.md",
           "evidence_paths": [
             "AGENTS.md",
@@ -16,20 +16,19 @@
             "docs/architecture-reset.md",
             "README.md"
           ],
-          "issues": [23, 25, 37, 38, 39, 40]
+          "issues": [15, 24, 25, 32, 33, 35, 37, 40, 44, 45, 48]
         },
         {
           "slug": "installation-model",
           "title": "Installation model",
-          "description": "How Soda OS combines an architecture-matched image, stock Anaconda, protected input, and private Tailnet enrollment.",
+          "description": "Install one architecture-matched image, then complete the common interactive first-boot setup.",
           "source": "installation-model.md",
           "evidence_paths": [
-            "docs/installer.md",
-            "packaging/installer/soda-installer-input",
-            "packaging/installer/soda-installer-finalize",
-            "packaging/rpm/runtime/sources/systemd/soda-tailscale-enroll.service"
+            "docs/principles.md",
+            "docs/architecture-reset.md",
+            "docs/installer.md"
           ],
-          "issues": [40, 42]
+          "issues": [40, 42, 45]
         }
       ]
     },
@@ -44,11 +43,10 @@
           "source": "accounts-and-workspaces.md",
           "evidence_paths": [
             "docs/principles.md",
-            "internal/projects/model.go",
-            "internal/projects/lifecycle.go",
-            "internal/projects/system_keys.go"
+            "docs/architecture-reset.md",
+            "docs/architecture.md"
           ],
-          "issues": [33, 35, 36]
+          "issues": [33, 35, 36, 44]
         },
         {
           "slug": "projects-and-git",
@@ -56,25 +54,23 @@
           "description": "How the project catalog, Forgejo, external Git hosts, and Set up for me divide responsibility.",
           "source": "projects-and-git.md",
           "evidence_paths": [
-            "cockpit/soda-projects/index.html",
-            "internal/projects/catalog.go",
-            "internal/projects/coordinator.go",
-            "internal/projects/forgejo.go"
+            "docs/principles.md",
+            "docs/architecture-reset.md",
+            "docs/architecture.md"
           ],
-          "issues": [35, 37]
+          "issues": [32, 35, 37, 44]
         },
         {
           "slug": "connect-and-develop",
           "title": "Connect and develop",
-          "description": "How developers use Tailscale and ordinary SSH tools to work directly on the Soda OS machine.",
+          "description": "Use LAN or Tailscale, ordinary SSH, mise, and normal development-server links.",
           "source": "connect-and-develop.md",
           "evidence_paths": [
-            "docs/networking.md",
-            "distro/toolset-commands.txt",
-            "packaging/rpm/runtime/sources/nftables/soda-ingress.nft",
-            "cockpit/soda-projects/app.mjs"
+            "docs/principles.md",
+            "docs/architecture-reset.md",
+            "docs/networking.md"
           ],
-          "issues": [24, 36]
+          "issues": [15, 24, 36]
         }
       ]
     },
@@ -89,11 +85,10 @@
           "source": "administration.md",
           "evidence_paths": [
             "docs/architecture.md",
-            "cockpit/soda-projects/index.html",
-            "internal/projects/lifecycle.go",
-            "packaging/rpm/projects/sources/pam/cockpit-stock"
+            "docs/architecture-reset.md",
+            "docs/principles.md"
           ],
-          "issues": [25, 32, 39]
+          "issues": [32, 33, 35, 44]
         },
         {
           "slug": "updates-and-recovery",
@@ -103,10 +98,9 @@
           "evidence_paths": [
             "docs/architecture-reset.md",
             "docs/release-operations.md",
-            "tests/acceptance/README.md",
-            "packaging/bootc/Containerfile"
+            "tests/acceptance/README.md"
           ],
-          "issues": [23, 25, 38, 39]
+          "issues": [25, 38, 48]
         }
       ]
     }

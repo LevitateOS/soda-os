@@ -1,337 +1,170 @@
 # Soda bootc runtime image and installer
 
-This document describes the current image and installer implementation. The
-product contract remains in [architecture-reset.md](architecture-reset.md).
+The product contract is governed by [architecture-reset.md](architecture-reset.md).
+This document records the target artifact boundary and the source currently
+being replaced.
 
-`distro/soda.toml` is the shared runtime image specification.
-`distro/platforms/aarch64.toml` and `distro/platforms/x86_64.toml` are equal
-sibling platform contracts. Each pins its Fedora 44 bootc manifest, OCI
-platform, package and installer locks, tool inputs, artifact identity, and
-release channel. The shared specification owns the Soda image name, version,
-remaining runtime paths, and source-date epoch. The builder obtains the
-source revision from the current Git commit, and every command requires an
-explicit `--architecture aarch64` or `--architecture x86_64` selection.
+## Product contract
 
-The platform-selected runtime package lock records exact NEVRAs for every
-Fedora RPM added to its pinned base and for the locally built Soda RPM inputs.
-Those inputs include the narrow architecture-specific `soda-bun` and
-`soda-tea` packages.
-Both sibling locks include their independently resolved matching-native stock-
-Cockpit and immutable-development-tool dependency closures. The Soda RPMs are
-build inputs only; no mutable Soda RPM repository is created or embedded. Weak
-dependencies are disabled.
+Soda produces equal architecture-specific outputs for x86-64 and AArch64:
 
-During `just oci ARCH`, the Go builder:
+- a bootc OCI image stored in GHCR;
+- one network installer ISO; and
+- one compressed reusable QCOW2 image.
 
-1. validates the immutable base, platform, registry, and package lock;
-2. reproducibly builds `soda-release`, `soda-runtime`, `soda-projects`,
-   `soda-forgejo`, `soda-bun`, and `soda-tea` with the configured version,
-   source revision, and source date;
-3. installs the exact locked transaction into the pinned Fedora bootc base;
-4. creates the Linux-native `soda-workspaces` classification group;
-5. composes stock Cockpit's PAM policy and host packages and enables SSH,
-   `cockpit.socket`, the one-attempt Tailscale enrollment unit, Forgejo, native
-   nftables;
-6. masks the automatic bootc update timer while retaining manual bootc
-   operations;
-7. records the complete installed RPM inventory and verifies its SHA-256; and
-8. exports an OCI archive without loading, pushing, signing, or publishing it.
+Every architecture-specific input, build, inspection, installation, and
+acceptance claim is produced on matching-native hardware.
 
-OCI labels record the Soda version, Git revision, creation time, and pinned
-base. BuildKit rewrites image timestamps to the configured source-date epoch
-and omits provenance attestations from this local artifact.
+### Network installer
 
-## Local installer media
+The public human journey uses one finished ISO:
 
-Each architecture produces a separate single-platform OCI archive. Run
-`just iso ARCH ARCHIVE` to validate that archive contains exactly one matching
-`linux/arm64` or `linux/amd64` manifest, derive its exact manifest digest, and
-embed it in the matching `bootc-generic-iso`. This path is entirely local: it
-does not push to GHCR, access GHCR, use Cosign, require signing credentials, or
-verify a signature. The ISO and checksum are architecture-named so sibling
-artifacts cannot overwrite one another.
+1. Boot the architecture-matched ISO.
+2. Use stock graphical Anaconda for storage, networking, firmware, bootloader,
+   and bootc deployment.
+3. Reboot into the installed system.
+4. Complete the common interactive first-boot setup.
 
-The installer is for fresh installation only. It uses stock graphical Anaconda
-with DHCP, a default hostname of `soda`, and Anaconda's normal storage and
-installation workflow. Soda supplies branding, immutable-image composition,
-and two fixed installer-only hooks; it does not ship a custom Anaconda spoke,
-module, D-Bus service, or alternate installer UI. The administrator inputs come
-from the mandatory protected OEMDRV medium described below, so the stock User
-and Password spokes are hidden. The sidebar and product-mark PNGs are generated
-from the approved Soda v3 SVG masters; the surrounding navy and cyan visual
-treatment uses the same established palette in the Anaconda stylesheet.
+The ISO installs an exact architecture-specific GHCR digest and does not embed
+the Soda runtime payload. A network or registry failure is a native installation
+failure. Soda adds no mirror, embedded fallback image, alternate installer, or
+download service.
 
-### Protected OEMDRV installer input
+The human supplies no Kickstart, OEMDRV, second credential disk, repository
+checkout, Go command, xorriso command, or other provisioning medium.
 
-Create a new answer medium on the matching-native architecture after building
-the ISO and its release record:
+### Reusable QCOW2
 
-```sh
-ARCH=x86_64
-go run ./cmd/soda-image --architecture "$ARCH" installer-input \
-  --iso ".artifacts/images/SodaOS-0.5.0-${ARCH}.iso" \
-  --release-record ".artifacts/releases/soda-os-0.5.0-${ARCH}.release.json" \
-  --username soda-admin \
-  --ssh-public-key-file "$HOME/.ssh/id_ed25519.pub" \
-  --tailscale-auth-key-file /secure/path/tailscale-auth-key \
-  --output /secure/path/soda-installer-input.iso
-```
+The reusable QCOW2 is built from the same exact OCI image as the installer.
+After boot it uses the same common first-boot setup as an ISO-installed system.
+The setup appears on the VM or supported cloud console and can be reopened in
+Cockpit after network access exists.
 
-Without `--password-file`, the command reads and confirms the administrator
-password from the controlling terminal. Automation may instead pass a
-root-owned or user-owned mode-`0600` regular file with `--password-file`; the
-Tailscale key must likewise be supplied through a mode-`0600` regular file.
-Secret files cannot be symlinks. Never place either secret in an argument,
-environment value, repository file, or log.
+Supported cloud platforms must provide console access. Soda does not consume
+NoCloud or ConfigDrive user data, merge cloud metadata, accept a separate
+`cloud-input`, install provider agents, or expose a public SSH bootstrap.
+Without completed first boot, the machine remains unconfigured.
 
-The command verifies the selected native architecture, release-record
-platform, and exact installer-ISO checksum. It refuses to overwrite an output
-and publishes a mode-`0600` ISO labelled `OEMDRV`. That medium contains a
-secret-free Kickstart composition plus exactly the administrator username,
-password, authorized public key, and one-use Tailscale key. The medium itself
-therefore contains secrets: attach it only as removable installation media,
-keep it protected, and destroy its host copy after the installer ejects it.
-Normal installations omit `--unattended` and retain Anaconda's interactive
-storage workflow. The repository acceptance harness alone uses that explicit
-flag to add a fixed destructive partitioning recipe for its disposable VM.
+The image grows its final partition and filesystem to the supplied virtual
+disk. The raw QCOW2 is a matching-native build artifact; the compressed image,
+checksum, release record, and signing evidence are release outputs.
 
-The product ISO's boot entry selects `/ks.cfg` from `OEMDRV` and tells Anaconda
-not to save input or output Kickstart. During `%pre`, the fixed installer input
-hook mounts OEMDRV read-only with `nodev`, `nosuid`, and `noexec`, validates the
-four values, creates only root-owned transient files below
-`/run/soda-installer`, and emits native Kickstart `user` and `sshkey`
-directives. It then unmounts and ejects the answer medium and waits for that
-device to disappear. Ejection and removal are mandatory: if the medium remains
-present, the hook removes its transient files and stops installation.
+### Common interactive first boot
 
-After Anaconda has created the Linux account, the fixed `%post --nochroot`
-finalizer consumes and unlinks the transient inputs, validates the installed
-account, and performs the bounded Forgejo handoff. It retains no plaintext
-password in the target; the only transient secret handoff it writes is the
-one-use Tailscale key for first boot. Both hooks exist only in the installer
-environment; neither is installed in the Soda runtime image.
+The Fedora-native setup is machine-wide and shared by ISO and QCOW2. It is
+available on a physical, VM, or supported cloud console and through Cockpit via
+the same bounded underlying operations.
 
-## Accepted initial provisioning outcome
+It remains available at startup until explicitly dismissed. Dismissal is not
+available until:
 
-The Linux administrator and Tailnet portion of the first supported installation
-path requires four values:
+- one primary Linux administrator exists;
+- its password is set;
+- its public SSH key is installed;
+- the same-named Forgejo site administrator is ready; and
+- Tailscale is connected or LAN-only is explicitly selected.
 
-```text
-administrator username
-administrator password
-administrator SSH public key
-one-use Tailscale auth key
-```
+When the owner enters a Tailscale authentication key, the setup passes it once
+to Tailscale and removes it. Selecting LAN-only requires no key and does not
+prevent configuring Tailscale later through native tools.
 
-The installer input hook hashes the password through `openssl passwd` on
-standard input and emits native Kickstart `user` and `sshkey` directives into
-the installer-only runtime directory. Anaconda remains authoritative for
-creating the ordinary Linux account, adding it to `wheel`, setting its Linux
-password, and installing its SSH public key in standard
-`~/.ssh/authorized_keys`.
+The setup leaves no password, Tailscale key, bootstrap account, enabled
+provisioning path, runtime status database, retry record, or background setup
+service. A failure remains visible and is retried explicitly through the same
+setup; Soda adds no recovery engine or reconciliation loop.
 
-A minimal first-boot systemd oneshot passes the enrollment credential to
-`tailscale up` from root-owned `/var/lib/soda-install/tailscale-auth-key`,
-removes the file after the single attempt, and disables itself whether the
-attempt succeeds or fails. Tailscale retains its own node identity in its
-upstream state location; Soda no longer relocates that state.
+Automatic LAN/cloud detection and choosing setup enablement inside Anaconda are
+not part of the approved contract.
 
-The same installation proactively creates a same-named Forgejo-local site
-administrator through Forgejo's native first-user signup.
-The installer-only finalizer initializes the target's package-owned Forgejo
-state, starts pinned Forgejo on loopback with a sealed in-memory configuration
-that temporarily permits registration, submits the password only in the
-loopback HTTP body, and verifies the active administrator. While that transient
-process is running, the finalizer runs Tea as the installed administrator,
-passes the password only on standard input, creates the fixed `soda` login and
-`soda-os-tea` token, verifies the native identity, and leaves Tea's mode-`0600`
-configuration in the administrator's home. It then stops the transient process.
-Forgejo's durable configuration remains registration-disabled. The password is
-never a process argument, environment value, log field, or retained Soda or
-target file. This is a bounded installation handoff, not a runtime Forgejo
-credential service.
+## Installed ownership
 
-The administrator's Tea login is intentionally created against the transient
-loopback endpoint. After Tailnet enrollment, Forgejo retains loopback access
-for that user-owned configuration while also serving its advertised Tailnet
-URL. Forgejo listens on IPv4 and Soda's native nftables policy admits TCP 30000
-only from loopback and `tailscale0`; other ingress remains rejected. This is
-one upstream Forgejo listener behind the existing Linux firewall, not a proxy
-or runtime credential-rewrite service.
+After setup:
 
-Forgejo's native PAM source delegates later authentication to the shipped
-`soda-forgejo` PAM policy. The accepted outcome is that a primary human can log
-in with their Linux username and password, after which Forgejo creates its own
-ordinary native user record. The authorized read boundary is limited to the
-Forgejo service process: `/etc/shadow` is `root:soda-forgejo-shadow` mode
-`0040`, the `git` account is not an NSS member of that dedicated group, and
-`forgejo.service` receives it through `SupplementaryGroups`. The existing
-root-owned Forgejo initialization unit applies only Forgejo's named tmpfiles
-configuration before service startup, so an unrelated failure in the global
-tmpfiles pass cannot silently remove the authorized read boundary. A narrow
-SELinux rule allows the tmpfiles domain only the `getattr` and `setattr`
-metadata permissions on `shadow_t` proven by the installed denial; it does not
-grant shadow-content access. The supported Projects **Add person** operation
-creates an ordinary primary Linux account and then uses unprivileged Tea to
-perform that person's first PAM login and create a Forgejo-owned token. The
-patched Forgejo PAM path retains no local password verifier for that user.
-Direct Linux account creation performs no Forgejo or Tea operation, and later
-`wheel` membership has no Forgejo effect. Derived workspace accounts are
-Linux-only development identities that use their one-time-copied Tea
-configuration and installed authorized public keys for direct OpenSSH access;
-the shipped PAM
-account rule rejects the `soda-workspaces` group so they cannot become Forgejo
-users.
+- Linux owns the administrator, password, `wheel` membership, home, and
+  standard authorized key;
+- Forgejo owns the same-named site administrator and registered SSH public key;
+- Tailscale owns its node identity when enrolled;
+- stock Cockpit owns browser administration; and
+- Soda owns only completion of the bounded first-boot composition.
 
-Soda may set the PAM source's email domain to the fixed packaging convention
-`localhost`, allowing Forgejo to initialize `<username>@localhost`. The setting
-is not an installer input or upstream requirement. Soda does not collect,
-persist, or manage per-user Forgejo email addresses.
+Later primary humans are created through the supported administrator workflow,
+receive a corresponding Forgejo account, and have their public key registered
+there. Workspace accounts are Linux-only identities.
 
-The initial Forgejo-local administrator and same-named Linux account become
-independent immediately after installation. Later account, password, role,
-rename, disable, and deletion changes are not synchronized. Disabling a PAM
-user's Linux account blocks later PAM authentication but does not claim to
-revoke Forgejo sessions, tokens, SSH keys, or repository permissions.
-
-After installation, the administrator connects through the Tailnet with
-OpenSSH and authenticates to stock Cockpit with the ordinary Linux username and
-password through PAM. The one-attempt enrollment unit always removes the
-Tailscale credential and disables itself, whether enrollment succeeds or
-fails. Soda retains no bootstrap database, API, custom authentication, public
-onboarding endpoint, bundle format, durable workflow, retry or reconciliation
-state, separate bootstrap user, runtime credential storage, or bootstrap
-status.
-
-There is no in-place Soda installer recovery workflow. If input validation,
-account creation, Forgejo initialization, or target finalization fails, treat
-the target as incomplete: correct the inputs, create a new protected OEMDRV
-medium, and repeat a fresh installation. If the single Tailscale attempt fails,
-use native local Tailscale recovery when available or reinstall with a fresh
-one-use key. Do not reuse the ejected credential medium or expect Soda to retry
-from retained state. Acceptance testing proves private OpenSSH and Cockpit
-reachability and the absence of retained enrollment material; it creates no
-runtime verification state.
-
-The runtime uses Fedora's native `nftables.service` with one fixed Soda ruleset:
-TCP 22, 9090, and 30000 are accepted on loopback and `tailscale0` and rejected
-on other ingress. The ruleset otherwise keeps an accept policy and does not own
-project-selected ports or unrelated Linux networking.
-
-The Fedora 44 installer environment runs SELinux in permissive mode because its
-live overlay cannot be relabeled; this boot option does not change the installed
-Soda image, which retains enforcing SELinux.
-
-Anaconda creates the administrator through the standard Kickstart `user` and
-`sshkey` commands. Fedora bootc exposes `/home` through the image-owned
-`/home -> var/home` symlink. Fedora Anaconda 44.30's bootc mount preparation
-binds the host `/sys` non-recursively, which otherwise hides its nested
-SELinuxFS mount from Anaconda's own final context pass. The installer image
-carries one exact-version- and source-hash-guarded correction that also binds
-`/sys/fs/selinux` and tracks it for Anaconda's normal reverse teardown. Anaconda
-therefore remains responsible for applying the installed policy to
-`/var/home`, including the administrator's SSH files. Soda runs no relabel
-command and creates no runtime relabel service or second home authority.
-
-The network ISO contains no Soda OCI payload. Its Kickstart names the exact
-anonymous GHCR manifest digest recorded for the matching architecture, and
-Fedora 44's `bootc` command retrieves that digest during installation. A
-registry or network failure is therefore a native installation failure; Soda
-ships no embedded fallback payload, registry mirror, or retry mechanism. Pinned
-`bootc` deliberately uses the live host's `/var/tmp` for large import files.
-The installer environment mounts a 4 GiB ephemeral tmpfs there before Anaconda
-starts, keeping payload scratch outside the small LiveOS overlay and out of
-installed Soda state. The matching-native raw-QEMU harness allocates 8 GiB for
-this path.
+Tea and gh are available in workspaces but are never configured during
+installation or first boot. Each workspace login is manual and separate.
 
 ## Persistent host state
 
-Bootc owns the image base. Linux owns primary and derived accounts, groups,
-passwords, private homes, standard authorized-key files, and SSH host keys.
-Forgejo owns its database and repositories. Tailscale owns its enrolled node
-state. Soda's only mutable Projects state is the exact three-field catalog
-below `/var/lib/soda/catalog`; complete workspace clones live in the derived
-accounts' ordinary `$HOME/Projects` directories.
+Bootc owns the replaceable image. Linux owns accounts, groups, passwords,
+homes, authorized keys, and SSH host keys. Forgejo owns its users, repositories,
+and database. Tailscale owns its enrolled node state. Soda owns the shared
+project catalog and only the irreducible workspace association.
 
-The pre-reset Soda database, copied person/project/repository state, shared
-project mount, alternate authorized-key tree, Cockpit certificates, and
-standalone dashboard state are not created. Neither `/opt/soda/toolchains` nor
-`/var/lib/soda/toolchains` exists, and no toolchain mount, profile, readiness
-record, downloader, or runtime manager is shipped.
+The project catalog has no approved closed metadata field list. Workspace
+clones and installed dependencies live under their derived Linux homes.
 
-## Immutable development toolset
+Soda creates no runtime person database, project-membership database,
+repository projection, credential store, toolchain database, control socket,
+daemon, API, bootstrap state, or updater state.
 
-The image installs the approved command collection from exact Fedora package
-locks plus the checksum-locked, architecture-specific `soda-bun` and
-`soda-tea` RPMs. The approved commands cover Go, Python and uv, Rust, Node.js,
-Bun, native compilers and build systems, Git, SSH, GitHub CLI, the
-Forgejo-compatible Tea CLI, rootless container tools, data and network
-utilities, archives, and editors. The exact command-level contract is
-installed at `/usr/share/soda/toolset-commands.txt`, with one command per line.
-Image construction fails when any listed command is unavailable through
-ordinary system `PATH`.
+## Development tools
 
-Bun and Tea source acquisition are bounded build inputs: each matching-native
-builder fetches the selected Bun architecture asset and Tea tagged source,
-verifies their locked checksums, patches, and licenses, and builds the local
-RPMs without network access. Soda performs no runtime tool discovery or download. Primary and
-derived accounts use the same immutable commands while retaining their own
-ecosystem caches, virtual environments, project-local dependencies, and
-Git-host CLI authentication in their ordinary homes.
+`mise` owns development-tool installation, versions, and project configuration.
+Project and workspace creation may offer multiple convenience selections, but
+the list is open. Later installation targets either one workspace or the
+project's shared tool scope.
 
-## Manual OS updates
+Shared project tools are stored once and use upstream-native shared download
+caches. Soda does not own cache format, downloads, version resolution, or
+toolchain state. Installed dependencies and other mutable development state
+remain workspace-private. Coding assistants are selected and authenticated per
+workspace.
 
-The runtime masks Fedora's automatic bootc update timer. A Linux administrator
-uses native `bootc` with an exact Soda image reference:
+Tea and GitHub CLI remain normal workspace commands with manual, separate
+authentication. Soda copies no CLI configuration or credential.
 
-```sh
-sudo bootc status
-sudo bootc switch --download-only ghcr.io/levitateos/soda-os@sha256:<digest>
-sudo bootc status
-sudo bootc switch --from-downloaded
-sudo systemctl reboot
-```
+## Manual image lifecycle
 
-The download-only step does not change the running deployment. The second
-switch command turns the already downloaded image into a bootable deployment;
-the administrator then performs the controlled reboot. Supported fallback
-uses the same sequence with an earlier exact Soda digest. Direct
-`bootc rollback` is unsupported because it can restore the earlier
-deployment's historical `/etc` instead of preserving current Linux account
-state.
+The runtime disables automatic bootc updates. A Linux administrator uses native
+bootc operations with exact signed Soda image references. Supported fallback
+uses the same native deployment path with the previous signed OCI digest and
+preserves current machine state. Direct `bootc rollback` is unsupported unless
+it is separately proved to preserve current `/etc` and `/var` state.
 
-Soda ships no runtime release-index client, translated update state, update
-API, CLI wrapper, polling, download service, activation service, retry, or
-recovery process.
+Soda ships no release-discovery client, update daemon, translated deployment
+state, wrapper CLI, retry process, or recovery service.
 
-The schema-3 release record binds the runtime image's Soda version, source
-revision, Fedora base reference, exact GHCR manifest-digest reference, platform,
-RPM inventory checksum, installer ISO checksum, raw QCOW2 checksum, and
-compressed QCOW2 download checksum. It does not independently record the
-installer-environment source revision. Artifact construction does not require a
-record; protected OEMDRV creation does. Release publication requires the exact
-GHCR digest and all artifact checksums to agree.
+## Release records
 
-## Current verification status
+A strict release record binds the product version, source revision,
+architecture, Fedora base, exact GHCR image digest, RPM inventory, ISO checksum,
+raw QCOW2 checksum, and compressed QCOW2 checksum. Signatures and provenance
+bind the record and OCI digest to the release workflow.
 
-The reset installer path was exercised end to end on fresh native x86-64 and
-AArch64 guests. The x86-64 checkpoint `0d6ca31` proved OEMDRV protection,
-guest ejection and exact host removal, stock-Anaconda installation, Linux and
-same-named Forgejo administrator creation, password and public-key SSH, correct
-home and key SELinux labels, one-attempt Tailscale enrollment and handoff
-deletion, stock Cockpit authentication and workspace rejection, Projects and
-multi-user workspace behavior, direct SSH/SCP/SFTP, destructive ordering, the
-immutable toolset, rootless Podman, obsolete-state absence, zero runtime
-control-plane surface, and the exact installed runtime digest. It also proved
-the administrator's Tea login, Add person composition, later-primary PAM
-authentication without a Forgejo-local verifier, distinct human Tea identities,
-one-time workspace Tea placement, and preservation through exact B→A→B
-selection from `0d6ca31` to `ba4de43` and forward again.
-The artifact hashes and failure history are recorded in
-[bug-notes.md](bug-notes.md); they are local evidence, not a published release.
+Release CI builds each architecture's new image once and derives its ISO and
+QCOW2 from that exact output. It structurally checks and publishes those bytes
+unchanged. The previous fallback image is downloaded by its earlier signed
+published digest rather than rebuilt.
 
-Matching-native AArch64 subsequently repeated the reset-completion workflow at
-source `eaf6ae8`. The later 0.5.0 x86-64 candidate at `1ed2e93` passed the
-network-ISO path plus reusable-QCOW2 NoCloud, ConfigDrive, no-datasource, disk-
-growth, secret-removal, and B→A→B scenarios. The 0.5.0 AArch64 artifacts still
-require their separate matching-native release-candidate run.
+## Current implementation
+
+At checkpoint `5cf31df`, OCI, network-ISO, QCOW2, release-record, stock-Cockpit,
+workspace, and native bootc construction paths exist. The current source still
+uses:
+
+- mandatory protected OEMDRV media and fixed installer hooks;
+- installer-time Linux, Forgejo, Tea, and Tailscale provisioning;
+- separate NoCloud and ConfigDrive cloud-init inputs and a cloud finalizer;
+- a Soda-created Tea token copied into workspaces;
+- an exact three-field catalog;
+- a custom `soda-bun` package and broad immutable tool manifest; and
+- Tailnet-only service ingress.
+
+Those mechanisms describe the present source only. They are superseded by the
+product contract above and must be deleted with their replacement slices. The
+old matching-native installation and QCOW2 results prove those historical
+artifacts, not the approved common first-boot journey.
+
+No new first-boot artifact, public ISO, public QCOW2, or final release is
+claimed by this document.

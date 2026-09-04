@@ -13,10 +13,11 @@ machinery, or architecture that only its authors can understand.
 
 ## Durable product contract
 
-- Soda OS is cloud-first, while on-premises deployment remains supported. In
-  both environments, assume trusted same-LAN access through Tailscale; do not
-  design browser, Forgejo, SSH, or other product paths for public-Internet
-  exposure. Physical-console access is not required.
+- Soda OS is cloud-first, not cloud-only. Trusted local-network installations
+  expose OpenSSH, Cockpit, Forgejo, and project-selected development servers
+  directly over the LAN. Cloud installations expose those services through
+  Tailscale and never to the public Internet. Tailscale must not block LAN
+  access. Initial setup requires a physical, VM, or supported cloud console.
 - The business or technical owner selecting the team's development
   infrastructure is the primary product decision-maker. Daily users are
   developers connecting from lightweight clients to a powerful shared Soda OS
@@ -34,9 +35,9 @@ machinery, or architecture that only its authors can understand.
 - Launch requires bundled Forgejo alongside support for external Git hosts.
   Repository lifecycle, access, and collaboration stay native to the
   authoritative Git host. Soda retains only a minimal appliance-wide project
-  catalog with immutable `id`, mutable `display_name`, and credential-free
-  `canonical_url` fields, plus the human-project-to-workspace-account
-  convention. A successful **Set up for me** operation leaves a complete clone
+  catalog without an independently assumed closed field list, plus the
+  human-project-to-workspace-account convention. A successful **Set up for me**
+  operation leaves a complete clone
   beneath the derived workspace account's `$HOME/Projects/<repository>` without
   retaining Git credentials or workflow state. A no-URL project begins as a
   native empty Forgejo repository.
@@ -44,9 +45,12 @@ machinery, or architecture that only its authors can understand.
   dependencies, process ownership, and project-local data. Projects select
   non-conflicting host ports themselves. Podman is an optional installed tool,
   not Soda's isolation mechanism or a Soda-managed subsystem.
-- The image ships a broad reviewed collection of language runtimes and
-  developer tools on both supported architectures. Soda has no runtime
-  toolchain manager or persistent toolchain state.
+- `mise` owns development-tool installation, versions, and project toolchain
+  configuration. Soda may offer multiple convenience selections for workspace
+  or shared-project scope, but it owns no toolchain installer, version manager,
+  downloader, cache format, profile system, or parallel state model. Tea and
+  GitHub CLI are available in every workspace; each workspace authenticates
+  them manually and separately.
 - Linux administrators use native `bootc` commands for explicit update checks,
   staging, activation, and supported fallback. Fallback to an earlier image
   must preserve current Linux account, password, group, and administrator
@@ -55,6 +59,10 @@ machinery, or architecture that only its authors can understand.
   update service or shadow deployment state.
 - AArch64 and x86-64 are equal sibling architectures. Neither is a default,
   fallback, experimental, or second-class target.
+- Human installation uses one completed network ISO, stock graphical Anaconda
+  for installation-owned responsibilities, and one common interactive
+  first-boot setup shared with QCOW2. There is no human-facing OEMDRV, second
+  credential image, cloud-init provisioning path, or public-SSH bootstrap.
 
 ### Standing commit authorization
 
@@ -133,13 +141,13 @@ smallest Soda-specific project workflow. The target behavior is:
 - stable primary usernames and a Linux-native distinction between primary and
   workspace accounts, without a Soda identity database or rename
   reconciliation;
-- the installer-created initial Forgejo administrator and Forgejo PAM login for
-  later primary human accounts, without workspace-account Forgejo identities
-  or ongoing role synchronization;
+- first-boot creation of the initial Linux/Forgejo administrator, later primary
+  humans with registered Forgejo SSH keys, and no workspace-account Forgejo
+  identities or ongoing role synchronization;
 - stock Cockpit with Soda branding and one focused Soda Projects page;
-- a minimal declarative catalog containing exactly immutable `id`, mutable
-  `display_name`, and credential-free mutable `canonical_url`, editable by
-  every primary human without repository-membership or capability state;
+- a minimal shared declarative project catalog editable by every primary
+  human, without an unapproved closed metadata field list, repository-
+  membership model, or capability state;
 - synchronous workspace setup whose accepted outcome is a derived account and
   complete clone produced through native user-authenticated Git or repository-
   host behavior without retained credentials; setup requires a key in the
@@ -151,14 +159,14 @@ smallest Soda-specific project workflow. The target behavior is:
   derived workspace UID, without forced commands or synthetic homes;
 - repository lifecycle and access through bundled Forgejo or the external
   authoritative Git host;
-- synchronous destructive project removal that deletes the catalog entry and
-  derived workspace accounts, homes, and explicitly Soda-created local paths,
-  with the catalog entry removed last and never the canonical Git repository;
+- user-owned workspace removal and administrator-only project removal that
+  deletes the shared entry and every local workspace, including uncommitted
+  work, while always preserving the canonical Forgejo repository;
 - administrator-only Soda-aware human deletion that removes derived local
-  workspaces and the primary account last, without deleting Forgejo accounts or
-  repositories and without a watcher for out-of-band Linux deletion;
-- a broad curated image-resident development toolset, without a runtime Soda
-  toolchain manager;
+  workspaces first, the Forgejo account second, and the primary Linux account
+  last, without a watcher for out-of-band Linux deletion;
+- `mise`-owned workspace and shared-project development tools, upstream-native
+  shared caches, and workspace-private installed dependencies and assistants;
 - administrator-controlled native `bootc` operations and an account-preserving
   supported fallback, without claiming direct `bootc rollback` before it is
   verified and without a Soda update service; and
@@ -166,16 +174,17 @@ smallest Soda-specific project workflow. The target behavior is:
 
 Pre-reset databases, copied people and repository records, memberships, shared
 project accounts, shared worktrees, device-key projection, standalone dashboard
-services, jobs, retries, rollback, reconciliation, toolchain profiles, and
-translated update state are implementation evidence and deletion targets, not
-preservation contracts. The minimal catalog, derived workspace-account
-convention, Projects page, and narrow synchronous helper are retained outcomes;
-they must not be expanded into a generic project control plane.
+services, jobs, retries, rollback, reconciliation, toolchain profiles, broad
+immutable tool manifests, copied Tea credentials, alternate onboarding paths,
+and translated update state are implementation evidence and deletion targets,
+not preservation contracts. The catalog, derived workspace-account convention,
+Projects page, first-boot composition, and narrow synchronous operations are
+retained outcomes; they must not become a generic control plane.
 
 Do not add Internet-scale, enterprise, attacker-first, or multi-path machinery
-without a concrete requirement. Assume trusted same-LAN access through
-Tailscale; do not require local-console access, or assume that the current MVP
-deployment model must remain permanent.
+without a concrete requirement. The team is trusted. Initial setup uses the
+console; LAN and Tailnet access are both first-class within their approved
+deployment contexts.
 
 ## Current source ownership
 
@@ -186,8 +195,8 @@ Use the present tree as a navigation aid, not an immutable architecture:
 - `internal/build`: image, installer, and release production
 - `internal`: native Projects behavior, host integration, process execution,
   and artifact construction
-- `distro`: current distribution specification, immutable tool manifest, locks,
-  and base inputs
+- `distro`: current distribution specification, locks, and base inputs; current
+  immutable-toolset files are implementation debt, not product authority
 - `packaging`: files grouped by the artifact or package that ships them
 - `tests/acceptance`: system-level installation and boot evidence
 - `scripts` and `tools`: repository verification and developer tooling

@@ -8,6 +8,38 @@ acceptance suite. Normative requirements remain in `principles.md` and
 evidence separated the real cause from plausible stories, which owner should
 fix it, and how to avoid repeating the investigation.
 
+## Superseded product directions
+
+Entries below are a historical engineering log. They must not be read as
+current requirements, implementation instructions, release gates, or supported
+user journeys.
+
+The 2026-09-04 product reconciliation superseded every historical note that
+assumes any of the following:
+
+- human OEMDRV or other separate credential/provisioning media;
+- installer-time account, Forgejo, Tea, or Tailscale onboarding;
+- NoCloud, ConfigDrive, partial cloud-data merging, or `cloud-input`;
+- Tailnet-only access on a trusted LAN;
+- an exact three-field project catalog;
+- Soda-created Tea tokens or copied Tea configuration;
+- a broad immutable image-wide language/compiler tool contract or custom Bun
+  packaging as product behavior;
+- person deletion that preserves the person's Forgejo account;
+- release CI rebuilding fallback A or running VM/Tailscale product acceptance;
+  or
+- uncertainty about project removal deleting the canonical Forgejo repository.
+
+The approved outcomes are one network ISO plus common interactive first boot,
+the same console setup for QCOW2, direct LAN or cloud-Tailscale access, Git over
+SSH, manual per-workspace Tea/gh login, `mise`-owned toolchains, ordered person
+deletion including Forgejo, build-once release publication, and preservation of
+the canonical Forgejo repository during Soda project removal.
+
+Do not rewrite old observations to look as if they occurred under the new
+contract. Preserve their exact evidence and use the governing documents for
+current behavior.
+
 ## How to write a useful note
 
 For every material bug, capture:
