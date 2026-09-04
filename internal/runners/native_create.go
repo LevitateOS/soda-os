@@ -33,26 +33,33 @@ func (native *Native) Create(ctx context.Context, request CreateRequest) error {
 	if err != nil {
 		return err
 	}
+	return native.registerPrepared(ctx, prepared, request)
+}
+
+func (native *Native) registerPrepared(ctx context.Context, prepared preparedRunner, request CreateRequest) (returnErr error) {
 	retained := false
 	defer func() {
 		if !retained {
-			native.discardPrepared(prepared)
+			returnErr = native.creationFailure(prepared, returnErr)
 		}
 	}()
-	if err = native.configureProvider(ctx, prepared, request); err != nil {
+	if err := native.configureProvider(ctx, prepared, request); err != nil {
 		return err
 	}
-	if err = native.recordRunner(prepared.account, request); err != nil {
-		return err
+	if err := native.recordRunner(prepared.account, request); err != nil {
+		if request.Provider == ProviderGitHub {
+			return fmt.Errorf("GitHub registration completed, but local runner details could not be saved; inspect/remove the GitHub runner record before retrying: %w", err)
+		}
+		return fmt.Errorf("save local runner details: %w", err)
 	}
 	retained = true
-	if _, err = native.run(ctx, "systemctl", "enable", "--now", native.unit(request.ID)); err != nil {
+	if _, err := native.run(ctx, "systemctl", "enable", "--now", native.unit(request.ID)); err != nil {
 		return fmt.Errorf("runner was registered and retained, but its local listener did not start: %w", err)
 	}
 	return nil
 }
 
-func (native *Native) prepareAccount(ctx context.Context, id string) (preparedRunner, error) {
+func (native *Native) prepareAccount(ctx context.Context, id string) (_ preparedRunner, returnErr error) {
 	if err := native.requireAvailable(id); err != nil {
 		return preparedRunner{}, err
 	}
@@ -69,7 +76,7 @@ func (native *Native) prepareAccount(ctx context.Context, id string) (preparedRu
 	retained := false
 	defer func() {
 		if !retained {
-			native.discardPrepared(prepared)
+			returnErr = native.creationFailure(prepared, returnErr)
 		}
 	}()
 	owner, err := lookupIdentity(account)
@@ -99,13 +106,14 @@ func (native *Native) requireAvailable(id string) error {
 	return nil
 }
 
-func (native *Native) discardPrepared(prepared preparedRunner) {
-	if prepared.account != "" {
-		_, _ = native.run(context.Background(), "userdel", prepared.account)
+func (native *Native) creationFailure(prepared preparedRunner, cause error) error {
+	if _, err := native.run(context.Background(), "userdel", prepared.account); err != nil {
+		return errors.Join(cause, fmt.Errorf("remove local runner account %s: %w; account removal is unconfirmed and state remains at %s", prepared.account, err, prepared.state))
 	}
-	if prepared.state != "" {
-		_ = os.RemoveAll(filepath.Dir(prepared.state))
+	if err := os.RemoveAll(filepath.Dir(prepared.state)); err != nil {
+		return errors.Join(cause, fmt.Errorf("local runner account %s was removed, but state at %s was not fully removed: %w", prepared.account, prepared.state, err))
 	}
+	return fmt.Errorf("%w; local runner account %s and state at %s were removed", cause, prepared.account, prepared.state)
 }
 
 func (native *Native) configureProvider(ctx context.Context, prepared preparedRunner, request CreateRequest) error {
@@ -184,10 +192,10 @@ func (native *Native) configureGitHub(ctx context.Context, state string, owner i
 	}
 	command := githubRegistrationCommand(app, state, owner, request)
 	if err = native.runGitHubRegistration(ctx, command, request.RegistrationToken); err != nil {
-		return errors.New("GitHub registration failed; no local runner was retained, but check GitHub for a provider record before retrying")
+		return errors.New("GitHub registration failed; inspect/remove any GitHub runner record before retrying")
 	}
 	if _, err = os.Stat(filepath.Join(app, ".runner")); err != nil {
-		return errors.New("GitHub registration completed without native runner state")
+		return errors.New("GitHub registration completed without native runner state; inspect/remove the GitHub runner record before retrying")
 	}
 	return nil
 }

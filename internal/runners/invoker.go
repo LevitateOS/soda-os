@@ -15,26 +15,43 @@ type PKExecInvoker struct {
 }
 
 func (invoker PKExecInvoker) Create(ctx context.Context, request CreateRequest) error {
-	return invoker.invoke(ctx, "create", request)
+	return invoker.mutate(ctx, "create", request)
 }
 
 func (invoker PKExecInvoker) Start(ctx context.Context, request RunnerRequest) error {
-	return invoker.invoke(ctx, "start", request)
+	return invoker.mutate(ctx, "start", request)
 }
 
 func (invoker PKExecInvoker) Stop(ctx context.Context, request RunnerRequest) error {
-	return invoker.invoke(ctx, "stop", request)
+	return invoker.mutate(ctx, "stop", request)
 }
 
 func (invoker PKExecInvoker) Restart(ctx context.Context, request RunnerRequest) error {
-	return invoker.invoke(ctx, "restart", request)
+	return invoker.mutate(ctx, "restart", request)
 }
 
 func (invoker PKExecInvoker) Remove(ctx context.Context, request RunnerRequest) error {
-	return invoker.invoke(ctx, "remove", request)
+	return invoker.mutate(ctx, "remove", request)
 }
 
-func (invoker PKExecInvoker) invoke(ctx context.Context, action string, request any) error {
+func (invoker PKExecInvoker) List(ctx context.Context) ([]RunnerView, error) {
+	var response []RunnerView
+	err := invoker.invoke(ctx, "list", EmptyRequest{}, &response)
+	return response, err
+}
+
+func (invoker PKExecInvoker) mutate(ctx context.Context, action string, request any) error {
+	var response MutationResponse
+	if err := invoker.invoke(ctx, action, request, &response); err != nil {
+		return err
+	}
+	if !response.OK {
+		return fmt.Errorf("privileged runner %s did not complete", action)
+	}
+	return nil
+}
+
+func (invoker PKExecInvoker) invoke(ctx context.Context, action string, request, response any) error {
 	binary := invoker.Binary
 	if binary == "" {
 		binary = "/usr/bin/pkexec"
@@ -58,14 +75,10 @@ func (invoker PKExecInvoker) invoke(ctx context.Context, action string, request 
 		}
 		return fmt.Errorf("privileged runner %s: %s", action, message)
 	}
-	var response MutationResponse
 	decoder := json.NewDecoder(&stdout)
 	decoder.DisallowUnknownFields()
-	if err = decoder.Decode(&response); err != nil {
+	if err = decoder.Decode(response); err != nil {
 		return fmt.Errorf("decode privileged runner %s result: %w", action, err)
-	}
-	if !response.OK {
-		return fmt.Errorf("privileged runner %s did not complete", action)
 	}
 	return nil
 }

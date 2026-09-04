@@ -44,6 +44,23 @@ and capacity. Use **Start**, **Stop**, or **Restart** for its local service.
 working files, dependencies, and uncommitted job changes. The provider record
 and CI history remain in Forgejo or GitHub; remove the offline record there.
 
+The GitHub client version comes from that runner's installed copy. Existing
+GitHub runners keep their client across OS updates; a new runner uses the
+client bundled with the updated OS. To replace an older client:
+
+1. Let its current job finish and select **Stop**.
+2. Preserve any local working files or dependencies you need, then select
+   **Remove**. This permanently deletes the local runner's files.
+3. Remove the old runner record in GitHub, obtain a fresh registration token,
+   and create the replacement in **Runners**.
+4. Check the reported client version and run a provider-native test job.
+
+If GitHub registration succeeds but saving local runner details fails, the
+error reports the local cleanup outcome. Inspect/remove any remaining GitHub
+runner record before retrying. If local account removal fails, its state is
+retained and the error names its path; resolve that native Linux failure
+before retrying. Soda does not automatically remove the GitHub record.
+
 Forgejo or GitHub owns registration, tokens, labels, workflows, scheduling,
 results, and history. Soda owns only the runner executing on this machine.
 

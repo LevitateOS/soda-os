@@ -19,12 +19,20 @@ type Lifecycle interface {
 
 type Helper struct {
 	Authorizer Authorizer
+	Local      LocalReader
 	Lifecycle  Lifecycle
 }
 
-func (helper Helper) Execute(ctx context.Context, actor linuxhost.PKExecIdentity, action string, input io.Reader) (MutationResponse, error) {
+func (helper Helper) Execute(ctx context.Context, actor linuxhost.PKExecIdentity, action string, input io.Reader) (any, error) {
 	if err := helper.Authorizer.RequireAdministrator(ctx, actor); err != nil {
 		return MutationResponse{}, err
+	}
+	if action == "list" {
+		var request EmptyRequest
+		if err := strictjson.Decode(input, &request); err != nil {
+			return nil, err
+		}
+		return helper.Local.List(ctx)
 	}
 	if action == "create" {
 		return helper.create(ctx, input)
