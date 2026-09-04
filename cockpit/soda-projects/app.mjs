@@ -8,6 +8,7 @@ import {
   humanDeletionHidden,
   payloadFor,
   projectRemovalHidden,
+  sshCommand,
   successMessage,
 } from "./ui.mjs";
 import { initializeSetup } from "./setup.mjs";
@@ -104,18 +105,16 @@ function projectRow(project) {
   const workspace = document.createElement("td");
   const guidance = document.createElement("span");
   guidance.className = "status";
-  guidance.textContent = project.workspace_ready ? "Ready" : "After setup";
+  guidance.textContent = project.workspace_exists ? "Workspace account exists" : "No workspace account";
   const command = document.createElement("code");
   command.className = "ssh-command";
-  command.textContent = state.data.ssh_host
-    ? `ssh ${project.workspace_username}@${state.data.ssh_host}`
-    : project.workspace_username;
+  command.textContent = sshCommand(project.workspace_username, window.location.hostname);
   workspace.append(guidance, command);
 
   const actionsCell = document.createElement("td");
   actionsCell.className = "row-actions";
   actionsCell.append(projectButton("Set up for me", "setup", project.id, "primary"));
-  if (project.workspace_ready) {
+  if (project.workspace_exists) {
     actionsCell.append(projectButton("Remove my workspace", "remove-workspace", project.id, "danger-link"));
   }
   actionsCell.append(projectButton("Edit", "edit", project.id, "secondary"));

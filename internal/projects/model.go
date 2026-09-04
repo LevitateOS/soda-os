@@ -49,17 +49,24 @@ func (entry CatalogEntry) Validate() error {
 }
 
 func validateCatalogRequiredFields(entry CatalogEntry) error {
-	if !projectIDPattern.MatchString(entry.ID) {
-		return errors.New("project id must match [a-z][a-z0-9-]{0,23}")
-	}
-	if entry.DisplayName == "" || !utf8.ValidString(entry.DisplayName) {
-		return errors.New("display name must be non-empty UTF-8")
-	}
-	if strings.IndexFunc(entry.DisplayName, unicode.IsControl) >= 0 {
-		return errors.New("display name must not contain control characters")
+	if err := validateCatalogIdentity(entry.ID, entry.DisplayName); err != nil {
+		return err
 	}
 	if err := ValidateCanonicalURL(entry.CanonicalURL); err != nil {
 		return fmt.Errorf("canonical URL: %w", err)
+	}
+	return nil
+}
+
+func validateCatalogIdentity(id, displayName string) error {
+	if !projectIDPattern.MatchString(id) {
+		return errors.New("project id must match [a-z][a-z0-9-]{0,23}")
+	}
+	if displayName == "" || !utf8.ValidString(displayName) {
+		return errors.New("display name must be non-empty UTF-8")
+	}
+	if strings.IndexFunc(displayName, unicode.IsControl) >= 0 {
+		return errors.New("display name must not contain control characters")
 	}
 	return nil
 }

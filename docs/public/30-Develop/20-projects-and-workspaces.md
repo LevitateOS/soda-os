@@ -25,6 +25,9 @@ To add an existing repository:
 3. Use the credential-free SSH clone URL from the authoritative Git host.
 4. Save the project and confirm it appears in the shared list.
 
+The project ID and canonical URL are fixed when the project is added. Editing a
+project changes its display information or additional metadata, not its URL.
+
 To create a repository in bundled Forgejo or an external Git host:
 
 1. Sign in to the authoritative Git host and create the repository through its
@@ -38,6 +41,12 @@ To create a repository in bundled Forgejo or an external Git host:
 The canonical repository remains owned by its Git host. Repository creation,
 access, and collaboration use that host's native interfaces.
 
+If the canonical URL is wrong or must be replaced, coordinate with an
+administrator. The supported replacement is to remove the project from Soda,
+which permanently deletes every local workspace and its uncommitted data, and
+then add the project again with the replacement SSH URL. The Git host's
+repository is not deleted.
+
 ## Set up your workspace
 
 1. Select a project.
@@ -49,6 +58,11 @@ access, and collaboration use that host's native interfaces.
 5. Record the derived workspace username and connection guidance from the
    successful result.
 
+Projects listing and setup work without Tailscale once Cockpit is reachable on
+an approved network path. The page builds the displayed SSH command from the
+hostname used to open Cockpit, so open it with the LAN hostname or Tailnet name
+that the client should use.
+
 The result is a distinct Linux account with a private home and a complete clone
 under `$HOME/Projects/REPOSITORY`. Its UID, files, dependencies, caches, and
 processes are separate from every other person's workspace.
@@ -58,6 +72,11 @@ Workspace setup copies current public SSH keys once into standard
 the workspace, while its public half is registered manually with the Git host.
 Setup does not copy private keys or Tea, GitHub CLI, coding assistant, or other
 credentials from the primary account.
+
+**Workspace account exists** means that the derived Linux account exists. A
+failed clone may retain that account and its outbound key, so this label does
+not claim that the repository clone is complete. Register the reported key and
+retry **Set up for me**; the existing workspace can also be removed explicitly.
 
 ## Add tools later
 

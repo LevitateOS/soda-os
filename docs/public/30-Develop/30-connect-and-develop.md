@@ -5,7 +5,9 @@ Enter your workspace through ordinary OpenSSH and use native Git-host, tool, edi
 ## Prerequisites
 
 - Create a workspace through Cockpit **Projects**.
-- Record its derived username and the Soda host address.
+- Record its derived username and the Soda host address. Projects uses the
+  hostname from the current Cockpit browser address for its SSH guidance; open
+  Cockpit through the LAN hostname or Tailnet name that this client can reach.
 - Keep the matching private SSH key on your client device.
 - Obtain access to the project's authoritative Git repository.
 

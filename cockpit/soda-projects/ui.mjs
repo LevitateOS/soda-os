@@ -9,12 +9,19 @@ export const formActions = Object.freeze([
 
 const formActionSet = new Set(formActions);
 
+export function sshCommand(username, hostname) {
+  const host = hostname.includes(":") && !hostname.startsWith("[")
+    ? `[${hostname}]`
+    : hostname;
+  return `ssh ${username}@${host}`;
+}
+
 export function payloadFor(action, data, reportInvalid) {
   if (!formActionSet.has(action)) {
     throw new TypeError(`unsupported form action: ${action}`);
   }
   if (action === "add-existing" || action === "edit") {
-    return catalogPayload(data, reportInvalid);
+    return catalogPayload(action, data, reportInvalid);
   }
   if (action === "setup") {
     return { id: data.get("id") };
@@ -36,7 +43,7 @@ export function payloadFor(action, data, reportInvalid) {
   return { username };
 }
 
-function catalogPayload(data, reportInvalid) {
+function catalogPayload(action, data, reportInvalid) {
   const text = String(data.get("additional_metadata") ?? "").trim();
   let metadata = {};
   try {
@@ -55,12 +62,15 @@ function catalogPayload(data, reportInvalid) {
       return null;
     }
   }
-  return {
+  const payload = {
     ...metadata,
     id: data.get("id"),
     display_name: data.get("display_name"),
-    canonical_url: data.get("canonical_url"),
   };
+  if (action === "add-existing") {
+    payload.canonical_url = data.get("canonical_url");
+  }
+  return payload;
 }
 
 export function successMessage(action, payload, result) {

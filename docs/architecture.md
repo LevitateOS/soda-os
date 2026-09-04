@@ -45,6 +45,9 @@ bootstrap.
 
 Managed services are directly reachable on a trusted LAN. Cloud deployments
 use Tailscale and never expose SSH, Cockpit, or Forgejo to the public Internet.
+Projects list and setup operations are independent of Tailscale enrollment.
+The Cockpit page derives SSH guidance from the hostname used to open Cockpit;
+the Projects protocol does not select a LAN or Tailnet host.
 
 ### Accounts, Forgejo, and workspaces
 
@@ -73,7 +76,16 @@ Every primary human can view and edit the shared project catalog. The catalog
 has no approved closed metadata field list and stores no membership,
 credentials, workspace state, processes, ports, containers, or jobs.
 Repositories are created in Forgejo or the external authoritative Git host and
-then added to the catalog with their SSH clone URL; Projects creates none.
+then added to the catalog with their SSH clone URL; Projects creates none. The
+project ID and canonical URL are immutable after addition. Display information
+and additional metadata remain editable. Replacing the URL requires an
+administrator to remove the project and all local workspaces and then re-add
+it; repository-host data remains untouched.
+
+The project view reports `workspace_exists` from the derived Linux account's
+existence. A retained account after failed Git authorization therefore remains
+visible and removable even though its clone is incomplete; setup remains the
+explicit retry that completes the clone.
 
 A person removes only their own workspace. An administrator may remove an
 entire project, permanently deleting the shared entry and all local workspaces,

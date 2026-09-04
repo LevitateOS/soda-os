@@ -83,7 +83,6 @@ func TestSetupOperationLockBlocksProjectAndHumanRemoval(t *testing.T) {
 		Lifecycle:  lifecycle,
 		Platform:   platform,
 		Privileged: privileged,
-		Endpoints:  fakeEndpoints{},
 	}
 
 	setupResult := make(chan error, 1)

@@ -163,11 +163,14 @@ This document records decisions Vince explicitly confirmed during the postmortem
   Projects action.
 - The earlier closed project-record rule that allowed only an immutable ID, display name, and Git address was unapproved fine print and is rejected.
 - A project has the information required to support the approved product experience, including its human-facing identity and Git repository address, but no closed field list has been approved.
+- The rejected closed-field rule does not make the canonical Git address mutable. A project's ID and canonical URL are immutable after addition; edits may change display information and additional metadata. Replacing the URL requires an administrator to remove the project and its local workspaces, then add it again, while the authoritative repository remains intact.
 - Project tool definitions live in mise's normal repository configuration and are not duplicated into Soda's project catalog.
 - Do not add project fields merely because they might be useful. Any additional product-visible project data requires evidence from an approved experience or an explicit decision.
 - Every person can see and edit the shared project list.
 - A person can choose **Set up for me** to create their own workspace for a project.
+- Projects list and setup do not depend on Tailscale identity. The Cockpit page derives SSH guidance from the browser hostname instead of receiving a selected service endpoint from Projects.
 - Each person-project pair has a separate Linux account, home directory, full Git clone, processes, installed dependencies, and private mutable caches. Any tool downloads or caches remain owned by mise or the relevant upstream tool, not by Soda.
+- Project views report whether that derived Linux account exists, including after a failed clone retains the account and outbound key; they do not translate clone completeness into a separate readiness fact.
 - Workspaces use ordinary SSH.
 - When a person's workspace is created, Soda copies that person's current public SSH keys into the workspace's `authorized_keys` file.
 - Only public keys are copied. Soda never copies or handles the person's private SSH key.

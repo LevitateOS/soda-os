@@ -70,11 +70,11 @@ func (helper Helper) catalogAdd(input io.Reader) (MutationResponse, error) {
 }
 
 func (helper Helper) catalogEdit(input io.Reader) (MutationResponse, error) {
-	var request HelperCatalogRequest
+	var request HelperEditRequest
 	if err := DecodeRequest(input, &request); err != nil {
 		return MutationResponse{}, err
 	}
-	if err := helper.Lifecycle.Catalog.Edit(request.CatalogEntry); err != nil {
+	if err := helper.Lifecycle.Catalog.Edit(request); err != nil {
 		return MutationResponse{}, err
 	}
 	return MutationResponse{OK: true}, nil

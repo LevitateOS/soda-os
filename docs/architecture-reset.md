@@ -86,6 +86,11 @@ Soda is cloud-first, not cloud-only.
   are never exposed to the public Internet.
 - Loopback access remains available to the owning local services.
 
+Projects listing and workspace setup do not require a Tailscale identity. Once
+Cockpit is reachable through an approved LAN or Tailnet path, its browser UI
+uses the hostname from that browser location for SSH guidance rather than
+asking the host operation to choose a network identity.
+
 Projects choose their own non-conflicting host ports. A normal development-
 server URL sent to a teammate works over LAN or Tailscale, including hot
 reload. Soda has no Share button, port registry, process tracker, server
@@ -160,14 +165,22 @@ user-visible project information requires an explicit product decision.
 
 A repository is created through bundled Forgejo or the external authoritative
 Git host, then added to Projects with its credential-free SSH clone URL.
-Projects creates no repository. Selecting **Set up for me** prepares one derived
-workspace account and its workspace-private outbound Git key, then attempts the
-clone. If repository authentication is unavailable, Projects reports the public
-key for the person to register through the authoritative Git host and the person
-retries. Successful setup leaves a complete clone under the workspace account's
-`$HOME/Projects`. Projects accepts no Forgejo password, registers no workspace
-key, and retains no credential, partial-workflow state, job, retry record, or
-reconciliation record.
+Projects creates no repository. The project ID and canonical URL are immutable
+after addition. An edit changes display information or additional metadata but
+does not accept a URL; replacing the URL requires an administrator to remove the
+project and all of its local workspaces, then add it again. The authoritative
+repository is not removed.
+
+Selecting **Set up for me** prepares one derived workspace account and its
+workspace-private outbound Git key, then attempts the clone. If repository
+authentication is unavailable, Projects reports the public key for the person
+to register through the authoritative Git host and the person retries. The list
+reports `workspace_exists` from the derived Linux account's existence, including
+while the failed clone remains retryable; it does not translate checkout
+completeness into a second status fact. Successful setup leaves a complete clone
+under the workspace account's `$HOME/Projects`. Projects accepts no Forgejo
+password, registers no workspace key, and retains no credential,
+partial-workflow state, job, retry record, or reconciliation record.
 
 Each person may remove only their own workspace.
 
@@ -326,7 +339,8 @@ The following remain engineering questions, not product decisions:
 2. Exact LAN and cloud firewall/service binding on Fedora 44.
 3. Soda Setup's initial-administrator public-key registration through the exact
    shipped Forgejo version.
-4. Catalog syntax, path, fields required by approved UI, and concurrency.
+4. Catalog syntax, path, additional fields required by approved UI, and
+   concurrency; project identity and canonical-URL immutability are settled.
 5. Workspace naming, classification, staging, and process removal.
 6. Direct `mise` operation on Fedora 44 with enforcing SELinux on both
    architectures, without a Soda wrapper or parallel tool state.
@@ -356,11 +370,14 @@ The reset is complete when both matching-native architectures demonstrate:
    their Forgejo keys natively, workspace keys are registered manually with the
    authoritative Git host, and Git uses SSH.
 6. Every selected person-project pair receives a separate Linux account, home,
-   full clone, dependencies, processes, and mutable state.
+   full clone, dependencies, processes, and mutable state; the interface reports
+   Linux account existence honestly while an incomplete clone remains retryable.
 7. Public keys are copied once; Tea and gh authenticate manually per workspace;
    no private or CLI credential is copied.
-8. Everyone can view and edit the shared project list without a closed field
-   schema or membership model.
+8. Everyone can view and edit display information and additional metadata in
+   the shared project list without a closed field schema or membership model;
+   project identity and canonical URL remain immutable, and URL replacement is
+   the destructive administrator remove-and-re-add path.
 9. A person removes only their own workspace; an administrator removes a whole
    project and every local workspace while preserving the canonical Forgejo
    repository.

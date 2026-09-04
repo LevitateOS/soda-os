@@ -8,27 +8,11 @@ import (
 	"io"
 	"os/exec"
 	"strings"
-
-	"github.com/LevitateOS/soda-os/internal/tailnet"
 )
-
-type EndpointSource interface {
-	Endpoints(context.Context) (forgejoURL, sshHost string, err error)
-}
-
-type TailnetEndpoints struct{}
-
-func (TailnetEndpoints) Endpoints(ctx context.Context) (string, string, error) {
-	identity, err := tailnet.New(tailnet.Options{}).Identity(ctx)
-	if err != nil {
-		return "", "", err
-	}
-	return "http://" + identity + ":30000", identity, nil
-}
 
 type PrivilegedProjects interface {
 	CatalogAdd(context.Context, HelperCatalogRequest) error
-	CatalogEdit(context.Context, HelperCatalogRequest) error
+	CatalogEdit(context.Context, HelperEditRequest) error
 	WorkspacePrepare(context.Context, HelperWorkspaceRequest) (MutationResponse, error)
 	WorkspacePublish(context.Context, HelperWorkspaceRequest) (MutationResponse, error)
 	WorkspaceRemove(context.Context, ProjectRequest) error
@@ -46,7 +30,7 @@ func (invoker PKExecInvoker) CatalogAdd(ctx context.Context, request HelperCatal
 	return err
 }
 
-func (invoker PKExecInvoker) CatalogEdit(ctx context.Context, request HelperCatalogRequest) error {
+func (invoker PKExecInvoker) CatalogEdit(ctx context.Context, request HelperEditRequest) error {
 	_, err := invoker.mutation(ctx, "catalog-edit", request)
 	return err
 }
@@ -125,7 +109,6 @@ type Coordinator struct {
 	Lifecycle  Lifecycle
 	Platform   Platform
 	Privileged PrivilegedProjects
-	Endpoints  EndpointSource
 }
 
 func (coordinator Coordinator) Execute(ctx context.Context, actorUsername, action string, input io.Reader) (any, error) {
@@ -192,14 +175,17 @@ func (coordinator Coordinator) executeEdit(ctx context.Context, primary Account,
 	if err := DecodeRequest(input, &request); err != nil {
 		return nil, err
 	}
-	entry := request.CatalogEntry
-	if err := entry.Validate(); err != nil {
+	if err := request.Validate(); err != nil {
+		return nil, err
+	}
+	current, err := coordinator.Catalog.Get(request.ID)
+	if err != nil {
 		return nil, err
 	}
 	if err := coordinator.Privileged.CatalogEdit(ctx, request); err != nil {
 		return nil, err
 	}
-	return coordinator.projectResult(ctx, primary, entry)
+	return coordinator.projectResult(ctx, primary, request.apply(current))
 }
 
 func (coordinator Coordinator) executeSetup(ctx context.Context, primary Account, input io.Reader) (any, error) {
@@ -245,15 +231,9 @@ func (coordinator Coordinator) list(ctx context.Context, primary Account, uidMin
 		}
 		views = append(views, view)
 	}
-	forgejoURL, sshHost, err := coordinator.Endpoints.Endpoints(ctx)
-	if err != nil {
-		return ListResponse{}, err
-	}
 	return ListResponse{
 		Projects:    views,
 		CurrentUser: CurrentUserView{Username: primary.Username, Administrator: primary.IsAdministrator(uidMin)},
-		ForgejoURL:  forgejoURL,
-		SSHHost:     sshHost,
 	}, nil
 }
 
@@ -266,9 +246,9 @@ func (coordinator Coordinator) projectResult(ctx context.Context, primary Accoun
 }
 
 func (coordinator Coordinator) projectView(ctx context.Context, primary Account, entry CatalogEntry) (ProjectView, error) {
-	username, ready, err := coordinator.Lifecycle.WorkspaceAssociation(ctx, primary, entry.ID)
+	username, exists, err := coordinator.Lifecycle.WorkspaceAssociation(ctx, primary, entry.ID)
 	if err != nil {
 		return ProjectView{}, err
 	}
-	return ProjectView{CatalogEntry: entry, WorkspaceUsername: username, WorkspaceReady: ready}, nil
+	return ProjectView{CatalogEntry: entry, WorkspaceUsername: username, WorkspaceExists: exists}, nil
 }

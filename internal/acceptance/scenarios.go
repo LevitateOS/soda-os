@@ -4,32 +4,12 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"time"
 )
-
-type projectResponse struct {
-	OK                bool          `json:"ok"`
-	WorkspaceUsername string        `json:"workspace_username"`
-	Project           projectRecord `json:"project"`
-}
-
-type projectRecord struct {
-	ID           string         `json:"id"`
-	DisplayName  string         `json:"display_name"`
-	CanonicalURL string         `json:"canonical_url"`
-	Metadata     map[string]any `json:"catalog_metadata"`
-}
-
-type forgejoProject struct {
-	ID       string
-	Name     string
-	Evidence string
-}
 
 type scenarioState struct {
 	remote     Remote
@@ -87,7 +67,36 @@ func (state *runnerState) runQCOW2Checks(ctx context.Context, remote Remote) err
 	if err := remote.Capture(ctx, "qcow2/setup", []byte(qcow2GuestChecks), "/bin/bash", "-s"); err != nil {
 		return err
 	}
+	if err := state.verifyLocalProjectsWithoutTailscale(ctx, remote); err != nil {
+		return err
+	}
 	return remote.Capture(ctx, "qcow2/local-access", []byte(localAccessCheck), "/bin/bash", "-s")
+}
+
+func (state *runnerState) verifyLocalProjectsWithoutTailscale(ctx context.Context, remote Remote) error {
+	projects, err := state.catalogProjects(ctx, remote, "qcow2/projects-list-without-tailscale")
+	if err != nil {
+		return err
+	}
+	if len(projects) != 0 {
+		return errors.New("reusable QCOW2 project catalog is not empty before local-only setup")
+	}
+	if _, err = state.createCatalogedForgejoProject(ctx, remote, state.secret("administrator-password"), forgejoProject{
+		ID: "local-only", Name: "Local-only project", Evidence: "qcow2/local-project-create",
+	}); err != nil {
+		return err
+	}
+	response, err := state.setupWorkspace(ctx, remote, state.secret("administrator-password"), "local-only", "qcow2/local-project-setup")
+	if err != nil {
+		return err
+	}
+	if response.WorkspaceUsername == "" {
+		return errors.New("local-only workspace setup returned no workspace username")
+	}
+	return remote.Capture(ctx, "qcow2/projects-setup-without-tailscale", []byte(`set -euo pipefail
+status=$(/usr/libexec/soda/soda-setup status)
+jq -e '(.tailscale_connected | not)' <<<"$status" >/dev/null
+`), "/bin/bash", "-s")
 }
 
 func (state *runnerState) seedPreservationState(ctx context.Context, scenario *scenarioState) error {
@@ -121,59 +130,6 @@ func (state *runnerState) seedPreservationState(ctx context.Context, scenario *s
 	return state.seedWorkspaceFiles(ctx, scenario)
 }
 
-func (state *runnerState) editCatalogMetadata(ctx context.Context, scenario *scenarioState) error {
-	alice := scenario.remote.As("alice", state.personKeyPath("alice"))
-	projects, err := state.catalogProjects(ctx, alice, "seed/catalog-before-edit")
-	if err != nil {
-		return err
-	}
-	kept, err := catalogProject(projects, "kept")
-	if err != nil {
-		return err
-	}
-	payload := map[string]any{"id": "kept", "display_name": "Kept project", "canonical_url": kept.CanonicalURL, "team": "web", "future": map[string]any{"shape": true}}
-	if _, err = state.projectCall(ctx, alice, "edit", payload, "seed/catalog-edit"); err != nil {
-		return err
-	}
-	bob := scenario.remote.As("bob", state.personKeyPath("bob"))
-	projects, err = state.catalogProjects(ctx, bob, "seed/catalog-metadata")
-	if err != nil {
-		return err
-	}
-	kept, err = catalogProject(projects, "kept")
-	if err != nil {
-		return err
-	}
-	future, ok := kept.Metadata["future"].(map[string]any)
-	if !ok || future["shape"] != true {
-		return errors.New("arbitrary catalog metadata did not round-trip")
-	}
-	return nil
-}
-
-func (state *runnerState) catalogProjects(ctx context.Context, remote Remote, evidence string) ([]projectRecord, error) {
-	output, err := remote.Exchange(ctx, evidence, []byte("{}\n"), "/usr/libexec/soda/soda-projects", "list")
-	if err != nil {
-		return nil, err
-	}
-	var response struct {
-		Projects []projectRecord `json:"projects"`
-	}
-	if err = json.Unmarshal(output, &response); err != nil {
-		return nil, err
-	}
-	return response.Projects, nil
-}
-
-func catalogProject(projects []projectRecord, id string) (projectRecord, error) {
-	for _, project := range projects {
-		if project.ID == id {
-			return project, nil
-		}
-	}
-	return projectRecord{}, fmt.Errorf("catalog does not contain project %s", id)
-}
-
 func (state *runnerState) seedWorkspaceFiles(ctx context.Context, scenario *scenarioState) error {
 	for label, workspace := range map[string]string{"admin": scenario.adminSpace, "alice": scenario.aliceSpace, "bob": scenario.bobSpace} {
 		remote := scenario.remote.As(workspace, state.personKeyForLabel(label))
@@ -183,87 +139,6 @@ func (state *runnerState) seedWorkspaceFiles(ctx context.Context, scenario *scen
 		}
 	}
 	return scenario.remote.Sudo(ctx, scenario.password, workspaceCheckScript(state.options.Administrator.Username, "kept", scenario.adminSpace), "seed/workspace-boundary")
-}
-
-func (state *runnerState) createCatalogedForgejoProject(ctx context.Context, remote Remote, password []byte, project forgejoProject) (projectResponse, error) {
-	canonicalURL, err := state.createNativeForgejoRepository(ctx, remote, password, project.ID, project.Evidence+"-forgejo")
-	if err != nil {
-		return projectResponse{}, err
-	}
-	payload := map[string]any{"id": project.ID, "display_name": project.Name, "canonical_url": canonicalURL}
-	return state.projectCall(ctx, remote, "add-existing", payload, project.Evidence+"-catalog")
-}
-
-func (state *runnerState) createNativeForgejoRepository(ctx context.Context, remote Remote, password []byte, id, evidence string) (string, error) {
-	endpoint, err := forgejoEndpoint(ctx, remote)
-	if err != nil {
-		return "", err
-	}
-	config := fmt.Sprintf("user = %s\nsilent\nshow-error\nfail-with-body\nurl = %s\n", curlConfigQuote(remote.Username+":"+string(bytes.TrimSpace(password))), curlConfigQuote(endpoint+"/api/v1/user/repos"))
-	payload, err := json.Marshal(map[string]any{"name": id, "auto_init": false})
-	if err != nil {
-		return "", err
-	}
-	output, err := remote.Exchange(ctx, evidence, []byte(config), "curl", "--config", "-", "--json", string(payload))
-	if err != nil {
-		return "", err
-	}
-	var repository struct {
-		SSHURL string `json:"ssh_url"`
-	}
-	if err = json.Unmarshal(output, &repository); err != nil {
-		return "", fmt.Errorf("decode native Forgejo repository: %w", err)
-	}
-	if repository.SSHURL == "" {
-		return "", errors.New("native Forgejo repository response has no SSH clone URL")
-	}
-	return repository.SSHURL, nil
-}
-
-func (state *runnerState) projectCall(ctx context.Context, remote Remote, action string, payload any, evidence string) (projectResponse, error) {
-	contents, err := json.Marshal(payload)
-	if err != nil {
-		return projectResponse{}, err
-	}
-	contents = append(contents, '\n')
-	output, err := remote.Exchange(ctx, evidence, contents, "/usr/libexec/soda/soda-projects", action)
-	if err != nil {
-		return projectResponse{}, err
-	}
-	var response projectResponse
-	if err = json.Unmarshal(output, &response); err != nil {
-		return projectResponse{}, fmt.Errorf("decode %s response: %w", action, err)
-	}
-	if !response.OK {
-		return projectResponse{}, fmt.Errorf("%s did not report success", action)
-	}
-	return response, nil
-}
-
-func (state *runnerState) setupWorkspace(ctx context.Context, remote Remote, password []byte, projectID, evidence string) (projectResponse, error) {
-	payload := map[string]any{"id": projectID}
-	if _, err := state.projectCall(ctx, remote, "setup", payload, evidence+"-key-required"); err == nil {
-		return projectResponse{}, errors.New("workspace setup completed before its outbound Git key was registered")
-	}
-	diagnosticPath, err := remote.Evidence.path(evidence + "-key-required.stderr")
-	if err != nil {
-		return projectResponse{}, err
-	}
-	diagnostic, err := os.ReadFile(diagnosticPath)
-	if err != nil {
-		return projectResponse{}, fmt.Errorf("read retained workspace-key diagnostic: %w", err)
-	}
-	if !bytes.Contains(diagnostic, []byte("retained")) || !bytes.Contains(diagnostic, []byte("retry")) {
-		return projectResponse{}, errors.New("workspace setup failure did not report retained state and retry guidance")
-	}
-	publicKey, err := workspacePublicKeyFromDiagnostic(diagnostic)
-	if err != nil {
-		return projectResponse{}, err
-	}
-	if err = state.registerForgejoKey(ctx, remote, password, publicKey, evidence+"-register-key"); err != nil {
-		return projectResponse{}, err
-	}
-	return state.projectCall(ctx, remote, "setup", payload, evidence+"-retry")
 }
 
 func (state *runnerState) addNativePerson(ctx context.Context, remote Remote, username string, password []byte, evidence string) error {

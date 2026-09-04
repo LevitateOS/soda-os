@@ -42,14 +42,40 @@ func TestHelperPublishesArbitraryCatalogMetadata(t *testing.T) {
 	require.JSONEq(t, `["public"]`, string(entry.Additional["labels"]))
 
 	response, err = helper.Execute(context.Background(), identity, "catalog-edit", strings.NewReader(
-		`{"id":"site","display_name":"Renamed","canonical_url":"git@git.example.test:site.git"}`,
+		`{"id":"site","display_name":"Renamed","owner":"new-owner","labels":["internal"]}`,
 	))
 	require.NoError(t, err)
 	require.True(t, response.OK)
 	entry, err = helper.Lifecycle.Catalog.Get("site")
 	require.NoError(t, err)
 	require.Equal(t, "Renamed", entry.DisplayName)
-	require.Empty(t, entry.Additional)
+	require.Equal(t, "git@git.example.test:site.git", entry.CanonicalURL)
+	require.JSONEq(t, `"new-owner"`, string(entry.Additional["owner"]))
+	require.JSONEq(t, `["internal"]`, string(entry.Additional["labels"]))
+}
+
+func TestHelperEditRejectsEveryCanonicalURLBeforeCatalogMutation(t *testing.T) {
+	for name, canonicalURL := range map[string]string{
+		"unchanged": "git@git.example.test:site.git",
+		"changed":   "git@git.example.test:other.git",
+	} {
+		t.Run(name, func(t *testing.T) {
+			helper, platform := testHelper(t)
+			identity := PKExecIdentity{Username: "alice", UID: platform.accounts["alice"].UID}
+			require.NoError(t, helper.Lifecycle.Catalog.Add(CatalogEntry{
+				ID: "site", DisplayName: "Site", CanonicalURL: "git@git.example.test:site.git",
+			}))
+			input := `{"id":"site","display_name":"Renamed","canonical_url":"` + canonicalURL + `"}`
+
+			_, err := helper.Execute(context.Background(), identity, "catalog-edit", strings.NewReader(input))
+
+			require.ErrorContains(t, err, `must not include "canonical_url"`)
+			entry, getErr := helper.Lifecycle.Catalog.Get("site")
+			require.NoError(t, getErr)
+			require.Equal(t, "Site", entry.DisplayName)
+			require.Equal(t, "git@git.example.test:site.git", entry.CanonicalURL)
+		})
+	}
 }
 
 func TestHelperRejectsWorkspaceAndSystemCallers(t *testing.T) {

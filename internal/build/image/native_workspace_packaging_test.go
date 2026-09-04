@@ -183,10 +183,11 @@ func TestNativeWorkspaceRPMOwnsTheStockCockpitProjectsSurface(t *testing.T) {
 	dependencies := specRequires(text)
 	for _, name := range []string{
 		"cockpit-system", "cockpit-ws", "coreutils", "git-core", "glibc-common", "openssh-clients", "policycoreutils", "polkit",
-		"procps-ng", "shadow-utils", "soda-forgejo", "systemd", "tailscale", "util-linux",
+		"procps-ng", "shadow-utils", "soda-forgejo", "systemd", "util-linux",
 	} {
 		require.Contains(t, dependencies, name)
 	}
+	require.NotContains(t, dependencies, "tailscale")
 	require.NotContains(t, dependencies, "soda-runtime")
 	require.NotContains(t, dependencies, "soda-tea")
 	require.NotContains(t, dependencies, "mise")

@@ -38,17 +38,23 @@ workspace's standard `authorized_keys` and creates a workspace-private outbound
 Git key. When repository authentication is unavailable, Projects reports that
 public key for the person to register through the authoritative Git host before
 retrying. Projects accepts no Forgejo password and registers no workspace key.
-It never copies private keys, Tea configuration, gh configuration, or tokens.
-Tea and GitHub CLI are available in every workspace, and each is authenticated
-manually there.
+It reports that the workspace account exists as soon as the derived Linux
+account exists, including while a failed clone remains retryable; account
+existence is not a claim that setup completed. It never copies private keys,
+Tea configuration, gh configuration, or tokens. Tea and GitHub CLI are
+available in every workspace, and each is authenticated manually there.
 
 Stock Cockpit provides host administration and one focused Soda Projects page.
 Repositories are created through Forgejo or the external authoritative Git host
 and added to the shared project list with their SSH clone URL. Everyone can view
-and edit that list and create or remove their own workspace. Only an
-administrator removes an entire project. That operation permanently deletes the
-shared Soda entry and every local workspace, including uncommitted work, while
-leaving the canonical repository intact.
+and edit display information and additional metadata in that list and create or
+remove their own workspace. The project ID and canonical SSH clone URL are
+immutable after addition. Replacing the URL requires an administrator to remove
+the project and its local workspaces, then add it again; the authoritative
+repository itself remains intact. Only an administrator removes an entire
+project. Projects listing and workspace setup do not depend on Tailscale
+enrollment. The browser builds SSH guidance from the host used to open Cockpit
+instead of asking Projects to choose a LAN or Tailnet identity.
 
 Removing a person deletes their workspaces first, their Forgejo account second,
 and their primary Linux account last. A failure stops immediately and reports
