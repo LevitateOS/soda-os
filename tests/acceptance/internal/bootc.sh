@@ -48,10 +48,10 @@ Additional launch install environment:
   SODA_ACCEPTANCE_ISO              Exact-digest Soda installer ISO
   SODA_ACCEPTANCE_KICKSTART_ISO    Protected generated OEMDRV installer input
 
-Additional workspace/toolset environment:
+Additional workspace/mise environment:
   SODA_ACCEPTANCE_WORKSPACE_TARGET Derived Linux workspace username
   SODA_ACCEPTANCE_WORKSPACE_KEY    Primary user's standard SSH private key
-  SODA_ACCEPTANCE_REQUIRE_WORKSPACE_TOOLSET
+  SODA_ACCEPTANCE_REQUIRE_WORKSPACE_MISE
                                     Set to 1 for a milestone capture that must
                                     exercise the derived workspace account
 
@@ -556,187 +556,15 @@ valid_name() {
 	esac
 }
 
-emit_toolset_smoke() {
-	cat <<'SODA_TOOLSET_SMOKE'
+emit_mise_smoke() {
+	cat <<'SODA_MISE_SMOKE'
 set -eu
 
-toolset=/usr/share/soda/toolset-commands.txt
-test -r "$toolset"
-work=$(mktemp -d "${TMPDIR:-/tmp}/soda-toolset.XXXXXX")
-trap 'rm -rf "$work"' 0 1 2 15
-
-cat >"$work/expected-toolset.txt" <<'SODA_EXPECTED_TOOLSET'
-go
-gofmt
-python3
-uv
-uvx
-rustc
-cargo
-rustfmt
-cargo-clippy
-node
-npm
-npx
-bun
-gcc
-g++
-cpp
-as
-ld
-ar
-make
-cmake
-ninja
-pkg-config
-git
-git-lfs
-gh
-tea
-ssh
-scp
-sftp
-rsync
-podman
-buildah
-skopeo
-sqlite3
-jq
-yq
-curl
-wget
-openssl
-patch
-rg
-fd
-fzf
-shellcheck
-just
-tar
-gzip
-bzip2
-xz
-zstd
-zip
-unzip
-vim
-nano
-SODA_EXPECTED_TOOLSET
-
-echo "[identity]"
-id
-echo "[command-resolution]"
-cmp "$work/expected-toolset.txt" "$toolset"
-while IFS= read -r tool; do
-	test -n "$tool"
-	command -v "$tool"
-done <"$toolset"
-
-echo "[language-smoke]"
-cat >"$work/main.go" <<'SODA_GO_SOURCE'
-package main
-
-import "fmt"
-
-func main() {
-	fmt.Println("go-ok")
-}
-SODA_GO_SOURCE
-(
-	cd "$work"
-	GOTOOLCHAIN=local GO111MODULE=off GOCACHE="$work/go-cache" \
-		GOPATH="$work/go-path" GOMODCACHE="$work/go-mod-cache" \
-		go run main.go
-)
-python3 -c 'print("python-ok")'
-cat >"$work/main.rs" <<'SODA_RUST_SOURCE'
-fn main() {
-    println!("rust-ok");
-}
-SODA_RUST_SOURCE
-rustc "$work/main.rs" -o "$work/rust-smoke"
-"$work/rust-smoke"
-node -e 'console.log("node-ok")'
-bun -e 'console.log("bun-ok")'
-cat >"$work/main.c" <<'SODA_C_SOURCE'
-#include <stdio.h>
-
-int main(void) {
-    puts("c-ok");
-    return 0;
-}
-SODA_C_SOURCE
-gcc "$work/main.c" -o "$work/c-smoke"
-"$work/c-smoke"
-cat >"$work/main.cpp" <<'SODA_CPP_SOURCE'
-#include <iostream>
-
-int main() {
-    std::cout << "c++-ok" << std::endl;
-    return 0;
-}
-SODA_CPP_SOURCE
-g++ "$work/main.cpp" -o "$work/cpp-smoke"
-"$work/cpp-smoke"
-
-echo "[representative-tools]"
-go version
-python3 --version
-rustc --version
-node --version
-bun --version
-gcc --version | sed -n '1p'
-g++ --version | sed -n '1p'
-git --version
-git-lfs version
-gh --version | sed -n '1p'
-tea --version | sed -n '1p'
-tea --help >/dev/null
-ssh -V 2>&1
-cmake --version | sed -n '1p'
-ninja --version
-make --version | sed -n '1p'
-pkg-config --version
-curl --version | sed -n '1p'
-wget --version | sed -n '1p'
-openssl version
-yq --version
-rg --version | sed -n '1p'
-fd --version
-fzf --version
-shellcheck --version | sed -n '1,2p'
-just --version
-vim --version | sed -n '1p'
-nano --version | sed -n '1p'
-
-echo "[archive-and-data-smoke]"
-(
-	cd "$work"
-	printf 'tar-ok\n' >tar-source.txt
-	tar -czf archive.tar.gz tar-source.txt
-	rm tar-source.txt
-	tar -xzf archive.tar.gz
-	grep -Fx tar-ok tar-source.txt
-	printf 'zip-ok\n' >zip-source.txt
-	zip -q archive.zip zip-source.txt
-	rm zip-source.txt
-	unzip -q archive.zip
-	grep -Fx zip-ok zip-source.txt
-)
-sqlite3 "$work/smoke.db" "CREATE TABLE smoke(value TEXT); INSERT INTO smoke VALUES ('sqlite-ok');"
-test "$(sqlite3 "$work/smoke.db" 'SELECT value FROM smoke;')" = sqlite-ok
-printf '{"status":"jq-ok"}\n' | jq -e '.status == "jq-ok"'
-printf 'needle\n' >"$work/search.txt"
-rg -x needle "$work/search.txt"
-fd -t f '^search[.]txt$' "$work"
-
-echo "[rootless-podman]"
-podman info --format json >"$work/podman-info.json"
-jq -e '.host.security.rootless == true' "$work/podman-info.json"
-podman unshare /bin/sh -c 'test "$(id -u)" -eq 0'
-
-echo "toolset-smoke=ok"
-SODA_TOOLSET_SMOKE
+mise --version
+test ! -e /usr/share/soda/toolset-commands.txt
+! rpm -q soda-bun
+echo "mise-smoke=ok"
+SODA_MISE_SMOKE
 }
 
 emit_installer_provisioning_absence() {
@@ -855,16 +683,16 @@ capture() {
 		sha256:????????????????????????????????????????????????????????????????) ;;
 		*) die "SODA_ACCEPTANCE_IMAGE_DIGEST must be an exact sha256 digest" ;;
 	esac
-	require_workspace_toolset=${SODA_ACCEPTANCE_REQUIRE_WORKSPACE_TOOLSET:-0}
-	case "$require_workspace_toolset" in
+	require_workspace_mise=${SODA_ACCEPTANCE_REQUIRE_WORKSPACE_MISE:-0}
+	case "$require_workspace_mise" in
 	0|1) ;;
-	*) die "SODA_ACCEPTANCE_REQUIRE_WORKSPACE_TOOLSET must be 0 or 1" ;;
+	*) die "SODA_ACCEPTANCE_REQUIRE_WORKSPACE_MISE must be 0 or 1" ;;
 	esac
-	verify_workspace_toolset=0
-	if [ "$require_workspace_toolset" = 1 ] || [ -n "${SODA_ACCEPTANCE_WORKSPACE_TARGET:-}" ] || [ -n "${SODA_ACCEPTANCE_WORKSPACE_KEY:-}" ]; then
-		[ -n "${SODA_ACCEPTANCE_WORKSPACE_TARGET:-}" ] || die "SODA_ACCEPTANCE_WORKSPACE_TARGET is required when verifying workspace tools"
-		[ -n "${SODA_ACCEPTANCE_WORKSPACE_KEY:-}" ] || die "SODA_ACCEPTANCE_WORKSPACE_KEY is required when verifying workspace tools"
-		verify_workspace_toolset=1
+	verify_workspace_mise=0
+	if [ "$require_workspace_mise" = 1 ] || [ -n "${SODA_ACCEPTANCE_WORKSPACE_TARGET:-}" ] || [ -n "${SODA_ACCEPTANCE_WORKSPACE_KEY:-}" ]; then
+		[ -n "${SODA_ACCEPTANCE_WORKSPACE_TARGET:-}" ] || die "SODA_ACCEPTANCE_WORKSPACE_TARGET is required when verifying workspace mise"
+		[ -n "${SODA_ACCEPTANCE_WORKSPACE_KEY:-}" ] || die "SODA_ACCEPTANCE_WORKSPACE_KEY is required when verifying workspace mise"
+		verify_workspace_mise=1
 	fi
 	privileged_tmp=$acceptance_dir/."$name-privileged.$$.json"
 	trap 'rm -f "$privileged_tmp"' 0 1 2 15
@@ -927,7 +755,7 @@ capture() {
 		test -s /usr/share/cockpit/branding/sodaos/branding.css
 		echo "/usr/share/cockpit/branding/sodaos/branding.css=present"
 		echo "[native-git-host]"
-		rpm -q soda-release soda-runtime soda-projects soda-forgejo soda-bun soda-tea
+		rpm -q soda-release soda-runtime soda-projects soda-forgejo soda-tea mise
 		expected_tea_files="/usr/bin/tea
 /usr/share/licenses/soda-tea/LICENSE"
 		test "$(rpm -ql soda-tea)" = "$expected_tea_files"
@@ -1044,13 +872,13 @@ capture() {
 		systemctl show getty@tty1.service autovt@tty1.service -p Id -p Names -p MainPID -p NRestarts
 		sysctl kernel.printk
 	' >"$checkpoint/guest.txt" 2>"$checkpoint/guest.stderr"
-	emit_toolset_smoke | admin_ssh /bin/sh -s \
-		>"$checkpoint/primary-toolset.txt" 2>"$checkpoint/primary-toolset.stderr"
+	emit_mise_smoke | admin_ssh /bin/sh -s \
+		>"$checkpoint/primary-mise.txt" 2>"$checkpoint/primary-mise.stderr"
 	emit_home_context_check | admin_ssh /bin/sh -s \
 		>"$checkpoint/primary-home-contexts.txt" 2>"$checkpoint/primary-home-contexts.stderr"
-	if [ "$verify_workspace_toolset" = 1 ]; then
-		emit_toolset_smoke | workspace_ssh /bin/sh -s \
-			>"$checkpoint/workspace-toolset.txt" 2>"$checkpoint/workspace-toolset.stderr"
+	if [ "$verify_workspace_mise" = 1 ]; then
+		emit_mise_smoke | workspace_ssh /bin/sh -s \
+			>"$checkpoint/workspace-mise.txt" 2>"$checkpoint/workspace-mise.stderr"
 		emit_home_context_check | workspace_ssh /bin/sh -s \
 			>"$checkpoint/workspace-home-contexts.txt" 2>"$checkpoint/workspace-home-contexts.stderr"
 	fi

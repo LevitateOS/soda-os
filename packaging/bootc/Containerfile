@@ -21,8 +21,8 @@ COPY --from=rpm-inputs /soda-release-*.rpm /var/tmp/soda-rpms/
 COPY --from=rpm-inputs /soda-runtime-*.rpm /var/tmp/soda-rpms/
 COPY --from=rpm-inputs /soda-projects-*.rpm /var/tmp/soda-rpms/
 COPY --from=rpm-inputs /soda-forgejo-*.rpm /var/tmp/soda-rpms/
-COPY --from=rpm-inputs /soda-bun-*.rpm /var/tmp/soda-rpms/
 COPY --from=rpm-inputs /soda-tea-*.rpm /var/tmp/soda-rpms/
+COPY --from=rpm-inputs /mise-*.rpm /var/tmp/soda-rpms/
 COPY --from=lock-inputs /fedora-packages.txt /var/tmp/soda-lock/fedora-packages.txt
 COPY --from=lock-inputs /expected-packages.txt /var/tmp/soda-lock/expected-packages.txt
 
@@ -75,8 +75,7 @@ RUN dnf -y --setopt=install_weak_deps=False --enablerepo=updates-testing install
     && test "$(rpm -q --qf '%{NAME}-%{EPOCHNUM}:%{VERSION}-%{RELEASE}.%{ARCH}' bootc)" = "${BOOTC_NEVRA}" \
     && bootc switch --help | grep -F -- '--download-only' \
     && bootc switch --help | grep -F -- '--from-downloaded' \
-    && test -r /usr/share/soda/toolset-commands.txt \
-    && while IFS= read -r command; do command -v "$command" >/dev/null; done < /usr/share/soda/toolset-commands.txt \
+    && mise --version \
     && install -d -m 0755 /usr/share/soda \
     && rpm -qa --qf '%{NAME}-%{EPOCHNUM}:%{VERSION}-%{RELEASE}.%{ARCH}\n' | LC_ALL=C sort > /usr/share/soda/rpm-inventory.txt \
     && while IFS= read -r package; do grep -Fqx "$package" /usr/share/soda/rpm-inventory.txt; done < /var/tmp/soda-lock/expected-packages.txt \

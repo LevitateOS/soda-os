@@ -1,0 +1,13 @@
+version = "2026.9.1"
+
+[asset.aarch64]
+nevra = "mise-0:2026.9.1-1.fc44.aarch64"
+file = "mise-2026.9.1-1.fc44.aarch64.rpm"
+url = "https://download.copr.fedorainfracloud.org/results/jdxcode/mise/fedora-44-aarch64/10939747-mise/mise-2026.9.1-1.fc44.aarch64.rpm"
+sha256 = "e6b22b909ad98fc125d3b840bc2424066db223dcbea5b29049a2fd756ccc7974"
+
+[asset.x86_64]
+nevra = "mise-0:2026.9.1-1.fc44.x86_64"
+file = "mise-2026.9.1-1.fc44.x86_64.rpm"
+url = "https://download.copr.fedorainfracloud.org/results/jdxcode/mise/fedora-44-x86_64/10939747-mise/mise-2026.9.1-1.fc44.x86_64.rpm"
+sha256 = "b582905a0d2673127b3771d22304ce7da8148336b96fb8e10b7aca20dbaacadf"

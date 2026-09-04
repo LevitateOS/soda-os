@@ -410,7 +410,7 @@ PY
 		cloud_workspace=$(sh "$helper" project-workspace kept)
 		export SODA_ACCEPTANCE_WORKSPACE_TARGET=$cloud_workspace
 		export SODA_ACCEPTANCE_WORKSPACE_KEY=$admin_key
-		export SODA_ACCEPTANCE_REQUIRE_WORKSPACE_TOOLSET=1
+		export SODA_ACCEPTANCE_REQUIRE_WORKSPACE_MISE=1
 		if [ "$product_smoke" = true ]; then
 			sh "$helper" scenario product
 		fi
@@ -585,7 +585,7 @@ PY
 	workspace_target=$(sh "$helper" project-workspace kept)
 	export SODA_ACCEPTANCE_WORKSPACE_TARGET=$workspace_target
 	export SODA_ACCEPTANCE_WORKSPACE_KEY=$admin_key
-	export SODA_ACCEPTANCE_REQUIRE_WORKSPACE_TOOLSET=1
+	export SODA_ACCEPTANCE_REQUIRE_WORKSPACE_MISE=1
 	sh "$helper" scenario product
 	sh "$helper" capture final
 	sh "$helper" stop
