@@ -33,7 +33,7 @@ func NewSystemHelper(host *linuxhost.Native) Helper {
 		workspaces:     workspace.NewAccounts(host, host, host, host),
 		repository:     workspace.NewRepository(host, host),
 		remover:        workspace.NewRemover(host, host),
-		people:         people.Deletion{Host: host, Forgejo: people.Forgejo{Runner: host}},
+		people:         people.Deletion{Host: host},
 		operationLocks: NewSystemOperationLocker(),
 	}
 }

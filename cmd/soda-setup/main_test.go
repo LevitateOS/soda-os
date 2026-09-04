@@ -16,15 +16,6 @@ type commandAccounts struct{ administrators []setup.Administrator }
 func (accounts commandAccounts) Administrators(context.Context) ([]setup.Administrator, error) {
 	return accounts.administrators, nil
 }
-func (commandAccounts) Prepare(context.Context, setup.AdministratorRequest) error { return nil }
-func (commandAccounts) Promote(context.Context, string) error                     { return nil }
-
-type commandForgejo struct{}
-
-func (commandForgejo) Ready(context.Context, string) bool { return true }
-func (commandForgejo) PrepareAdministrator(context.Context, setup.AdministratorRequest) error {
-	return nil
-}
 
 type commandNetwork struct {
 	connections []setup.Connection
@@ -50,25 +41,13 @@ func (network *commandNetwork) ConnectTailscale(_ context.Context, key string) e
 	return nil
 }
 
-type commandCompletion struct{ dismissed bool }
-
-func (completion *commandCompletion) Dismissed() (bool, error) { return completion.dismissed, nil }
-func (completion *commandCompletion) Mark() error {
-	completion.dismissed = true
-	return nil
-}
-
-func commandService() (setup.Service, *commandNetwork, *commandCompletion) {
+func commandService() (setup.Service, *commandNetwork) {
 	network := &commandNetwork{connections: []setup.Connection{{Name: "wired"}}}
-	completion := &commandCompletion{}
-	return setup.Service{
-		Accounts: commandAccounts{administrators: []setup.Administrator{{Username: "ada", PasswordSet: true, SSHPublicKey: true}}},
-		Forgejo:  commandForgejo{}, Network: network, Completion: completion,
-	}, network, completion
+	return setup.Service{Accounts: commandAccounts{administrators: []setup.Administrator{{Username: "ada"}}}, Network: network}, network
 }
 
 func TestConnectTailscaleReadsSecretFromStdinOnly(t *testing.T) {
-	service, network, _ := commandService()
+	service, network := commandService()
 	var output bytes.Buffer
 	const key = "tskey-auth-one-use-secret"
 	if err := execute(context.Background(), service, []string{"connect-tailscale"}, strings.NewReader(`{"auth_key":"`+key+`"}`), &output); err != nil {
@@ -86,25 +65,38 @@ func TestConnectTailscaleReadsSecretFromStdinOnly(t *testing.T) {
 	}
 }
 
-func TestPendingChangesOnlyAfterMachineWideDismissal(t *testing.T) {
-	service, network, completion := commandService()
-	network.tailscale = true
+func TestPendingTracksNativeProvisioningWithoutDismissal(t *testing.T) {
+	service, network := commandService()
 	if err := execute(context.Background(), service, []string{"pending"}, nil, &bytes.Buffer{}); err != nil {
 		t.Fatal(err)
 	}
-	if err := execute(context.Background(), service, []string{"dismiss"}, nil, &bytes.Buffer{}); err != nil {
+	network.tailscale = true
+	if err := execute(context.Background(), service, []string{"pending"}, nil, &bytes.Buffer{}); !errors.Is(err, errReady) {
 		t.Fatal(err)
 	}
-	if !completion.dismissed {
-		t.Fatal("dismissal was not recorded")
-	}
-	if err := execute(context.Background(), service, []string{"pending"}, nil, &bytes.Buffer{}); !errors.Is(err, errDismissed) {
-		t.Fatalf("pending after dismissal = %v", err)
+}
+
+func TestConsoleReopensAndReturnsToShellOnQuitOrEOF(t *testing.T) {
+	for _, input := range []string{"q\n", ""} {
+		service, network := commandService()
+		network.tailscale = true
+		var output bytes.Buffer
+		if err := execute(context.Background(), service, []string{"console"}, strings.NewReader(input), &output); err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(output.String(), "Existing Linux administrator: ada") {
+			t.Fatal(output.String())
+		}
+		for _, forbidden := range []string{"Password:", "SSH public key:", "Create", "Forgejo"} {
+			if strings.Contains(output.String(), forbidden) {
+				t.Fatal(output.String())
+			}
+		}
 	}
 }
 
 func TestMutationErrorsRemainStructured(t *testing.T) {
-	service, _, _ := commandService()
+	service, _ := commandService()
 	var output bytes.Buffer
 	err := execute(context.Background(), service, []string{"allow-local-network"}, strings.NewReader(`{"connection":"missing"}`), &output)
 	if err != nil {
@@ -114,7 +106,7 @@ func TestMutationErrorsRemainStructured(t *testing.T) {
 	if err = json.Unmarshal(output.Bytes(), &response); err != nil {
 		t.Fatal(err)
 	}
-	if response.Error != "unknown connection" || response.Status.Dismissed {
+	if response.Error != "unknown connection" || response.Status.Ready {
 		t.Fatalf("response = %+v", response)
 	}
 }
@@ -124,7 +116,7 @@ func TestRequestDecoderRejectsUnknownAndTrailingInput(t *testing.T) {
 		`{"connection":"wired","automatic":true}`,
 		`{"connection":"wired"} {}`,
 	} {
-		service, _, _ := commandService()
+		service, _ := commandService()
 		if err := execute(context.Background(), service, []string{"allow-local-network"}, strings.NewReader(input), &bytes.Buffer{}); err == nil {
 			t.Fatalf("accepted request %s", input)
 		}

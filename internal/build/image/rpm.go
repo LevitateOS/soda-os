@@ -227,7 +227,6 @@ func (b *Builder) stageProductRPMSources(build, sources string) error {
 		{filepath.Join(build, "soda-tailnet"), filepath.Join(sources, "soda-tailnet")},
 		{filepath.Join(build, "forgejo"), filepath.Join(sources, "forgejo")},
 		{b.path("packaging/rpm/runtime/sources/systemd/90-soda.preset"), filepath.Join(sources, "90-soda.preset")},
-		{b.path("packaging/rpm/runtime/sources/systemd/soda-setup.service"), filepath.Join(sources, "soda-setup.service")},
 		{b.path("packaging/rpm/runtime/sources/tmpfiles/soda-runtime.conf"), filepath.Join(sources, "soda-runtime.tmpfiles")},
 		{b.path("packaging/rpm/runtime/sources/soda-local-access"), filepath.Join(sources, "soda-local-access")},
 		{b.path("packaging/rpm/runtime/sources/firewalld/zones/soda-tailnet.xml"), filepath.Join(sources, "soda-tailnet.xml")},

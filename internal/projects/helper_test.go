@@ -53,7 +53,7 @@ func newHelperFixture(t *testing.T) helperFixture {
 			authorizer:     NewAuthorizer(host),
 			workspaces:     workspace.NewAccounts(host, host, host, host),
 			remover:        workspace.NewRemover(host, host),
-			people:         people.Deletion{Host: host, Forgejo: rootTestForgejo{events: &host.events}},
+			people:         people.Deletion{Host: host},
 			operationLocks: rootTestOperationLocker(t),
 		},
 		store: store, host: host,
@@ -245,7 +245,7 @@ func TestHelperHumanDeletionUsesNoCatalogLock(t *testing.T) {
 	}()
 	require.NoError(t, requireResult(t, result), "human deletion must not wait for the catalog lock")
 	require.NoError(t, locked.Close())
-	require.Equal(t, []string{"linux:" + workspaceAccount.Username, "forgejo:target", "linux:target"}, deletionEvents(fixture.host.events))
+	require.Equal(t, []string{"linux:" + workspaceAccount.Username, "linux:target"}, deletionEvents(fixture.host.events))
 }
 
 func deletionEvents(events []string) []string {

@@ -17,13 +17,8 @@ type DeletionHost interface {
 	workspace.DeletionHost
 }
 
-type ForgejoAccounts interface {
-	DeleteUser(context.Context, string) error
-}
-
 type Deletion struct {
-	Host    DeletionHost
-	Forgejo ForgejoAccounts
+	Host DeletionHost
 }
 
 func (deletion Deletion) Delete(ctx context.Context, actor linuxhost.Account, uidMin int, targetUsername string) error {
@@ -45,15 +40,12 @@ func (deletion Deletion) Delete(ctx context.Context, actor linuxhost.Account, ui
 	removed := make([]string, 0, len(workspaces))
 	for index, account := range workspaces {
 		if err = deletion.Host.DeleteAccount(ctx, account); err != nil {
-			return fmt.Errorf("%s; %s, Forgejo account, and primary Linux account remain: delete workspace: %w", removedWorkspaceDescription(removed), retainedWorkspaceDescription(workspaces[index:]), err)
+			return fmt.Errorf("%s; %s and primary Linux account remain: delete workspace: %w", removedWorkspaceDescription(removed), retainedWorkspaceDescription(workspaces[index:]), err)
 		}
 		removed = append(removed, account.Username)
 	}
-	if err = deletion.Forgejo.DeleteUser(ctx, target.Username); err != nil && !errors.Is(err, ErrForgejoUserNotFound) {
-		return fmt.Errorf("%s; Forgejo account and primary Linux account %s remain: delete Forgejo account: %w", removedWorkspaceDescription(removed), target.Username, err)
-	}
 	if err = deletion.Host.DeleteAccount(ctx, target); err != nil {
-		return fmt.Errorf("%s and Forgejo account %s; primary Linux account remains: %w", removedWorkspaceDescription(removed), target.Username, err)
+		return fmt.Errorf("%s; primary Linux account %s remains: %w", removedWorkspaceDescription(removed), target.Username, err)
 	}
 	return nil
 }

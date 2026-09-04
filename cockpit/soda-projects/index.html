@@ -36,20 +36,19 @@
         <div class="setup-body" id="soda-setup-body" hidden>
           <dl class="fact-list" id="soda-setup-facts"></dl>
           <div class="setup-actions">
-            <button class="button primary" id="open-setup-administrator" type="button">Create administrator…</button>
             <form id="allow-local-network-form">
               <label for="setup-connection">NetworkManager connection</label>
               <select id="setup-connection" name="connection" required></select>
               <button class="button secondary" type="submit">Allow access from the local network.</button>
             </form>
             <form id="connect-tailscale-form">
-              <label for="setup-auth-key">Reusable ephemeral Tailscale auth key</label>
+              <label for="setup-auth-key">Tailscale auth key</label>
               <input id="setup-auth-key" name="auth_key" type="password" required autocomplete="off">
               <p class="field-help">Requested only after installation, used once through Tailscale, and not retained by Soda.</p>
               <button class="button secondary" type="submit">Connect Tailscale</button>
             </form>
-            <button class="button primary" id="dismiss-setup" type="button">Dismiss Soda Setup</button>
           </div>
+          <p class="field-help">Before your first workspace, add your personal SSH public key in Cockpit Accounts → your account → Authorized public SSH keys. Cloud-init may already have supplied it. This key permits incoming workspace access; the separate workspace Git public key must be registered with the Git host.</p>
           <p class="field-help">Local-network access and Tailscale are independent. Connecting Tailscale does not disable a selected local network.</p>
         </div>
       </section>
@@ -85,48 +84,13 @@
       <section class="panel danger-panel" id="human-deletion-panel" aria-labelledby="human-deletion-title" hidden>
         <div>
           <h2 id="human-deletion-title">People</h2>
-          <p>Stock Cockpit Accounts creates and lists primary Linux users and owns administrator status. Administrators can use this Soda-aware action to remove one: it deletes Soda workspaces, then the native Forgejo account, then the Linux account.</p>
+          <p>Stock Cockpit Accounts creates and lists primary Linux users and owns administrator status. Administrators can use this Soda-aware action to remove one: it deletes local Soda workspaces, then the primary Linux account. Forgejo account deletion remains separate inside Forgejo.</p>
         </div>
         <div class="header-actions">
           <button class="button danger" id="open-delete-human" type="button">Remove person…</button>
         </div>
       </section>
     </main>
-
-    <dialog id="setup-administrator-dialog" aria-labelledby="setup-administrator-title">
-      <form method="dialog" id="setup-administrator-form">
-        <header class="dialog-header">
-          <div>
-            <h2 id="setup-administrator-title">Create the first administrator</h2>
-            <p>Creates one ordinary primary Linux administrator, makes Forgejo ready for that administrator, and installs the same public SSH key in both native systems.</p>
-          </div>
-          <button class="icon-button" type="button" data-dialog-close aria-label="Close">×</button>
-        </header>
-        <div class="form-body">
-          <label>
-            Linux username
-            <input name="username" required pattern="[a-z][a-z0-9-]{0,23}" maxlength="24" autocomplete="off">
-          </label>
-          <label>
-            Password
-            <input name="password" required type="password" autocomplete="new-password">
-          </label>
-          <label>
-            Confirm password
-            <input name="password_confirmation" required type="password" autocomplete="new-password">
-          </label>
-          <label>
-            SSH public key
-            <textarea name="authorized_key" required rows="4" spellcheck="false" autocomplete="off"></textarea>
-          </label>
-          <p class="field-help">The password is used only by the native Linux and Forgejo operations and is not retained by Soda.</p>
-        </div>
-        <footer class="dialog-actions">
-          <button class="button secondary" type="button" data-dialog-close>Cancel</button>
-          <button class="button primary" value="default">Create administrator</button>
-        </footer>
-      </form>
-    </dialog>
 
     <dialog id="add-existing-dialog" aria-labelledby="add-existing-title">
       <form method="dialog" data-action-form="add-existing">
@@ -269,7 +233,7 @@
         <header class="dialog-header">
           <div>
             <h2 id="delete-human-title">Remove person from Soda OS</h2>
-            <p>This permanently removes local Soda workspaces, then asks Forgejo to delete the account without <code>--purge</code>, then removes the primary Linux account. Forgejo deletes the account, its SSH and GPG keys, access tokens, email addresses, settings, and user data. Its native rules keep issues, pull requests, and comments as deleted-user history, except configured recent-comment deletion. Forgejo refuses if the person owns a repository or package, belongs to an organization, or is its last administrator; then the Linux account remains so an administrator can retry.</p>
+            <p>This permanently removes the person’s local Soda workspaces, then their primary Linux account. Their Forgejo account and repository data are unchanged. Delete a Forgejo account separately in Forgejo.</p>
           </div>
           <button class="icon-button" type="button" data-dialog-close aria-label="Close">×</button>
         </header>

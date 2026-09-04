@@ -122,7 +122,7 @@ func (network NativeNetwork) ConnectTailscale(ctx context.Context, authKey strin
 	if err = verifyTailscaleConnected(ctx, client); err != nil {
 		return err
 	}
-	return restartForgejoForTailnet(ctx, runner)
+	return refreshForgejoForTailnet(ctx, runner)
 }
 
 func validateTailscaleAuthKey(authKey string) error {
@@ -153,8 +153,8 @@ func verifyTailscaleConnected(ctx context.Context, client TailnetStatus) error {
 	return nil
 }
 
-func restartForgejoForTailnet(ctx context.Context, runner linuxhost.CommandRunner) error {
-	result, err := runner.Run(ctx, linuxhost.Command{Name: "/usr/bin/systemctl", Args: []string{"restart", "forgejo.service"}})
+func refreshForgejoForTailnet(ctx context.Context, runner linuxhost.CommandRunner) error {
+	result, err := runner.Run(ctx, linuxhost.Command{Name: "/usr/libexec/soda/forgejo-init", Args: []string{"refresh-tailnet"}})
 	if err != nil || result.ExitCode != 0 {
 		return errors.New("Tailscale connected, but Forgejo could not reload its Tailnet address")
 	}

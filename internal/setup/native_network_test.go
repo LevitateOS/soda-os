@@ -12,12 +12,16 @@ import (
 )
 
 type networkRunner struct {
-	requests []linuxhost.Command
-	secret   string
+	requests    []linuxhost.Command
+	secret      string
+	failCommand string
 }
 
 func (runner *networkRunner) Run(_ context.Context, request linuxhost.Command) (linuxhost.CommandResult, error) {
 	runner.requests = append(runner.requests, request)
+	if request.Name == runner.failCommand {
+		return linuxhost.CommandResult{ExitCode: 1}, nil
+	}
 	if request.Name == "/usr/bin/nmcli" {
 		return networkManagerResult(request), nil
 	}
@@ -74,10 +78,33 @@ func TestConnectTailscalePassesKeyOnlyThroughAnonymousDescriptor(t *testing.T) {
 	if tailscale.Name != "/usr/bin/tailscale" || !reflect.DeepEqual(tailscale.Args, []string{"up", "--auth-key=file:/proc/self/fd/3"}) {
 		t.Fatalf("Tailscale command = %#v", tailscale)
 	}
+	refresh := runner.requests[1]
+	if refresh.Name != "/usr/libexec/soda/forgejo-init" || !reflect.DeepEqual(refresh.Args, []string{"refresh-tailnet"}) {
+		t.Fatalf("Forgejo refresh command = %#v", refresh)
+	}
 	for _, value := range append(append([]string{}, tailscale.Args...), tailscale.Environment...) {
 		if strings.Contains(value, key) {
 			t.Fatalf("key exposed in process metadata: %q", value)
 		}
+	}
+}
+
+func TestTailscaleEnrollmentAndAddressRefreshFailuresAreDistinct(t *testing.T) {
+	for _, tc := range []struct {
+		command, message string
+		calls            int
+	}{
+		{"/usr/bin/tailscale", "Tailscale rejected the auth key", 1},
+		{"/usr/libexec/soda/forgejo-init", "Tailscale connected, but Forgejo could not reload its Tailnet address", 2},
+	} {
+		t.Run(tc.command, func(t *testing.T) {
+			runner := &networkRunner{failCommand: tc.command}
+			network := NativeNetwork{Runner: runner, Tailnet: connectedTailnet{}}
+			err := network.ConnectTailscale(context.Background(), "protected-auth-key")
+			if err == nil || err.Error() != tc.message || len(runner.requests) != tc.calls {
+				t.Fatalf("result = %v; calls = %#v", err, runner.requests)
+			}
+		})
 	}
 }
 

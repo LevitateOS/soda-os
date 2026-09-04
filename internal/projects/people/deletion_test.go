@@ -61,16 +61,6 @@ func (host *deletionHost) DeleteAccount(_ context.Context, account linuxhost.Acc
 	return nil
 }
 
-type deletionForgejo struct {
-	err    error
-	events *[]string
-}
-
-func (forgejo deletionForgejo) DeleteUser(_ context.Context, username string) error {
-	*forgejo.events = append(*forgejo.events, "forgejo:"+username)
-	return forgejo.err
-}
-
 func primaryAccount(username string) linuxhost.Account {
 	groups := map[string]bool{username: true}
 	return linuxhost.Account{
@@ -101,7 +91,6 @@ func derivedAccount(t *testing.T, primary, projectID string, uid int) linuxhost.
 type deletionFixture struct {
 	deletion   Deletion
 	host       *deletionHost
-	forgejo    *deletionForgejo
 	workspaces []linuxhost.Account
 }
 
@@ -117,10 +106,9 @@ func humanDeletion(t *testing.T, projects ...string) deletionFixture {
 		workspaces = append(workspaces, account)
 	}
 	host.candidates = append([]linuxhost.Account(nil), workspaces...)
-	forgejo := &deletionForgejo{events: &host.events}
 	return deletionFixture{
-		deletion: Deletion{Host: host, Forgejo: forgejo},
-		host:     host, forgejo: forgejo, workspaces: workspaces,
+		deletion: Deletion{Host: host},
+		host:     host, workspaces: workspaces,
 	}
 }
 
@@ -128,12 +116,12 @@ func deleteAlice(deletion Deletion, host *deletionHost) error {
 	return deletion.Delete(context.Background(), host.accounts["admin"], host.uidMin, "alice")
 }
 
-func TestHumanDeletionRemovesWorkspacesThenForgejoThenLinuxPrimary(t *testing.T) {
+func TestHumanDeletionRemovesWorkspacesThenLinuxPrimary(t *testing.T) {
 	fixture := humanDeletion(t, "tools", "site")
 
 	require.NoError(t, deleteAlice(fixture.deletion, fixture.host))
 	sort.Slice(fixture.workspaces, func(i, j int) bool { return fixture.workspaces[i].Username < fixture.workspaces[j].Username })
-	wantTail := []string{"linux:" + fixture.workspaces[0].Username, "linux:" + fixture.workspaces[1].Username, "forgejo:alice", "linux:alice"}
+	wantTail := []string{"linux:" + fixture.workspaces[0].Username, "linux:" + fixture.workspaces[1].Username, "linux:alice"}
 	require.Equal(t, wantTail, fixture.host.events[len(fixture.host.events)-len(wantTail):])
 	require.NotContains(t, fixture.host.accounts, "alice")
 }
@@ -158,28 +146,18 @@ func TestHumanDeletionReportsPartialWorkspaceProgress(t *testing.T) {
 
 	err := deleteAlice(fixture.deletion, fixture.host)
 	require.ErrorContains(t, err, "removed Soda workspaces "+fixture.workspaces[0].Username)
-	require.ErrorContains(t, err, "workspaces "+fixture.workspaces[1].Username+", "+fixture.workspaces[2].Username+", Forgejo account, and primary Linux account remain")
+	require.ErrorContains(t, err, "workspaces "+fixture.workspaces[1].Username+", "+fixture.workspaces[2].Username+" and primary Linux account remain")
 	require.Contains(t, fixture.host.accounts, fixture.workspaces[2].Username)
 	require.Contains(t, fixture.host.accounts, "alice")
 }
 
-func TestHumanDeletionRetainsPrimaryAfterForgejoFailure(t *testing.T) {
+func TestHumanDeletionReportsPrimaryFailureAfterWorkspaceRemoval(t *testing.T) {
 	fixture := humanDeletion(t, "site")
-	fixture.forgejo.err = errors.New("Forgejo refuses deletion")
-
+	fixture.host.deleteErr["alice"] = errors.New("Linux deletion failed")
 	err := deleteAlice(fixture.deletion, fixture.host)
-	require.ErrorContains(t, err, "removed Soda workspaces "+fixture.workspaces[0].Username+"; Forgejo account and primary Linux account alice remain")
+	require.ErrorContains(t, err, "removed Soda workspaces "+fixture.workspaces[0].Username+"; primary Linux account alice remains")
 	require.Contains(t, fixture.host.accounts, "alice")
-	require.Contains(t, fixture.host.events, "forgejo:alice")
-	require.NotContains(t, fixture.host.events, "linux:alice")
-}
-
-func TestHumanDeletionCompletesWhenForgejoUserWasAlreadyRemoved(t *testing.T) {
-	fixture := humanDeletion(t)
-	fixture.forgejo.err = ErrForgejoUserNotFound
-
-	require.NoError(t, deleteAlice(fixture.deletion, fixture.host))
-	require.NotContains(t, fixture.host.accounts, "alice")
+	require.NotContains(t, fixture.host.accounts, fixture.workspaces[0].Username)
 }
 
 func TestHumanDeletionRequiresLinuxAdministrator(t *testing.T) {

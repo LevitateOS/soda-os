@@ -14,15 +14,15 @@ import (
 
 const maximumRequestBytes = 16 << 10
 
-var errDismissed = errors.New("Soda Setup is dismissed")
+var errReady = errors.New("network access is configured")
 
 func main() {
-	if os.Geteuid() != 0 {
+	if os.Geteuid() != 0 && !(len(os.Args) == 2 && (os.Args[1] == "status" || os.Args[1] == "pending")) {
 		fmt.Fprintln(os.Stderr, "soda-setup: root privileges are required")
 		os.Exit(1)
 	}
 	if err := execute(context.Background(), setup.NewNativeService(), os.Args[1:], os.Stdin, os.Stdout); err != nil {
-		if errors.Is(err, errDismissed) {
+		if errors.Is(err, errReady) {
 			os.Exit(1)
 		}
 		fmt.Fprintln(os.Stderr, "soda-setup:", err)
@@ -32,7 +32,7 @@ func main() {
 
 func execute(ctx context.Context, service setup.Service, arguments []string, input io.Reader, output io.Writer) error {
 	if len(arguments) != 1 {
-		return errors.New("expected one of: status, pending, create-administrator, allow-local-network, connect-tailscale, dismiss, console")
+		return errors.New("expected one of: status, pending, allow-local-network, connect-tailscale, console")
 	}
 	switch arguments[0] {
 	case "status":
@@ -52,22 +52,14 @@ func setupPending(ctx context.Context, service setup.Service) error {
 	if err != nil {
 		return err
 	}
-	if status.Dismissed {
-		return errDismissed
+	if status.Ready {
+		return errReady
 	}
 	return nil
 }
 
 func executeMutation(ctx context.Context, service setup.Service, action string, input io.Reader, output io.Writer) error {
 	switch action {
-	case "create-administrator":
-		var request setup.AdministratorRequest
-		if err := decodeRequest(input, &request); err != nil {
-			return err
-		}
-		status, err := service.CreateAdministrator(ctx, request)
-		request.Password = ""
-		return writeResponse(output, status, err)
 	case "allow-local-network":
 		var request setup.LocalNetworkRequest
 		if err := decodeRequest(input, &request); err != nil {
@@ -82,9 +74,6 @@ func executeMutation(ctx context.Context, service setup.Service, action string, 
 		}
 		status, err := service.ConnectTailscale(ctx, request.AuthKey)
 		request.AuthKey = ""
-		return writeResponse(output, status, err)
-	case "dismiss":
-		status, err := service.Dismiss(ctx)
 		return writeResponse(output, status, err)
 	default:
 		return fmt.Errorf("unsupported action %q", action)
@@ -129,7 +118,7 @@ func readLine(reader lineReader, output io.Writer, prompt string) (string, error
 		return "", err
 	}
 	line, err := reader.ReadString('\n')
-	if err != nil && !errors.Is(err, io.EOF) {
+	if err != nil {
 		return "", err
 	}
 	return strings.TrimSpace(line), nil

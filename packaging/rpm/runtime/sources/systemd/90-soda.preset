@@ -3,4 +3,3 @@ enable forgejo.service
 enable cockpit.socket
 enable tailscaled.service
 enable firewalld.service
-enable soda-setup.service

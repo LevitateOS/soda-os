@@ -11,7 +11,7 @@ import {
 
 test("Soda Setup uses one fixed privileged executable", () => {
   assert.deepEqual(setupCommand(), ["/usr/libexec/soda/soda-setup", "status"]);
-  for (const action of ["create-administrator", "allow-local-network", "connect-tailscale", "dismiss"]) {
+  for (const action of ["allow-local-network", "connect-tailscale"]) {
     assert.deepEqual(setupCommand(action), ["/usr/libexec/soda/soda-setup", action]);
   }
   assert.throws(() => setupCommand("shell"), /unsupported Soda Setup action/);
@@ -28,10 +28,10 @@ test("setup secrets are serialized only in stdin and then cleared", () => {
 });
 
 test("native setup errors remain visible", () => {
-  const status = { dismissed: false, can_dismiss: false, administrators: [], connections: [] };
+  const status = { ready: false, administrators: [], connections: [] };
   assert.deepEqual(decodeSetupResponse("status", JSON.stringify(status)), status);
   assert.throws(
-    () => decodeSetupResponse("dismiss", JSON.stringify({ status, error: "required facts are incomplete" })),
+    () => decodeSetupResponse("connect-tailscale", JSON.stringify({ status, error: "required facts are incomplete" })),
     /required facts are incomplete/,
   );
 });
@@ -40,6 +40,13 @@ test("Cockpit presents the approved setup and network contract", async () => {
   const html = await readFile(new URL("./index.html", import.meta.url), "utf8");
   assert.match(html, /<h2 id="soda-setup-title">Soda Setup<\/h2>/);
   assert.match(html, />Allow access from the local network\.<\/button>/);
-  assert.match(html, /Reusable ephemeral Tailscale auth key/);
+  assert.match(html, /Tailscale auth key/);
   assert.doesNotMatch(html, /LAN detected|cloud detected|RFC1918|private address/i);
+});
+
+test("Setup has no account or key-entry action", async () => {
+ for (const action of ["create-administrator", "dismiss"]) assert.throws(() => setupCommand(action));
+ const html = await readFile(new URL("./index.html", import.meta.url), "utf8");
+ assert.doesNotMatch(html, /setup-administrator|dismiss-setup/);
+ assert.match(html, /Authorized public SSH keys/);
 });

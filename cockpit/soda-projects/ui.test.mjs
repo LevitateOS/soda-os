@@ -118,14 +118,12 @@ test("whole-project removal presentation is wheel-status driven", () => {
   assert.equal(projectRemovalHidden({ administrator: false }), true);
 });
 
-test("human deletion confirmation states Forgejo's native consequences", async () => {
-  const html = await readFile(new URL("./index.html", import.meta.url), "utf8");
-  const dialog = html.match(/<dialog id="delete-human-dialog"[\s\S]*?<\/dialog>/)?.[0] ?? "";
-  assert.match(dialog, /without <code>--purge<\/code>/);
-  assert.match(dialog, /SSH and GPG keys, access tokens, email addresses, settings, and user data/);
-  assert.match(dialog, /issues, pull requests, and comments as deleted-user history/);
-  assert.match(dialog, /owns a repository or package, belongs to an organization, or is its last administrator/);
-  assert.match(dialog, /Linux account remains so an administrator can retry/);
+test("human deletion leaves Forgejo administration separate", async () => {
+ const html = await readFile(new URL("./index.html", import.meta.url), "utf8");
+ const dialog = html.match(/<dialog id="delete-human-dialog"[\s\S]*?<\/dialog>/)?.[0] ?? "";
+ assert.match(dialog, /Forgejo account and repository data are unchanged/);
+ assert.match(dialog, /Delete a Forgejo account separately in Forgejo/);
+ assert.doesNotMatch(dialog, /--purge|Forgejo refuses|asks Forgejo to delete/);
 });
 
 test("workspace setup leaves SSH-key registration to every authoritative host", async () => {

@@ -4,7 +4,7 @@ set -eu
 printf '\nWelcome to Soda OS.\n'
 
 if /usr/libexec/soda/soda-setup pending 2>/dev/null; then
-	printf '\nSoda Setup is not yet dismissed. It opens automatically on the machine console and is also available in Cockpit.\n'
+	printf '\nNetwork access is not yet configured. Soda Setup opens after administrator console login and is also available in Cockpit.\n'
 fi
 
 soda-tailnet

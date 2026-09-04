@@ -74,16 +74,6 @@ func (host *rootTestHost) Run(context.Context, linuxhost.Command) (linuxhost.Com
 	return linuxhost.CommandResult{}, errors.New("unexpected native command")
 }
 
-type rootTestForgejo struct {
-	events *[]string
-	err    error
-}
-
-func (forgejo rootTestForgejo) DeleteUser(_ context.Context, username string) error {
-	*forgejo.events = append(*forgejo.events, "forgejo:"+username)
-	return forgejo.err
-}
-
 func rootPrimary(username string) linuxhost.Account {
 	groups := map[string]bool{username: true}
 	return linuxhost.Account{

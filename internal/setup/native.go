@@ -10,12 +10,10 @@ func NewNativeService() Service {
 	host := linuxhost.NewNative()
 	host.Runner = runner
 	return Service{
-		Accounts: NativeAccounts{Host: host, Runner: runner},
-		Forgejo:  NativeForgejo{Runner: runner},
+		Accounts: NativeAccounts{Host: host},
 		Network: NativeNetwork{
 			Runner: runner, Tailnet: tailnet.New(tailnet.Options{}),
 		},
-		Completion: FileCompletion{},
-		Locker:     FileLocker{},
+		Locker: FileLocker{},
 	}
 }

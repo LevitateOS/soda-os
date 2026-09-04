@@ -1,5 +1,5 @@
-// Package setup composes Soda's one interactive post-install setup from native
-// Linux, Forgejo, NetworkManager, Tailscale, systemd, and Cockpit boundaries.
+// Package setup handles temporary post-login network configuration through
+// native NetworkManager, Tailscale, systemd, and Cockpit boundaries.
 package setup
 
 import (
@@ -8,21 +8,10 @@ import (
 	"fmt"
 	"io"
 	"sort"
-
-	"github.com/LevitateOS/soda-os/internal/linuxhost"
 )
 
-const DefaultCompletionPath = "/var/lib/soda/setup-complete"
-
 type Administrator struct {
-	Username     string `json:"username"`
-	PasswordSet  bool   `json:"password_set"`
-	SSHPublicKey bool   `json:"ssh_public_key"`
-	ForgejoReady bool   `json:"forgejo_ready"`
-}
-
-func (administrator Administrator) complete() bool {
-	return administrator.Username != "" && administrator.PasswordSet && administrator.SSHPublicKey && administrator.ForgejoReady
+	Username string `json:"username"`
 }
 
 type Connection struct {
@@ -31,18 +20,11 @@ type Connection struct {
 }
 
 type Status struct {
-	Dismissed           bool            `json:"dismissed"`
-	CanDismiss          bool            `json:"can_dismiss"`
+	Ready               bool            `json:"ready"`
 	Administrators      []Administrator `json:"administrators"`
 	TailscaleConnected  bool            `json:"tailscale_connected"`
 	LocalNetworkAllowed bool            `json:"local_network_allowed"`
 	Connections         []Connection    `json:"connections"`
-}
-
-type AdministratorRequest struct {
-	Username      string `json:"username"`
-	Password      string `json:"password"`
-	AuthorizedKey string `json:"authorized_key"`
 }
 
 type LocalNetworkRequest struct {
@@ -60,13 +42,6 @@ type Response struct {
 
 type Accounts interface {
 	Administrators(context.Context) ([]Administrator, error)
-	Prepare(context.Context, AdministratorRequest) error
-	Promote(context.Context, string) error
-}
-
-type Forgejo interface {
-	Ready(context.Context, string) bool
-	PrepareAdministrator(context.Context, AdministratorRequest) error
 }
 
 type Network interface {
@@ -75,21 +50,14 @@ type Network interface {
 	ConnectTailscale(context.Context, string) error
 }
 
-type Completion interface {
-	Dismissed() (bool, error)
-	Mark() error
-}
-
 type Locker interface {
 	Lock() (io.Closer, error)
 }
 
 type Service struct {
-	Accounts   Accounts
-	Forgejo    Forgejo
-	Network    Network
-	Completion Completion
-	Locker     Locker
+	Accounts Accounts
+	Network  Network
+	Locker   Locker
 }
 
 func (service Service) Status(ctx context.Context) (Status, error) {
@@ -97,26 +65,18 @@ func (service Service) Status(ctx context.Context) (Status, error) {
 	if err != nil {
 		return Status{}, fmt.Errorf("inspect Linux administrators: %w", err)
 	}
-	for index := range administrators {
-		administrators[index].ForgejoReady = service.Forgejo.Ready(ctx, administrators[index].Username)
-	}
 	sort.Slice(administrators, func(i, j int) bool { return administrators[i].Username < administrators[j].Username })
 	connections, tailscaleConnected, err := service.Network.Status(ctx)
 	if err != nil {
 		return Status{}, fmt.Errorf("inspect network access: %w", err)
 	}
-	dismissed, err := service.Completion.Dismissed()
-	if err != nil {
-		return Status{}, fmt.Errorf("inspect Soda Setup dismissal: %w", err)
-	}
 	status := Status{
-		Dismissed:          dismissed,
 		Administrators:     administrators,
 		TailscaleConnected: tailscaleConnected,
 		Connections:        connections,
 	}
 	status.LocalNetworkAllowed = anyLocalNetworkAllowed(connections)
-	status.CanDismiss = anyCompleteAdministrator(administrators) && (status.TailscaleConnected || status.LocalNetworkAllowed)
+	status.Ready = status.TailscaleConnected || status.LocalNetworkAllowed
 	return status, nil
 }
 
@@ -127,42 +87,6 @@ func anyLocalNetworkAllowed(connections []Connection) bool {
 		}
 	}
 	return false
-}
-
-func anyCompleteAdministrator(administrators []Administrator) bool {
-	for _, administrator := range administrators {
-		if administrator.complete() {
-			return true
-		}
-	}
-	return false
-}
-
-func (service Service) CreateAdministrator(ctx context.Context, request AdministratorRequest) (Status, error) {
-	unlock, err := service.lock()
-	if err != nil {
-		return Status{}, err
-	}
-	defer unlock.Close()
-	status, err := service.Status(ctx)
-	if err != nil {
-		return Status{}, err
-	}
-	if len(status.Administrators) != 0 {
-		return status, errors.New("an ordinary Linux administrator already exists")
-	}
-	key, err := linuxhost.CanonicalAuthorizedKey(request.AuthorizedKey)
-	if err != nil {
-		return status, err
-	}
-	request.AuthorizedKey = key
-	if err = service.Accounts.Prepare(ctx, request); err == nil {
-		err = service.Forgejo.PrepareAdministrator(ctx, request)
-	}
-	if err == nil {
-		err = service.Accounts.Promote(ctx, request.Username)
-	}
-	return service.statusAfter(ctx, err)
 }
 
 func (service Service) AllowLocalNetwork(ctx context.Context, connection string) (Status, error) {
@@ -183,25 +107,6 @@ func (service Service) ConnectTailscale(ctx context.Context, authKey string) (St
 	defer unlock.Close()
 	err = service.Network.ConnectTailscale(ctx, authKey)
 	return service.statusAfter(ctx, err)
-}
-
-func (service Service) Dismiss(ctx context.Context) (Status, error) {
-	unlock, err := service.lock()
-	if err != nil {
-		return Status{}, err
-	}
-	defer unlock.Close()
-	status, err := service.Status(ctx)
-	if err != nil {
-		return Status{}, err
-	}
-	if !status.CanDismiss {
-		return status, errors.New("Soda Setup cannot be dismissed until every required fact is complete")
-	}
-	if err = service.Completion.Mark(); err != nil {
-		return status, fmt.Errorf("record Soda Setup dismissal: %w", err)
-	}
-	return service.Status(ctx)
 }
 
 func (service Service) lock() (io.Closer, error) {

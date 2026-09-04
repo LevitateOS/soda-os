@@ -8,7 +8,6 @@ import (
 	"io"
 	"os"
 	"strconv"
-	"strings"
 
 	"github.com/LevitateOS/soda-os/internal/setup"
 	"golang.org/x/term"
@@ -50,90 +49,46 @@ func (session consoleSession) step() (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	if status.Dismissed {
-		_, err = fmt.Fprintln(session.output, "Soda Setup is complete. Reopen it from Cockpit when needed.")
-		return true, err
-	}
 	printStatus(session.output, status)
 	choice, err := readLine(session.reader, session.output, consoleMenu(status))
-	if err != nil || choice == "q" || choice == "Q" {
+	if errors.Is(err, io.EOF) || choice == "q" || choice == "Q" {
+		return true, nil
+	}
+	if err != nil {
 		return true, err
 	}
 	if err = session.executeAction(choice, status.Connections); err != nil {
-		fmt.Fprintln(session.output, "\nCould not complete that action:", err)
+		return true, err
 	}
-	return false, nil
+	return true, nil
 }
 
 func (session consoleSession) executeAction(choice string, connections []setup.Connection) error {
 	switch choice {
 	case "1":
-		return session.createAdministrator()
-	case "2":
 		return session.allowLocalNetwork(connections)
-	case "3":
+	case "2":
 		return session.connectTailscale()
-	case "4":
-		_, err := session.service.Dismiss(session.ctx)
-		return err
 	default:
 		return errors.New("choose one of the displayed actions")
 	}
 }
 
 func printStatus(output io.Writer, status setup.Status) {
-	fmt.Fprintln(output, "\nRequired facts:")
+	fmt.Fprintln(output, "\nNative network access:")
 	if len(status.Administrators) == 0 {
 		fmt.Fprintln(output, "  Linux administrator: missing")
 	}
 	for _, administrator := range status.Administrators {
-		fmt.Fprintf(output, "  Linux administrator %s: password=%s, SSH key=%s, Forgejo=%s\n",
-			administrator.Username, answer[administrator.PasswordSet], answer[administrator.SSHPublicKey], answer[administrator.ForgejoReady])
+		fmt.Fprintf(output, "  Existing Linux administrator: %s\n", administrator.Username)
 	}
 	fmt.Fprintf(output, "  Tailscale connected: %s\n", answer[status.TailscaleConnected])
 	fmt.Fprintf(output, "  Access from the local network: %s\n", answer[status.LocalNetworkAllowed])
-	fmt.Fprintf(output, "  Ready to dismiss: %s\n", answer[status.CanDismiss])
+	fmt.Fprintf(output, "  Network configured: %s\n", answer[status.Ready])
 }
 
-func consoleMenu(status setup.Status) string {
-	menu := "\n1. Create the primary Linux administrator\n" +
-		"2. Allow access from the local network.\n" +
-		"3. Connect Tailscale\n" +
-		"4. Dismiss Soda Setup\n" +
-		"q. Leave setup running for the next startup\nChoose: "
-	if len(status.Administrators) != 0 {
-		menu = strings.Replace(menu, "1. Create the primary Linux administrator", "1. Show administrator status", 1)
-	}
-	return menu
-}
-
-func (session consoleSession) createAdministrator() error {
-	status, err := session.service.Status(session.ctx)
-	if err != nil || len(status.Administrators) != 0 {
-		return err
-	}
-	username, err := readLine(session.reader, session.output, "Linux username: ")
-	if err != nil {
-		return err
-	}
-	password, err := readSecret(session.input, session.output, "Password: ")
-	if err != nil {
-		return err
-	}
-	confirmation, err := readSecret(session.input, session.output, "Confirm password: ")
-	if err != nil {
-		return err
-	}
-	if password != confirmation {
-		return errors.New("passwords do not match")
-	}
-	key, err := readLine(session.reader, session.output, "SSH public key: ")
-	if err != nil {
-		return err
-	}
-	_, err = session.service.CreateAdministrator(session.ctx, setup.AdministratorRequest{Username: username, Password: password, AuthorizedKey: key})
-	password, confirmation = "", ""
-	return err
+func consoleMenu(_ setup.Status) string {
+	return "\n1. Allow access from the local network\n2. Connect Tailscale\nq. Return to the shell\nChoose: "
 }
 
 func (session consoleSession) allowLocalNetwork(connections []setup.Connection) error {
@@ -157,7 +112,7 @@ func (session consoleSession) allowLocalNetwork(connections []setup.Connection) 
 }
 
 func (session consoleSession) connectTailscale() error {
-	authKey, err := readSecret(session.input, session.output, "Reusable ephemeral Tailscale auth key: ")
+	authKey, err := readSecret(session.input, session.output, "Tailscale auth key: ")
 	if err != nil {
 		return err
 	}

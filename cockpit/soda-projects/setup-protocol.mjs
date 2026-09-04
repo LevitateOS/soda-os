@@ -1,8 +1,6 @@
 const actions = new Set([
-  "create-administrator",
   "allow-local-network",
   "connect-tailscale",
-  "dismiss",
 ]);
 
 export function setupCommand(action = "status") {
@@ -31,7 +29,7 @@ export function decodeSetupResponse(action, output) {
 }
 
 export function clearSetupSecrets(form, payload = {}) {
-  for (const name of ["password", "password_confirmation", "auth_key"]) {
+  for (const name of ["auth_key"]) {
     const field = form?.elements?.namedItem(name);
     if (field) {
       field.value = "";
