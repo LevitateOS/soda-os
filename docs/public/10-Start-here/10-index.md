@@ -39,6 +39,12 @@ accounts, services, and ownership boundaries behind these tasks.
 9. Use `mise` directly in the workspace to install the tools required by you or
    the project.
 
+## Windows and WSL2
+
+WSL2 support for x86-64 Windows gaming PCs is planned for a future release.
+No Soda OS WSL2 distribution is currently available. For installation on
+hardware or a virtual machine, follow the deployment guides above.
+
 ## Prerequisites
 
 - An x86-64 or AArch64 machine or virtual machine.

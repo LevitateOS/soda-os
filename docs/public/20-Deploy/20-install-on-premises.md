@@ -2,6 +2,10 @@
 
 Install Soda from the architecture-matched network ISO with graphical Anaconda and then complete Soda Setup.
 
+WSL2 support for x86-64 Windows gaming PCs is planned for a future release.
+No Soda OS WSL2 distribution is currently available; this guide covers the
+network ISO installation path.
+
 ## Prerequisites
 
 - An x86-64 or AArch64 machine matching the installer architecture.

@@ -6,6 +6,9 @@ Soda OS is an opinionated Fedora bootc remote-development appliance for a
 trusted team. A powerful x86-64 or AArch64 machine runs the development work;
 laptops, editors, terminals, and browsers remain lightweight clients.
 
+WSL2 support for x86-64 Windows gaming PCs is planned for a future release.
+No Soda OS WSL2 distribution is currently available.
+
 ## Product contract
 
 Human installation uses one finished network ISO. Stock graphical Anaconda
