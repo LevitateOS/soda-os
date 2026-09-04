@@ -1,120 +1,45 @@
 package projects
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
-	"os/exec"
-	"strings"
 
 	"github.com/LevitateOS/soda-os/internal/linuxhost"
+	"github.com/LevitateOS/soda-os/internal/projects/catalog"
+	"github.com/LevitateOS/soda-os/internal/projects/people"
+	"github.com/LevitateOS/soda-os/internal/projects/workspace"
+	"github.com/LevitateOS/soda-os/internal/strictjson"
 )
 
-type PrivilegedProjects interface {
-	CatalogAdd(context.Context, HelperCatalogRequest) error
-	CatalogEdit(context.Context, HelperEditRequest) error
-	WorkspacePrepare(context.Context, HelperWorkspaceRequest) (MutationResponse, error)
-	WorkspacePublish(context.Context, HelperWorkspaceRequest) (MutationResponse, error)
-	WorkspaceRemove(context.Context, ProjectRequest) error
-	ProjectRemove(context.Context, ProjectRequest) error
-	HumanDelete(context.Context, HelperHumanRequest) error
-}
-
-type PKExecInvoker struct {
-	Binary     string
-	HelperPath string
-}
-
-func (invoker PKExecInvoker) CatalogAdd(ctx context.Context, request HelperCatalogRequest) error {
-	_, err := invoker.mutation(ctx, "catalog-add", request)
-	return err
-}
-
-func (invoker PKExecInvoker) CatalogEdit(ctx context.Context, request HelperEditRequest) error {
-	_, err := invoker.mutation(ctx, "catalog-edit", request)
-	return err
-}
-
-func (invoker PKExecInvoker) WorkspacePublish(ctx context.Context, request HelperWorkspaceRequest) (MutationResponse, error) {
-	return invoker.mutation(ctx, "workspace-publish", request)
-}
-
-func (invoker PKExecInvoker) WorkspacePrepare(ctx context.Context, request HelperWorkspaceRequest) (MutationResponse, error) {
-	return invoker.mutation(ctx, "workspace-prepare", request)
-}
-
-func (invoker PKExecInvoker) WorkspaceRemove(ctx context.Context, request ProjectRequest) error {
-	_, err := invoker.mutation(ctx, "workspace-remove", request)
-	return err
-}
-
-func (invoker PKExecInvoker) ProjectRemove(ctx context.Context, request ProjectRequest) error {
-	_, err := invoker.mutation(ctx, "project-remove", request)
-	return err
-}
-
-func (invoker PKExecInvoker) HumanDelete(ctx context.Context, request HelperHumanRequest) error {
-	_, err := invoker.mutation(ctx, "human-delete", request)
-	return err
-}
-
-func (invoker PKExecInvoker) mutation(ctx context.Context, action string, request any) (MutationResponse, error) {
-	var response MutationResponse
-	if err := invoker.invoke(ctx, action, request, &response); err != nil {
-		return MutationResponse{}, err
-	}
-	if !response.OK {
-		return MutationResponse{}, fmt.Errorf("privileged %s did not complete", action)
-	}
-	return response, nil
-}
-
-func (invoker PKExecInvoker) invoke(ctx context.Context, action string, request, response any) error {
-	binary := invoker.Binary
-	if binary == "" {
-		binary = "/usr/bin/pkexec"
-	}
-	helper := invoker.HelperPath
-	if helper == "" {
-		helper = "/usr/libexec/soda/soda-workspace-helper"
-	}
-	contents, err := json.Marshal(request)
-	if err != nil {
-		return err
-	}
-	command := exec.CommandContext(ctx, binary, "--disable-internal-agent", helper, action)
-	command.Stdin = bytes.NewReader(contents)
-	var stdout, stderr bytes.Buffer
-	command.Stdout, command.Stderr = &stdout, &stderr
-	if err = command.Run(); err != nil {
-		message := strings.TrimSpace(stderr.String())
-		if message == "" {
-			message = err.Error()
-		}
-		return fmt.Errorf("privileged %s: %s", action, message)
-	}
-	if response == nil {
-		return nil
-	}
-	decoder := json.NewDecoder(&stdout)
-	decoder.DisallowUnknownFields()
-	if err = decoder.Decode(response); err != nil {
-		return fmt.Errorf("decode privileged %s result: %w", action, err)
-	}
-	return nil
-}
-
+// Coordinator composes the unprivileged Projects request with the concrete
+// catalog, workspace facts, lock primitives, and fixed pkexec helper.
 type Coordinator struct {
-	Catalog    *Catalog
-	Lifecycle  Lifecycle
-	Platform   Platform
-	Privileged PrivilegedProjects
+	store          *catalog.Store
+	authorizer     Authorizer
+	workspaces     workspace.Accounts
+	setupLocks     workspace.SetupLocker
+	operationLocks OperationLocker
+	privileged     PKExecInvoker
+}
+
+func NewSystemCoordinator(host *linuxhost.Native) Coordinator {
+	return Coordinator{
+		store:          catalog.NewSystemStore(),
+		authorizer:     NewAuthorizer(host),
+		workspaces:     workspace.NewAccounts(host, host, host, host),
+		setupLocks:     workspace.NewSetupLocker("/run/user"),
+		operationLocks: NewSystemOperationLocker(),
+		privileged:     NewSystemPKExecInvoker(),
+	}
 }
 
 func (coordinator Coordinator) Execute(ctx context.Context, actorUsername, action string, input io.Reader) (any, error) {
-	primary, uidMin, err := coordinator.Lifecycle.AuthorizePrimary(ctx, actorUsername)
+	if coordinator.store == nil {
+		return nil, errors.New("Projects coordinator was not constructed")
+	}
+	primary, uidMin, err := coordinator.authorizer.Primary(ctx, actorUsername)
 	if err != nil {
 		return nil, err
 	}
@@ -122,112 +47,105 @@ func (coordinator Coordinator) Execute(ctx context.Context, actorUsername, actio
 }
 
 func (coordinator Coordinator) dispatch(ctx context.Context, primary linuxhost.Account, uidMin int, action string, input io.Reader) (any, error) {
-	handlers := map[string]func() (any, error){
-		"list":             func() (any, error) { return coordinator.executeList(ctx, primary, uidMin, input) },
-		"add-existing":     func() (any, error) { return coordinator.executeAddExisting(ctx, primary, input) },
-		"edit":             func() (any, error) { return coordinator.executeEdit(ctx, primary, input) },
-		"setup":            func() (any, error) { return coordinator.executeSetup(ctx, primary, input) },
-		"remove-workspace": func() (any, error) { return coordinator.executeRemoveWorkspace(ctx, input) },
-		"remove":           func() (any, error) { return coordinator.executeRemove(ctx, input) },
-		"delete-human":     func() (any, error) { return coordinator.executeDeleteHuman(ctx, input) },
-	}
-	handler, found := handlers[action]
-	if !found {
+	switch action {
+	case "list":
+		return coordinator.executeList(ctx, primary, uidMin, input)
+	case "add-existing":
+		return coordinator.executeAddExisting(ctx, input)
+	case "edit":
+		return coordinator.executeEdit(ctx, input)
+	case "setup":
+		return coordinator.executeSetup(ctx, primary, input)
+	case "remove-workspace":
+		return coordinator.executeRemoveWorkspace(ctx, input)
+	case "remove":
+		return coordinator.executeRemove(ctx, input)
+	case "delete-human":
+		return coordinator.executeDeleteHuman(ctx, input)
+	default:
 		return nil, fmt.Errorf("unsupported soda-projects action %q", action)
 	}
-	return handler()
 }
 
-func (coordinator Coordinator) executeRemoveWorkspace(ctx context.Context, input io.Reader) (any, error) {
+func (coordinator Coordinator) executeRemoveWorkspace(ctx context.Context, input io.Reader) (SuccessResponse, error) {
 	var request ProjectRequest
-	if err := DecodeRequest(input, &request); err != nil {
-		return nil, err
+	if err := strictjson.Decode(input, &request); err != nil {
+		return SuccessResponse{}, err
 	}
-	if err := coordinator.Privileged.WorkspaceRemove(ctx, request); err != nil {
-		return nil, err
+	if err := coordinator.privileged.WorkspaceRemove(ctx, request); err != nil {
+		return SuccessResponse{}, err
 	}
-	return MutationResponse{OK: true}, nil
+	return SuccessResponse{OK: true}, nil
 }
 
-func (coordinator Coordinator) executeList(ctx context.Context, primary linuxhost.Account, uidMin int, input io.Reader) (any, error) {
+func (coordinator Coordinator) executeList(ctx context.Context, primary linuxhost.Account, uidMin int, input io.Reader) (ListResponse, error) {
 	var request EmptyRequest
-	if err := DecodeRequest(input, &request); err != nil {
-		return nil, err
+	if err := strictjson.Decode(input, &request); err != nil {
+		return ListResponse{}, err
 	}
 	return coordinator.list(ctx, primary, uidMin)
 }
 
-func (coordinator Coordinator) executeAddExisting(ctx context.Context, primary linuxhost.Account, input io.Reader) (any, error) {
+func (coordinator Coordinator) executeAddExisting(ctx context.Context, input io.Reader) (ProjectMutationResponse, error) {
 	var request AddExistingRequest
-	if err := DecodeRequest(input, &request); err != nil {
-		return nil, err
-	}
-	entry := request.CatalogEntry
-	if err := entry.Validate(); err != nil {
-		return nil, err
-	}
-	if err := coordinator.Privileged.CatalogAdd(ctx, request); err != nil {
-		return nil, err
-	}
-	return coordinator.projectResult(ctx, primary, entry)
-}
-
-func (coordinator Coordinator) executeEdit(ctx context.Context, primary linuxhost.Account, input io.Reader) (any, error) {
-	var request EditRequest
-	if err := DecodeRequest(input, &request); err != nil {
-		return nil, err
+	if err := strictjson.Decode(input, &request); err != nil {
+		return ProjectMutationResponse{}, err
 	}
 	if err := request.Validate(); err != nil {
-		return nil, err
+		return ProjectMutationResponse{}, err
 	}
-	current, err := coordinator.Catalog.Get(request.ID)
-	if err != nil {
-		return nil, err
-	}
-	if err := coordinator.Privileged.CatalogEdit(ctx, request); err != nil {
-		return nil, err
-	}
-	return coordinator.projectResult(ctx, primary, request.apply(current))
+	return coordinator.privileged.CatalogAdd(ctx, request)
 }
 
-func (coordinator Coordinator) executeSetup(ctx context.Context, primary linuxhost.Account, input io.Reader) (any, error) {
+func (coordinator Coordinator) executeEdit(ctx context.Context, input io.Reader) (ProjectMutationResponse, error) {
+	var request EditRequest
+	if err := strictjson.Decode(input, &request); err != nil {
+		return ProjectMutationResponse{}, err
+	}
+	if err := request.Validate(); err != nil {
+		return ProjectMutationResponse{}, err
+	}
+	return coordinator.privileged.CatalogEdit(ctx, request)
+}
+
+func (coordinator Coordinator) executeSetup(ctx context.Context, primary linuxhost.Account, input io.Reader) (SetupResponse, error) {
 	var request SetupRequest
-	if err := DecodeRequest(input, &request); err != nil {
-		return nil, err
+	if err := strictjson.Decode(input, &request); err != nil {
+		return SetupResponse{}, err
 	}
 	return coordinator.setup(ctx, primary, request)
 }
 
-func (coordinator Coordinator) executeRemove(ctx context.Context, input io.Reader) (any, error) {
+func (coordinator Coordinator) executeRemove(ctx context.Context, input io.Reader) (SuccessResponse, error) {
 	var request ProjectRequest
-	if err := DecodeRequest(input, &request); err != nil {
-		return nil, err
+	if err := strictjson.Decode(input, &request); err != nil {
+		return SuccessResponse{}, err
 	}
-	if err := coordinator.Privileged.ProjectRemove(ctx, request); err != nil {
-		return nil, err
+	if err := coordinator.privileged.ProjectRemove(ctx, request); err != nil {
+		return SuccessResponse{}, err
 	}
-	return MutationResponse{OK: true}, nil
+	return SuccessResponse{OK: true}, nil
 }
 
-func (coordinator Coordinator) executeDeleteHuman(ctx context.Context, input io.Reader) (any, error) {
+func (coordinator Coordinator) executeDeleteHuman(ctx context.Context, input io.Reader) (SuccessResponse, error) {
 	var request DeleteHumanRequest
-	if err := DecodeRequest(input, &request); err != nil {
-		return nil, err
+	if err := strictjson.Decode(input, &request); err != nil {
+		return SuccessResponse{}, err
 	}
-	if err := coordinator.Privileged.HumanDelete(ctx, HelperHumanRequest(request)); err != nil {
-		return nil, err
+	if err := coordinator.privileged.HumanDelete(ctx, HelperHumanRequest(request)); err != nil {
+		return SuccessResponse{}, err
 	}
-	return MutationResponse{OK: true}, nil
+	return SuccessResponse{OK: true}, nil
 }
 
 func (coordinator Coordinator) list(ctx context.Context, primary linuxhost.Account, uidMin int) (ListResponse, error) {
-	entries, err := coordinator.Catalog.List()
+	entries, err := coordinator.store.List()
 	if err != nil {
 		return ListResponse{}, err
 	}
 	views := make([]ProjectView, 0, len(entries))
 	for _, entry := range entries {
-		view, viewErr := coordinator.projectView(ctx, primary, entry)
+		view, viewErr := projectView(ctx, coordinator.workspaces, primary, entry)
 		if viewErr != nil {
 			return ListResponse{}, viewErr
 		}
@@ -235,22 +153,14 @@ func (coordinator Coordinator) list(ctx context.Context, primary linuxhost.Accou
 	}
 	return ListResponse{
 		Projects:    views,
-		CurrentUser: CurrentUserView{Username: primary.Username, Administrator: isAdministrator(primary, uidMin)},
+		CurrentUser: CurrentUserView{Username: primary.Username, Administrator: people.IsAdministrator(primary, uidMin)},
 	}, nil
 }
 
-func (coordinator Coordinator) projectResult(ctx context.Context, primary linuxhost.Account, entry CatalogEntry) (MutationResponse, error) {
-	view, err := coordinator.projectView(ctx, primary, entry)
-	if err != nil {
-		return MutationResponse{}, err
-	}
-	return MutationResponse{OK: true, Project: &view}, nil
-}
-
-func (coordinator Coordinator) projectView(ctx context.Context, primary linuxhost.Account, entry CatalogEntry) (ProjectView, error) {
-	username, exists, err := coordinator.Lifecycle.WorkspaceAssociation(ctx, primary, entry.ID)
+func projectView(ctx context.Context, accounts workspace.Accounts, primary linuxhost.Account, entry catalog.Entry) (ProjectView, error) {
+	username, exists, err := accounts.Association(ctx, primary, entry)
 	if err != nil {
 		return ProjectView{}, err
 	}
-	return ProjectView{CatalogEntry: entry, WorkspaceUsername: username, WorkspaceExists: exists}, nil
+	return newProjectView(entry, username, exists), nil
 }

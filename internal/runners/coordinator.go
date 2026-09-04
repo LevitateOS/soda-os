@@ -6,6 +6,7 @@ import (
 	"io"
 
 	"github.com/LevitateOS/soda-os/internal/linuxhost"
+	"github.com/LevitateOS/soda-os/internal/strictjson"
 )
 
 type LocalReader interface {
@@ -44,7 +45,7 @@ func (coordinator Coordinator) Execute(ctx context.Context, actor linuxhost.PKEx
 
 func (coordinator Coordinator) list(ctx context.Context, input io.Reader) (ListResponse, error) {
 	var request EmptyRequest
-	if err := DecodeRequest(input, &request); err != nil {
+	if err := strictjson.Decode(input, &request); err != nil {
 		return ListResponse{}, err
 	}
 	views, err := coordinator.Local.List(ctx)
@@ -62,7 +63,7 @@ func (coordinator Coordinator) list(ctx context.Context, input io.Reader) (ListR
 
 func (coordinator Coordinator) create(ctx context.Context, input io.Reader) (MutationResponse, error) {
 	var request CreateRequest
-	if err := DecodeRequest(input, &request); err != nil {
+	if err := strictjson.Decode(input, &request); err != nil {
 		return MutationResponse{}, err
 	}
 	if request.Provider == ProviderForgejo {
@@ -79,7 +80,7 @@ func (coordinator Coordinator) create(ctx context.Context, input io.Reader) (Mut
 
 func (coordinator Coordinator) mutate(ctx context.Context, action string, input io.Reader) (MutationResponse, error) {
 	var request RunnerRequest
-	if err := DecodeRequest(input, &request); err != nil {
+	if err := strictjson.Decode(input, &request); err != nil {
 		return MutationResponse{}, err
 	}
 	if err := ValidateID(request.ID); err != nil {

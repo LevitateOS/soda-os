@@ -22,23 +22,19 @@ func NewNative() *Native {
 }
 
 func (native *Native) Run(ctx context.Context, command Command) (CommandResult, error) {
-	return native.runner().Run(ctx, command)
+	if native == nil || native.Runner == nil {
+		return CommandResult{}, errors.New("Linux host command runner was not constructed")
+	}
+	return native.Runner.Run(ctx, command)
 }
 
 func (native *Native) run(ctx context.Context, name string, args ...string) (CommandResult, error) {
 	return native.Run(ctx, Command{Name: name, Args: args})
 }
 
-func (native *Native) runner() CommandRunner {
-	if native.Runner == nil {
-		return ExecCommandRunner{}
+func (native *Native) homeRoot() (string, error) {
+	if native == nil || native.HomeRoot == "" {
+		return "", errors.New("Linux host home root was not constructed")
 	}
-	return native.Runner
-}
-
-func (native *Native) homeRoot() string {
-	if native.HomeRoot == "" {
-		return "/home"
-	}
-	return native.HomeRoot
+	return native.HomeRoot, nil
 }

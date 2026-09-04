@@ -6,75 +6,73 @@ import (
 	"fmt"
 
 	"github.com/LevitateOS/soda-os/internal/linuxhost"
+	"github.com/LevitateOS/soda-os/internal/projects/catalog"
 )
 
-func (coordinator Coordinator) setup(ctx context.Context, primary linuxhost.Account, request SetupRequest) (MutationResponse, error) {
-	if !projectIDPattern.MatchString(request.ID) {
-		return MutationResponse{}, errors.New("project id must match [a-z][a-z0-9-]{0,23}")
+func (coordinator Coordinator) setup(ctx context.Context, primary linuxhost.Account, request SetupRequest) (SetupResponse, error) {
+	if err := catalog.ValidateID(request.ID); err != nil {
+		return SetupResponse{}, err
 	}
-	setupLock, err := coordinator.Platform.SetupLock(primary, request.ID)
+	entry, err := coordinator.store.Get(request.ID)
 	if err != nil {
-		return MutationResponse{}, fmt.Errorf("lock project setup: %w", err)
+		return SetupResponse{}, err
+	}
+	setupLock, err := coordinator.setupLocks.Lock(primary, entry)
+	if err != nil {
+		return SetupResponse{}, fmt.Errorf("lock project setup: %w", err)
 	}
 	response, setupErr := coordinator.setupWithOperationLock(ctx, request)
 	return response, closeLockWithError(setupLock, setupErr, "project setup")
 }
 
-func (coordinator Coordinator) setupWithOperationLock(ctx context.Context, request SetupRequest) (MutationResponse, error) {
-	lock, err := coordinator.Platform.WorkspaceOperationSharedLock()
+func (coordinator Coordinator) setupWithOperationLock(ctx context.Context, request SetupRequest) (SetupResponse, error) {
+	lock, err := coordinator.operationLocks.Shared()
 	if err != nil {
-		return MutationResponse{}, fmt.Errorf("lock workspace operations: %w", err)
+		return SetupResponse{}, fmt.Errorf("lock workspace operations: %w", err)
 	}
 	response, setupErr := coordinator.setupLocked(ctx, request)
 	return response, closeLockWithError(lock, setupErr, "workspace operations")
 }
 
-func (coordinator Coordinator) setupLocked(ctx context.Context, request SetupRequest) (MutationResponse, error) {
-	entry, err := coordinator.Catalog.Get(request.ID)
+func (coordinator Coordinator) setupLocked(ctx context.Context, request SetupRequest) (SetupResponse, error) {
+	entry, err := coordinator.store.Get(request.ID)
 	if err != nil {
-		return MutationResponse{}, err
+		return SetupResponse{}, err
 	}
 	prepared, err := coordinator.prepareWorkspace(ctx, entry)
 	if err != nil {
-		return MutationResponse{}, err
+		return SetupResponse{}, err
 	}
-	response, err := coordinator.publishWorkspace(ctx, entry)
+	published, err := coordinator.publishWorkspace(ctx, entry)
 	if err != nil {
-		return MutationResponse{}, fmt.Errorf(
+		return SetupResponse{}, fmt.Errorf(
 			"workspace %s and its outbound Git key were retained; its public key is %q. If repository authorization caused the clone failure, register that key with the authoritative Git host, then retry setup: %w",
 			prepared.WorkspaceUsername,
 			prepared.WorkspacePublicKey,
 			err,
 		)
 	}
-	return completeWorkspaceSetup(response, prepared)
+	return completeWorkspaceSetup(published, prepared)
 }
 
-func (coordinator Coordinator) prepareWorkspace(ctx context.Context, entry CatalogEntry) (MutationResponse, error) {
-	prepared, err := coordinator.Privileged.WorkspacePrepare(ctx, HelperWorkspaceRequest{ID: entry.ID, CanonicalURL: entry.CanonicalURL})
+func (coordinator Coordinator) prepareWorkspace(ctx context.Context, entry catalog.Entry) (WorkspacePreparationResponse, error) {
+	prepared, err := coordinator.privileged.WorkspacePrepare(ctx, HelperWorkspaceRequest{ID: entry.ID, CanonicalURL: entry.CanonicalURL})
 	if err != nil {
-		return MutationResponse{}, err
+		return WorkspacePreparationResponse{}, err
 	}
-	if err = validateWorkspacePreparation(prepared); err != nil {
-		return MutationResponse{}, err
+	if !prepared.OK || prepared.WorkspaceUsername == "" || prepared.WorkspacePublicKey == "" {
+		return WorkspacePreparationResponse{}, errors.New("workspace helper returned incomplete outbound Git key evidence")
 	}
 	return prepared, nil
 }
 
-func validateWorkspacePreparation(prepared MutationResponse) error {
-	if !prepared.OK || prepared.WorkspaceUsername == "" || prepared.WorkspacePublicKey == "" {
-		return errors.New("workspace helper returned incomplete outbound Git key evidence")
-	}
-	return nil
+func (coordinator Coordinator) publishWorkspace(ctx context.Context, entry catalog.Entry) (WorkspacePublicationResponse, error) {
+	return coordinator.privileged.WorkspacePublish(ctx, HelperWorkspaceRequest{ID: entry.ID, CanonicalURL: entry.CanonicalURL})
 }
 
-func completeWorkspaceSetup(response, prepared MutationResponse) (MutationResponse, error) {
-	if !response.OK || response.WorkspaceUsername != prepared.WorkspaceUsername {
-		return MutationResponse{}, errors.New("workspace helper returned an incomplete clone result")
+func completeWorkspaceSetup(published WorkspacePublicationResponse, prepared WorkspacePreparationResponse) (SetupResponse, error) {
+	if !published.OK || published.WorkspaceUsername != prepared.WorkspaceUsername {
+		return SetupResponse{}, errors.New("workspace helper returned an incomplete clone result")
 	}
-	return response, nil
-}
-
-func (coordinator Coordinator) publishWorkspace(ctx context.Context, entry CatalogEntry) (MutationResponse, error) {
-	return coordinator.Privileged.WorkspacePublish(ctx, HelperWorkspaceRequest{ID: entry.ID, CanonicalURL: entry.CanonicalURL})
+	return SetupResponse{OK: true, WorkspaceUsername: published.WorkspaceUsername}, nil
 }

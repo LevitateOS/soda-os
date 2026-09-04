@@ -1,4 +1,4 @@
-package projects
+package workspace
 
 import (
 	"errors"
@@ -20,10 +20,6 @@ func openAbsoluteDirectoryNoSymlinks(path string) (*os.File, error) {
 		return nil, err
 	}
 	defer unix.Close(rootDescriptor)
-	return openAbsoluteDirectoryAt(rootDescriptor, path)
-}
-
-func openAbsoluteDirectoryAt(rootDescriptor int, path string) (*os.File, error) {
 	descriptor, err := unix.Openat2(rootDescriptor, strings.TrimPrefix(path, "/"), &unix.OpenHow{
 		Flags:   unix.O_RDONLY | unix.O_DIRECTORY | unix.O_CLOEXEC | unix.O_NOFOLLOW,
 		Resolve: unix.RESOLVE_BENEATH | unix.RESOLVE_NO_MAGICLINKS | unix.RESOLVE_NO_SYMLINKS,
@@ -84,18 +80,12 @@ func createOwnedDirectoryAt(parent *os.File, name string, account linuxhost.Acco
 	if errors.Is(err, unix.EEXIST) {
 		return nil
 	}
-	return unix.Fchownat(
-		int(parent.Fd()),
-		name,
-		account.UID,
-		account.GID,
-		unix.AT_SYMLINK_NOFOLLOW,
-	)
+	return unix.Fchownat(int(parent.Fd()), name, account.UID, account.GID, unix.AT_SYMLINK_NOFOLLOW)
 }
 
 func validateOwnedDirectory(directory *os.File, expectedUID int, description string) error {
-	var stat unix.Stat_t
-	if err := unix.Fstat(int(directory.Fd()), &stat); err != nil {
+	stat, err := descriptorStat(directory)
+	if err != nil {
 		return fmt.Errorf("inspect %s: %w", description, err)
 	}
 	if stat.Mode&unix.S_IFMT != unix.S_IFDIR {
@@ -104,15 +94,24 @@ func validateOwnedDirectory(directory *os.File, expectedUID int, description str
 	if int(stat.Uid) != expectedUID {
 		return fmt.Errorf("%s has unexpected ownership", description)
 	}
-	return validateSafeDirectoryMode(stat.Mode, description)
+	return validateSafeMode(stat.Mode, 0o500, description)
 }
 
-func validateSafeDirectoryMode(mode uint32, description string) error {
-	return validateSafeMode(mode, 0o500, description)
-}
-
-func validateSafeFileMode(mode uint32, description string) error {
-	return validateSafeMode(mode, 0o400, description)
+func validateOwnedRegularFile(file *os.File, expectedUID int, description string) error {
+	stat, err := descriptorStat(file)
+	if err != nil {
+		return fmt.Errorf("inspect %s: %w", description, err)
+	}
+	if stat.Mode&unix.S_IFMT != unix.S_IFREG {
+		return fmt.Errorf("%s is not a regular file", description)
+	}
+	if int(stat.Uid) != expectedUID {
+		return fmt.Errorf("%s has unexpected ownership", description)
+	}
+	if stat.Nlink != 1 {
+		return fmt.Errorf("%s has unexpected link count", description)
+	}
+	return validateSafeMode(stat.Mode, 0o400, description)
 }
 
 func validateSafeMode(mode, required uint32, description string) error {
@@ -126,7 +125,7 @@ func validateSafeMode(mode, required uint32, description string) error {
 	return nil
 }
 
-func validateDescriptorEntry(parent *os.File, name string, descriptor *os.File) error {
+func validateDirectoryEntry(parent *os.File, name string, descriptor *os.File) error {
 	var pathStat, descriptorStat unix.Stat_t
 	if err := unix.Fstatat(int(parent.Fd()), name, &pathStat, unix.AT_SYMLINK_NOFOLLOW); err != nil {
 		return err
@@ -134,13 +133,16 @@ func validateDescriptorEntry(parent *os.File, name string, descriptor *os.File) 
 	if err := unix.Fstat(int(descriptor.Fd()), &descriptorStat); err != nil {
 		return err
 	}
-	if pathStat.Mode&unix.S_IFMT != unix.S_IFDIR || descriptorStat.Mode&unix.S_IFMT != unix.S_IFDIR {
-		return errors.New("directory entry no longer refers to its validated descriptor")
-	}
-	if pathStat.Dev != descriptorStat.Dev || pathStat.Ino != descriptorStat.Ino {
+	if pathStat.Mode&unix.S_IFMT != unix.S_IFDIR || descriptorStat.Mode&unix.S_IFMT != unix.S_IFDIR || pathStat.Dev != descriptorStat.Dev || pathStat.Ino != descriptorStat.Ino {
 		return errors.New("directory entry no longer refers to its validated descriptor")
 	}
 	return nil
+}
+
+func descriptorStat(file *os.File) (unix.Stat_t, error) {
+	var stat unix.Stat_t
+	err := unix.Fstat(int(file.Fd()), &stat)
+	return stat, err
 }
 
 func isMissing(err error) bool {

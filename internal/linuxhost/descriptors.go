@@ -45,10 +45,14 @@ func (native *Native) validateAccountHome(account Account) error {
 // Callers can inspect their own product-owned contents without re-resolving an
 // account-controlled pathname.
 func (native *Native) OpenAccountHome(account Account) (*os.File, error) {
-	expectedHome := filepath.Join(native.homeRoot(), account.Username)
+	homeRootPath, err := native.homeRoot()
+	if err != nil {
+		return nil, err
+	}
+	expectedHome := filepath.Join(homeRootPath, account.Username)
 	homeMatches := account.Home == expectedHome
 	if !homeMatches {
-		resolvedHomeRoot, err := filepath.EvalSymlinks(native.homeRoot())
+		resolvedHomeRoot, err := filepath.EvalSymlinks(homeRootPath)
 		if err != nil {
 			return nil, fmt.Errorf("resolve Linux home root: %w", err)
 		}
@@ -57,7 +61,7 @@ func (native *Native) OpenAccountHome(account Account) (*os.File, error) {
 	if !homeMatches {
 		return nil, fmt.Errorf("Linux account %s has unexpected home %s", account.Username, account.Home)
 	}
-	homeRoot, err := openManagedHomeRoot(native.homeRoot())
+	homeRoot, err := openManagedHomeRoot(homeRootPath)
 	if err != nil {
 		return nil, fmt.Errorf("open Linux home root: %w", err)
 	}

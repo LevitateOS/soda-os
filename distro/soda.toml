@@ -3,7 +3,7 @@ schema_version = 2
 [identity]
 name = "Soda OS"
 id = "sodaos"
-version = "0.5.0"
+version = "0.6.0"
 hostname = "soda"
 
 [image]

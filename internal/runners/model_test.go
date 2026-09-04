@@ -1,7 +1,6 @@
 package runners
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -38,11 +37,4 @@ func TestRunnerIdentityHasAStableNarrowLinuxShape(t *testing.T) {
 	require.Equal(t, "soda-runner-build-arm64", account)
 	require.LessOrEqual(t, len(account), 32)
 	require.Error(t, ValidateID("Project/runner"))
-}
-
-func TestDecodeRequestRejectsDuplicateUnknownAndAlternateShapes(t *testing.T) {
-	var request RunnerRequest
-	require.ErrorContains(t, DecodeRequest(strings.NewReader(`{"id":"one","id":"two"}`), &request), "duplicate")
-	require.ErrorContains(t, DecodeRequest(strings.NewReader(`{"id":"one","project_id":"site"}`), &request), "unknown field")
-	require.ErrorContains(t, DecodeRequest(strings.NewReader(`[]`), &request), "one JSON object")
 }
