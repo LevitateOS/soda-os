@@ -44,6 +44,15 @@ export function providerName(provider) {
   return provider === "forgejo" ? "Forgejo" : "GitHub";
 }
 
+export function forgejoBrowserURL(hostname) {
+  const host = hostname.includes(":") && !hostname.startsWith("[") ? `[${hostname}]` : hostname;
+  return `http://${host}:30000`;
+}
+
+export function providerURL(provider, registrationURL, hostname) {
+  return provider === "forgejo" ? forgejoBrowserURL(hostname) : registrationURL;
+}
+
 export function successMessage(action, id) {
   if (action === "create") return `${id} was registered and its local listener started.`;
   if (action === "remove") return `${id} and its local account and state were removed. Remove its offline record in the provider.`;

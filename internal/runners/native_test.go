@@ -87,3 +87,16 @@ func TestLifecycleActionsPersistListenerStateAcrossBoot(t *testing.T) {
 		{Name: "systemctl", Args: []string{"restart", "soda-runner@one.service"}},
 	}, runner.commands)
 }
+
+func TestPrepareAccountRemovesLinuxAccountWhenIdentityLookupFails(t *testing.T) {
+	root := t.TempDir()
+	runner := &recordingCommandRunner{}
+	native := &Native{RootPath: root, Runner: runner}
+
+	_, err := native.prepareAccount(context.Background(), "uncreated")
+	require.ErrorContains(t, err, "look up new runner account")
+	require.Len(t, runner.commands, 2)
+	require.Equal(t, "useradd", runner.commands[0].Name)
+	require.Equal(t, Command{Name: "userdel", Args: []string{"soda-runner-uncreated"}}, runner.commands[1])
+	require.NoDirExists(t, filepath.Join(root, "uncreated"))
+}

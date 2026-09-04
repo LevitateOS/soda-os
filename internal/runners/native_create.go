@@ -62,14 +62,23 @@ func (native *Native) prepareAccount(ctx context.Context, id string) (preparedRu
 	if _, err := native.run(ctx, "useradd", args...); err != nil {
 		return preparedRunner{}, errors.New("create runner Linux account")
 	}
+	prepared := preparedRunner{account: account, state: state}
+	retained := false
+	defer func() {
+		if !retained {
+			native.discardPrepared(prepared)
+		}
+	}()
 	owner, err := lookupIdentity(account)
 	if err != nil {
-		return preparedRunner{account: account, state: state}, err
+		return prepared, err
 	}
 	if err = createOwnedDirectory(state, owner); err != nil {
-		return preparedRunner{account: account, state: state}, err
+		return prepared, err
 	}
-	return preparedRunner{account: account, state: state, owner: owner}, nil
+	prepared.owner = owner
+	retained = true
+	return prepared, nil
 }
 
 func (native *Native) requireAvailable(id string) error {

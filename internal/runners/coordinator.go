@@ -18,15 +18,10 @@ type PrivilegedRunners interface {
 	Remove(context.Context, RunnerRequest) error
 }
 
-type ForgejoEndpoint interface {
-	Endpoints(context.Context) (forgejoURL, sshHost string, err error)
-}
-
 type Coordinator struct {
 	Authorizer Authorizer
 	Local      LocalReader
 	Privileged PrivilegedRunners
-	Endpoints  ForgejoEndpoint
 }
 
 func (coordinator Coordinator) Execute(ctx context.Context, username, action string, input io.Reader) (any, error) {
@@ -54,11 +49,7 @@ func (coordinator Coordinator) list(ctx context.Context, input io.Reader) (ListR
 	if err != nil {
 		return ListResponse{}, err
 	}
-	forgejoURL, _, err := coordinator.Endpoints.Endpoints(ctx)
-	if err != nil {
-		return ListResponse{}, fmt.Errorf("resolve bundled Forgejo URL: %w", err)
-	}
-	response := ListResponse{Runners: views, RunnerCount: len(views), TotalCapacity: len(views) * RunnerCapacity, ForgejoURL: forgejoURL}
+	response := ListResponse{Runners: views, RunnerCount: len(views), TotalCapacity: len(views) * RunnerCapacity}
 	for _, view := range views {
 		if view.Service.Active == "active" && view.Service.Sub == "running" {
 			response.ActiveListeners++
@@ -73,11 +64,7 @@ func (coordinator Coordinator) create(ctx context.Context, input io.Reader) (Mut
 		return MutationResponse{}, err
 	}
 	if request.Provider == ProviderForgejo {
-		forgejoURL, _, err := coordinator.Endpoints.Endpoints(ctx)
-		if err != nil {
-			return MutationResponse{}, fmt.Errorf("resolve bundled Forgejo URL: %w", err)
-		}
-		request.RegistrationURL = forgejoURL
+		request.RegistrationURL = BundledForgejoURL
 	}
 	if err := request.Validate(); err != nil {
 		return MutationResponse{}, err

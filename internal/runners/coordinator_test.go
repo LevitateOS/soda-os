@@ -46,12 +46,6 @@ func (privileged *fakePrivileged) Remove(_ context.Context, request RunnerReques
 	return nil
 }
 
-type fakeEndpoints struct{ url string }
-
-func (endpoints fakeEndpoints) Endpoints(context.Context) (string, string, error) {
-	return endpoints.url, "", nil
-}
-
 func TestCoordinatorRequiresAdministratorBeforeReadingInputOrState(t *testing.T) {
 	privileged := &fakePrivileged{}
 	coordinator := Coordinator{Authorizer: fakeAuthorizer{err: errors.New("administrator status is required")}, Local: fakeLocal{}, Privileged: privileged}
@@ -64,7 +58,6 @@ func TestCoordinatorUsesOnlyTheBundledForgejoEndpoint(t *testing.T) {
 	privileged := &fakePrivileged{}
 	coordinator := Coordinator{
 		Authorizer: fakeAuthorizer{}, Local: fakeLocal{}, Privileged: privileged,
-		Endpoints: fakeEndpoints{url: "http://soda.tail.example:30000"},
 	}
 	response, err := coordinator.Execute(context.Background(), "alice", "create", strings.NewReader(`{
 		"id":"forgejo-one","provider":"forgejo","registration_url":"https://external.invalid",
@@ -73,11 +66,11 @@ func TestCoordinatorUsesOnlyTheBundledForgejoEndpoint(t *testing.T) {
 	}`))
 	require.NoError(t, err)
 	require.Equal(t, MutationResponse{OK: true}, response)
-	require.Equal(t, "http://soda.tail.example:30000", privileged.create.RegistrationURL)
+	require.Equal(t, BundledForgejoURL, privileged.create.RegistrationURL)
 }
 
 func TestCoordinatorReportsExactLocalListenerAndCapacityCounts(t *testing.T) {
-	coordinator := Coordinator{Authorizer: fakeAuthorizer{}, Endpoints: fakeEndpoints{url: "http://soda.example.test:30000"}, Local: fakeLocal{views: []RunnerView{
+	coordinator := Coordinator{Authorizer: fakeAuthorizer{}, Local: fakeLocal{views: []RunnerView{
 		{Descriptor: Descriptor{ID: "one"}, Capacity: 1, Service: ServiceState{Active: "active", Sub: "running"}},
 		{Descriptor: Descriptor{ID: "two"}, Capacity: 1, Service: ServiceState{Active: "failed", Sub: "failed"}},
 	}}}
@@ -86,5 +79,4 @@ func TestCoordinatorReportsExactLocalListenerAndCapacityCounts(t *testing.T) {
 	require.Equal(t, 2, response.(ListResponse).RunnerCount)
 	require.Equal(t, 1, response.(ListResponse).ActiveListeners)
 	require.Equal(t, 2, response.(ListResponse).TotalCapacity)
-	require.Equal(t, "http://soda.example.test:30000", response.(ListResponse).ForgejoURL)
 }

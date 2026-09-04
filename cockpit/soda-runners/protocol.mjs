@@ -34,7 +34,7 @@ export function decodeResponse(action, output) {
       throw new TypeError(`runner list has invalid ${field}`);
     }
   }
-  if (!Array.isArray(response.runners) || response.runner_count !== response.runners.length || typeof response.forgejo_url !== "string") {
+  if (!Array.isArray(response.runners) || response.runner_count !== response.runners.length) {
     throw new TypeError("runner list has inconsistent local capacity data");
   }
   response.runners.forEach(assertRunner);

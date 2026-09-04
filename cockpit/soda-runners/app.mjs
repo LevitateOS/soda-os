@@ -1,5 +1,5 @@
 import { coordinatorCommand, decodeResponse, encodeRequest } from "./protocol.mjs";
-import { clearRegistrationSecret, createPayload, errorMessage, providerName, statusClass, statusText, successMessage } from "./ui.mjs";
+import { clearRegistrationSecret, createPayload, errorMessage, forgejoBrowserURL, providerName, providerURL, statusClass, statusText, successMessage } from "./ui.mjs";
 
 const cockpit = window.cockpit;
 const state = { data: null, busy: false };
@@ -55,7 +55,7 @@ function render() {
   elements.rows.replaceChildren(...data.runners.map(runnerRow));
   elements.tableWrap.hidden = data.runners.length === 0;
   elements.empty.hidden = data.runners.length !== 0;
-  elements.forgejoLink.href = `${data.forgejo_url.replace(/\/$/, "")}/admin/actions/runners`;
+  elements.forgejoLink.href = `${forgejoBrowserURL(window.location.hostname)}/admin/actions/runners`;
 }
 
 function runnerRow(runner) {
@@ -69,7 +69,7 @@ function runnerRow(runner) {
 
   const provider = document.createElement("td");
   const providerLink = document.createElement("a");
-  providerLink.href = runner.registration_url;
+  providerLink.href = providerURL(runner.provider, runner.registration_url, window.location.hostname);
   providerLink.target = "_blank";
   providerLink.rel = "noreferrer";
   providerLink.textContent = providerName(runner.provider);

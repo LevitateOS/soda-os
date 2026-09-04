@@ -27,7 +27,6 @@ func main() {
 		Authorizer: authorizer,
 		Local:      runners.NewNative(),
 		Privileged: runners.PKExecInvoker{},
-		Endpoints:  projects.TailnetEndpoints{},
 	}
 	response, err := coordinator.Execute(context.Background(), current.Username, os.Args[1], os.Stdin)
 	if err != nil {

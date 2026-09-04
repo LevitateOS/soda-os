@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { clearRegistrationSecret, createPayload, statusText, successMessage } from "./ui.mjs";
+import { clearRegistrationSecret, createPayload, forgejoBrowserURL, providerURL, statusText, successMessage } from "./ui.mjs";
 
 function formData(values) { return { get: name => values[name] ?? "" }; }
 
@@ -24,4 +24,11 @@ test("local status never claims provider availability or idle capacity", () => {
   assert.equal(statusText({ active: "failed", sub: "failed" }), "Failed");
   assert.match(successMessage("remove", "one"), /provider/);
   assert.equal(successMessage("stop", "one"), "one was stopped.");
+});
+
+test("bundled Forgejo links follow the Cockpit LAN or Tailnet host", () => {
+  assert.equal(forgejoBrowserURL("soda.lan"), "http://soda.lan:30000");
+  assert.equal(forgejoBrowserURL("fd7a:115c:a1e0::1"), "http://[fd7a:115c:a1e0::1]:30000");
+  assert.equal(providerURL("forgejo", "http://127.0.0.1:30000", "soda.lan"), "http://soda.lan:30000");
+  assert.equal(providerURL("github", "https://github.com/example/repo", "soda.lan"), "https://github.com/example/repo");
 });

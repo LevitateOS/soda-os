@@ -13,11 +13,12 @@ import (
 )
 
 const (
-	DefaultRootPath = "/var/lib/soda/runners"
-	DefaultLockPath = "/run/lock/soda/runners.lock"
-	RunnerGroup     = "soda-runners"
-	RunnerShell     = "/usr/sbin/nologin"
-	RunnerCapacity  = 1
+	DefaultRootPath   = "/var/lib/soda/runners"
+	DefaultLockPath   = "/run/lock/soda/runners.lock"
+	RunnerGroup       = "soda-runners"
+	RunnerShell       = "/usr/sbin/nologin"
+	RunnerCapacity    = 1
+	BundledForgejoURL = "http://127.0.0.1:30000"
 
 	ProviderForgejo Provider = "forgejo"
 	ProviderGitHub  Provider = "github"
@@ -74,7 +75,6 @@ type ListResponse struct {
 	RunnerCount     int          `json:"runner_count"`
 	ActiveListeners int          `json:"active_listeners"`
 	TotalCapacity   int          `json:"total_capacity"`
-	ForgejoURL      string       `json:"forgejo_url"`
 }
 
 type MutationResponse struct {

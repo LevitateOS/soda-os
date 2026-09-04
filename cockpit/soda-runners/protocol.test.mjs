@@ -29,7 +29,7 @@ test("registration input is serialized only into the stdin payload", () => {
 test("list response requires exact count, listener, and one-slot capacity facts", () => {
   const response = {
     runners: [{ id: "one", provider: "github", registration_url: "https://github.com/example/repo", account: "soda-runner-one", architecture: "AArch64", version: "2.337.0", capacity: 1, service: { load: "loaded", active: "active", sub: "running", enabled: "enabled" } }],
-    runner_count: 1, active_listeners: 1, total_capacity: 1, forgejo_url: "http://soda.example:30000",
+    runner_count: 1, active_listeners: 1, total_capacity: 1,
   };
   assert.deepEqual(decodeResponse("list", JSON.stringify(response)), response);
   assert.throws(() => decodeResponse("list", JSON.stringify({ ...response, total_capacity: -1 })), /invalid total_capacity/);
