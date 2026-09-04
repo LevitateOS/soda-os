@@ -9,8 +9,8 @@ import (
 func TestCatalogEntryValidation(t *testing.T) {
 	t.Parallel()
 	for _, remote := range []string{
-		"https://git.example.test/team/site.git",
-		"http://git.example.test/alice/site.git",
+		"ssh://git@git.example.test/team/site.git",
+		"git@git.example.test:alice/site.git",
 		"ssh://git@git.example.test/team/site.git",
 		"ssh://git.example.test/team/site.git",
 		"git@git.example.test:team/site.git",
@@ -40,6 +40,21 @@ func TestCatalogEntryRejectsCredentialsAndNonRemotePaths(t *testing.T) {
 			t.Parallel()
 			require.Error(t, (CatalogEntry{ID: "site", DisplayName: "Site", CanonicalURL: remote}).Validate())
 		})
+	}
+}
+
+func TestRemoteSSHHostIdentifiesBundledForgejoWithoutOwningExternalHosts(t *testing.T) {
+	t.Parallel()
+	for remote, expected := range map[string]bool{
+		"git@SODA.example.test:alice/site.git":       true,
+		"ssh://git@soda.example.test/alice/site.git": true,
+		"git@soda.example.test.:alice/site.git":      true,
+		"git@localhost:alice/site.git":               true,
+		"git@external.example.test:alice/site.git":   false,
+	} {
+		matched, err := remoteUsesBundledForgejo(remote, "soda.example.test")
+		require.NoError(t, err)
+		require.Equal(t, expected, matched, remote)
 	}
 }
 

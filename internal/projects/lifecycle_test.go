@@ -4,64 +4,107 @@ import (
 	"context"
 	"errors"
 	"os"
-	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 )
 
-func TestLifecyclePublishesOneDerivedWorkspace(t *testing.T) {
+func TestLifecyclePreparesAndCompletesOneDerivedWorkspace(t *testing.T) {
 	catalog := testCatalog(t)
-	entry := CatalogEntry{ID: "site", DisplayName: "Site", CanonicalURL: "https://git.example.test/alice/site.git"}
+	entry := CatalogEntry{ID: "site", DisplayName: "Site", CanonicalURL: "git@git.example.test:alice/site.git"}
 	require.NoError(t, catalog.Add(entry))
 	platform := newFakePlatform()
 	platform.accounts["alice"] = primaryAccount("alice", primaryRoleUser)
 	lifecycle := Lifecycle{Catalog: catalog, Platform: platform}
 
-	username, err := lifecycle.Publish(context.Background(), "alice", HelperWorkspaceRequest{ID: "site", CanonicalURL: entry.CanonicalURL})
+	preparation, err := lifecycle.PrepareWorkspace(context.Background(), "alice", HelperWorkspaceRequest{ID: "site", CanonicalURL: entry.CanonicalURL})
 	require.NoError(t, err)
-	require.NotEmpty(t, username)
-	require.True(t, platform.ready[username+":site"])
+	require.NotEmpty(t, preparation.Username)
+	require.NotEmpty(t, preparation.PublicKey)
+	username, err := lifecycle.CompleteWorkspace(context.Background(), "alice", HelperWorkspaceRequest{ID: "site", CanonicalURL: entry.CanonicalURL})
+	require.NoError(t, err)
+	require.Equal(t, preparation.Username, username)
+	require.True(t, platform.ready[preparation.Username+":site"])
 
-	again, err := lifecycle.Publish(context.Background(), "alice", HelperWorkspaceRequest{ID: "site", CanonicalURL: entry.CanonicalURL})
+	againPreparation, err := lifecycle.PrepareWorkspace(context.Background(), "alice", HelperWorkspaceRequest{ID: "site", CanonicalURL: entry.CanonicalURL})
 	require.NoError(t, err)
-	require.Equal(t, username, again)
+	require.Equal(t, username, againPreparation.Username)
 	require.Empty(t, platform.calls.deleted)
 }
 
-func TestLifecycleDoesNotCleanupAmbiguousFailedPublication(t *testing.T) {
+func TestLifecycleCompletesWorkspaceThenInstallsSelectedMiseTools(t *testing.T) {
 	catalog := testCatalog(t)
-	entry := CatalogEntry{ID: "site", DisplayName: "Site", CanonicalURL: "https://git.example.test/alice/site.git"}
+	entry := CatalogEntry{ID: "site", DisplayName: "Site", CanonicalURL: "git@git.example.test:site.git"}
 	require.NoError(t, catalog.Add(entry))
 	platform := newFakePlatform()
 	platform.accounts["alice"] = primaryAccount("alice", primaryRoleUser)
-	platform.failures.publishErr = errors.New("copy failed")
-	platform.failures.unsafeCleanup = true
 	lifecycle := Lifecycle{Catalog: catalog, Platform: platform}
 
-	_, err := lifecycle.Publish(context.Background(), "alice", HelperWorkspaceRequest{ID: "site", CanonicalURL: entry.CanonicalURL})
-	require.ErrorContains(t, err, "incomplete workspace was retained")
+	request := HelperWorkspaceRequest{
+		ID: entry.ID, CanonicalURL: entry.CanonicalURL,
+		WorkspaceTools: []string{"node@22"}, ProjectTools: []string{"go@1.25"},
+	}
+	_, err := lifecycle.PrepareWorkspace(context.Background(), "alice", request)
+	require.NoError(t, err)
+	username, err := lifecycle.CompleteWorkspace(context.Background(), "alice", request)
+	require.NoError(t, err)
+	require.Equal(t, []string{username + ":site:workspace=[node@22]:project=[go@1.25]"}, platform.calls.miseInstalls)
+}
+
+func TestLifecycleRetainsReadyWorkspaceWhenMiseFails(t *testing.T) {
+	catalog := testCatalog(t)
+	entry := CatalogEntry{ID: "site", DisplayName: "Site", CanonicalURL: "git@git.example.test:site.git"}
+	require.NoError(t, catalog.Add(entry))
+	platform := newFakePlatform()
+	platform.accounts["alice"] = primaryAccount("alice", primaryRoleUser)
+	platform.failures.miseErr = errors.New("mise backend failed")
+	lifecycle := Lifecycle{Catalog: catalog, Platform: platform}
+
+	username, _ := DerivedUsername("alice", entry.ID)
+	request := HelperWorkspaceRequest{ID: entry.ID, CanonicalURL: entry.CanonicalURL, WorkspaceTools: []string{"node@22"}}
+	_, err := lifecycle.PrepareWorkspace(context.Background(), "alice", request)
+	require.NoError(t, err)
+	_, err = lifecycle.CompleteWorkspace(context.Background(), "alice", request)
+	require.ErrorContains(t, err, "workspace "+username+" and its complete clone were retained; mise setup can be retried")
+	require.Contains(t, platform.accounts, username)
+	require.Empty(t, platform.calls.deleted)
+}
+
+func TestLifecycleRetainsPreparedWorkspaceWhenCloneFails(t *testing.T) {
+	catalog := testCatalog(t)
+	entry := CatalogEntry{ID: "site", DisplayName: "Site", CanonicalURL: "git@git.example.test:alice/site.git"}
+	require.NoError(t, catalog.Add(entry))
+	platform := newFakePlatform()
+	platform.accounts["alice"] = primaryAccount("alice", primaryRoleUser)
+	platform.failures.cloneErr = errors.New("clone failed")
+	lifecycle := Lifecycle{Catalog: catalog, Platform: platform}
+
+	request := HelperWorkspaceRequest{ID: "site", CanonicalURL: entry.CanonicalURL}
+	_, err := lifecycle.PrepareWorkspace(context.Background(), "alice", request)
+	require.NoError(t, err)
+	_, err = lifecycle.CompleteWorkspace(context.Background(), "alice", request)
+	require.ErrorContains(t, err, "outbound Git key were retained; clone can be retried")
 	require.Empty(t, platform.calls.deleted)
 }
 
 func TestLifecycleRetainsWorkspaceWhenAuthorizedKeysProvenanceIsAmbiguous(t *testing.T) {
 	catalog := testCatalog(t)
-	entry := CatalogEntry{ID: "site", DisplayName: "Site", CanonicalURL: "https://git.example.test/alice/site.git"}
+	entry := CatalogEntry{ID: "site", DisplayName: "Site", CanonicalURL: "git@git.example.test:alice/site.git"}
 	require.NoError(t, catalog.Add(entry))
 	platform := newFakePlatform()
 	platform.accounts["alice"] = primaryAccount("alice", primaryRoleUser)
 	platform.failures.installErr = errors.Join(ErrAuthorizedKeysPublished, errors.New("authorized_keys already exists"))
 	lifecycle := Lifecycle{Catalog: catalog, Platform: platform}
 
-	_, err := lifecycle.Publish(context.Background(), "alice", HelperWorkspaceRequest{ID: entry.ID, CanonicalURL: entry.CanonicalURL})
+	_, err := lifecycle.PrepareWorkspace(context.Background(), "alice", HelperWorkspaceRequest{ID: entry.ID, CanonicalURL: entry.CanonicalURL})
 	require.ErrorIs(t, err, ErrAuthorizedKeysPublished)
-	require.ErrorContains(t, err, "workspace was retained")
+	require.ErrorContains(t, err, "was retained because inbound SSH keys may be incomplete")
 	require.Empty(t, platform.calls.deleted)
 }
 
-func TestLifecycleRejectsUnlockedExistingWorkspaceBeforeReadiness(t *testing.T) {
+func TestLifecycleRejectsUnlockedExistingWorkspaceBeforePreparation(t *testing.T) {
 	catalog := testCatalog(t)
-	entry := CatalogEntry{ID: "site", DisplayName: "Site", CanonicalURL: "https://git.example.test/alice/site.git"}
+	entry := CatalogEntry{ID: "site", DisplayName: "Site", CanonicalURL: "git@git.example.test:alice/site.git"}
 	require.NoError(t, catalog.Add(entry))
 	platform := newFakePlatform()
 	platform.accounts["alice"] = primaryAccount("alice", primaryRoleUser)
@@ -71,15 +114,15 @@ func TestLifecycleRejectsUnlockedExistingWorkspaceBeforeReadiness(t *testing.T) 
 	platform.failures.passwordErr = errors.New("workspace password is not locked")
 	lifecycle := Lifecycle{Catalog: catalog, Platform: platform}
 
-	_, err = lifecycle.Publish(context.Background(), "alice", HelperWorkspaceRequest{ID: entry.ID, CanonicalURL: entry.CanonicalURL})
+	_, err = lifecycle.PrepareWorkspace(context.Background(), "alice", HelperWorkspaceRequest{ID: entry.ID, CanonicalURL: entry.CanonicalURL})
 	require.ErrorContains(t, err, "password is not locked")
 	require.Equal(t, []string{workspace.Username}, platform.calls.passwordChecks)
 	require.Empty(t, platform.calls.deleted)
 }
 
-func TestLifecycleChecksExistingReadyWorkspaceUnderLockBeforeReadingKeys(t *testing.T) {
+func TestLifecycleChecksExistingWorkspaceUnderLockBeforeReadingKeys(t *testing.T) {
 	catalog := testCatalog(t)
-	entry := CatalogEntry{ID: "site", DisplayName: "Site", CanonicalURL: "https://git.example.test/alice/site.git"}
+	entry := CatalogEntry{ID: "site", DisplayName: "Site", CanonicalURL: "git@git.example.test:alice/site.git"}
 	require.NoError(t, catalog.Add(entry))
 	platform := newFakePlatform()
 	platform.accounts["alice"] = primaryAccount("alice", primaryRoleUser)
@@ -89,19 +132,19 @@ func TestLifecycleChecksExistingReadyWorkspaceUnderLockBeforeReadingKeys(t *test
 	platform.keys = nil
 	lifecycle := Lifecycle{Catalog: catalog, Platform: platform}
 
-	username, err := lifecycle.Publish(context.Background(), "alice", HelperWorkspaceRequest{ID: entry.ID, CanonicalURL: entry.CanonicalURL})
+	preparation, err := lifecycle.PrepareWorkspace(context.Background(), "alice", HelperWorkspaceRequest{ID: entry.ID, CanonicalURL: entry.CanonicalURL})
 	require.NoError(t, err)
-	require.Equal(t, workspace.Username, username)
+	require.Equal(t, workspace.Username, preparation.Username)
 	require.Equal(t, []string{workspace.Username}, platform.calls.passwordChecks)
 	require.Zero(t, platform.calls.keyReads)
 }
 
 func TestProjectRemovalDeletesWorkspacesBeforeCatalog(t *testing.T) {
 	catalog := testCatalog(t)
-	entry := CatalogEntry{ID: "site", DisplayName: "Site", CanonicalURL: "https://git.example.test/site.git"}
+	entry := CatalogEntry{ID: "site", DisplayName: "Site", CanonicalURL: "git@git.example.test:site.git"}
 	require.NoError(t, catalog.Add(entry))
 	platform := newFakePlatform()
-	platform.accounts["alice"] = primaryAccount("alice", primaryRoleUser)
+	platform.accounts["alice"] = primaryAccount("alice", primaryRoleAdministrator)
 	for _, primary := range []string{"alice", "bob"} {
 		workspace, err := platform.CreateWorkspace(context.Background(), primaryAccount(primary, primaryRoleUser), "site")
 		require.NoError(t, err)
@@ -120,10 +163,10 @@ func TestProjectRemovalDeletesWorkspacesBeforeCatalog(t *testing.T) {
 
 func TestProjectRemovalRetainsCatalogWhenWorkspacePasswordIsNotLocked(t *testing.T) {
 	catalog := testCatalog(t)
-	entry := CatalogEntry{ID: "site", DisplayName: "Site", CanonicalURL: "https://git.example.test/site.git"}
+	entry := CatalogEntry{ID: "site", DisplayName: "Site", CanonicalURL: "git@git.example.test:site.git"}
 	require.NoError(t, catalog.Add(entry))
 	platform := newFakePlatform()
-	platform.accounts["alice"] = primaryAccount("alice", primaryRoleUser)
+	platform.accounts["alice"] = primaryAccount("alice", primaryRoleAdministrator)
 	workspace, err := platform.CreateWorkspace(context.Background(), platform.accounts["alice"], entry.ID)
 	require.NoError(t, err)
 	platform.failures.passwordErr = errors.New("workspace password is not locked")
@@ -135,6 +178,41 @@ func TestProjectRemovalRetainsCatalogWhenWorkspacePasswordIsNotLocked(t *testing
 	require.Empty(t, platform.calls.deleted)
 	_, err = catalog.Get(entry.ID)
 	require.NoError(t, err)
+}
+
+func TestProjectRemovalRequiresAdministratorBeforeMutation(t *testing.T) {
+	catalog := testCatalog(t)
+	entry := CatalogEntry{ID: "site", DisplayName: "Site", CanonicalURL: "git@git.example.test:site.git"}
+	require.NoError(t, catalog.Add(entry))
+	platform := newFakePlatform()
+	platform.accounts["alice"] = primaryAccount("alice", primaryRoleUser)
+	lifecycle := Lifecycle{Catalog: catalog, Platform: platform}
+
+	err := lifecycle.RemoveProject(context.Background(), "alice", entry.ID)
+	require.ErrorContains(t, err, "administrator status is required")
+	_, err = catalog.Get(entry.ID)
+	require.NoError(t, err)
+}
+
+func TestPersonRemovesOnlyTheirOwnWorkspace(t *testing.T) {
+	catalog := testCatalog(t)
+	entry := CatalogEntry{ID: "site", DisplayName: "Site", CanonicalURL: "git@git.example.test:site.git"}
+	require.NoError(t, catalog.Add(entry))
+	platform := newFakePlatform()
+	platform.accounts["alice"] = primaryAccount("alice", primaryRoleUser)
+	platform.accounts["bob"] = primaryAccount("bob", primaryRoleUser)
+	aliceWorkspace, err := platform.CreateWorkspace(context.Background(), platform.accounts["alice"], entry.ID)
+	require.NoError(t, err)
+	bobWorkspace, err := platform.CreateWorkspace(context.Background(), platform.accounts["bob"], entry.ID)
+	require.NoError(t, err)
+	lifecycle := Lifecycle{Catalog: catalog, Platform: platform}
+
+	require.NoError(t, lifecycle.RemoveWorkspace(context.Background(), "alice", entry.ID))
+	require.Equal(t, []string{aliceWorkspace.Username}, platform.calls.deleted)
+	require.Contains(t, platform.accounts, bobWorkspace.Username)
+	_, err = catalog.Get(entry.ID)
+	require.NoError(t, err)
+	require.NoError(t, lifecycle.RemoveWorkspace(context.Background(), "alice", entry.ID), "retry after success is idempotent")
 }
 
 func TestHumanDeletionDeletesDerivedAccountsAndPrimaryLast(t *testing.T) {
@@ -214,7 +292,7 @@ func (platform *orderedPreflightPlatform) PreflightDeleteAccount(_ context.Conte
 
 func TestProjectRemovalPreflightsEveryWorkspaceBeforeDeletingAny(t *testing.T) {
 	catalog := testCatalog(t)
-	entry := CatalogEntry{ID: "site", DisplayName: "Site", CanonicalURL: "https://git.example.test/site.git"}
+	entry := CatalogEntry{ID: "site", DisplayName: "Site", CanonicalURL: "git@git.example.test:site.git"}
 	require.NoError(t, catalog.Add(entry))
 	base := newFakePlatform()
 	base.accounts["admin"] = primaryAccount("admin", primaryRoleAdministrator)
@@ -309,109 +387,4 @@ func (runner *recordingRunner) Run(_ context.Context, request Command) (CommandR
 		}
 	}
 	return CommandResult{}, nil
-}
-
-func TestNativePublicationUsesValidatedStagingCWDAndLabelsBeforeRename(t *testing.T) {
-	root := t.TempDir()
-	primary := primaryAccount("alice", primaryRoleUser)
-	primary.UID = os.Getuid()
-	workspace := Account{Username: "soda-w-example", UID: os.Getuid(), GID: os.Getgid(), PrimaryGroup: "soda-w-example", Home: filepath.Join(root, "soda-w-example")}
-	runner := &recordingRunner{}
-	runner.onRun = func(_ string, name string, _ []string, _ []*os.File) error {
-		if name == "/usr/sbin/runuser" {
-			return os.Mkdir(filepath.Join(workspace.Home, "Projects", ".soda-site.tmp", ".git"), 0o705)
-		}
-		return nil
-	}
-	platform := &NativePlatform{Runner: runner, HomeRoot: root, RuntimeRoot: filepath.Join(root, "run")}
-	staging := platform.StagingPath(primary, "site")
-	require.NoError(t, os.MkdirAll(filepath.Join(staging, ".git"), 0o700))
-	require.NoError(t, os.MkdirAll(workspace.Home, 0o700))
-	require.NoError(t, platform.PrepareStaging(primary, "site"))
-
-	require.NoError(t, platform.PublishWorkspace(context.Background(), primary, workspace, "site"))
-	calls := runner.calls
-	require.Len(t, calls, 2)
-	require.Empty(t, calls[0].directory)
-	require.Equal(t, 2, calls[0].extraFiles)
-	require.Equal(t, []string{"--user", workspace.Username, "--", "/usr/bin/cp", "--archive", "--", "/proc/self/fd/3/.", "/proc/self/fd/4/"}, calls[0].args)
-	require.Equal(t, "/usr/sbin/restorecon", calls[1].name, "relabeling must happen before descriptor-anchored rename")
-	require.Equal(t, []string{"-R", filepath.Join(workspace.Home, "Projects", ".soda-site.tmp")}, calls[1].args)
-	require.Zero(t, calls[1].extraFiles)
-	_, err := os.Stat(staging)
-	require.NoError(t, err, "the privileged publisher must not remove caller-owned staging")
-	_, err = os.Stat(filepath.Join(workspace.Home, "Projects", "site", ".git"))
-	require.NoError(t, err, "the validated temporary clone must be atomically published")
-}
-
-func TestNativePublicationRequiresGitDirectoriesAtBothBoundaries(t *testing.T) {
-	root := t.TempDir()
-	primary := primaryAccount("alice", primaryRoleUser)
-	primary.UID = os.Getuid()
-	workspace := Account{Username: "soda-w-example", UID: os.Getuid(), GID: os.Getgid(), PrimaryGroup: "soda-w-example", Home: filepath.Join(root, "soda-w-example")}
-	runner := &recordingRunner{}
-	platform := &NativePlatform{Runner: runner, HomeRoot: root, RuntimeRoot: filepath.Join(root, "run")}
-	staging := platform.StagingPath(primary, "site")
-	require.NoError(t, os.MkdirAll(staging, 0o700))
-	require.NoError(t, os.MkdirAll(workspace.Home, 0o700))
-	require.NoError(t, platform.PrepareStaging(primary, "site"))
-
-	err := platform.PublishWorkspace(context.Background(), primary, workspace, "site")
-	require.ErrorContains(t, err, "completed clone .git directory")
-	require.Empty(t, runner.calls)
-
-	require.NoError(t, os.Mkdir(filepath.Join(staging, ".git"), 0o705))
-	require.NoError(t, platform.PrepareStaging(primary, "site"))
-	runner.onRun = func(_ string, _ string, _ []string, _ []*os.File) error { return nil }
-	err = platform.PublishWorkspace(context.Background(), primary, workspace, "site")
-	require.ErrorContains(t, err, "temporary workspace .git directory")
-	require.Len(t, runner.calls, 1, "restorecon must not run for a copied tree without .git")
-}
-
-func TestNativePublicationReservesTemporaryAndNeverReplacesDestination(t *testing.T) {
-	root := t.TempDir()
-	primary := primaryAccount("alice", primaryRoleUser)
-	primary.UID = os.Getuid()
-	workspace := Account{Username: "soda-w-example", UID: os.Getuid(), GID: os.Getgid(), PrimaryGroup: "soda-w-example", Home: filepath.Join(root, "soda-w-example")}
-	runner := &recordingRunner{}
-	platform := &NativePlatform{Runner: runner, HomeRoot: root, RuntimeRoot: filepath.Join(root, "run")}
-	staging := platform.StagingPath(primary, "site")
-	require.NoError(t, os.MkdirAll(filepath.Join(staging, ".git"), 0o700))
-	require.NoError(t, os.MkdirAll(filepath.Join(workspace.Home, "Projects", ".soda-site.tmp"), 0o700))
-	require.NoError(t, platform.PrepareStaging(primary, "site"))
-
-	err := platform.PublishWorkspace(context.Background(), primary, workspace, "site")
-	require.ErrorContains(t, err, "already exists")
-	require.Empty(t, runner.calls)
-	require.NoError(t, os.Remove(filepath.Join(workspace.Home, "Projects", ".soda-site.tmp")))
-
-	runner.onRun = func(_ string, name string, _ []string, _ []*os.File) error {
-		switch name {
-		case "/usr/sbin/runuser":
-			return os.Mkdir(filepath.Join(workspace.Home, "Projects", ".soda-site.tmp", ".git"), 0o705)
-		case "/usr/sbin/restorecon":
-			destination := filepath.Join(workspace.Home, "Projects", "site")
-			if err := os.Mkdir(destination, 0o700); err != nil {
-				return err
-			}
-			return os.WriteFile(filepath.Join(destination, "existing"), []byte("keep"), 0o600)
-		}
-		return nil
-	}
-	err = platform.PublishWorkspace(context.Background(), primary, workspace, "site")
-	require.ErrorContains(t, err, "file exists")
-	require.FileExists(t, filepath.Join(workspace.Home, "Projects", "site", "existing"))
-	require.DirExists(t, filepath.Join(workspace.Home, "Projects", ".soda-site.tmp"))
-}
-
-func TestResetStagingRefusesUnexpectedOwnership(t *testing.T) {
-	root := t.TempDir()
-	platform := &NativePlatform{RuntimeRoot: root}
-	primary := primaryAccount("alice", primaryRoleUser)
-	primary.UID = os.Getuid() + 1
-	staging := platform.StagingPath(primary, "site")
-	require.NoError(t, os.MkdirAll(staging, 0o700))
-	require.ErrorContains(t, platform.ResetStaging(primary, "site"), "unexpected ownership")
-	_, err := os.Stat(staging)
-	require.NoError(t, err, "ambiguous staging state must remain untouched")
 }

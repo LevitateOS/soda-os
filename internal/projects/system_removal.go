@@ -27,8 +27,8 @@ type terminationStep struct {
 }
 
 func (platform *NativePlatform) SafeToRemoveIncomplete(account Account, projectID string) error {
-	if err := validateStagingProjectID(projectID); err != nil {
-		return err
+	if !projectIDPattern.MatchString(projectID) {
+		return errors.New("project id must match [a-z][a-z0-9-]{0,23}")
 	}
 	home, err := platform.openValidatedAccountHome(account)
 	if err != nil {

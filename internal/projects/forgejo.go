@@ -30,13 +30,14 @@ type ForgejoKeyRequest struct {
 	Username  string
 	Password  string
 	PublicKey string
+	Title     string
 }
 
 type forgejoRepositoryResponse struct {
-	Name     string `json:"name"`
-	CloneURL string `json:"clone_url"`
-	Empty    *bool  `json:"empty"`
-	Owner    struct {
+	Name   string `json:"name"`
+	SSHURL string `json:"ssh_url"`
+	Empty  *bool  `json:"empty"`
+	Owner  struct {
 		Login string `json:"login"`
 	} `json:"owner"`
 }
@@ -163,7 +164,7 @@ func createForgejoKey(ctx context.Context, httpClient *http.Client, registration
 	payload, err := json.Marshal(struct {
 		Title string `json:"title"`
 		Key   string `json:"key"`
-	}{Title: "Soda OS", Key: registration.PublicKey})
+	}{Title: forgejoKeyTitle(registration), Key: registration.PublicKey})
 	if err != nil {
 		return err
 	}
@@ -181,6 +182,13 @@ func createForgejoKey(ctx context.Context, httpClient *http.Client, registration
 		return forgejoRejection(response)
 	}
 	return nil
+}
+
+func forgejoKeyTitle(registration ForgejoKeyRequest) string {
+	if registration.Title != "" {
+		return registration.Title
+	}
+	return "Soda OS"
 }
 
 func newForgejoUserRequest(ctx context.Context, method string, registration ForgejoKeyRequest, endpoint string, body io.Reader) (*http.Request, error) {
@@ -270,10 +278,10 @@ func decodeCreatedForgejoRepository(reader io.Reader, creation ForgejoCreateRequ
 	if created.Empty == nil || !*created.Empty {
 		return CreatedRepository{}, errors.New("Forgejo did not confirm that the repository is empty")
 	}
-	if err := ValidateCanonicalURL(created.CloneURL); err != nil {
+	if err := ValidateCanonicalURL(created.SSHURL); err != nil {
 		return CreatedRepository{}, fmt.Errorf("Forgejo returned an unsafe clone URL: %w", err)
 	}
-	return CreatedRepository{CanonicalURL: created.CloneURL}, nil
+	return CreatedRepository{CanonicalURL: created.SSHURL}, nil
 }
 
 func forgejoDiagnostic(reader io.Reader) string {

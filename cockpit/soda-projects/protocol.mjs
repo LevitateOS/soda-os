@@ -6,6 +6,8 @@ export const actions = Object.freeze([
   "create-forgejo",
   "edit",
   "setup",
+  "install-tools",
+  "remove-workspace",
   "remove",
   "delete-human",
   "add-person",
@@ -79,6 +81,9 @@ function assertProjectView(project) {
   if (typeof project.workspace_username !== "string") {
     throw new TypeError("project is missing workspace_username");
   }
+  if (typeof project.workspace_ready !== "boolean") {
+    throw new TypeError("project is missing workspace readiness");
+  }
 }
 
 function assertCatalogEntry(project) {
@@ -88,6 +93,7 @@ function assertCatalogEntry(project) {
       throw new TypeError(`project is missing ${field}`);
     }
   }
+  assertObject(project.catalog_metadata, "project catalog_metadata");
 }
 
 function assertObject(value, name) {

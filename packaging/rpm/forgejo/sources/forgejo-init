@@ -23,18 +23,15 @@ if [ ! -e "$target" ]; then
 fi
 
 identity=localhost
-address=127.0.0.1
+address=0.0.0.0
 port=30000
 root_url=http://127.0.0.1:${port}/
 
-# Before enrollment Forgejo retains the private loopback integration used by
-# the installer. After enrollment it listens on IPv4 so both that local Tea
-# login and the appliance's Tailnet address remain usable; Soda's nftables
-# policy admits this port only from loopback and tailscale0.
+# Forgejo always listens on IPv4. Firewalld admits it only through an explicitly
+# trusted NetworkManager connection or Tailscale's independent netfilter path.
 if endpoint=$(/usr/libexec/soda/forgejo-tailnet 2>/dev/null); then
   set -- $endpoint
   identity=$1
-  address=0.0.0.0
   root_url=http://${identity}:${port}/
 fi
 

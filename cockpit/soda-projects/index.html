@@ -88,6 +88,10 @@
             Canonical Git URL
             <input name="canonical_url" required type="text" inputmode="url" autocomplete="off" placeholder="git@example.test:team/project.git">
           </label>
+          <label>
+            Additional metadata <span class="optional">Optional JSON object</span>
+            <textarea name="additional_metadata" rows="4" placeholder='{"team":"web"}'></textarea>
+          </label>
         </div>
         <footer class="dialog-actions">
           <button class="button secondary" type="button" data-dialog-close>Cancel</button>
@@ -147,6 +151,10 @@
             Canonical Git URL
             <input name="canonical_url" required type="text" inputmode="url" autocomplete="off">
           </label>
+          <label>
+            Additional metadata <span class="optional">JSON object</span>
+            <textarea name="additional_metadata" rows="4"></textarea>
+          </label>
         </div>
         <footer class="dialog-actions">
           <button class="button secondary" type="button" data-dialog-close>Cancel</button>
@@ -160,7 +168,42 @@
         <header class="dialog-header">
           <div>
             <h2 id="setup-project-title">Set up for me</h2>
-            <p>Clones the repository before creating your derived workspace account.</p>
+            <p>Creates your derived workspace and clones the repository through native SSH.</p>
+          </div>
+          <button class="icon-button" type="button" data-dialog-close aria-label="Close">×</button>
+        </header>
+        <div class="form-body">
+          <input name="id" type="hidden">
+          <p>Project: <strong data-project-name></strong></p>
+		  <p class="field-help">Soda creates an SSH keypair only in this workspace and uses it for this clone. For a bundled Forgejo repository, Soda registers the public key with your Forgejo account. For an external host, that host owns access; if clone authentication fails, Soda reports the public key for you to register there before retrying. Tea and GitHub CLI authentication remains manual and private to this workspace.</p>
+		  <label>
+			Forgejo password
+			<input name="forgejo_password" type="password" autocomplete="current-password">
+			<span class="field-help">Required only for bundled Forgejo. Used once for native public-key registration and never retained.</span>
+		  </label>
+          <label>
+            Tools for my workspace <span class="optional">Optional, one mise tool per line</span>
+            <textarea name="workspace_tools" rows="3" placeholder="node@22&#10;python@3.13"></textarea>
+          </label>
+          <label>
+            Tools for this project <span class="optional">Optional, one mise tool per line</span>
+            <textarea name="project_tools" rows="3" placeholder="go@1.25"></textarea>
+          </label>
+          <p class="field-help">Personal selections use <code>mise.local.toml</code> and private installs. Project selections use <code>mise.toml</code> and the project’s shared mise install directory. mise retains ownership of its cache.</p>
+        </div>
+        <footer class="dialog-actions">
+          <button class="button secondary" type="button" data-dialog-close>Cancel</button>
+          <button class="button primary" value="default">Set up for me</button>
+        </footer>
+      </form>
+    </dialog>
+
+    <dialog id="install-tools-project-dialog" aria-labelledby="install-tools-project-title">
+      <form method="dialog" data-action-form="install-tools">
+        <header class="dialog-header">
+          <div>
+            <h2 id="install-tools-project-title">Add development tools</h2>
+            <p><code>mise</code> owns discovery, download, installation, versions, configuration, locking, and cache layout.</p>
           </div>
           <button class="icon-button" type="button" data-dialog-close aria-label="Close">×</button>
         </header>
@@ -168,18 +211,44 @@
           <input name="id" type="hidden">
           <p>Project: <strong data-project-name></strong></p>
           <label>
-            Git username <span class="optional">Optional</span>
-            <input name="git_username" autocomplete="off">
+            Scope
+            <select name="scope" required>
+              <option value="workspace">My workspace</option>
+              <option value="project">This project</option>
+            </select>
           </label>
           <label>
-            Git password or token <span class="optional">Optional</span>
-            <input name="git_password" type="password" autocomplete="off">
+            Tools <span class="optional">One mise tool per line</span>
+            <textarea name="tools" rows="5" required placeholder="node@22&#10;python@3.13"></textarea>
           </label>
-          <p class="field-help">Leave these empty for public repositories or SSH authentication. Any supplied credential is used only by the unprivileged Git process and is not retained.</p>
+          <p class="field-help">Project tools are stored once for the project. Dependencies, mutable state, and credentials remain private to each workspace.</p>
         </div>
         <footer class="dialog-actions">
           <button class="button secondary" type="button" data-dialog-close>Cancel</button>
-          <button class="button primary" value="default">Set up for me</button>
+          <button class="button primary" value="default">Install with mise</button>
+        </footer>
+      </form>
+    </dialog>
+
+    <dialog id="remove-workspace-project-dialog" aria-labelledby="remove-workspace-project-title">
+      <form method="dialog" data-action-form="remove-workspace">
+        <header class="dialog-header">
+          <div>
+            <h2 id="remove-workspace-project-title">Remove my workspace</h2>
+            <p>This permanently removes your workspace account, home, independent clone, dependencies, processes, project state, and uncommitted work. The shared project, other workspaces, and canonical repository are not deleted.</p>
+          </div>
+          <button class="icon-button" type="button" data-dialog-close aria-label="Close">×</button>
+        </header>
+        <div class="form-body">
+          <input name="id" type="hidden">
+          <label>
+            Type <code data-confirmation-value></code> to confirm
+            <input name="confirmation" required autocomplete="off">
+          </label>
+        </div>
+        <footer class="dialog-actions">
+          <button class="button secondary" type="button" data-dialog-close>Cancel</button>
+          <button class="button danger" value="default">Remove my workspace</button>
         </footer>
       </form>
     </dialog>
