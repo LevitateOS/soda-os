@@ -47,6 +47,18 @@ func TestLoadDistroRejectsUnknownSchema(t *testing.T) {
 	require.EqualError(t, err, "unsupported distro schema version 3; expected 2")
 }
 
+func TestPlatformBuildAcceptsReviewedRenamedGoArchive(t *testing.T) {
+	builder := PlatformBuilder{
+		BaseReference:   "registry.fedoraproject.org/fedora@sha256:" + strings.Repeat("a", 64),
+		PackageLock:     "distro/locks/builder-packages-aarch64.toml",
+		GoVersion:       "go1.27.0",
+		GoURL:           "https://mirror.example/go-toolchain.tar.gz",
+		GoArchive:       ".artifacts/tools/go-toolchain.tar.gz",
+		GoArchiveSHA256: strings.Repeat("b", 64),
+	}
+	require.True(t, validPlatformBuild(builder, "arm64"))
+}
+
 func TestRequireNativeHostArchitecture(t *testing.T) {
 	for _, test := range []struct {
 		name, target, host, message string

@@ -156,10 +156,9 @@ func validPlatformBase(spec PlatformBase) bool {
 		validSHA256(spec.ArchiveSHA256) && spec.BootcNEVRA != "" && spec.RuntimePackageLock != ""
 }
 
-func validPlatformBuild(builder PlatformBuilder, ociArchitecture string) bool {
+func validPlatformBuild(builder PlatformBuilder, _ string) bool {
 	return digestReference(builder.BaseReference) && builder.PackageLock != "" && builder.GoVersion != "" && builder.GoURL != "" &&
-		strings.HasSuffix(builder.GoURL, ".linux-"+ociArchitecture+".tar.gz") && builder.GoArchive != "" &&
-		strings.HasSuffix(builder.GoArchive, ".linux-"+ociArchitecture+".tar.gz") && validSHA256(builder.GoArchiveSHA256)
+		builder.GoArchive != "" && validSHA256(builder.GoArchiveSHA256)
 }
 
 func validPlatformInstaller(installer PlatformInstaller, release PlatformRelease, artifactArchitecture string) bool {
