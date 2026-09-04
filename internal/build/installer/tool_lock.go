@@ -11,7 +11,7 @@ import (
 )
 
 func (b *Builder) validateSelectedToolLock(path, operation string) error {
-	if b.Spec.Platform.Installer.ToolLock != "" && filepath.Clean(path) != filepath.Clean(b.path(b.Spec.Platform.Installer.ToolLock)) {
+	if b.Spec.Platform.Installer.ToolLock != "" && filepath.Clean(b.path(path)) != filepath.Clean(b.path(b.Spec.Platform.Installer.ToolLock)) {
 		return fmt.Errorf("%s must use the selected platform image-builder lock", operation)
 	}
 	return nil

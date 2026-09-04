@@ -139,9 +139,8 @@ func RequireNativeHostArchitecture(architecture, hostArchitecture string) error 
 func validatePlatformSpec(spec PlatformSpec, requested string) error {
 	expected := architectureContract[requested]
 	if spec.SchemaVersion != 1 || !validPlatformArchitecture(spec.Architecture, requested, expected) ||
-		!validPlatformBase(spec.Base) || !validPlatformBuild(spec.Builder) ||
-		!validPlatformInstaller(spec.Installer, spec.Release, expected.artifact) ||
-		!validPlatformLockPaths(spec, requested, expected) {
+		!validPlatformBase(spec.Base) || !validPlatformBuild(spec.Builder, expected.oci) ||
+		!validPlatformInstaller(spec.Installer, spec.Release, expected.artifact) {
 		return fmt.Errorf("platform specification for %s differs from the Soda architecture contract", requested)
 	}
 	return nil
@@ -157,26 +156,15 @@ func validPlatformBase(spec PlatformBase) bool {
 		validSHA256(spec.ArchiveSHA256) && spec.BootcNEVRA != "" && spec.RuntimePackageLock != ""
 }
 
-func validPlatformBuild(builder PlatformBuilder) bool {
+func validPlatformBuild(builder PlatformBuilder, ociArchitecture string) bool {
 	return digestReference(builder.BaseReference) && builder.PackageLock != "" && builder.GoVersion != "" && builder.GoURL != "" &&
-		builder.GoArchive != "" && validSHA256(builder.GoArchiveSHA256)
+		strings.HasSuffix(builder.GoURL, ".linux-"+ociArchitecture+".tar.gz") && builder.GoArchive != "" &&
+		strings.HasSuffix(builder.GoArchive, ".linux-"+ociArchitecture+".tar.gz") && validSHA256(builder.GoArchiveSHA256)
 }
 
 func validPlatformInstaller(installer PlatformInstaller, release PlatformRelease, artifactArchitecture string) bool {
 	return installer.PackageLock != "" && installer.ToolLock != "" && installer.ISOConfig != "" &&
 		release.Channel == artifactArchitecture
-}
-
-func validPlatformLockPaths(spec PlatformSpec, architecture string, expected struct{ oci, artifact, installer string }) bool {
-	platform := spec.Architecture.Platform
-	return spec.Base.RuntimePackageLock == "distro/locks/runtime-packages-"+architecture+".toml" &&
-		spec.Builder.PackageLock == "distro/locks/builder-packages-"+architecture+".toml" &&
-		spec.Builder.GoURL == "https://go.dev/dl/"+spec.Builder.GoVersion+".linux-"+expected.oci+".tar.gz" &&
-		spec.Builder.GoArchive == ".artifacts/tools/"+spec.Builder.GoVersion+".linux-"+expected.oci+".tar.gz" &&
-		spec.Installer.PackageLock == "distro/locks/installer-packages-"+architecture+".toml" &&
-		spec.Installer.ToolLock == "distro/locks/installer-image-builder-"+architecture+".toml" &&
-		spec.Installer.ISOConfig == "packaging/installer/iso-"+architecture+".yaml" &&
-		platform == "linux/"+expected.oci
 }
 
 func digestReference(value string) bool {
