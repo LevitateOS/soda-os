@@ -241,7 +241,7 @@ func (b *Builder) BuildImage(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	if err := b.buildRPMs(ctx, inputs.revision); err != nil {
+	if err := b.buildRPMs(ctx, inputs.revision, inputs.runtimeLock); err != nil {
 		return err
 	}
 	if err := b.verifySourceRevision(ctx, inputs.revision); err != nil {
@@ -330,8 +330,12 @@ func (b *Builder) verifySourceRevision(ctx context.Context, expected string) err
 }
 
 func (b *Builder) packageLock() (packageLock, error) {
+	return readPackageLock(b.path(b.Spec.Image.PackageLock))
+}
+
+func readPackageLock(path string) (packageLock, error) {
 	var lock packageLock
-	metadata, err := toml.DecodeFile(b.path(b.Spec.Image.PackageLock), &lock)
+	metadata, err := toml.DecodeFile(path, &lock)
 	if err != nil {
 		return packageLock{}, fmt.Errorf("parse package lock: %w", err)
 	}

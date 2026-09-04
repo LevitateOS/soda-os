@@ -236,7 +236,28 @@ file = "soda-release.rpm"
 `
 	require.NoError(t, os.WriteFile(filepath.Join(root, "distro", "locks", "runtime-packages-aarch64.toml"), []byte(lock), 0o644))
 	builder := &Builder{Root: root, Spec: config.DistroSpec{Image: config.ImageSpec{PackageLock: "distro/locks/runtime-packages-aarch64.toml"}}}
-	require.ErrorContains(t, builder.writeLockedInstallInputs(filepath.Join(root, "rpms")), "locked RPM soda-release.rpm is missing")
+	require.ErrorContains(t, builder.writeLockedInstallInputs(filepath.Join(root, "rpms"), filepath.Join(root, "distro", "locks", "runtime-packages-aarch64.toml")), "locked RPM soda-release.rpm is missing")
+}
+
+func TestWriteLockedInstallInputsUsesRuntimeLockSnapshot(t *testing.T) {
+	root := t.TempDir()
+	rpms := filepath.Join(root, "rpms")
+	require.NoError(t, os.MkdirAll(rpms, 0o755))
+	lock := `schema_version = 1
+base_reference = "` + testArmBaseReference + `"
+
+[[package]]
+name = "make"
+nevra = "make-1:4.4.1-12.fc44.aarch64"
+source = "fedora"
+`
+	snapshot := filepath.Join(root, "runtime-packages.toml")
+	require.NoError(t, os.WriteFile(snapshot, []byte(lock), 0o644))
+	builder := &Builder{Root: root}
+	require.NoError(t, builder.writeLockedInstallInputs(rpms, snapshot))
+	contents, err := os.ReadFile(filepath.Join(root, ".artifacts", "bootc", "fedora-packages.txt"))
+	require.NoError(t, err)
+	require.Equal(t, "make-1:4.4.1-12.fc44.aarch64\n", string(contents))
 }
 
 func TestPrepareLocalBootcBaseUsesExactDigestDerivedLocalTag(t *testing.T) {

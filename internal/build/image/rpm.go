@@ -25,10 +25,14 @@ func (b *Builder) BuildRPMs(ctx context.Context) error {
 	if err := b.verifyFetchedBuildInputs(); err != nil {
 		return err
 	}
-	return b.buildRPMs(ctx, revision)
+	runtimeLock, _, err := b.snapshotRuntimePackageLock()
+	if err != nil {
+		return err
+	}
+	return b.buildRPMs(ctx, revision, runtimeLock)
 }
 
-func (b *Builder) buildRPMs(ctx context.Context, revision string) error {
+func (b *Builder) buildRPMs(ctx context.Context, revision, runtimeLock string) error {
 	if err := b.buildContainer(ctx); err != nil {
 		return err
 	}
@@ -36,7 +40,7 @@ func (b *Builder) buildRPMs(ctx context.Context, revision string) error {
 	if err != nil {
 		return err
 	}
-	return b.buildLockedRPMs(ctx, workspace, revision)
+	return b.buildLockedRPMs(ctx, workspace, revision, runtimeLock)
 }
 
 type rpmWorkspace struct{ build, topdir, rpms string }
@@ -56,11 +60,11 @@ func (b *Builder) prepareRPMWorkspace() (rpmWorkspace, error) {
 	return workspace, nil
 }
 
-func (b *Builder) buildLockedRPMs(ctx context.Context, workspace rpmWorkspace, revision string) error {
+func (b *Builder) buildLockedRPMs(ctx context.Context, workspace rpmWorkspace, revision, runtimeLock string) error {
 	if err := b.stageLockedRPMs(ctx, workspace, revision); err != nil {
 		return err
 	}
-	if err := b.writeLockedInstallInputs(workspace.rpms); err != nil {
+	if err := b.writeLockedInstallInputs(workspace.rpms, runtimeLock); err != nil {
 		return err
 	}
 	fmt.Printf("Built locked Soda RPM inputs at %s\n", workspace.rpms)
@@ -279,8 +283,8 @@ func (b *Builder) stageProductRPMSources(build, sources string) error {
 	return nil
 }
 
-func (b *Builder) writeLockedInstallInputs(rpms string) error {
-	lock, err := b.packageLock()
+func (b *Builder) writeLockedInstallInputs(rpms, runtimeLock string) error {
+	lock, err := readPackageLock(runtimeLock)
 	if err != nil {
 		return err
 	}
