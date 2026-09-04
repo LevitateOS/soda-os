@@ -59,6 +59,13 @@ func TestInstallerInitramfsRequiresInteractiveDefaults(t *testing.T) {
 	require.EqualError(t, validateInstallerInitramfs("-rw-r--r-- usr/share/anaconda/other.ks"), "installer initramfs lacks the interactive defaults")
 }
 
+func TestInstallerInitramfsDefaultsRequireExactKickstart(t *testing.T) {
+	builder := NewBuilder("", config.DistroSpec{Identity: config.IdentitySpec{Hostname: "soda"}}, &recordingRunner{})
+	defaults := kickstart(testExactImage, "soda")
+	require.NoError(t, builder.validateInstallerInitramfsDefaults(defaults, testExactImage))
+	require.EqualError(t, builder.validateInstallerInitramfsDefaults(defaults+"\n", testExactImage), "installer initramfs defaults differ from the exact Soda payload contract")
+}
+
 func TestInstallerStorageUsesOnePlainExt4Root(t *testing.T) {
 	root := filepath.Join("..", "..", "..")
 	contents, err := os.ReadFile(filepath.Join(root, "packaging", "installer", "soda-storage.conf"))

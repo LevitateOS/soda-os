@@ -33,15 +33,7 @@ func (b *Builder) inspectISO(ctx context.Context, input isoInspectionInput) erro
 	if err := validateNoDuplicatedBootcBase(listing); err != nil {
 		return err
 	}
-	args = append(append([]string{}, outer...), "xorriso", "-osirrox", "on", "-indev", "/input/soda.iso", "-extract", "/images/pxeboot/initrd.img", "/inspect/initrd.img")
-	if err := b.runner.Run(ctx, process.Command{Dir: b.Root, Name: "docker", Args: args}); err != nil {
-		return fmt.Errorf("extract installer initramfs: %w", err)
-	}
-	initramfs, err := b.runner.Output(ctx, process.Command{Dir: b.Root, Name: "docker", Args: append(append([]string{}, outer...), "lsinitrd", "/inspect/initrd.img")})
-	if err != nil {
-		return fmt.Errorf("list installer initramfs: %w", err)
-	}
-	if err := validateInstallerInitramfs(initramfs); err != nil {
+	if err := b.inspectISOInitramfs(ctx, outer, input); err != nil {
 		return err
 	}
 	args = append(append([]string{}, outer...), "unsquashfs", "-f", "-d", "/inspect/root", "/inspect/squashfs.img", ".buildstamp", "usr/lib/os-release", "usr/share/anaconda/interactive-defaults.ks", "etc/anaconda/conf.d/90-soda-storage.conf", "etc/anaconda/profile.d/sodaos.conf", "etc/systemd/system/anaconda.target.wants/var-tmp.mount", "usr/share/anaconda/pixmaps/soda.css", "usr/share/anaconda/pixmaps/soda-sidebar-logo.png", "usr/share/anaconda/pixmaps/soda-symbol.png", "usr/lib/image-builder/bootc/iso.yaml", "usr/lib/systemd/system/var-tmp.mount", anacondaBootcInstallationPath, "usr/share/anaconda/addons", "usr/share/anaconda/dbus/confs", "usr/share/anaconda/dbus/services", "var/lib/containers/storage/overlay-images/images.json")
@@ -58,6 +50,25 @@ func (b *Builder) inspectISO(ctx context.Context, input isoInspectionInput) erro
 	return b.validateExtractedISO(input.inspectDir, input.reference)
 }
 
+func (b *Builder) inspectISOInitramfs(ctx context.Context, outer []string, input isoInspectionInput) error {
+	args := append(append([]string{}, outer...), "xorriso", "-osirrox", "on", "-indev", "/input/soda.iso", "-extract", "/images/pxeboot/initrd.img", "/inspect/initrd.img")
+	if err := b.runner.Run(ctx, process.Command{Dir: b.Root, Name: "docker", Args: args}); err != nil {
+		return fmt.Errorf("extract installer initramfs: %w", err)
+	}
+	listing, err := b.runner.Output(ctx, process.Command{Dir: b.Root, Name: "docker", Args: append(append([]string{}, outer...), "lsinitrd", "/inspect/initrd.img")})
+	if err != nil {
+		return fmt.Errorf("list installer initramfs: %w", err)
+	}
+	if err := validateInstallerInitramfs(listing); err != nil {
+		return err
+	}
+	defaults, err := b.runner.Output(ctx, process.Command{Dir: b.Root, Name: "docker", Args: append(append([]string{}, outer...), "lsinitrd", "-f", "usr/share/anaconda/interactive-defaults.ks", "/inspect/initrd.img")})
+	if err != nil {
+		return fmt.Errorf("read installer initramfs defaults: %w", err)
+	}
+	return b.validateInstallerInitramfsDefaults(defaults, input.reference)
+}
+
 func validateNoDuplicatedBootcBase(listing string) error {
 	if strings.Contains(listing, "squashfs-root/sysroot") {
 		return errors.New("installer squashfs contains a duplicated bootc base")
@@ -68,6 +79,13 @@ func validateNoDuplicatedBootcBase(listing string) error {
 func validateInstallerInitramfs(listing string) error {
 	if !strings.Contains(listing, "usr/share/anaconda/interactive-defaults.ks") {
 		return errors.New("installer initramfs lacks the interactive defaults")
+	}
+	return nil
+}
+
+func (b *Builder) validateInstallerInitramfsDefaults(actual, reference string) error {
+	if actual != kickstart(reference, b.Spec.Identity.Hostname) {
+		return errors.New("installer initramfs defaults differ from the exact Soda payload contract")
 	}
 	return nil
 }
