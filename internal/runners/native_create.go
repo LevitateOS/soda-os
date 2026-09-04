@@ -10,7 +10,10 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 )
+
+const githubRegistrationTimeout = 2 * time.Minute
 
 type preparedRunner struct {
 	account string
@@ -180,13 +183,19 @@ func (native *Native) configureGitHub(ctx context.Context, state string, owner i
 		return err
 	}
 	command := githubRegistrationCommand(app, state, owner, request)
-	if err = native.runner().RunSecret(ctx, command, request.RegistrationToken); err != nil {
+	if err = native.runGitHubRegistration(ctx, command, request.RegistrationToken); err != nil {
 		return errors.New("GitHub registration failed; no local runner was retained, but check GitHub for a provider record before retrying")
 	}
 	if _, err = os.Stat(filepath.Join(app, ".runner")); err != nil {
 		return errors.New("GitHub registration completed without native runner state")
 	}
 	return nil
+}
+
+func (native *Native) runGitHubRegistration(ctx context.Context, command Command, token string) error {
+	registrationContext, cancel := context.WithTimeout(ctx, githubRegistrationTimeout)
+	defer cancel()
+	return native.runner().RunSecret(registrationContext, command, token)
 }
 
 func (native *Native) copyGitHubRunner(ctx context.Context, state string, owner identity) (string, error) {
@@ -212,9 +221,6 @@ func (native *Native) copyGitHubRunner(ctx context.Context, state string, owner 
 }
 
 func githubRegistrationCommand(app, state string, owner identity, request CreateRequest) Command {
-	args := []string{"--unattended", "--url", request.RegistrationURL, "--name", request.ID, "--runnergroup", "default", "--work", "_work", "--disableupdate"}
-	if request.Labels != "" {
-		args = append(args, "--labels", request.Labels)
-	}
+	args := []string{"--url", request.RegistrationURL, "--name", request.ID, "--runnergroup", "default", "--work", "_work", "--disableupdate", "--labels", request.Labels}
 	return Command{Name: filepath.Join(app, "config.sh"), Args: args, Directory: app, Environment: []string{"HOME=" + state, "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin"}, UID: owner.UID, GID: owner.GID}
 }

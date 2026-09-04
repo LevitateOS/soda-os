@@ -122,7 +122,7 @@ func (request CreateRequest) validateGitHub() error {
 	if err := validateGitHubURL(request.RegistrationURL); err != nil {
 		return fmt.Errorf("GitHub URL: %w", err)
 	}
-	return validateLabels(request.Labels, githubLabelPattern, "GitHub labels must contain only letters, digits, dot, underscore, and hyphen")
+	return requireLabels(request.Labels, githubLabelPattern, "GitHub labels must contain only letters, digits, dot, underscore, and hyphen")
 }
 
 func ValidateID(id string) error {

@@ -12,6 +12,7 @@ test("manifest exposes one dedicated Cockpit Runners page", async () => {
   assert.equal(manifest.bridges, undefined);
   assert.match(page, /Runner jobs execute repository code/);
   assert.match(page, /Provider authority/);
+  assert.match(page, /name="github_labels" required value="soda-local"/);
   assert.doesNotMatch(page, /project binding|workflow queue|retry queue/i);
 });
 

@@ -11,14 +11,20 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type recordingCommandRunner struct{ commands []Command }
+type recordingCommandRunner struct {
+	commands          []Command
+	secretHadDeadline bool
+}
 
 func (runner *recordingCommandRunner) Run(_ context.Context, command Command) (CommandResult, error) {
 	runner.commands = append(runner.commands, command)
 	return CommandResult{}, nil
 }
 
-func (*recordingCommandRunner) RunSecret(context.Context, Command, string) error { return nil }
+func (runner *recordingCommandRunner) RunSecret(ctx context.Context, _ Command, _ string) error {
+	_, runner.secretHadDeadline = ctx.Deadline()
+	return nil
+}
 
 func TestForgejoConfigurationUsesNativeTokenFileAndOneHostSlot(t *testing.T) {
 	state := t.TempDir()
@@ -49,24 +55,25 @@ func TestForgejoConfigurationUsesNativeTokenFileAndOneHostSlot(t *testing.T) {
 	require.Equal(t, os.FileMode(0o600), info.Mode().Perm())
 }
 
-func TestGitHubRegistrationIsUnattendedAndDoesNotReplaceProviderRecords(t *testing.T) {
+func TestGitHubRegistrationUsesBoundedPromptWithoutReplacingProviderRecords(t *testing.T) {
 	request := CreateRequest{
 		ID: "github-one", Provider: ProviderGitHub, RegistrationURL: "https://github.com/example/repository",
 		Labels: "soda", RegistrationToken: "provider-input",
 	}
 	command := githubRegistrationCommand("/runner", "/state", identity{UID: 1200, GID: 1300}, request)
 	require.Equal(t, []string{
-		"--unattended", "--url", request.RegistrationURL, "--name", request.ID, "--runnergroup", "default",
+		"--url", request.RegistrationURL, "--name", request.ID, "--runnergroup", "default",
 		"--work", "_work", "--disableupdate", "--labels", request.Labels,
 	}, command.Args)
+	require.NotContains(t, command.Args, "--unattended")
 	require.NotContains(t, command.Args, "--replace")
 	require.NotContains(t, strings.Join(command.Args, " "), request.RegistrationToken)
 	require.NotContains(t, strings.Join(command.Environment, " "), request.RegistrationToken)
 
-	request.Labels = ""
-	command = githubRegistrationCommand("/runner", "/state", identity{UID: 1200, GID: 1300}, request)
-	require.Contains(t, command.Args, "--unattended")
-	require.NotContains(t, command.Args, "--labels")
+	runner := &recordingCommandRunner{}
+	native := &Native{Runner: runner}
+	require.NoError(t, native.runGitHubRegistration(context.Background(), command, request.RegistrationToken))
+	require.True(t, runner.secretHadDeadline)
 }
 
 func TestLifecycleActionsPersistListenerStateAcrossBoot(t *testing.T) {

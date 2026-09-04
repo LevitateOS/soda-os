@@ -22,6 +22,9 @@ func TestCreateRequestAcceptsOnlyTheTwoNativeProviderShapes(t *testing.T) {
 		Labels:          "soda-local", RegistrationToken: "provider-input",
 	}
 	require.NoError(t, github.Validate())
+	github.Labels = ""
+	require.ErrorContains(t, github.Validate(), "GitHub labels")
+	github.Labels = "soda-local"
 
 	github.RegistrationURL = "https://git.example.test/team/repository"
 	require.ErrorContains(t, github.Validate(), "github.com")
