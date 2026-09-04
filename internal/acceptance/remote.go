@@ -103,7 +103,14 @@ func (remote Remote) Sudo(ctx context.Context, password []byte, script string, r
 	input = append(input, bytes.TrimRight(password, "\r\n")...)
 	input = append(input, '\n')
 	input = append(input, script...)
-	return remote.Capture(ctx, relative, input, "sudo", "-k", "-S", "-p", "", "/bin/bash", "-eu", "-o", "pipefail", "-s")
+	return remote.Capture(ctx, relative, input, sudoScriptCommand()...)
+}
+
+func sudoScriptCommand() []string {
+	// OpenSSH joins remote arguments into a shell command. Preserve the empty
+	// prompt as shell syntax instead of passing an empty argv element, which is
+	// lost during that join and makes sudo consume /bin/bash as the prompt.
+	return []string{"sudo", "-k", "-S", "-p", "''", "/bin/bash", "-eu", "-o", "pipefail", "-s"}
 }
 
 func (remote Remote) sshArgs() []string {

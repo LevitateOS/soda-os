@@ -322,6 +322,7 @@ func TestRuntimeImageSystemdHostCompositionContract(t *testing.T) {
 	require.Contains(t, string(setupUnit), "ExecCondition=/usr/libexec/soda/soda-setup pending")
 	require.Contains(t, string(setupUnit), "ExecStart=/usr/libexec/soda/soda-setup console")
 	require.Contains(t, string(setupUnit), "TTYPath=/dev/console")
+	require.NotContains(t, string(setupUnit), "TTYVHangup=")
 	require.NotContains(t, string(preset), "soda-tailscale-enroll.service")
 	for _, obsolete := range []string{"soda-authd.service", "soda-cockpit.service", "avahi-daemon.service", "var-srv-soda-projects.mount"} {
 		require.NotContains(t, string(preset), obsolete)

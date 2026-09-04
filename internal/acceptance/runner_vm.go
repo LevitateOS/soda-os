@@ -130,7 +130,7 @@ jq -nc --arg connection "$connection" '{connection:$connection}' | /usr/libexec/
 	if err := local.WaitReady(waitCtx); err != nil {
 		return Remote{}, fmt.Errorf("verify LAN after Tailscale: %w", err)
 	}
-	if err := local.Capture(ctx, "iso/lan-after-tailscale", []byte(localAccessCheck), "/bin/bash", "-s"); err != nil {
+	if err := local.Sudo(ctx, password, localAccessCheck, "iso/lan-after-tailscale"); err != nil {
 		return Remote{}, err
 	}
 	if err := state.verifyTailnetAfterLAN(ctx, tailnet); err != nil {
@@ -145,7 +145,7 @@ func (state *runnerState) verifyTailnetAfterLAN(ctx context.Context, tailnet Rem
 	if err := tailnet.WaitReady(waitCtx); err != nil {
 		return fmt.Errorf("verify Tailnet after LAN: %w", err)
 	}
-	if err := tailnet.Capture(ctx, "iso/tailnet-after-lan", []byte(tailscaleAccessCheck), "/bin/bash", "-s"); err != nil {
+	if err := tailnet.Sudo(ctx, state.secret("administrator-password"), tailscaleAccessCheck, "iso/tailnet-after-lan"); err != nil {
 		return err
 	}
 	output, err := CommandOutput(ctx, CommandSpec{Name: "curl", Args: []string{

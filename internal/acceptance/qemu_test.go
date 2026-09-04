@@ -22,7 +22,7 @@ func TestQEMUInstallUsesOnlyCandidateISOAndTargetDisk(t *testing.T) {
 }
 
 func TestGuestChecksDoNotRestoreRejectedOrchestration(t *testing.T) {
-	checks := coreGuestChecks + qcow2GuestChecks + workspaceBoundaryChecks + stableManifestScript
+	checks := coreGuestChecks + setupCompleteChecks + qcow2GuestChecks + workspaceBoundaryChecks + stableManifestScript
 	require.NotContains(t, checks, "toolset-commands")
 	require.NotContains(t, checks, "tea-token")
 	require.NotContains(t, checks, "configdrive")
@@ -30,6 +30,11 @@ func TestGuestChecksDoNotRestoreRejectedOrchestration(t *testing.T) {
 	// Manual Tea and gh authentication is checked as an absence of retained config.
 	require.Contains(t, checks, ".config/tea/config.yml")
 	require.Contains(t, checks, ".config/gh/hosts.yml")
+}
+
+func TestOrdinaryCoreChecksDoNotInvokeRootOnlySetupCommand(t *testing.T) {
+	require.NotContains(t, coreGuestChecks, "/usr/libexec/soda/soda-setup")
+	require.Contains(t, setupCompleteChecks, "/usr/libexec/soda/soda-setup status")
 }
 
 func TestReusableQCOW2KeepsTheInteractiveConsoleVisible(t *testing.T) {
