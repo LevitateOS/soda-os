@@ -3,7 +3,6 @@ FROM fedora-base
 ARG SODA_VERSION
 ARG SODA_HOSTNAME
 ARG SODA_SOURCE_REVISION
-ARG SODA_RUNTIME_LOCK_SHA256
 ARG SOURCE_DATE_EPOCH
 ARG SODA_CREATED
 ARG FEDORA_BASE_REFERENCE
@@ -14,7 +13,6 @@ LABEL org.opencontainers.image.title="Soda OS" \
       org.opencontainers.image.source="https://github.com/LevitateOS/soda-os" \
       org.opencontainers.image.version="${SODA_VERSION}" \
       org.opencontainers.image.revision="${SODA_SOURCE_REVISION}" \
-      org.sodaos.runtime-lock-sha256="${SODA_RUNTIME_LOCK_SHA256}" \
       org.opencontainers.image.created="${SODA_CREATED}" \
       org.opencontainers.image.base.name="${FEDORA_BASE_REFERENCE}" \
       org.sodaos.source-date-epoch="${SOURCE_DATE_EPOCH}"

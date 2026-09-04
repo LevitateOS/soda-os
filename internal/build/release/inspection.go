@@ -20,7 +20,7 @@ func (p *Publisher) inspect(img v1.Image, exactReference string) (Record, error)
 	if err != nil {
 		return Record{}, fmt.Errorf("inspect image configuration: %w", err)
 	}
-	revision, runtimeLockSHA256, err := p.inspectImageIdentity(configFile)
+	revision, err := p.inspectImageIdentity(configFile)
 	if err != nil {
 		return Record{}, err
 	}
@@ -28,29 +28,25 @@ func (p *Publisher) inspect(img v1.Image, exactReference string) (Record, error)
 	if err != nil {
 		return Record{}, err
 	}
-	return Record{SchemaVersion: 4, SodaVersion: p.spec.Identity.Version, SourceRevision: revision, Platform: p.spec.Base.Platform, Channel: p.spec.Platform.Release.Channel, FedoraBaseReference: p.spec.Base.Reference, RuntimeLockSHA256: runtimeLockSHA256, SodaImageReference: exactReference, ArtifactChecksums: ArtifactChecksums{RPMInventorySHA256: inventoryDigest}}, nil
+	return Record{SchemaVersion: 3, SodaVersion: p.spec.Identity.Version, SourceRevision: revision, Platform: p.spec.Base.Platform, Channel: p.spec.Platform.Release.Channel, FedoraBaseReference: p.spec.Base.Reference, SodaImageReference: exactReference, ArtifactChecksums: ArtifactChecksums{RPMInventorySHA256: inventoryDigest}}, nil
 }
 
-func (p *Publisher) inspectImageIdentity(configFile *v1.ConfigFile) (string, string, error) {
+func (p *Publisher) inspectImageIdentity(configFile *v1.ConfigFile) (string, error) {
 	if configFile.OS != "linux" || configFile.Architecture != p.spec.Platform.Architecture.OCI {
-		return "", "", fmt.Errorf("release image platform is %s/%s, expected %s", configFile.OS, configFile.Architecture, p.spec.Base.Platform)
+		return "", fmt.Errorf("release image platform is %s/%s, expected %s", configFile.OS, configFile.Architecture, p.spec.Base.Platform)
 	}
 	labels := configFile.Config.Labels
 	revision := labels["org.opencontainers.image.revision"]
 	if len(revision) != 40 || !hexadecimal(revision) {
-		return "", "", errors.New("release image has no full source revision label")
+		return "", errors.New("release image has no full source revision label")
 	}
 	if labels["org.opencontainers.image.version"] != p.spec.Identity.Version {
-		return "", "", errors.New("release image version label differs from the Soda specification")
+		return "", errors.New("release image version label differs from the Soda specification")
 	}
 	if labels["org.opencontainers.image.base.name"] != p.spec.Base.Reference {
-		return "", "", errors.New("release image Fedora base label differs from the Soda specification")
+		return "", errors.New("release image Fedora base label differs from the Soda specification")
 	}
-	runtimeLockSHA256 := labels["org.sodaos.runtime-lock-sha256"]
-	if !validHexadecimal(runtimeLockSHA256, 64) {
-		return "", "", errors.New("release image has no runtime lock checksum label")
-	}
-	return revision, runtimeLockSHA256, nil
+	return revision, nil
 }
 
 func inspectRPMInventory(img v1.Image) (string, error) {

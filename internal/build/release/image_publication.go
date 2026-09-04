@@ -99,14 +99,14 @@ func (p *Publication) signAndAttestImage(ctx context.Context, record Record, spe
 	if p.workflowRunURL == "" {
 		return errors.New("image signing requires a GitHub Actions workflow run identity")
 	}
+	if err := p.runner.Run(ctx, p.cosign("sign", "--yes", record.SodaImageReference)); err != nil {
+		return fmt.Errorf("keylessly sign exact GHCR image digest: %w", err)
+	}
 	predicate, cleanup, err := p.writeImageProvenance(record, spec)
 	if err != nil {
 		return err
 	}
 	defer cleanup()
-	if err := p.runner.Run(ctx, p.cosign("sign", "--yes", record.SodaImageReference)); err != nil {
-		return fmt.Errorf("keylessly sign exact GHCR image digest: %w", err)
-	}
 	if err := p.runner.Run(ctx, p.cosign("attest", "--yes", "--type", "slsaprovenance", "--predicate", predicate, record.SodaImageReference)); err != nil {
 		return fmt.Errorf("attach exact GHCR image provenance: %w", err)
 	}
@@ -154,7 +154,6 @@ type provenanceInputs struct {
 	SourceRevision      string `json:"source_revision"`
 	Architecture        string `json:"architecture"`
 	FedoraBaseReference string `json:"fedora_base_reference"`
-	RuntimePackageLock  string `json:"runtime_package_lock"`
 	RuntimeLockSHA256   string `json:"runtime_lock_sha256"`
 	RPMInventorySHA256  string `json:"rpm_inventory_sha256"`
 	ISOChecksum         string `json:"iso_sha256"`
@@ -177,8 +176,10 @@ type provenanceRunDetails struct {
 }
 
 func (p *Publication) writeImageProvenance(record Record, spec config.DistroSpec) (string, func(), error) {
-	if err := p.validateRecordedRuntimeLock(record, spec); err != nil {
-		return "", nil, err
+	lockPath := filepath.Join(p.root, spec.Platform.Base.RuntimePackageLock)
+	lockSHA256, err := fileSHA256(lockPath)
+	if err != nil {
+		return "", nil, fmt.Errorf("checksum %s runtime package lock: %w", spec.Platform.Architecture.Name, err)
 	}
 	imageDigest := strings.TrimPrefix(record.SodaImageReference, Repository+"@sha256:")
 	_, baseDigest, found := strings.Cut(record.FedoraBaseReference, "@sha256:")
@@ -194,7 +195,7 @@ func (p *Publication) writeImageProvenance(record Record, spec config.DistroSpec
 				BuildType: "https://github.com/LevitateOS/soda-os/.github/workflows/release.yml",
 				ExternalParameters: provenanceInputs{
 					SourceRevision: record.SourceRevision, Architecture: spec.Platform.Architecture.Name,
-					FedoraBaseReference: record.FedoraBaseReference, RuntimePackageLock: record.RuntimePackageLock, RuntimeLockSHA256: record.RuntimeLockSHA256,
+					FedoraBaseReference: record.FedoraBaseReference, RuntimeLockSHA256: lockSHA256,
 					RPMInventorySHA256: record.RPMInventorySHA256, ISOChecksum: record.ISOChecksum,
 					QCOW2Checksum: record.QCOW2Checksum, QCOW2ZSTChecksum: record.QCOW2ZSTChecksum,
 				},
@@ -227,24 +228,6 @@ func (p *Publication) writeImageProvenance(record Record, spec config.DistroSpec
 		return "", nil, fmt.Errorf("close image provenance: %w", err)
 	}
 	return path, func() { _ = os.Remove(path) }, nil
-}
-
-func (p *Publication) validateRecordedRuntimeLock(record Record, spec config.DistroSpec) error {
-	if record.RuntimePackageLock != spec.Platform.Base.RuntimePackageLock {
-		return errors.New("release record runtime package lock differs from the selected platform")
-	}
-	lockPath := record.RuntimePackageLock
-	if !filepath.IsAbs(lockPath) {
-		lockPath = filepath.Join(p.root, lockPath)
-	}
-	lockSHA256, err := fileSHA256(lockPath)
-	if err != nil {
-		return fmt.Errorf("checksum %s runtime package lock: %w", spec.Platform.Architecture.Name, err)
-	}
-	if lockSHA256 != record.RuntimeLockSHA256 {
-		return errors.New("release record runtime package lock checksum differs from the selected platform")
-	}
-	return nil
 }
 
 func (p *Publication) skopeo(args ...string) process.Command {

@@ -33,8 +33,6 @@ type Record struct {
 	Platform            string `json:"platform"`
 	Channel             string `json:"channel"`
 	FedoraBaseReference string `json:"fedora_base_reference"`
-	RuntimePackageLock  string `json:"runtime_package_lock"`
-	RuntimeLockSHA256   string `json:"runtime_lock_sha256"`
 	SodaImageReference  string `json:"soda_image_reference"`
 	ArtifactChecksums
 }
@@ -58,7 +56,6 @@ type isoValidator interface {
 }
 
 type Publisher struct {
-	root             string
 	spec             config.DistroSpec
 	hostArchitecture string
 	isoValidator     isoValidator
@@ -68,7 +65,7 @@ func NewPublisher(root string, spec config.DistroSpec, runner process.Runner) (*
 	if spec.Image.Registry != Repository {
 		return nil, fmt.Errorf("release repository must be %s", Repository)
 	}
-	return &Publisher{root: root, spec: spec, hostArchitecture: runtime.GOARCH, isoValidator: installer.NewBuilder(root, spec, runner)}, nil
+	return &Publisher{spec: spec, hostArchitecture: runtime.GOARCH, isoValidator: installer.NewBuilder(root, spec, runner)}, nil
 }
 
 func (p *Publisher) requireNativeHost() error {
@@ -91,14 +88,6 @@ func (p *Publisher) CreateRecord(ctx context.Context, options RecordOptions) (Re
 	if err != nil {
 		return Result{}, err
 	}
-	lockPath, lockSHA256, err := p.runtimeLockIdentity()
-	if err != nil {
-		return Result{}, err
-	}
-	if record.RuntimeLockSHA256 != lockSHA256 {
-		return Result{}, errors.New("selected runtime package lock differs from the image build input")
-	}
-	record.RuntimePackageLock = lockPath
 	checksums.RPMInventorySHA256 = record.RPMInventorySHA256
 	record.ArtifactChecksums = checksums
 	recordPath, err := writeRecord(record, options.OutputDir)
@@ -106,22 +95,6 @@ func (p *Publisher) CreateRecord(ctx context.Context, options RecordOptions) (Re
 		return Result{}, err
 	}
 	return Result{ImageReference: reference, RecordPath: recordPath}, nil
-}
-
-func (p *Publisher) runtimeLockIdentity() (string, string, error) {
-	path := p.spec.Platform.Base.RuntimePackageLock
-	if path == "" {
-		return "", "", errors.New("release record requires a selected runtime package lock")
-	}
-	resolvedPath := path
-	if !filepath.IsAbs(resolvedPath) {
-		resolvedPath = filepath.Join(p.root, resolvedPath)
-	}
-	digest, err := fileSHA256(resolvedPath)
-	if err != nil {
-		return "", "", fmt.Errorf("checksum selected runtime package lock: %w", err)
-	}
-	return path, digest, nil
 }
 
 func (p *Publisher) inspectArchive(path string) (Record, string, error) {

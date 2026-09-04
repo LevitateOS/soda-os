@@ -23,9 +23,7 @@ func TestCreateRecordUsesLocalArchiveDigest(t *testing.T) {
 	iso := filepath.Join(t.TempDir(), "SodaOS.iso")
 	require.NoError(t, os.WriteFile(iso, []byte("installer bytes"), 0o644))
 	qcow2, qcow2ZST := writeQCOW2Artifacts(t)
-	root := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(root, "runtime.lock"), []byte("runtime lock\n"), 0o644))
-	publisher := &Publisher{root: root, spec: testSpec(), hostArchitecture: "arm64"}
+	publisher := &Publisher{spec: testSpec(), hostArchitecture: "arm64"}
 	publisher.isoValidator = &fakeISOValidator{}
 	output := t.TempDir()
 
@@ -46,44 +44,7 @@ func TestCreateRecordUsesLocalArchiveDigest(t *testing.T) {
 	require.Equal(t, sha256Hex([]byte("rpm inventory\n")), record.RPMInventorySHA256)
 	require.Equal(t, sha256Hex([]byte("raw QCOW2")), record.QCOW2Checksum)
 	require.Equal(t, sha256Hex([]byte("compressed QCOW2")), record.QCOW2ZSTChecksum)
-	require.Equal(t, "runtime.lock", record.RuntimePackageLock)
-	require.Equal(t, sha256Hex([]byte("runtime lock\n")), record.RuntimeLockSHA256)
 	require.NotContains(t, string(contents), "state_schema")
-}
-
-func TestCreateRecordAcceptsConfiguredAbsoluteRuntimeLock(t *testing.T) {
-	img := matchingTestImage(t)
-	archive := writeOCIArchive(t, img)
-	iso := filepath.Join(t.TempDir(), "SodaOS.iso")
-	require.NoError(t, os.WriteFile(iso, []byte("installer bytes"), 0o644))
-	qcow2, qcow2ZST := writeQCOW2Artifacts(t)
-	lockPath := filepath.Join(t.TempDir(), "runtime.lock")
-	require.NoError(t, os.WriteFile(lockPath, []byte("runtime lock\n"), 0o644))
-	spec := testSpec()
-	spec.Platform.Base.RuntimePackageLock = lockPath
-	publisher := &Publisher{root: t.TempDir(), spec: spec, hostArchitecture: "arm64", isoValidator: &fakeISOValidator{}}
-
-	result, err := publisher.CreateRecord(context.Background(), RecordOptions{ArchivePath: archive, ISOPath: iso, QCOW2Path: qcow2, QCOW2ZSTPath: qcow2ZST, OutputDir: t.TempDir()})
-	require.NoError(t, err)
-	contents, err := os.ReadFile(result.RecordPath)
-	require.NoError(t, err)
-	var record Record
-	require.NoError(t, json.Unmarshal(contents, &record))
-	require.Equal(t, lockPath, record.RuntimePackageLock)
-	require.Equal(t, sha256Hex([]byte("runtime lock\n")), record.RuntimeLockSHA256)
-}
-
-func TestCreateRecordRejectsRuntimeLockChangedSinceImageBuild(t *testing.T) {
-	archive := writeOCIArchive(t, matchingTestImage(t))
-	iso := filepath.Join(t.TempDir(), "SodaOS.iso")
-	require.NoError(t, os.WriteFile(iso, []byte("installer bytes"), 0o644))
-	qcow2, qcow2ZST := writeQCOW2Artifacts(t)
-	root := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(root, "runtime.lock"), []byte("changed runtime lock\n"), 0o644))
-	publisher := &Publisher{root: root, spec: testSpec(), hostArchitecture: "arm64", isoValidator: &fakeISOValidator{}}
-
-	_, err := publisher.CreateRecord(context.Background(), RecordOptions{ArchivePath: archive, ISOPath: iso, QCOW2Path: qcow2, QCOW2ZSTPath: qcow2ZST, OutputDir: t.TempDir()})
-	require.EqualError(t, err, "selected runtime package lock differs from the image build input")
 }
 
 func TestCreateRecordBindsInspectedISO(t *testing.T) {
@@ -91,9 +52,7 @@ func TestCreateRecordBindsInspectedISO(t *testing.T) {
 	require.NoError(t, os.WriteFile(iso, []byte("installer bytes"), 0o644))
 	qcow2, qcow2ZST := writeQCOW2Artifacts(t)
 	validator := &fakeISOValidator{}
-	root := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(root, "runtime.lock"), []byte("runtime lock\n"), 0o644))
-	publisher := &Publisher{root: root, spec: testSpec(), hostArchitecture: "arm64", isoValidator: validator}
+	publisher := &Publisher{spec: testSpec(), hostArchitecture: "arm64", isoValidator: validator}
 
 	result, err := publisher.CreateRecord(context.Background(), RecordOptions{ArchivePath: writeOCIArchive(t, matchingTestImage(t)), ISOPath: iso, QCOW2Path: qcow2, QCOW2ZSTPath: qcow2ZST, OutputDir: t.TempDir()})
 	require.NoError(t, err)

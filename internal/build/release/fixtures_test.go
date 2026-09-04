@@ -78,7 +78,6 @@ func testImageWithSidecar(t *testing.T, sidecarDigest string) v1.Image {
 		"org.opencontainers.image.version":   "0.2.0",
 		"org.opencontainers.image.revision":  testRevision,
 		"org.opencontainers.image.base.name": testSpec().Base.Reference,
-		"org.sodaos.runtime-lock-sha256":     sha256Hex([]byte("runtime lock\n")),
 	}
 	image, err = mutate.ConfigFile(image, configFile)
 	require.NoError(t, err)

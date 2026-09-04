@@ -78,14 +78,12 @@ func TestGitHubReleaseAssetSizeLimitIsStrict(t *testing.T) {
 func TestPublicationRecordRequiresExactIdentityAndProvenance(t *testing.T) {
 	spec := testArmPublicationSpec()
 	valid := Record{
-		SchemaVersion:       4,
+		SchemaVersion:       3,
 		SodaVersion:         spec.Identity.Version,
 		SourceRevision:      testRevision,
 		Platform:            spec.Base.Platform,
 		Channel:             spec.Platform.Release.Channel,
 		FedoraBaseReference: spec.Base.Reference,
-		RuntimePackageLock:  spec.Platform.Base.RuntimePackageLock,
-		RuntimeLockSHA256:   strings.Repeat("f", 64),
 		SodaImageReference:  Repository + "@sha256:" + strings.Repeat("a", 64),
 		ArtifactChecksums: ArtifactChecksums{
 			RPMInventorySHA256: strings.Repeat("b", 64),
@@ -97,14 +95,12 @@ func TestPublicationRecordRequiresExactIdentityAndProvenance(t *testing.T) {
 	require.NoError(t, validatePublicationRecord(valid, spec, testRevision))
 
 	mutations := map[string]func(*Record){
-		"schema":                func(record *Record) { record.SchemaVersion = 1 },
-		"version":               func(record *Record) { record.SodaVersion = "different" },
-		"source":                func(record *Record) { record.SourceRevision = strings.Repeat("d", 40) },
-		"platform":              func(record *Record) { record.Platform = "linux/amd64" },
-		"channel":               func(record *Record) { record.Channel = "x86_64" },
-		"base":                  func(record *Record) { record.FedoraBaseReference = "different" },
-		"runtime lock":          func(record *Record) { record.RuntimePackageLock = "different.lock" },
-		"runtime lock checksum": func(record *Record) { record.RuntimeLockSHA256 = "invalid" },
+		"schema":   func(record *Record) { record.SchemaVersion = 1 },
+		"version":  func(record *Record) { record.SodaVersion = "different" },
+		"source":   func(record *Record) { record.SourceRevision = strings.Repeat("d", 40) },
+		"platform": func(record *Record) { record.Platform = "linux/amd64" },
+		"channel":  func(record *Record) { record.Channel = "x86_64" },
+		"base":     func(record *Record) { record.FedoraBaseReference = "different" },
 		"image reference": func(record *Record) {
 			record.SodaImageReference = "example.invalid/image@sha256:" + strings.Repeat("a", 64)
 		},

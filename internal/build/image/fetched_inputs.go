@@ -2,15 +2,11 @@ package image
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"fmt"
-	"os"
-	"path/filepath"
 )
 
-type imageBuildInputs struct{ revision, baseTag, runtimeLock, runtimeLockSHA256 string }
+type imageBuildInputs struct{ revision, baseTag string }
 
 func (b *Builder) prepareImageBuildInputs(ctx context.Context) (imageBuildInputs, error) {
 	if err := b.requireNativeHost(); err != nil {
@@ -26,38 +22,11 @@ func (b *Builder) prepareImageBuildInputs(ctx context.Context) (imageBuildInputs
 	if err := b.verifyFetchedBuildInputs(); err != nil {
 		return imageBuildInputs{}, err
 	}
-	runtimeLock, runtimeLockSHA256, err := b.snapshotRuntimePackageLock()
-	if err != nil {
-		return imageBuildInputs{}, err
-	}
 	baseTag, err := PrepareLocalBootcBase(ctx, b.Root, b.runner, b.Spec.Platform)
 	if err != nil {
 		return imageBuildInputs{}, err
 	}
-	return imageBuildInputs{revision: revision, baseTag: baseTag, runtimeLock: runtimeLock, runtimeLockSHA256: runtimeLockSHA256}, nil
-}
-
-func (b *Builder) snapshotRuntimePackageLock() (string, string, error) {
-	contents, err := os.ReadFile(b.path(b.Spec.Platform.Base.RuntimePackageLock))
-	if err != nil {
-		return "", "", fmt.Errorf("read selected runtime package lock: %w", err)
-	}
-	path := b.artifactPath("inputs", "runtime-packages.toml")
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return "", "", err
-	}
-	if err := os.WriteFile(path, contents, 0o644); err != nil {
-		return "", "", err
-	}
-	lock, err := readPackageLock(path)
-	if err != nil {
-		return "", "", err
-	}
-	if err := errors.Join(validateRuntimePackageLock(lock, b.Spec), b.validateMiseRuntimeInput(lock)); err != nil {
-		return "", "", err
-	}
-	digest := sha256.Sum256(contents)
-	return path, hex.EncodeToString(digest[:]), nil
+	return imageBuildInputs{revision: revision, baseTag: baseTag}, nil
 }
 
 // verifyFetchedBuildInputs checks every downloaded input before Docker creates

@@ -155,15 +155,15 @@ func validatePublicationRecord(record Record, spec config.DistroSpec, revision s
 }
 
 func validRecordIdentity(record Record, spec config.DistroSpec, revision string) bool {
-	return record.SchemaVersion == 4 && record.SodaVersion == spec.Identity.Version && record.SourceRevision == revision
+	return record.SchemaVersion == 3 && record.SodaVersion == spec.Identity.Version && record.SourceRevision == revision
 }
 
 func validRecordPlatform(record Record, spec config.DistroSpec) bool {
-	return record.Platform == spec.Base.Platform && record.Channel == spec.Platform.Release.Channel && record.FedoraBaseReference == spec.Base.Reference && record.RuntimePackageLock == spec.Platform.Base.RuntimePackageLock
+	return record.Platform == spec.Base.Platform && record.Channel == spec.Platform.Release.Channel && record.FedoraBaseReference == spec.Base.Reference
 }
 
 func validRecordProvenance(record Record) bool {
-	return isSodaDigestReference(record.SodaImageReference) && validHexadecimal(record.RuntimeLockSHA256, 64) && validHexadecimal(record.RPMInventorySHA256, 64) && validHexadecimal(record.ISOChecksum, 64) && validHexadecimal(record.QCOW2Checksum, 64) && validHexadecimal(record.QCOW2ZSTChecksum, 64)
+	return isSodaDigestReference(record.SodaImageReference) && validHexadecimal(record.RPMInventorySHA256, 64) && validHexadecimal(record.ISOChecksum, 64) && validHexadecimal(record.QCOW2Checksum, 64) && validHexadecimal(record.QCOW2ZSTChecksum, 64)
 }
 
 func readStrictRecord(path string) (Record, error) {
