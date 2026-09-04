@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "requires": {
+    "cockpit": "318"
+  },
+  "menu": {
+    "index": {
+      "label": "Runners",
+      "order": 36,
+      "path": "index.html"
+    }
+  }
+}
