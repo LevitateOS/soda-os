@@ -14,7 +14,6 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/BurntSushi/toml"
 	"github.com/LevitateOS/soda-os/internal/config"
 	"github.com/LevitateOS/soda-os/internal/process"
 )
@@ -55,6 +54,12 @@ func (b *Builder) ValidateISO(ctx context.Context, isoPath, reference, installer
 	}
 	if !regularFile(isoPath) || !regularFile(installerArchive) || !regularFile(toolLockPath) {
 		return "", errors.New("ISO validation requires the ISO, installer environment archive, and image-builder lock")
+	}
+	if err := b.validateInstallerInputs(); err != nil {
+		return "", err
+	}
+	if err := b.validateSelectedToolLock(toolLockPath, "ISO validation"); err != nil {
+		return "", err
 	}
 	lock, err := readToolLock(toolLockPath, b.Spec.Platform)
 	if err != nil {
@@ -214,16 +219,9 @@ func copyFile(source, destination string) error {
 }
 
 func (b *Builder) stageInstallerPackageLock(destination string) error {
-	var lock packageLock
-	lockPath := b.Spec.Platform.Installer.PackageLock
-	if !filepath.IsAbs(lockPath) {
-		lockPath = filepath.Join(b.Root, lockPath)
-	}
-	if _, err := toml.DecodeFile(lockPath, &lock); err != nil {
-		return fmt.Errorf("read installer package lock: %w", err)
-	}
-	if lock.SchemaVersion != 1 || lock.Platform != b.Spec.Base.Platform || len(lock.Packages) == 0 || len(lock.BootPackages) == 0 || lock.EFIVendor == "" {
-		return errors.New("installer package lock differs from the selected platform contract")
+	lock, err := readPackageLock(b.path(b.Spec.Platform.Installer.PackageLock), b.Spec.Platform)
+	if err != nil {
+		return err
 	}
 	for name, values := range map[string][]string{"installer-packages.txt": lock.Packages, "installer-boot-packages.txt": lock.BootPackages} {
 		if err := os.WriteFile(filepath.Join(destination, name), []byte(strings.Join(values, "\n")+"\n"), 0o644); err != nil {
@@ -231,6 +229,13 @@ func (b *Builder) stageInstallerPackageLock(destination string) error {
 		}
 	}
 	return os.WriteFile(filepath.Join(destination, "installer-efi-vendor.txt"), []byte(lock.EFIVendor+"\n"), 0o644)
+}
+
+func (b *Builder) path(path string) string {
+	if filepath.IsAbs(path) {
+		return path
+	}
+	return filepath.Join(b.Root, path)
 }
 
 func (b *Builder) buildInstallerEnvironment(ctx context.Context, work string) (string, string, error) {
@@ -298,31 +303,13 @@ func (b *Builder) validate(options Options) (toolLock, error) {
 	if b.Spec.Identity.Hostname != "soda" {
 		return toolLock{}, errors.New("installer default hostname must be soda")
 	}
-	return readToolLock(options.ToolLock, b.Spec.Platform)
-}
-
-func readToolLock(path string, platform config.PlatformSpec) (toolLock, error) {
-	var lock toolLock
-	metadata, err := toml.DecodeFile(path, &lock)
-	if err != nil {
-		return toolLock{}, fmt.Errorf("read image-builder lock: %w", err)
-	}
-	if len(metadata.Undecoded()) != 0 {
-		return toolLock{}, errors.New("image-builder lock contains unknown fields")
-	}
-	if err := validateToolLock(lock, platform); err != nil {
+	if err := b.validateInstallerInputs(); err != nil {
 		return toolLock{}, err
 	}
-	return lock, nil
-}
-
-func validateToolLock(lock toolLock, platform config.PlatformSpec) error {
-	validReference := regexp.MustCompile(`^ghcr\.io/osbuild/image-builder@sha256:[0-9a-f]{64}$`).MatchString(lock.Reference)
-	if !regexp.MustCompile(`^[0-9]+\.[0-9]+\.[0-9]+$`).MatchString(lock.Version) ||
-		!regexp.MustCompile(`^[0-9a-f]{40}$`).MatchString(lock.Commit) || lock.Platform != platform.Architecture.Platform || !validReference {
-		return errors.New("image-builder lock is incomplete or invalid for the selected platform")
+	if err := b.validateSelectedToolLock(options.ToolLock, "installer"); err != nil {
+		return toolLock{}, err
 	}
-	return nil
+	return readToolLock(options.ToolLock, b.Spec.Platform)
 }
 
 func (b *Builder) copyToStorage(ctx context.Context, lock toolLock, volumeName, archive, reference string) error {

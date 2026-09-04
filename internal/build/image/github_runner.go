@@ -3,7 +3,6 @@ package image
 import (
 	"errors"
 	"fmt"
-	"path/filepath"
 	"regexp"
 
 	"github.com/BurntSushi/toml"
@@ -43,7 +42,7 @@ func readGitHubRunnerSourceLock(path string) (githubRunnerSourceLock, error) {
 }
 
 func (lock githubRunnerSourceLock) validate() error {
-	if !githubRunnerVersionPattern.MatchString(lock.Version) || lock.ReleaseURL != "https://github.com/actions/runner/releases/tag/v"+lock.Version || len(lock.Asset) != 2 {
+	if !githubRunnerVersionPattern.MatchString(lock.Version) || lock.ReleaseURL == "" || len(lock.Asset) != 2 {
 		return errors.New("GitHub runner source lock does not bind one release for both Soda architectures")
 	}
 	seen := map[string]bool{}
@@ -60,10 +59,7 @@ func (lock githubRunnerSourceLock) validateAsset(asset githubRunnerAsset, seen m
 		return errors.New("GitHub runner source lock has an invalid or duplicate architecture")
 	}
 	seen[asset.Architecture] = true
-	platform := map[string]string{"aarch64": "arm64", "x86_64": "x64"}[asset.Architecture]
-	expectedArchive := "actions-runner-linux-" + platform + "-" + lock.Version + ".tar.gz"
-	expectedURL := "https://github.com/actions/runner/releases/download/v" + lock.Version + "/" + expectedArchive
-	if asset.Archive != expectedArchive || asset.URL != expectedURL || !githubRunnerSHA256Pattern.MatchString(asset.SHA256) || filepath.Base(asset.Archive) != asset.Archive {
+	if !validSourceArchive(asset.Archive) || asset.URL == "" || !githubRunnerSHA256Pattern.MatchString(asset.SHA256) {
 		return fmt.Errorf("GitHub runner source lock has invalid %s asset metadata", asset.Architecture)
 	}
 	return nil

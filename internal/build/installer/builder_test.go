@@ -363,6 +363,13 @@ platform = "linux/arm64"
 	require.Equal(t, "81.0.0", actual.Version)
 }
 
+func TestSelectedToolLockAcceptsTheConfiguredRelativePath(t *testing.T) {
+	root := t.TempDir()
+	builder := NewBuilder(root, config.DistroSpec{Platform: config.PlatformSpec{Installer: config.PlatformInstaller{ToolLock: "distro/locks/image-builder.toml"}}}, &recordingRunner{})
+	require.NoError(t, builder.validateSelectedToolLock("distro/locks/image-builder.toml", "installer"))
+	require.ErrorContains(t, builder.validateSelectedToolLock("distro/locks/other.toml", "installer"), "must use the selected platform image-builder lock")
+}
+
 func TestArchiveReferenceDerivesExactDigestFromOneMatchingArm64Manifest(t *testing.T) {
 	archive, digest := writeTestOCIArchiveAt(t, filepath.Join(t.TempDir(), "runtime.oci.tar"))
 	reference, err := archiveReference(archive, "arm64")

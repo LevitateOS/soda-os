@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"regexp"
+	"strings"
 
 	"github.com/BurntSushi/toml"
 )
@@ -57,11 +58,10 @@ func readTeaSourceLock(path string) (teaSourceLock, error) {
 
 func (lock teaSourceLock) validate() error {
 	valid := semanticVersionPattern.MatchString(lock.Version) && validGitCommit(lock.Commit) &&
-		filepath.Base(lock.SourceArchive) == lock.SourceArchive && filepath.Ext(lock.SourceArchive) == ".gz" &&
-		lock.SourceURL != "" && validSHA256(lock.SourceSHA256) &&
+		validInputFilename(lock.SourceArchive) && strings.HasSuffix(lock.SourceArchive, ".gz") && lock.SourceURL != "" && validSHA256(lock.SourceSHA256) &&
 		lock.LicenseURL != "" && validSHA256(lock.LicenseSHA256)
 	if !valid {
-		return errors.New("Tea source lock differs from the selected source contract")
+		return errors.New("Tea source lock is incomplete or invalid")
 	}
 	return nil
 }

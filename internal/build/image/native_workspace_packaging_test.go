@@ -91,7 +91,7 @@ func TestNativeWorkspaceSourcesAreStagedForRPMBuild(t *testing.T) {
 		require.NoError(t, os.WriteFile(filepath.Join(build, name), []byte(name), 0o755))
 	}
 
-	require.NoError(t, (&Builder{Root: root}).stageNonBunRPMSources(build, sources))
+	require.NoError(t, (&Builder{Root: root}).stageProductRPMSources(build, sources))
 	for _, name := range []string{
 		"soda-projects", "soda-workspace-helper", "soda-setup", "soda-projects-manifest.json",
 		"soda-projects-index.html", "soda-projects-app.mjs", "soda-projects-protocol.mjs",

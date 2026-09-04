@@ -27,7 +27,7 @@ platform = "linux/arm64"
 	options := Options{ArchivePath: archive, ToolLock: lock, OutputDir: output}
 	runner := &recordingRunner{}
 	packageLock := filepath.Join(root, "installer-packages.toml")
-	require.NoError(t, os.WriteFile(packageLock, []byte("schema_version = 1\nplatform = \"linux/arm64\"\npackages = [\"anaconda\"]\nboot_packages = [\"shim-aa64\"]\nefi_vendor = \"fedora\"\n"), 0o644))
+	require.NoError(t, os.WriteFile(packageLock, []byte("schema_version = 1\nplatform = \"linux/arm64\"\npackages = [\"anaconda-0:1-1.fc44.aarch64\"]\nboot_packages = [\"shim-aa64\"]\nefi_vendor = \"fedora\"\n"), 0o644))
 	isoConfig := filepath.Join(root, "iso.yaml")
 	require.NoError(t, os.WriteFile(isoConfig, []byte("test ISO config\n"), 0o644))
 	platform := config.PlatformSpec{

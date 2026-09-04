@@ -12,19 +12,19 @@ reference = "quay.io/fedora/fedora-bootc@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
 archive = "distro/base/x86_64.oci.tar"
 archive_sha256 = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
 bootc_nevra = "bootc-0:1-1.fc44.x86_64"
-runtime_package_lock = "distro/locks/runtime-x86_64.toml"
+runtime_package_lock = "distro/locks/runtime-packages-x86_64.toml"
 
 [builder]
 base_reference = "registry.fedoraproject.org/fedora@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
-package_lock = "distro/locks/builder-x86_64.toml"
+package_lock = "distro/locks/builder-packages-x86_64.toml"
 go_version = "go1.27.0"
 go_url = "https://go.dev/dl/go1.27.0.linux-amd64.tar.gz"
 go_archive = ".artifacts/tools/go1.27.0.linux-amd64.tar.gz"
 go_archive_sha256 = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
 
 [installer]
-package_lock = "distro/locks/installer-x86_64.toml"
-tool_lock = "distro/locks/image-builder-x86_64.toml"
+package_lock = "distro/locks/installer-packages-x86_64.toml"
+tool_lock = "distro/locks/installer-image-builder-x86_64.toml"
 iso_config = "packaging/installer/iso-x86_64.yaml"
 
 [release]

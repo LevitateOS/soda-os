@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/BurntSushi/toml"
+	"github.com/LevitateOS/soda-os/internal/build/installer"
 	"github.com/LevitateOS/soda-os/internal/config"
 	"github.com/LevitateOS/soda-os/internal/process"
 )
@@ -142,7 +143,7 @@ func validateRuntimePackageLock(lock packageLock, spec config.DistroSpec) error 
 	if lock.SchemaVersion != 1 || lock.BaseReference != spec.Base.Reference || len(lock.Package) <= len(builtRPMs)+len(externalRPMs) {
 		return errors.New("package lock does not bind the configured Fedora bootc base")
 	}
-	sources, err := classifyRuntimePackages(lock.Package, spec.Platform.Base.BootcNEVRA)
+	sources, err := classifyRuntimePackages(lock.Package, spec.Platform.Base.BootcNEVRA, spec.Platform.Architecture.Name)
 	if err != nil {
 		return err
 	}
@@ -169,11 +170,11 @@ func validateStockCockpitLockClosure(lock packageLock) error {
 	return nil
 }
 
-func classifyRuntimePackages(packages []lockedPackage, bootcNEVRA string) (runtimePackageSources, error) {
+func classifyRuntimePackages(packages []lockedPackage, bootcNEVRA, architecture string) (runtimePackageSources, error) {
 	seen := make(map[string]bool, len(packages))
 	sources := runtimePackageSources{Built: make([]string, 0, len(builtRPMs)), External: make([]string, 0, len(externalRPMs))}
 	for _, item := range packages {
-		if err := validateLockedPackage(item, seen); err != nil {
+		if err := validateLockedPackage(item, seen, architecture); err != nil {
 			return runtimePackageSources{}, err
 		}
 		if item.Source == "local-rpm" {
@@ -187,18 +188,25 @@ func classifyRuntimePackages(packages []lockedPackage, bootcNEVRA string) (runti
 	return sources, nil
 }
 
-func validateLockedPackage(item lockedPackage, seen map[string]bool) error {
+func validateLockedPackage(item lockedPackage, seen map[string]bool, architecture string) error {
 	if item.Name == "" || item.NEVRA == "" || seen[item.Name] {
 		return errors.New("package lock contains an empty or duplicate package")
 	}
-	seen[item.Name] = true
-	if item.Source == "fedora" && item.File == "" {
-		return nil
+	if !nativeNEVRA(item.NEVRA, architecture) {
+		return fmt.Errorf("package lock entry %s is not native to %s", item.Name, architecture)
 	}
-	if (item.Source == "local-rpm" || item.Source == "external-rpm") && item.File != "" && filepath.Base(item.File) == item.File {
+	seen[item.Name] = true
+	if validPackageSource(item) {
 		return nil
 	}
 	return fmt.Errorf("package lock entry %s has an unsupported source or file", item.Name)
+}
+
+func validPackageSource(item lockedPackage) bool {
+	if item.Source == "fedora" {
+		return item.File == ""
+	}
+	return (item.Source == "local-rpm" || item.Source == "external-rpm") && item.File != "" && filepath.Base(item.File) == item.File
 }
 
 func (b *Builder) validateBuildInputs() error {
@@ -207,19 +215,36 @@ func (b *Builder) validateBuildInputs() error {
 			return fmt.Errorf("required bootc build input %s is missing", path)
 		}
 	}
+	if _, err := readBuilderPackageLock(b.path(b.Spec.Platform.Builder.PackageLock), b.Spec.Platform); err != nil {
+		return err
+	}
+	if err := installer.ValidateInputLocks(b.Root, b.Spec); err != nil {
+		return err
+	}
+	if _, err := readForgejoSourceLock(b.path("distro/locks/forgejo-source.toml")); err != nil {
+		return err
+	}
+	if _, err := readGitHubRunnerSourceLock(b.path("distro/locks/github-runner-source.toml")); err != nil {
+		return err
+	}
+	if _, err := readMiseSourceLock(b.path("distro/locks/mise-source.toml")); err != nil {
+		return err
+	}
+	if _, err := readTeaSourceLock(b.path("distro/locks/tea-source.toml")); err != nil {
+		return err
+	}
 	return nil
 }
 
 func (b *Builder) BuildImage(ctx context.Context) error {
-	if err := b.BuildRPMs(ctx); err != nil {
-		return err
-	}
-	baseTag, err := PrepareLocalBootcBase(ctx, b.Root, b.runner, b.Spec.Platform)
+	inputs, err := b.prepareImageBuildInputs(ctx)
 	if err != nil {
 		return err
 	}
-	revision, err := b.sourceRevision(ctx)
-	if err != nil {
+	if err := b.buildRPMs(ctx, inputs.revision); err != nil {
+		return err
+	}
+	if err := b.verifySourceRevision(ctx, inputs.revision); err != nil {
 		return err
 	}
 	images := b.artifactPath("images")
@@ -233,14 +258,14 @@ func (b *Builder) BuildImage(ctx context.Context) error {
 	created := time.Unix(b.Spec.Build.SourceDateEpoch, 0).UTC().Format(time.RFC3339)
 	args := []string{
 		"buildx", "build", "--platform", b.Spec.Base.Platform,
-		"--build-context", "fedora-base=docker-image://" + baseTag,
+		"--build-context", "fedora-base=docker-image://" + inputs.baseTag,
 		"--build-context", "rpm-inputs=" + b.artifactPath("rpms"),
 		"--build-context", "lock-inputs=" + b.artifactPath("bootc"),
 		"--file", "packaging/bootc/Containerfile",
 		"--tag", b.Spec.Image.Registry + ":" + b.Spec.Identity.Version,
 		"--build-arg", "SODA_VERSION=" + b.Spec.Identity.Version,
 		"--build-arg", "SODA_HOSTNAME=" + b.Spec.Identity.Hostname,
-		"--build-arg", "SODA_SOURCE_REVISION=" + revision,
+		"--build-arg", "SODA_SOURCE_REVISION=" + inputs.revision,
 		"--build-arg", "SOURCE_DATE_EPOCH=" + fmt.Sprint(b.Spec.Build.SourceDateEpoch),
 		"--build-arg", "SODA_CREATED=" + created,
 		"--build-arg", "FEDORA_BASE_REFERENCE=" + b.Spec.Base.Reference,
@@ -292,10 +317,29 @@ func (b *Builder) sourceRevision(ctx context.Context) (string, error) {
 	return revision, nil
 }
 
+func (b *Builder) verifySourceRevision(ctx context.Context, expected string) error {
+	actual, err := b.sourceRevision(ctx)
+	if err != nil {
+		return err
+	}
+	if actual != expected {
+		return errors.New("source revision changed while building locked RPM inputs")
+	}
+	return nil
+}
+
 func (b *Builder) packageLock() (packageLock, error) {
+	return readPackageLock(b.path(b.Spec.Image.PackageLock))
+}
+
+func readPackageLock(path string) (packageLock, error) {
 	var lock packageLock
-	if _, err := toml.DecodeFile(b.path(b.Spec.Image.PackageLock), &lock); err != nil {
+	metadata, err := toml.DecodeFile(path, &lock)
+	if err != nil {
 		return packageLock{}, fmt.Errorf("parse package lock: %w", err)
+	}
+	if len(metadata.Undecoded()) != 0 {
+		return packageLock{}, errors.New("package lock contains unknown fields")
 	}
 	return lock, nil
 }

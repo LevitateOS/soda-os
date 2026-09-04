@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -55,15 +56,29 @@ func TestTeaSourceLockRejectsUnknownFieldsAndSourceChanges(t *testing.T) {
 	require.NoError(t, os.WriteFile(lockPath, contents, 0o644))
 	_, err = readTeaSourceLock(lockPath)
 	require.Error(t, err)
+
+	mirrored := strings.ReplaceAll(testTeaSourceLock(digest, ""), "tea-src-0.15.1.tar.gz", "tea-reviewed.tar.gz")
+	mirrored = strings.ReplaceAll(mirrored, "https://gitea.com/gitea/tea/archive/v0.15.1.tar.gz", "https://mirror.example/tea-reviewed.tar.gz")
+	require.NoError(t, os.WriteFile(lockPath, []byte(mirrored), 0o644))
+	lock, err = readTeaSourceLock(lockPath)
+	require.NoError(t, err)
+	require.Equal(t, "tea-reviewed.tar.gz", lock.SourceArchive)
+
+	gzipOnly := strings.ReplaceAll(testTeaSourceLock(digest, ""), "tea-src-0.15.1.tar.gz", "tea.gz")
+	gzipOnly = strings.ReplaceAll(gzipOnly, "https://gitea.com/gitea/tea/archive/v0.15.1.tar.gz", "https://mirror.example/tea.gz")
+	require.NoError(t, os.WriteFile(lockPath, []byte(gzipOnly), 0o644))
+	lock, err = readTeaSourceLock(lockPath)
+	require.NoError(t, err)
+	require.Equal(t, "tea.gz", lock.SourceArchive)
 }
 
 func testTeaSourceLock(licenseDigest [sha256.Size]byte, extra string) string {
 	return fmt.Sprintf(`version = "0.15.1"
 commit = "f34697c5ed65928e265d6f48e16928819ce0f332"
 source_archive = "tea-src-0.15.1.tar.gz"
-source_url = "https://example.invalid/tea.tar.gz"
+source_url = "https://gitea.com/gitea/tea/archive/v0.15.1.tar.gz"
 source_sha256 = "%064x"
-license_url = "https://example.invalid/LICENSE"
+license_url = "https://gitea.com/gitea/tea/raw/tag/v0.15.1/LICENSE"
 license_sha256 = "%x"
 %s`, 1, licenseDigest, extra)
 }

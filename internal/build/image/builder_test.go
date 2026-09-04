@@ -171,6 +171,20 @@ func TestSourceRevisionAcceptsCleanAndRejectsDirtyWorktrees(t *testing.T) {
 	}
 }
 
+func TestVerifySourceRevisionRejectsChangesDuringRPMBuild(t *testing.T) {
+	const expected = "79eb8c180a711f1b4230a88d95aa411b3ceb99ca"
+	const changed = "8aeb8c180a711f1b4230a88d95aa411b3ceb99ca"
+	runner := &recordingRunner{OutputResults: []string{"", changed + "\n"}}
+	builder := &Builder{Root: "/workspace/soda", runner: runner}
+
+	err := builder.verifySourceRevision(context.Background(), expected)
+	require.EqualError(t, err, "source revision changed while building locked RPM inputs")
+	require.Equal(t, []string{
+		"git status --porcelain=v1 --untracked-files=all",
+		"git rev-parse HEAD",
+	}, []string{runner.Commands[0].String(), runner.Commands[1].String()})
+}
+
 func TestArtifactBuildsRejectDirtyWorktreeBeforeDocker(t *testing.T) {
 	root, err := filepath.Abs(filepath.Join("..", "..", ".."))
 	require.NoError(t, err)

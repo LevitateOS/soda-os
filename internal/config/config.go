@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"path/filepath"
+	"strings"
 
 	"github.com/BurntSushi/toml"
 )
@@ -89,8 +90,12 @@ type BuildSpec struct {
 
 func LoadDistro(path, architecture string) (DistroSpec, error) {
 	var spec DistroSpec
-	if _, err := toml.DecodeFile(path, &spec); err != nil {
+	metadata, err := toml.DecodeFile(path, &spec)
+	if err != nil {
 		return DistroSpec{}, fmt.Errorf("decode distro specification %q: %w", path, err)
+	}
+	if len(metadata.Undecoded()) != 0 {
+		return DistroSpec{}, fmt.Errorf("distro specification %q contains unknown fields", path)
 	}
 	if spec.SchemaVersion != 2 {
 		return DistroSpec{}, fmt.Errorf("unsupported distro schema version %d; expected 2", spec.SchemaVersion)
@@ -99,8 +104,12 @@ func LoadDistro(path, architecture string) (DistroSpec, error) {
 		return DistroSpec{}, fmt.Errorf("unsupported Soda architecture %q", architecture)
 	}
 	platformPath := filepath.Join(filepath.Dir(path), "platforms", architecture+".toml")
-	if _, err := toml.DecodeFile(platformPath, &spec.Platform); err != nil {
+	metadata, err = toml.DecodeFile(platformPath, &spec.Platform)
+	if err != nil {
 		return DistroSpec{}, fmt.Errorf("decode platform specification %q: %w", platformPath, err)
+	}
+	if len(metadata.Undecoded()) != 0 {
+		return DistroSpec{}, fmt.Errorf("platform specification %q contains unknown fields", platformPath)
 	}
 	if err := validatePlatformSpec(spec.Platform, architecture); err != nil {
 		return DistroSpec{}, err
@@ -130,7 +139,7 @@ func RequireNativeHostArchitecture(architecture, hostArchitecture string) error 
 func validatePlatformSpec(spec PlatformSpec, requested string) error {
 	expected := architectureContract[requested]
 	if spec.SchemaVersion != 1 || !validPlatformArchitecture(spec.Architecture, requested, expected) ||
-		!validPlatformBase(spec.Base) || !validPlatformBuild(spec.Builder) ||
+		!validPlatformBase(spec.Base) || !validPlatformBuild(spec.Builder, expected.oci) ||
 		!validPlatformInstaller(spec.Installer, spec.Release, expected.artifact) {
 		return fmt.Errorf("platform specification for %s differs from the Soda architecture contract", requested)
 	}
@@ -143,16 +152,33 @@ func validPlatformArchitecture(spec PlatformArchitecture, requested string, expe
 }
 
 func validPlatformBase(spec PlatformBase) bool {
-	return spec.Reference != "" && spec.Archive != "" && len(spec.ArchiveSHA256) == 64 &&
-		spec.BootcNEVRA != "" && spec.RuntimePackageLock != ""
+	return digestReference(spec.Reference) && spec.Archive != "" &&
+		validSHA256(spec.ArchiveSHA256) && spec.BootcNEVRA != "" && spec.RuntimePackageLock != ""
 }
 
-func validPlatformBuild(builder PlatformBuilder) bool {
-	return builder.BaseReference != "" && builder.PackageLock != "" && builder.GoVersion != "" && builder.GoURL != "" &&
-		builder.GoArchive != "" && len(builder.GoArchiveSHA256) == 64
+func validPlatformBuild(builder PlatformBuilder, _ string) bool {
+	return digestReference(builder.BaseReference) && builder.PackageLock != "" && builder.GoVersion != "" && builder.GoURL != "" &&
+		builder.GoArchive != "" && validSHA256(builder.GoArchiveSHA256)
 }
 
 func validPlatformInstaller(installer PlatformInstaller, release PlatformRelease, artifactArchitecture string) bool {
 	return installer.PackageLock != "" && installer.ToolLock != "" && installer.ISOConfig != "" &&
 		release.Channel == artifactArchitecture
+}
+
+func digestReference(value string) bool {
+	_, digest, found := strings.Cut(value, "@sha256:")
+	return found && validSHA256(digest)
+}
+
+func validSHA256(value string) bool {
+	if len(value) != 64 {
+		return false
+	}
+	for _, character := range value {
+		if !((character >= '0' && character <= '9') || (character >= 'a' && character <= 'f')) {
+			return false
+		}
+	}
+	return true
 }

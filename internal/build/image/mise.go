@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"strings"
 
 	"github.com/BurntSushi/toml"
 )
@@ -57,15 +58,16 @@ func (lock miseSourceLock) validate() error {
 	}
 	for _, architecture := range []string{"aarch64", "x86_64"} {
 		asset, ok := lock.Asset[architecture]
-		if !ok || !asset.valid() {
+		if !ok || !asset.valid(lock.Version, architecture) {
 			return errors.New("mise source lock is incomplete or invalid")
 		}
 	}
 	return nil
 }
 
-func (asset miseSourceAsset) valid() bool {
-	return asset.NEVRA != "" && filepath.Base(asset.File) == asset.File && asset.URL != "" && validSHA256(asset.SHA256)
+func (asset miseSourceAsset) valid(version, architecture string) bool {
+	return strings.HasPrefix(asset.NEVRA, "mise-0:"+version+"-") && strings.HasSuffix(asset.NEVRA, "."+architecture) &&
+		validInputFilename(asset.File) && strings.HasSuffix(asset.File, ".rpm") && asset.URL != "" && validSHA256(asset.SHA256)
 }
 
 func (lock miseSourceLock) runtimePackage(architecture string) (lockedPackage, error) {

@@ -3,7 +3,6 @@ package image
 import (
 	"errors"
 	"fmt"
-	"path/filepath"
 	"regexp"
 	"strings"
 
@@ -20,6 +19,7 @@ type forgejoSourceLock struct {
 }
 
 var forgejoVersionPattern = regexp.MustCompile(`^[0-9]+\.[0-9]+\.[0-9]+$`)
+var sourceArchivePattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]*$`)
 
 func readForgejoSourceLock(path string) (forgejoSourceLock, error) {
 	var lock forgejoSourceLock
@@ -37,10 +37,17 @@ func readForgejoSourceLock(path string) (forgejoSourceLock, error) {
 }
 
 func (lock forgejoSourceLock) validate() error {
-	if !forgejoVersionPattern.MatchString(lock.Version) || filepath.Base(lock.SourceArchive) != lock.SourceArchive ||
-		!strings.HasSuffix(lock.SourceArchive, ".tar.gz") || lock.URL == "" || !validSHA256(lock.SHA256) ||
+	if !forgejoVersionPattern.MatchString(lock.Version) || !validSourceArchive(lock.SourceArchive) || lock.URL == "" || !validSHA256(lock.SHA256) ||
 		!validSHA256(lock.PatchSHA256) || lock.BuildTags == "" {
 		return errors.New("Forgejo source lock is incomplete or invalid")
 	}
 	return nil
+}
+
+func validSourceArchive(value string) bool {
+	return validInputFilename(value) && strings.HasSuffix(value, ".tar.gz")
+}
+
+func validInputFilename(value string) bool {
+	return sourceArchivePattern.MatchString(value)
 }
