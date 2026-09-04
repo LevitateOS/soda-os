@@ -104,6 +104,40 @@ func ValidateCanonicalURL(remote string) error {
 	return validateStructuredRemote(parsed)
 }
 
+func remoteUsesSSHHost(remote, expectedHost string) (bool, error) {
+	host, err := sshRemoteHost(remote)
+	if err != nil {
+		return false, err
+	}
+	normalize := func(value string) string {
+		return strings.TrimSuffix(strings.ToLower(value), ".")
+	}
+	return normalize(host) == normalize(expectedHost), nil
+}
+
+func sshRemoteHost(remote string) (string, error) {
+	if err := ValidateCanonicalURL(remote); err != nil {
+		return "", err
+	}
+	if validSCPLikeRemote(remote) {
+		_, hostPath, found := strings.Cut(remote, "@")
+		if !found {
+			hostPath = remote
+		}
+		if strings.HasPrefix(hostPath, "[") {
+			closing := strings.IndexByte(hostPath, ']')
+			return hostPath[1:closing], nil
+		}
+		host, _, _ := strings.Cut(hostPath, ":")
+		return host, nil
+	}
+	parsed, err := url.Parse(remote)
+	if err != nil {
+		return "", fmt.Errorf("parse: %w", err)
+	}
+	return parsed.Hostname(), nil
+}
+
 func ValidateToolSelections(tools []string) error {
 	seen := map[string]bool{}
 	for _, tool := range tools {

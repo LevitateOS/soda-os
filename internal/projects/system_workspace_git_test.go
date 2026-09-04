@@ -78,7 +78,7 @@ func TestNativeWorkspaceGitKeyAndCloneStayInWorkspace(t *testing.T) {
 	cleanup := strings.Join(runner.calls[3].Args, " ")
 	require.Contains(t, cleanup, "--user "+workspace.Username+" -- /usr/bin/rm --recursive --force -- ")
 	clone := strings.Join(runner.calls[4].Args, " ")
-	require.Contains(t, clone, "GIT_SSH_COMMAND=/usr/bin/ssh -i "+workspaceGitKeyPath(workspace)+" -o IdentitiesOnly=yes -o BatchMode=yes")
+	require.Contains(t, clone, "GIT_SSH_COMMAND=/usr/bin/ssh -i "+workspaceGitKeyPath(workspace)+" -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=accept-new")
 	require.Contains(t, clone, "/usr/bin/git clone -- git@forgejo.example.test:alice/site.git")
 	require.NotContains(t, clone, "authorized_keys")
 	require.DirExists(t, filepath.Join(workspace.Home, "Projects", "site", ".git"))

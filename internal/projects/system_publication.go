@@ -102,7 +102,7 @@ func (platform *NativePlatform) CloneWorkspace(ctx context.Context, workspace Ac
 		"LOGNAME=" + workspace.Username,
 		"PATH=/usr/local/bin:/usr/bin:/bin",
 		"GIT_TERMINAL_PROMPT=0",
-		"GIT_SSH_COMMAND=/usr/bin/ssh -i " + keyPath + " -o IdentitiesOnly=yes -o BatchMode=yes",
+		"GIT_SSH_COMMAND=/usr/bin/ssh -i " + keyPath + " -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=accept-new",
 		"/usr/bin/git", "clone", "--", remote, target.path,
 	}})
 	if err != nil {

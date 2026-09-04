@@ -114,6 +114,15 @@ test("human deletion confirmation states Forgejo's native consequences", async (
   assert.match(dialog, /Linux account remains so an administrator can retry/);
 });
 
+test("workspace setup distinguishes bundled and external SSH-key ownership", async () => {
+  const html = await readFile(new URL("./index.html", import.meta.url), "utf8");
+  const dialog = html.match(/<dialog id="setup-project-dialog"[\s\S]*?<\/dialog>/)?.[0] ?? "";
+  assert.match(dialog, /bundled Forgejo repository/);
+  assert.match(dialog, /external host, that host owns access/);
+  assert.match(dialog, /reports the public key for you to register there before retrying/);
+  assert.match(dialog, /Required only for bundled Forgejo/);
+});
+
 test("add person requires matching password confirmation", () => {
   const messages = [];
   const payload = payloadFor("add-person", new Map([

@@ -167,11 +167,11 @@
         <div class="form-body">
           <input name="id" type="hidden">
           <p>Project: <strong data-project-name></strong></p>
-		  <p class="field-help">Soda creates an SSH keypair only in this workspace, registers its public key with your Forgejo account once, and uses it for this clone. Tea and GitHub CLI authentication remains manual and private to this workspace.</p>
+		  <p class="field-help">Soda creates an SSH keypair only in this workspace and uses it for this clone. For a bundled Forgejo repository, Soda registers the public key with your Forgejo account. For an external host, that host owns access; if clone authentication fails, Soda reports the public key for you to register there before retrying. Tea and GitHub CLI authentication remains manual and private to this workspace.</p>
 		  <label>
 			Forgejo password
-			<input name="forgejo_password" type="password" required autocomplete="current-password">
-			<span class="field-help">Used once for Forgejo’s native public-key registration and never retained.</span>
+			<input name="forgejo_password" type="password" autocomplete="current-password">
+			<span class="field-help">Required only for bundled Forgejo. Used once for native public-key registration and never retained.</span>
 		  </label>
           <label>
             Tools for my workspace <span class="optional">Optional, one mise tool per line</span>
