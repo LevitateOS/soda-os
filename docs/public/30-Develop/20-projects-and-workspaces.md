@@ -57,8 +57,8 @@ assistant, or other credentials.
 ## Add tools later
 
 Use `mise` after connecting. Choose **my workspace** for a personal tool or
-**this project** for a shared project tool. See [Development
-tools](40-development-tools.md).
+**this project** for a shared project tool. See [Connect and
+develop](30-connect-and-develop.md#manage-development-tools).
 
 ## Remove your workspace
 

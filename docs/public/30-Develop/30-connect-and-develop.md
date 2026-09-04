@@ -1,6 +1,6 @@
 # Connect and develop
 
-Enter your workspace through ordinary OpenSSH and use native Git-host, editor, assistant, port, and container workflows.
+Enter your workspace through ordinary OpenSSH and use native Git-host, tool, editor, assistant, port, and container workflows.
 
 ## Prerequisites
 
@@ -85,11 +85,77 @@ authentication](https://cli.github.com/manual/gh_auth_login).
 Repeat these logins separately in every workspace that needs them. Never copy
 another account's CLI configuration or token.
 
+## Manage development tools
+
+Soda supplies the operating-system capabilities needed to host workspaces.
+`mise` owns development-tool discovery, downloads, versions, activation, and
+project configuration.
+
+Before adding a tool, change to the repository, decide whether the choice is
+personal or shared by the project, and review existing project configuration
+before trusting or executing it.
+
+When Projects offers initial tool choices, select as many as the work requires.
+Those choices are conveniences, not a closed list.
+
+- Choose **my workspace** for a personal tool or version that should affect
+  only your derived account.
+- Choose **this project** for a tool and version the team should share across
+  workspaces for this project.
+
+Any project user may add shared project tools. Soda does not add a separate
+approval or membership system around `mise`.
+
+Inspect the active configuration from the repository:
+
+```sh
+cd "$HOME/Projects/REPOSITORY"
+mise config ls
+mise ls
+```
+
+Review an existing `mise.toml` before trusting and activating it. It is project
+code and may define environment behavior or tasks.
+
+To add a shared project tool, use `mise use` and commit the resulting project
+configuration:
+
+```sh
+cd "$HOME/Projects/REPOSITORY"
+mise use TOOL@VERSION
+git diff -- mise.toml
+git add mise.toml
+git commit
+```
+
+Teammates activate the configured tools from their own workspaces:
+
+```sh
+mise install
+```
+
+Follow [mise getting started](https://mise.jdx.dev/getting-started.html) for
+supported tool names, versions, configuration, activation, and trust behavior.
+
+For a personal tool, use the personal scope offered by Projects or a
+`mise.local.toml` ignored by Git. Check the affected files before committing so
+a personal choice does not accidentally become project policy.
+
+For a shared project tool, Soda gives `mise` one project-scoped storage
+location that every workspace for the project can use. The selected tool is
+stored once, while `mise` and the relevant package ecosystem own its layout,
+download cache, locking, and concurrency. Project dependencies, virtual
+environments, build output, and other mutable development state remain private
+to each workspace. Soda does not define a cache format or run a cache service
+or dependency downloader.
+
 ## Use a coding assistant
 
 Choose assistants during workspace creation or install them later with the
 workspace's tool workflow. Sign in separately inside this workspace. Assistant
-configuration and credentials remain personal to that workspace.
+configuration and credentials remain personal to that workspace. Do not store
+assistant credentials in shared project configuration or copy them between
+workspace homes.
 
 ## Share a development server
 
@@ -122,7 +188,9 @@ mechanism.
 ## Expected result
 
 Commands, files, Git activity, dependencies, assistants, processes, and
-containers run as the derived workspace UID in its private home.
+containers run as the derived workspace UID in its private home. Shared tool
+intent stays in project configuration, while personal tools and mutable state
+remain private.
 
 ## If something fails
 
@@ -130,6 +198,12 @@ Diagnose the native owner: OpenSSH for login or transfer errors, the Git host
 for repository authorization, `mise` for tool installation, the framework for
 development-server binding, and Podman for rootless-container errors.
 
+For a tool problem, run `mise doctor` and `mise config ls`, then follow the
+diagnostic guidance for the tool backend. Do not work around a shared
+permission problem by copying another user's installation or credentials.
+
 ## Next step
 
-Read [Development tools](40-development-tools.md).
+If this machine will execute provider jobs locally, read [CI
+runners](40-ci-runners.md). Otherwise continue with
+[Administration](../40-Operate-Soda-OS/10-administration.md).
