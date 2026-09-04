@@ -127,6 +127,16 @@ nevra = "fzf-0:0.74.3-1.fc44.aarch64"
 source = "fedora"
 
 [[package]]
+name = "firewalld"
+nevra = "firewalld-0:2.4.4-1.fc44.noarch"
+source = "fedora"
+
+[[package]]
+name = "firewalld-filesystem"
+nevra = "firewalld-filesystem-0:2.4.4-1.fc44.noarch"
+source = "fedora"
+
+[[package]]
 name = "gcc"
 nevra = "gcc-0:16.2.1-2.fc44.aarch64"
 source = "fedora"
@@ -378,6 +388,16 @@ nevra = "python3-distro-0:1.9.0-11.fc44.noarch"
 source = "fedora"
 
 [[package]]
+name = "python3-firewall"
+nevra = "python3-firewall-0:2.4.4-1.fc44.noarch"
+source = "fedora"
+
+[[package]]
+name = "python3-gobject-base"
+nevra = "python3-gobject-base-0:3.56.3-1.fc44.aarch64"
+source = "fedora"
+
+[[package]]
 name = "python3-libselinux"
 nevra = "python3-libselinux-0:3.11-1.fc44.aarch64"
 source = "fedora"
@@ -385,6 +405,11 @@ source = "fedora"
 [[package]]
 name = "python3-libsemanage"
 nevra = "python3-libsemanage-0:3.11-1.fc44.aarch64"
+source = "fedora"
+
+[[package]]
+name = "python3-nftables"
+nevra = "python3-nftables-1:1.1.6-2.fc44.noarch"
 source = "fedora"
 
 [[package]]
