@@ -63,6 +63,13 @@ func TestTeaSourceLockRejectsUnknownFieldsAndSourceChanges(t *testing.T) {
 	lock, err = readTeaSourceLock(lockPath)
 	require.NoError(t, err)
 	require.Equal(t, "tea-reviewed.tar.gz", lock.SourceArchive)
+
+	gzipOnly := strings.ReplaceAll(testTeaSourceLock(digest, ""), "tea-src-0.15.1.tar.gz", "tea.gz")
+	gzipOnly = strings.ReplaceAll(gzipOnly, "https://gitea.com/gitea/tea/archive/v0.15.1.tar.gz", "https://mirror.example/tea.gz")
+	require.NoError(t, os.WriteFile(lockPath, []byte(gzipOnly), 0o644))
+	lock, err = readTeaSourceLock(lockPath)
+	require.NoError(t, err)
+	require.Equal(t, "tea.gz", lock.SourceArchive)
 }
 
 func testTeaSourceLock(licenseDigest [sha256.Size]byte, extra string) string {
