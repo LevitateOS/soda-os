@@ -101,6 +101,10 @@ test("native synchronous diagnostics and outcomes remain visible", () => {
   );
   assert.equal(
     successMessage("add-person", { username: "bob" }, { ok: true }),
-    "bob was added as an ordinary Soda OS user with a private Forgejo login.",
+    "bob was added with a matching Forgejo account and public SSH key.",
+  );
+  assert.equal(
+    successMessage("delete-human", { username: "bob" }, { ok: true }),
+    "bob, their local Soda workspaces, and their Forgejo account were removed.",
   );
 });

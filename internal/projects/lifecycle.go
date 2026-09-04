@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strings"
 )
 
 type Lifecycle struct {
@@ -258,18 +259,27 @@ func (lifecycle Lifecycle) deleteHumanUnlocked(ctx context.Context, actorUsernam
 	if err != nil {
 		return err
 	}
+	removed := make([]string, 0, len(workspaces))
 	for _, account := range workspaces {
 		if err = lifecycle.Platform.DeleteAccount(ctx, account); err != nil {
-			return fmt.Errorf("delete workspace %s: %w", account.Username, err)
+			return fmt.Errorf("%s; workspace %s, Forgejo account, and primary Linux account remain: delete workspace: %w", removedWorkspaceDescription(removed), account.Username, err)
 		}
+		removed = append(removed, account.Username)
 	}
 	if err = lifecycle.Platform.DeleteForgejoUser(ctx, target.Username); err != nil && !errors.Is(err, ErrForgejoUserNotFound) {
-		return fmt.Errorf("removed Soda workspaces for %s; Forgejo account and primary Linux account remain: delete Forgejo account: %w", target.Username, err)
+		return fmt.Errorf("%s; Forgejo account and primary Linux account %s remain: delete Forgejo account: %w", removedWorkspaceDescription(removed), target.Username, err)
 	}
 	if err = lifecycle.Platform.DeleteAccount(ctx, target); err != nil {
-		return fmt.Errorf("removed Soda workspaces and Forgejo account for %s; primary Linux account remains: %w", target.Username, err)
+		return fmt.Errorf("%s and Forgejo account %s; primary Linux account remains: %w", removedWorkspaceDescription(removed), target.Username, err)
 	}
 	return nil
+}
+
+func removedWorkspaceDescription(workspaces []string) string {
+	if len(workspaces) == 0 {
+		return "no Soda workspaces were removed"
+	}
+	return "removed Soda workspaces " + strings.Join(workspaces, ", ")
 }
 
 func (lifecycle Lifecycle) authorizeHumanDeletion(ctx context.Context, actorUsername, targetUsername string) (Account, int, error) {

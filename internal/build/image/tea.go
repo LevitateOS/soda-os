@@ -15,7 +15,6 @@ type teaSourceLock struct {
 	SourceArchive string `toml:"source_archive"`
 	SourceURL     string `toml:"source_url"`
 	SourceSHA256  string `toml:"source_sha256"`
-	PatchSHA256   string `toml:"patch_sha256"`
 	LicenseURL    string `toml:"license_url"`
 	LicenseSHA256 string `toml:"license_sha256"`
 }
@@ -59,7 +58,7 @@ func readTeaSourceLock(path string) (teaSourceLock, error) {
 func (lock teaSourceLock) validate() error {
 	valid := semanticVersionPattern.MatchString(lock.Version) && validGitCommit(lock.Commit) &&
 		filepath.Base(lock.SourceArchive) == lock.SourceArchive && filepath.Ext(lock.SourceArchive) == ".gz" &&
-		lock.SourceURL != "" && validSHA256(lock.SourceSHA256) && validSHA256(lock.PatchSHA256) &&
+		lock.SourceURL != "" && validSHA256(lock.SourceSHA256) &&
 		lock.LicenseURL != "" && validSHA256(lock.LicenseSHA256)
 	if !valid {
 		return errors.New("Tea source lock differs from the selected source contract")

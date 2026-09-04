@@ -215,7 +215,7 @@ class InstallerExecutableTests(unittest.TestCase):
             ):
                 with self.assertRaisesRegex(RuntimeError, "fixture stop"):
                     self.finalizer._create_forgejo_administrator(
-                        "soda-test", "password"
+                        "soda-test", "password", "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAITest"
                     )
 
             self.assertEqual(
@@ -281,37 +281,33 @@ class InstallerExecutableTests(unittest.TestCase):
                         "soda-test", canonical_key
                     )
 
-    def test_installer_tea_login_uses_stdin_and_verifies_identity(self):
-        with tempfile.TemporaryDirectory() as temporary:
-            sysroot = pathlib.Path(temporary) / "sysroot"
-            uid = os.getuid()
-            gid = os.getgid()
-            write_text(
-                sysroot / "etc/passwd",
-                f"soda-test:x:{uid}:{gid}::/home/soda-test:/bin/bash\n",
-            )
-            config = sysroot / "home/soda-test/.config/tea/config.yml"
-            write_text(config, "opaque native Tea configuration\n", 0o600)
-            results = [
-                types.SimpleNamespace(returncode=0, stdout=""),
-                types.SimpleNamespace(returncode=0, stdout='{"login":"soda-test"}'),
-            ]
-            with (
-                mock.patch.object(self.finalizer, "SYSROOT", sysroot),
-                mock.patch.object(
-                    self.finalizer.subprocess, "run", side_effect=results
-                ) as run,
-            ):
-                self.finalizer._configure_tea_administrator(
-                    "soda-test", "installer secret"
-                )
+    def test_installer_registers_public_key_with_forgejo(self):
+        request = {}
 
-            login_call, identity_call = run.call_args_list
-            self.assertEqual(login_call.kwargs["input"], "installer secret")
-            self.assertNotIn("installer secret", " ".join(login_call.args[0]))
-            self.assertIn("--password-stdin", login_call.args[0])
-            self.assertIn("soda-os-tea", login_call.args[0])
-            self.assertEqual(identity_call.kwargs["stdin"], subprocess.DEVNULL)
+        class Connection:
+            def __init__(self, host, port, timeout):
+                request["connection"] = (host, port, timeout)
+
+            def request(self, method, path, body, headers):
+                request.update(method=method, path=path, body=body, headers=headers)
+
+            def getresponse(self):
+                return types.SimpleNamespace(status=201, read=lambda: b"")
+
+            def close(self):
+                pass
+
+        with mock.patch.object(self.finalizer.http.client, "HTTPConnection", Connection):
+            self.finalizer._register_forgejo_public_key(
+                "soda-test", "installer secret", "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAITest"
+            )
+
+        self.assertEqual(request["connection"], ("127.0.0.1", 30000, 10))
+        self.assertEqual(request["method"], "POST")
+        self.assertEqual(request["path"], "/api/v1/user/keys")
+        self.assertIn(b'"title": "Soda OS"', request["body"])
+        self.assertIn(b'"key": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAITest"', request["body"])
+        self.assertTrue(request["headers"]["Authorization"].startswith("Basic "))
 
     def test_tailscale_handoff_is_atomic_and_mode_restricted(self):
         with tempfile.TemporaryDirectory() as temporary:

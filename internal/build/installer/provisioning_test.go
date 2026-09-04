@@ -105,9 +105,8 @@ func TestInstallerOnlyExecutablesAreFixedAndParse(t *testing.T) {
 		`["/usr/libexec/soda/forgejo-init"]`,
 		`"POST",`,
 		`"/user/sign_up"`,
-		`"--password-stdin"`,
-		`"--token-name"`,
-		`"soda-os-tea"`,
+		`def _register_forgejo_public_key(username, password, ssh_key):`,
+		`"/api/v1/user/keys"`,
 		`os.replace(temporary, destination)`,
 		`["/usr/bin/systemctl", "--root", str(SYSROOT), "enable", "soda-tailscale-enroll.service"]`,
 	} {
@@ -246,8 +245,8 @@ func TestAcceptanceExposesOnePublicWorkflow(t *testing.T) {
 		`forgejo_pam_request alice correct 200`,
 		`forgejo_pam_request bob correct 200`,
 		`admin_ssh /usr/libexec/soda/soda-projects delete-human`,
-		`forgejo_pam_create_tea_scope_repository "$operations/tea-repository.json"`,
-		`tea api --login soda user | jq -e --arg username "$(id -un)" ".login == \$username" >/dev/null`,
+		`forgejo_pam_request alice correct 200`,
+		`test ! -e "$HOME/.config/tea/config.yml"`,
 		`root:soda-forgejo-shadow:40`,
 		`workspace PAM attempt created a Forgejo user`,
 	} {

@@ -14,6 +14,7 @@ type fakePlatform struct {
 	ready     map[string]bool
 	keys      []byte
 	published map[string]string
+	deleteErr map[string]error
 	failures  fakePlatformFailures
 	calls     fakePlatformCalls
 	onDelete  func(Account)
@@ -41,7 +42,6 @@ type fakePlatformCalls struct {
 	preflights     []string
 	createdPrimary []string
 	publishedHuman []string
-	deletedForgejo []string
 	deletionEvents []string
 }
 
@@ -64,6 +64,7 @@ func newFakePlatform() *fakePlatform {
 		ready:     map[string]bool{},
 		keys:      []byte("ssh-ed25519 AAAA test\n"),
 		published: map[string]string{},
+		deleteErr: map[string]error{},
 		calls: fakePlatformCalls{
 			installedKeys: map[string][]byte{},
 		},
@@ -220,11 +221,13 @@ func (platform *fakePlatform) PreflightDeleteAccount(_ context.Context, account 
 
 func (platform *fakePlatform) DeleteForgejoUser(_ context.Context, username string) error {
 	platform.calls.deletionEvents = append(platform.calls.deletionEvents, "forgejo:"+username)
-	platform.calls.deletedForgejo = append(platform.calls.deletedForgejo, username)
 	return platform.failures.forgejoErr
 }
 
 func (platform *fakePlatform) DeleteAccount(_ context.Context, account Account) error {
+	if err := platform.deleteErr[account.Username]; err != nil {
+		return err
+	}
 	if platform.onDelete != nil {
 		platform.onDelete(account)
 	}

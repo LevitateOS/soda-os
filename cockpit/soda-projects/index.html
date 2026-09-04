@@ -56,7 +56,7 @@
       <section class="panel danger-panel" id="human-deletion-panel" aria-labelledby="human-deletion-title" hidden>
         <div>
           <h2 id="human-deletion-title">People</h2>
-          <p>Administrators can add an ordinary primary Linux user or remove one and their Soda-managed local workspaces. Forgejo accounts and canonical repositories are not deleted.</p>
+          <p>Administrators can add an ordinary primary Linux user or remove one. Removal deletes Soda workspaces, then the native Forgejo account, then the Linux account.</p>
         </div>
         <div class="header-actions">
           <button class="button primary" id="open-add-person" type="button">Add person…</button>
@@ -212,7 +212,7 @@
         <header class="dialog-header">
           <div>
             <h2 id="delete-human-title">Remove person from Soda OS</h2>
-            <p>This permanently removes the primary Linux account last, after its local Soda workspaces. Forgejo accounts and repositories remain unchanged.</p>
+            <p>This permanently removes local Soda workspaces, then the Forgejo account, then the primary Linux account. Forgejo may refuse its native account deletion; in that case the Linux account remains so an administrator can retry.</p>
           </div>
           <button class="icon-button" type="button" data-dialog-close aria-label="Close">×</button>
         </header>
@@ -238,7 +238,7 @@
         <header class="dialog-header">
           <div>
             <h2 id="add-person-title">Add person to Soda OS</h2>
-            <p>Creates an ordinary Linux account and a private native Forgejo/Tea login. Administrator access can be granted later through stock Cockpit.</p>
+            <p>Creates an ordinary Linux account, a matching native Forgejo account, and registers this public SSH key for Git over SSH. Tea and gh sign-in stay manual in every workspace. Administrator access can be granted later through stock Cockpit.</p>
           </div>
           <button class="icon-button" type="button" data-dialog-close aria-label="Close">×</button>
         </header>

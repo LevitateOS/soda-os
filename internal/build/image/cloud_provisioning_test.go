@@ -32,8 +32,8 @@ func TestCloudProvisioningIsLimitedToTheTwoLocalCloudInitSources(t *testing.T) {
 		`Path("/var/log/cloud-init.log")`,
 		`def _remove_cloud_init_input_state():`,
 		`"soda-cloud-finalize accepts no arguments and must run as root"`,
-		`"--password-stdin"`,
-		`"soda-os-tea"`,
+		`def _register_forgejo_public_key(username, password, ssh_key):`,
+		`"/api/v1/user/keys"`,
 		`["/usr/bin/systemctl", action, "soda-tailscale-enroll.service"]`,
 	} {
 		require.Contains(t, string(contents), expected)
