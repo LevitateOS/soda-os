@@ -3,4 +3,4 @@ disable soda-tailscale-enroll.service
 enable forgejo.service
 enable cockpit.socket
 enable tailscaled.service
-enable nftables.service
+enable firewalld.service

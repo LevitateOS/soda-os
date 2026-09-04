@@ -122,6 +122,16 @@ nevra = "fzf-0:0.74.3-1.fc44.x86_64"
 source = "fedora"
 
 [[package]]
+name = "firewalld"
+nevra = "firewalld-0:2.4.4-1.fc44.noarch"
+source = "fedora"
+
+[[package]]
+name = "firewalld-filesystem"
+nevra = "firewalld-filesystem-0:2.4.4-1.fc44.noarch"
+source = "fedora"
+
+[[package]]
 name = "gcc"
 nevra = "gcc-0:16.2.1-2.fc44.x86_64"
 source = "fedora"
@@ -277,11 +287,6 @@ nevra = "nftables-1:1.1.6-2.fc44.x86_64"
 source = "fedora"
 
 [[package]]
-name = "nftables-services"
-nevra = "nftables-services-1:1.1.6-2.fc44.noarch"
-source = "fedora"
-
-[[package]]
 name = "ninja-build"
 nevra = "ninja-build-0:1.13.2-2.fc44.x86_64"
 source = "fedora"
@@ -349,6 +354,11 @@ source = "fedora"
 [[package]]
 name = "python3-dbus"
 nevra = "python3-dbus-0:1.4.0-9.fc44.x86_64"
+source = "fedora"
+
+[[package]]
+name = "python3-firewall"
+nevra = "python3-firewall-0:2.4.4-1.fc44.noarch"
 source = "fedora"
 
 [[package]]

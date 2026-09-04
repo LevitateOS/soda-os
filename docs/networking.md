@@ -27,12 +27,23 @@ state with `ss`, `systemctl`, and `journalctl`.
 
 ## Current implementation
 
-The current nftables composition admits managed TCP services only on loopback
-and `tailscale0`. It therefore blocks the approved direct-LAN path. Current
-Forgejo endpoint and guidance code also assume Tailnet enrollment.
+`firewalld` uses `drop` as the default zone, so unassigned normal-network
+connections do not admit inbound services. The post-install setup path selects
+trusted LAN ingress explicitly with:
 
-That Tailnet-only behavior is implementation debt tracked by issue #15. No
-finished LAN-access artifact or matching-native LAN evidence is claimed here.
+```
+sudo soda-local-access CONNECTION on
+```
+
+This assigns that named NetworkManager connection to firewalld's `trusted`
+zone and reactivates it. `soda-local-access CONNECTION off` assigns it to the
+`drop` zone again. The command does not infer trust from addresses or select a
+connection itself.
+
+Tailscale keeps its normal independent netfilter path. It does not modify the
+NetworkManager connection zone, so enrolling Tailscale never narrows a trusted
+LAN connection. Forgejo listens on IPv4; firewalld, rather than listener
+binding, determines which ingress paths reach it.
 
 Raw-QEMU host port forwards are acceptance-harness details and never product
 ingress evidence.

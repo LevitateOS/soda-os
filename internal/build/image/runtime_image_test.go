@@ -27,7 +27,7 @@ func TestRuntimeImageBootcContainerContract(t *testing.T) {
 		"dnf -y remove avahi", "! rpm -q avahi", "! test -e /usr/lib/systemd/system/avahi-daemon.service",
 		"getent group soda-workspaces",
 		"install -o root -g root -m 0644 /usr/lib/soda/pam/cockpit /etc/pam.d/cockpit",
-		"systemctl enable sshd.service cockpit.socket forgejo.service tailscaled.service nftables.service",
+		"systemctl enable sshd.service cockpit.socket forgejo.service tailscaled.service firewalld.service",
 		"getent passwd git",
 		"systemctl mask bootc-fetch-apply-updates.timer", "cp -f /usr/lib/soda/os-release /etc/os-release",
 		"cp -f /usr/lib/soda/os-release /usr/lib/os-release", "cp -f /usr/lib/soda/issue /etc/issue",
@@ -123,8 +123,8 @@ func TestRuntimeImageRPMStagingContract(t *testing.T) {
 	require.NotContains(t, string(staging), "opt-soda-toolchains.mount")
 	require.Contains(t, string(staging), `b.path("distro/toolset-commands.txt"), filepath.Join(sources, "toolset-commands.txt")`)
 	require.Contains(t, string(staging), `b.path("packaging/rpm/runtime/sources/systemd/soda-tailscale-enroll.service"), filepath.Join(sources, "soda-tailscale-enroll.service")`)
-	require.Contains(t, string(staging), `b.path("packaging/rpm/runtime/sources/nftables/soda-ingress.nft"), filepath.Join(sources, "soda-ingress.nft")`)
-	require.Contains(t, string(staging), `b.path("packaging/rpm/runtime/sources/systemd/nftables.service.d/10-soda-ingress.conf"), filepath.Join(sources, "10-soda-ingress.conf")`)
+	require.Contains(t, string(staging), `b.path("packaging/rpm/runtime/sources/soda-local-access"), filepath.Join(sources, "soda-local-access")`)
+	require.Contains(t, string(staging), `b.path("packaging/rpm/runtime/sources/firewalld/firewalld.conf"), filepath.Join(sources, "firewalld.conf")`)
 	require.NotContains(t, string(staging), "soda-installer-import.service")
 	require.NotContains(t, string(staging), "soda-installer-input")
 	require.NotContains(t, string(staging), "soda-installer-finalize")
@@ -147,9 +147,11 @@ func TestRuntimeHostCompositionRPMContract(t *testing.T) {
 	require.Contains(t, string(runtimeSpec), "install -m 0644 %{_sourcedir}/soda-tailscale-enroll.service %{buildroot}%{_unitdir}/soda-tailscale-enroll.service")
 	require.Contains(t, string(runtimeSpec), "%{_unitdir}/soda-tailscale-enroll.service")
 	require.Contains(t, string(runtimeSpec), "tailscale")
-	require.Contains(t, string(runtimeSpec), "nftables-services")
-	require.Contains(t, string(runtimeSpec), "install -m 0644 %{_sourcedir}/soda-ingress.nft %{buildroot}%{_prefix}/lib/soda/network/soda-ingress.nft")
-	require.Contains(t, string(runtimeSpec), "install -m 0644 %{_sourcedir}/10-soda-ingress.conf %{buildroot}%{_unitdir}/nftables.service.d/10-soda-ingress.conf")
+	require.Contains(t, string(runtimeSpec), "firewalld")
+	require.Contains(t, string(runtimeSpec), "NetworkManager")
+	require.Contains(t, string(runtimeSpec), "install -m 0755 %{_sourcedir}/soda-local-access %{buildroot}%{_bindir}/soda-local-access")
+	require.Contains(t, string(runtimeSpec), "install -m 0644 %{_sourcedir}/firewalld.conf %{buildroot}%{_sysconfdir}/firewalld/firewalld.conf")
+	require.Contains(t, string(runtimeSpec), "%config(noreplace) %{_sysconfdir}/firewalld/firewalld.conf")
 	require.NotContains(t, string(runtimeSpec), "soda-installer-import.service")
 	require.NotContains(t, string(runtimeSpec), "soda-installer-input")
 	require.NotContains(t, string(runtimeSpec), "soda-installer-finalize")
@@ -272,13 +274,13 @@ func TestForgejoTailnetPackagingContract(t *testing.T) {
 	initialization, err := os.ReadFile(filepath.Join(forgejoRoot, "sources", "forgejo-init"))
 	require.NoError(t, err)
 	for _, expected := range []string{
-		"/usr/libexec/soda/forgejo-tailnet", "address=127.0.0.1", "address=0.0.0.0", "port=30000", "root_url=http://127.0.0.1:${port}/",
+		"/usr/libexec/soda/forgejo-tailnet", "address=0.0.0.0", "port=30000", "root_url=http://127.0.0.1:${port}/",
 		"HTTP_ADDR = ${address}", "HTTP_PORT = ${port}", "DOMAIN = ${identity}", "root_url=http://${identity}:${port}/", "ROOT_URL = ${root_url}",
 	} {
 		require.Contains(t, string(initialization), expected)
 	}
 	require.NotContains(t, string(initialization), "tailscale serve")
-	require.Contains(t, string(initialization), "nftables")
+	require.NotContains(t, string(initialization), "nftables")
 
 	initUnit, err := os.ReadFile(filepath.Join(forgejoRoot, "sources", "systemd", "forgejo-init.service"))
 	require.NoError(t, err)
@@ -293,7 +295,7 @@ func TestRuntimeImageSystemdHostCompositionContract(t *testing.T) {
 	runtimeSources := filepath.Join("..", "..", "..", "packaging", "rpm", "runtime", "sources")
 	preset, err := os.ReadFile(filepath.Join(runtimeSources, "systemd", "90-soda.preset"))
 	require.NoError(t, err)
-	for _, unit := range []string{"sshd.service", "forgejo.service", "cockpit.socket", "tailscaled.service", "nftables.service"} {
+	for _, unit := range []string{"sshd.service", "forgejo.service", "cockpit.socket", "tailscaled.service", "firewalld.service"} {
 		require.True(t, strings.Contains(string(preset), "enable "+unit))
 	}
 	require.Contains(t, string(preset), "disable soda-tailscale-enroll.service")
@@ -307,11 +309,17 @@ func TestRuntimeImageSystemdHostCompositionContract(t *testing.T) {
 	require.Contains(t, string(enrollment), "ExecStopPost=-/usr/bin/unlink /var/lib/soda-install/tailscale-auth-key")
 	require.NotContains(t, string(enrollment), "Restart=")
 
-	nftRules, err := os.ReadFile(filepath.Join(runtimeSources, "nftables", "soda-ingress.nft"))
+	firewalld, err := os.ReadFile(filepath.Join(runtimeSources, "firewalld", "firewalld.conf"))
 	require.NoError(t, err)
-	require.Contains(t, string(nftRules), `iifname { "lo", "tailscale0" } tcp dport { 22, 9090, 30000 } accept`)
-	require.Contains(t, string(nftRules), `tcp dport { 22, 9090, 30000 } reject with tcp reset`)
-	require.Contains(t, string(nftRules), "policy accept")
+	require.Equal(t, "DefaultZone=drop\n", string(firewalld))
+
+	for _, obsolete := range []string{
+		filepath.Join(runtimeSources, "nftables", "soda-ingress.nft"),
+		filepath.Join(runtimeSources, "systemd", "nftables.service.d", "10-soda-ingress.conf"),
+	} {
+		_, statErr := os.Stat(obsolete)
+		require.ErrorIs(t, statErr, os.ErrNotExist)
+	}
 
 	_, err = os.Stat(filepath.Join(runtimeSources, "systemd", "var-srv-soda-projects.mount"))
 	require.ErrorIs(t, err, os.ErrNotExist)
