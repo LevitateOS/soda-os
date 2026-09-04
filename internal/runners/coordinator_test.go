@@ -83,3 +83,11 @@ func TestCoordinatorReportsExactLocalListenerAndCapacityCounts(t *testing.T) {
 	require.Equal(t, 1, response.(ListResponse).ActiveListeners)
 	require.Equal(t, 2, response.(ListResponse).TotalCapacity)
 }
+
+func TestCoordinatorRetainsStrictRequestDecoding(t *testing.T) {
+	coordinator := Coordinator{Authorizer: fakeAuthorizer{}, Local: fakeLocal{}, Privileged: &fakePrivileged{}}
+	_, err := coordinator.Execute(context.Background(), testAdministrator, "start", strings.NewReader(`{"id":"one","id":"two"}`))
+	require.ErrorContains(t, err, "duplicate")
+	_, err = coordinator.Execute(context.Background(), testAdministrator, "start", strings.NewReader(`{"id":"one","project_id":"site"}`))
+	require.ErrorContains(t, err, "unknown field")
+}

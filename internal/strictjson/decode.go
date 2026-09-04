@@ -1,4 +1,5 @@
-package runners
+// Package strictjson decodes bounded, single-object JSON request bodies.
+package strictjson
 
 import (
 	"bytes"
@@ -9,14 +10,16 @@ import (
 	"unicode/utf8"
 )
 
-// DecodeRequest accepts exactly one small JSON object, rejects duplicate and
-// unknown fields, and never logs its contents.
-func DecodeRequest(reader io.Reader, destination any) error {
-	contents, err := io.ReadAll(io.LimitReader(reader, 1<<20+1))
+const maximumRequestBytes = 1 << 20
+
+// Decode accepts exactly one small JSON object, rejects duplicate and unknown
+// fields, and never logs its contents.
+func Decode(reader io.Reader, destination any) error {
+	contents, err := io.ReadAll(io.LimitReader(reader, maximumRequestBytes+1))
 	if err != nil {
 		return fmt.Errorf("read request: %w", err)
 	}
-	if len(contents) > 1<<20 {
+	if len(contents) > maximumRequestBytes {
 		return errors.New("request exceeds 1 MiB")
 	}
 	if !utf8.Valid(contents) {

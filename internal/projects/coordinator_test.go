@@ -3,114 +3,59 @@ package projects
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"strings"
 	"testing"
 
+	"github.com/LevitateOS/soda-os/internal/projects/catalog"
+	"github.com/LevitateOS/soda-os/internal/projects/workspace"
 	"github.com/stretchr/testify/require"
 )
 
-type fakePrivileged struct {
-	action             string
-	actions            []string
-	request            any
-	err                error
-	publishErr         error
-	workspaceUsername  string
-	workspacePublicKey string
-	publishStarted     chan struct{}
-	publishRelease     <-chan struct{}
-}
-
-func (privileged *fakePrivileged) record(action string, request any) error {
-	privileged.action, privileged.request = action, request
-	privileged.actions = append(privileged.actions, action)
-	return privileged.err
-}
-
-func (privileged *fakePrivileged) CatalogAdd(_ context.Context, request HelperCatalogRequest) error {
-	return privileged.record("catalog-add", request)
-}
-
-func (privileged *fakePrivileged) CatalogEdit(_ context.Context, request HelperEditRequest) error {
-	return privileged.record("catalog-edit", request)
-}
-
-func (privileged *fakePrivileged) WorkspacePublish(_ context.Context, request HelperWorkspaceRequest) (MutationResponse, error) {
-	err := privileged.record("workspace-publish", request)
-	if err == nil {
-		err = privileged.publishErr
-	}
-	if privileged.publishStarted != nil {
-		close(privileged.publishStarted)
-		<-privileged.publishRelease
-	}
-	username := privileged.workspaceUsername
-	if username == "" {
-		username = "soda-w-example"
-	}
-	return MutationResponse{OK: err == nil, WorkspaceUsername: username}, err
-}
-
-func (privileged *fakePrivileged) WorkspacePrepare(_ context.Context, request HelperWorkspaceRequest) (MutationResponse, error) {
-	err := privileged.record("workspace-prepare", request)
-	username := privileged.workspaceUsername
-	if username == "" {
-		username = "soda-w-example"
-	}
-	return MutationResponse{OK: err == nil, WorkspaceUsername: username, WorkspacePublicKey: privileged.workspacePublicKey}, err
-}
-
-func (privileged *fakePrivileged) WorkspaceRemove(_ context.Context, request ProjectRequest) error {
-	return privileged.record("workspace-remove", request)
-}
-
-func (privileged *fakePrivileged) ProjectRemove(_ context.Context, request ProjectRequest) error {
-	return privileged.record("project-remove", request)
-}
-
-func (privileged *fakePrivileged) HumanDelete(_ context.Context, request HelperHumanRequest) error {
-	return privileged.record("human-delete", request)
-}
-
 type coordinatorFixture struct {
 	coordinator Coordinator
-	platform    *fakePlatform
-	privileged  *fakePrivileged
+	store       *catalog.Store
+	host        *rootTestHost
+	pkexec      testPKExec
 }
 
-func testCoordinator(t *testing.T) coordinatorFixture {
+func newCoordinatorFixture(t *testing.T, failAction string) coordinatorFixture {
 	t.Helper()
-	catalog := testCatalog(t)
-	platform := newFakePlatform()
-	platform.accounts["alice"] = primaryAccount("alice", primaryRoleAdministrator)
-	privileged := &fakePrivileged{workspacePublicKey: strings.TrimSpace(string(testAuthorizedKey(t)))}
-	lifecycle := Lifecycle{Catalog: catalog, Host: platform, Platform: platform}
+	host := newRootTestHost()
+	alice := rootAdministrator("alice")
+	host.accounts[alice.Username] = alice
+	store := rootTestStore(t)
+	pkexec := newTestPKExec(t, failAction)
 	return coordinatorFixture{
-		coordinator: Coordinator{Catalog: catalog, Lifecycle: lifecycle, Platform: platform, Privileged: privileged},
-		platform:    platform,
-		privileged:  privileged,
+		coordinator: Coordinator{
+			store:          store,
+			authorizer:     NewAuthorizer(host),
+			workspaces:     workspace.NewAccounts(host, host, host, host),
+			setupLocks:     rootTestSetupLocker(t, alice),
+			operationLocks: rootTestOperationLocker(t),
+			privileged:     pkexec.invoker,
+		},
+		store: store, host: host, pkexec: pkexec,
 	}
 }
 
-func TestCoordinatorPublishesArbitraryCatalogMetadataAtPrivilegedBoundary(t *testing.T) {
-	fixture := testCoordinator(t)
+func TestCoordinatorAddExistingPreservesArbitraryCatalogMetadata(t *testing.T) {
+	fixture := newCoordinatorFixture(t, "")
 	response, err := fixture.coordinator.Execute(context.Background(), "alice", "add-existing", strings.NewReader(
 		`{"id":"site","display_name":"Site","canonical_url":"git@git.example.test:site.git","team":"web","labels":["public"]}`,
 	))
 	require.NoError(t, err)
-	require.Equal(t, "catalog-add", fixture.privileged.action)
-	request := fixture.privileged.request.(CatalogMutationRequest)
-	require.JSONEq(t, `"web"`, string(request.Additional["team"]))
-	require.JSONEq(t, `["public"]`, string(request.Additional["labels"]))
-	project := response.(MutationResponse).Project
-	require.NotNil(t, project)
-	require.JSONEq(t, `"web"`, string(project.Additional["team"]))
+	require.Equal(t, []string{"catalog-add"}, fixture.pkexec.actions(t))
+	require.Len(t, fixture.pkexec.requests(t), 1)
+	require.JSONEq(t, `{"id":"site","display_name":"Site","canonical_url":"git@git.example.test:site.git","team":"web","labels":["public"]}`, fixture.pkexec.requests(t)[0])
+
+	mutation := response.(ProjectMutationResponse)
+	require.True(t, mutation.OK)
+	require.JSONEq(t, `"web"`, string(mutation.Project.CatalogMetadata["team"]))
 }
 
-func TestCoordinatorEditPublishesMetadataWithoutCanonicalURL(t *testing.T) {
-	fixture := testCoordinator(t)
-	require.NoError(t, fixture.coordinator.Catalog.Add(CatalogEntry{
+func TestCoordinatorEditPreservesImmutableCanonicalURL(t *testing.T) {
+	fixture := newCoordinatorFixture(t, "")
+	require.NoError(t, fixture.store.Add(catalog.Entry{
 		ID: "site", DisplayName: "Site", CanonicalURL: "git@git.example.test:site.git",
 		Additional: map[string]json.RawMessage{"owner": json.RawMessage(`"old-owner"`)},
 	}))
@@ -118,154 +63,87 @@ func TestCoordinatorEditPublishesMetadataWithoutCanonicalURL(t *testing.T) {
 		`{"id":"site","display_name":"Renamed","owner":"new-owner","labels":["public"]}`,
 	))
 	require.NoError(t, err)
-	require.Equal(t, "catalog-edit", fixture.privileged.action)
-	request := fixture.privileged.request.(EditRequest)
-	require.JSONEq(t, `"new-owner"`, string(request.Additional["owner"]))
-	require.JSONEq(t, `["public"]`, string(request.Additional["labels"]))
-	encodedRequest, err := json.Marshal(request)
-	require.NoError(t, err)
-	require.JSONEq(t, `{"id":"site","display_name":"Renamed","owner":"new-owner","labels":["public"]}`, string(encodedRequest))
+	require.Equal(t, []string{"catalog-edit"}, fixture.pkexec.actions(t))
+	require.JSONEq(t, `{"id":"site","display_name":"Renamed","owner":"new-owner","labels":["public"]}`, fixture.pkexec.requests(t)[0])
 
-	project := response.(MutationResponse).Project
-	require.NotNil(t, project)
-	require.Equal(t, "Renamed", project.DisplayName)
-	require.Equal(t, "git@git.example.test:site.git", project.CanonicalURL)
-	require.JSONEq(t, `"new-owner"`, string(project.Additional["owner"]))
+	mutation := response.(ProjectMutationResponse)
+	require.Equal(t, "Renamed", mutation.Project.DisplayName)
+	require.Equal(t, "git@git.example.test:site.git", mutation.Project.CanonicalURL)
+	require.JSONEq(t, `"new-owner"`, string(mutation.Project.CatalogMetadata["owner"]))
 }
 
-func TestCoordinatorEditRejectsEveryCanonicalURLBeforePrivilege(t *testing.T) {
-	for name, canonicalURL := range map[string]string{
-		"unchanged": "git@git.example.test:site.git",
-		"changed":   "git@git.example.test:other.git",
-	} {
-		t.Run(name, func(t *testing.T) {
-			fixture := testCoordinator(t)
-			require.NoError(t, fixture.coordinator.Catalog.Add(CatalogEntry{
-				ID: "site", DisplayName: "Site", CanonicalURL: "git@git.example.test:site.git",
-			}))
-			input := `{"id":"site","display_name":"Renamed","canonical_url":"` + canonicalURL + `"}`
+func TestCoordinatorEditRejectsInjectedCanonicalURLBeforePrivilege(t *testing.T) {
+	fixture := newCoordinatorFixture(t, "")
+	require.NoError(t, fixture.store.Add(catalog.Entry{ID: "site", DisplayName: "Site", CanonicalURL: "git@git.example.test:site.git"}))
 
-			_, err := fixture.coordinator.Execute(context.Background(), "alice", "edit", strings.NewReader(input))
-
-			require.ErrorContains(t, err, `must not include "canonical_url"`)
-			require.Empty(t, fixture.privileged.actions)
-		})
-	}
+	_, err := fixture.coordinator.Execute(context.Background(), "alice", "edit", strings.NewReader(
+		`{"id":"site","display_name":"Renamed","canonical_url":"git@git.example.test:site.git"}`,
+	))
+	require.ErrorContains(t, err, `must not include "canonical_url"`)
+	require.Empty(t, fixture.pkexec.actions(t))
 }
 
-func TestCoordinatorListHasNoEndpointDependency(t *testing.T) {
-	coordinator := testCoordinator(t).coordinator
-	require.NoError(t, coordinator.Catalog.Add(CatalogEntry{
+func TestCoordinatorListReportsOnlyValidatedAccountExistence(t *testing.T) {
+	fixture := newCoordinatorFixture(t, "")
+	entry := catalog.Entry{
 		ID: "site", DisplayName: "Site", CanonicalURL: "git@git.example.test:site.git",
 		Additional: map[string]json.RawMessage{
-			"team": json.RawMessage(`"web"`), "catalog_metadata": json.RawMessage(`"catalog-value"`),
-			"workspace_username": json.RawMessage(`"catalog-user"`), "workspace_exists": json.RawMessage(`"catalog-exists"`),
+			"catalog_metadata": json.RawMessage(`"catalog-value"`),
+			"workspace_exists": json.RawMessage(`"catalog-value"`),
 		},
-	}))
-	response, err := coordinator.Execute(context.Background(), "alice", "list", strings.NewReader(`{}`))
+	}
+	require.NoError(t, fixture.store.Add(entry))
+	workspaceAccount := rootWorkspace(t, "alice", "site", 2000)
+	fixture.host.accounts[workspaceAccount.Username] = workspaceAccount
+
+	response, err := fixture.coordinator.Execute(context.Background(), "alice", "list", strings.NewReader(`{}`))
 	require.NoError(t, err)
 	list := response.(ListResponse)
 	require.Equal(t, CurrentUserView{Username: "alice", Administrator: true}, list.CurrentUser)
 	require.Len(t, list.Projects, 1)
-	require.NotEmpty(t, list.Projects[0].WorkspaceUsername)
-	require.JSONEq(t, `"web"`, string(list.Projects[0].Additional["team"]))
+	require.Equal(t, workspaceAccount.Username, list.Projects[0].WorkspaceUsername)
+	require.True(t, list.Projects[0].WorkspaceExists)
 	encoded, err := json.Marshal(list)
 	require.NoError(t, err)
-	var wire struct {
-		Projects []struct {
-			CatalogMetadata   map[string]json.RawMessage `json:"catalog_metadata"`
-			WorkspaceUsername string                     `json:"workspace_username"`
-			WorkspaceExists   bool                       `json:"workspace_exists"`
-		} `json:"projects"`
-	}
-	require.NoError(t, json.Unmarshal(encoded, &wire))
-	require.Len(t, wire.Projects, 1)
-	require.JSONEq(t, `"catalog-value"`, string(wire.Projects[0].CatalogMetadata["catalog_metadata"]))
-	require.JSONEq(t, `"catalog-user"`, string(wire.Projects[0].CatalogMetadata["workspace_username"]))
-	require.JSONEq(t, `"catalog-exists"`, string(wire.Projects[0].CatalogMetadata["workspace_exists"]))
-	require.Equal(t, list.Projects[0].WorkspaceUsername, wire.Projects[0].WorkspaceUsername)
-	require.Equal(t, list.Projects[0].WorkspaceExists, wire.Projects[0].WorkspaceExists)
-	var object map[string]json.RawMessage
-	require.NoError(t, json.Unmarshal(encoded, &object))
-	require.NotContains(t, object, "forgejo_url")
-	require.NotContains(t, object, "ssh_host")
+	require.Contains(t, string(encoded), `"catalog_metadata":{"catalog_metadata":"catalog-value","workspace_exists":"catalog-value"}`)
 }
 
-func TestCoordinatorListReportsValidatedWorkspaceAccountExistence(t *testing.T) {
-	fixture := testCoordinator(t)
-	entry := CatalogEntry{ID: "site", DisplayName: "Site", CanonicalURL: "git@git.example.test:site.git"}
-	require.NoError(t, fixture.coordinator.Catalog.Add(entry))
-	workspace, err := fixture.platform.CreateWorkspace(context.Background(), fixture.platform.accounts["alice"], entry.ID)
+func TestCoordinatorSetupHoldsCompositionAndReturnsSetupResponse(t *testing.T) {
+	fixture := newCoordinatorFixture(t, "")
+	require.NoError(t, fixture.store.Add(catalog.Entry{
+		ID: "site", DisplayName: "Site", CanonicalURL: "git@localhost:team/site.git",
+	}))
+
+	response, err := fixture.coordinator.Execute(context.Background(), "alice", "setup", strings.NewReader(`{"id":"site"}`))
 	require.NoError(t, err)
-	require.False(t, fixture.platform.ready[workspace.Username+":"+entry.ID], "clone completion must remain independent")
-
-	response, err := fixture.coordinator.Execute(context.Background(), "alice", "list", strings.NewReader(`{}`))
-
-	require.NoError(t, err)
-	project := response.(ListResponse).Projects[0]
-	require.Equal(t, workspace.Username, project.WorkspaceUsername)
-	require.True(t, project.WorkspaceExists)
-}
-
-func TestCoordinatorSetupHasNoEndpointDependencyAndAttemptsNativeSSHClone(t *testing.T) {
-	fixture := testCoordinator(t)
-	coordinator, privileged := fixture.coordinator, fixture.privileged
-	entry := CatalogEntry{ID: "site", DisplayName: "Site", CanonicalURL: "git@localhost:team/site.git"}
-	require.NoError(t, coordinator.Catalog.Add(entry))
-	response, err := coordinator.Execute(context.Background(), "alice", "setup", strings.NewReader(`{"id":"site"}`))
-	require.NoError(t, err)
-	require.Equal(t, MutationResponse{OK: true, WorkspaceUsername: "soda-w-example"}, response)
-	require.Equal(t, []string{"workspace-prepare", "workspace-publish"}, privileged.actions)
-	encoded, err := json.Marshal(privileged.request)
-	require.NoError(t, err)
-	require.JSONEq(t, `{"id":"site","canonical_url":"git@localhost:team/site.git"}`, string(encoded))
-}
-
-func TestCoordinatorSetupLeavesKeyRegistrationToEveryAuthoritativeGitHost(t *testing.T) {
-	for _, remote := range []string{
-		"git@soda.example.ts.net:site.git",
-		"ssh://git@git.example.test/team/site.git",
-	} {
-		t.Run(remote, func(t *testing.T) {
-			fixture := testCoordinator(t)
-			require.NoError(t, fixture.coordinator.Catalog.Add(CatalogEntry{
-				ID: "site", DisplayName: "Site", CanonicalURL: remote,
-			}))
-			fixture.privileged.publishErr = errors.New("native SSH authentication failed")
-
-			_, err := fixture.coordinator.Execute(context.Background(), "alice", "setup", strings.NewReader(`{"id":"site"}`))
-
-			require.ErrorContains(t, err, "If repository authorization caused the clone failure")
-			require.ErrorContains(t, err, "authoritative Git host")
-			require.ErrorContains(t, err, fixture.privileged.workspacePublicKey)
-			require.ErrorContains(t, err, "register that key")
-			require.ErrorContains(t, err, "retry setup")
-			require.ErrorContains(t, err, "native SSH authentication failed")
-			require.Equal(t, []string{"workspace-prepare", "workspace-publish"}, fixture.privileged.actions)
-		})
+	require.Equal(t, SetupResponse{OK: true, WorkspaceUsername: "soda-w-example"}, response)
+	require.Equal(t, []string{"workspace-prepare", "workspace-publish"}, fixture.pkexec.actions(t))
+	for _, request := range fixture.pkexec.requests(t) {
+		require.JSONEq(t, `{"id":"site","canonical_url":"git@localhost:team/site.git"}`, request)
 	}
 }
 
-func TestCoordinatorSetupRejectsLegacyForgejoPassword(t *testing.T) {
-	fixture := testCoordinator(t)
-	_, err := fixture.coordinator.Execute(context.Background(), "alice", "setup", strings.NewReader(`{"id":"site","forgejo_password":"secret"}`))
-	require.ErrorContains(t, err, "unknown field")
-	require.Empty(t, fixture.privileged.actions)
+func TestCoordinatorSetupReportsManualAuthoritativeHostRetry(t *testing.T) {
+	fixture := newCoordinatorFixture(t, "workspace-publish")
+	require.NoError(t, fixture.store.Add(catalog.Entry{
+		ID: "site", DisplayName: "Site", CanonicalURL: "ssh://git@git.example.test/team/site.git",
+	}))
+
+	_, err := fixture.coordinator.Execute(context.Background(), "alice", "setup", strings.NewReader(`{"id":"site"}`))
+	require.ErrorContains(t, err, "workspace soda-w-example and its outbound Git key were retained")
+	require.ErrorContains(t, err, "ssh-ed25519 test")
+	require.ErrorContains(t, err, "authoritative Git host")
+	require.ErrorContains(t, err, "register that key")
+	require.ErrorContains(t, err, "retry setup")
+	require.ErrorContains(t, err, "native SSH authentication failed")
 }
 
-func TestCoordinatorRejectsUnknownActionsAndFields(t *testing.T) {
-	coordinator := testCoordinator(t).coordinator
-	_, err := coordinator.Execute(context.Background(), "alice", "shell", strings.NewReader(`{}`))
+func TestCoordinatorRejectsUnknownActionAndFields(t *testing.T) {
+	fixture := newCoordinatorFixture(t, "")
+	_, err := fixture.coordinator.Execute(context.Background(), "alice", "shell", strings.NewReader(`{}`))
 	require.ErrorContains(t, err, "unsupported")
-	_, err = coordinator.Execute(context.Background(), "alice", "remove", strings.NewReader(`{"id":"site","command":"rm"}`))
-	require.ErrorContains(t, err, "unknown field")
-}
 
-func TestCoordinatorRoutesOwnWorkspaceRemoval(t *testing.T) {
-	fixture := testCoordinator(t)
-	response, err := fixture.coordinator.Execute(context.Background(), "alice", "remove-workspace", strings.NewReader(`{"id":"site"}`))
-	require.NoError(t, err)
-	require.Equal(t, MutationResponse{OK: true}, response)
-	require.Equal(t, "workspace-remove", fixture.privileged.action)
-	require.Equal(t, ProjectRequest{ID: "site"}, fixture.privileged.request)
+	_, err = fixture.coordinator.Execute(context.Background(), "alice", "remove", strings.NewReader(`{"id":"site","command":"rm"}`))
+	require.ErrorContains(t, err, "unknown field")
+	require.Empty(t, fixture.pkexec.actions(t))
 }

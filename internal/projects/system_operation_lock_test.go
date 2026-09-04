@@ -16,6 +16,15 @@ type operationLockResult struct {
 	err  error
 }
 
+func TestOperationLockerRequiresExplicitConstruction(t *testing.T) {
+	_, err := (OperationLocker{}).Shared()
+	require.ErrorContains(t, err, "not constructed")
+	_, err = NewOperationLocker("relative.lock", os.Getuid())
+	require.ErrorContains(t, err, "absolute")
+	_, err = NewOperationLocker("/run/lock/soda/workspace-operations.lock", -1)
+	require.ErrorContains(t, err, "non-negative")
+}
+
 func TestWorkspaceOperationLockCoordinatesSetupAndRemoval(t *testing.T) {
 	path := testOperationLockFile(t)
 	firstShared, err := openWorkspaceOperationLock(path, os.Getuid(), unix.LOCK_SH)

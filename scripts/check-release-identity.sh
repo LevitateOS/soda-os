@@ -50,7 +50,7 @@ contains packaging/installer/branding/os-release "PRETTY_NAME=\"Soda OS $version
 for lock in \
   distro/locks/runtime-packages-aarch64.toml \
   distro/locks/runtime-packages-x86_64.toml; do
-  for package in soda-release soda-runtime soda-projects; do
+  for package in soda-release soda-runtime soda-projects soda-runners; do
     contains "$lock" "$package-0:$version-"
   done
 done
@@ -58,7 +58,8 @@ done
 for spec in \
   packaging/rpm/release/soda-release.spec \
   packaging/rpm/runtime/soda-runtime.spec \
-  packaging/rpm/projects/soda-projects.spec; do
+  packaging/rpm/projects/soda-projects.spec \
+  packaging/rpm/runners/soda-runners.spec; do
   exact "$spec" 'Version:        %{soda_version}'
 done
 contains internal/build/image/rpm.go 'internal/version.Version=" + b.Spec.Identity.Version'

@@ -1,4 +1,4 @@
-package projects
+package workspace
 
 import (
 	"errors"
@@ -8,25 +8,36 @@ import (
 	"strconv"
 
 	"github.com/LevitateOS/soda-os/internal/linuxhost"
+	"github.com/LevitateOS/soda-os/internal/projects/catalog"
 	"golang.org/x/sys/unix"
 )
 
-type nativeSetupLock struct{ file *os.File }
+type setupLock struct{ file *os.File }
 
-func (lock *nativeSetupLock) Close() error {
+func (lock *setupLock) Close() error {
 	return errors.Join(unix.Flock(int(lock.file.Fd()), unix.LOCK_UN), lock.file.Close())
 }
 
-func (platform *NativePlatform) SetupLock(account linuxhost.Account, projectID string) (io.Closer, error) {
-	if !projectIDPattern.MatchString(projectID) {
-		return nil, errors.New("project id must match [a-z][a-z0-9-]{0,23}")
+// SetupLocker owns the per-primary/project serialization primitive. The root
+// Projects package composes it with the shared workspace-operation lock.
+type SetupLocker struct {
+	runtimeRoot string
+}
+
+func NewSetupLocker(runtimeRoot string) SetupLocker {
+	return SetupLocker{runtimeRoot: runtimeRoot}
+}
+
+func (locker SetupLocker) Lock(account linuxhost.Account, entry catalog.Entry) (io.Closer, error) {
+	if err := entry.Validate(); err != nil {
+		return nil, err
 	}
-	lockRoot, err := platform.ensureStagingRoot(account)
+	lockRoot, err := locker.ensureLockRoot(account)
 	if err != nil {
 		return nil, err
 	}
 	defer lockRoot.Close()
-	lock, err := openSetupLockAt(lockRoot, account, projectID)
+	lock, err := openSetupLockAt(lockRoot, account, entry.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -34,7 +45,7 @@ func (platform *NativePlatform) SetupLock(account linuxhost.Account, projectID s
 		lock.Close()
 		return nil, fmt.Errorf("lock workspace setup: %w", err)
 	}
-	return &nativeSetupLock{file: lock}, nil
+	return &setupLock{file: lock}, nil
 }
 
 func openSetupLockAt(parent *os.File, account linuxhost.Account, projectID string) (*os.File, error) {
@@ -58,25 +69,8 @@ func openSetupLockAt(parent *os.File, account linuxhost.Account, projectID strin
 	return lock, nil
 }
 
-func validateOwnedRegularFile(file *os.File, expectedUID int, description string) error {
-	stat, err := descriptorStat(file)
-	if err != nil {
-		return fmt.Errorf("inspect %s: %w", description, err)
-	}
-	if stat.Mode&unix.S_IFMT != unix.S_IFREG {
-		return fmt.Errorf("%s is not a regular file", description)
-	}
-	if int(stat.Uid) != expectedUID {
-		return fmt.Errorf("%s has unexpected ownership", description)
-	}
-	if stat.Nlink != 1 {
-		return fmt.Errorf("%s has unexpected link count", description)
-	}
-	return validateSafeFileMode(stat.Mode, description)
-}
-
-func (platform *NativePlatform) ensureStagingRoot(account linuxhost.Account) (*os.File, error) {
-	userRuntime, err := platform.openRuntimeUserDirectory(account)
+func (locker SetupLocker) ensureLockRoot(account linuxhost.Account) (*os.File, error) {
+	userRuntime, err := locker.openRuntimeUserDirectory(account)
 	if err != nil {
 		return nil, err
 	}
@@ -84,8 +78,8 @@ func (platform *NativePlatform) ensureStagingRoot(account linuxhost.Account) (*o
 	return ensureCallerOwnedDirectoryAt(userRuntime, "soda-projects", account, "workspace setup lock directory")
 }
 
-func (platform *NativePlatform) openRuntimeUserDirectory(account linuxhost.Account) (*os.File, error) {
-	runtimeRoot, err := openAbsoluteDirectoryNoSymlinks(platform.runtimeRoot())
+func (locker SetupLocker) openRuntimeUserDirectory(account linuxhost.Account) (*os.File, error) {
+	runtimeRoot, err := openAbsoluteDirectoryNoSymlinks(locker.runtimeRoot)
 	if err != nil {
 		return nil, fmt.Errorf("open runtime root: %w", err)
 	}

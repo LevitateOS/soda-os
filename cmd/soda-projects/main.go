@@ -21,14 +21,8 @@ func main() {
 		fmt.Fprintln(os.Stderr, "resolve current Linux account:", err)
 		os.Exit(1)
 	}
-	catalog := projects.NewCatalog()
 	host := linuxhost.NewNative()
-	platform := projects.NewNativePlatform(host)
-	lifecycle := projects.Lifecycle{Catalog: catalog, Host: host, Platform: platform}
-	coordinator := projects.Coordinator{
-		Catalog: catalog, Lifecycle: lifecycle, Platform: platform,
-		Privileged: projects.PKExecInvoker{},
-	}
+	coordinator := projects.NewSystemCoordinator(host)
 	response, err := coordinator.Execute(context.Background(), current.Username, os.Args[1], os.Stdin)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)

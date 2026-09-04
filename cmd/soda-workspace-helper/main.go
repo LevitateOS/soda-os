@@ -20,10 +20,8 @@ func main() {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
-	catalog := projects.NewCatalog()
 	host := linuxhost.NewNative()
-	platform := projects.NewNativePlatform(host)
-	helper := projects.Helper{Lifecycle: projects.Lifecycle{Catalog: catalog, Host: host, Platform: platform}}
+	helper := projects.NewSystemHelper(host)
 	response, err := helper.Execute(context.Background(), actor, os.Args[1], os.Stdin)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)

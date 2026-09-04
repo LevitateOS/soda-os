@@ -1,4 +1,4 @@
-package projects
+package workspace
 
 import (
 	"fmt"
@@ -7,11 +7,7 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-func validateOwnedTreeDescriptor(root *os.File, expectedUID int) error {
-	return validateTreeDescriptor(root, expectedUID)
-}
-
-func validateTreeDescriptor(root *os.File, expectedUID int) error {
+func validateOwnedTree(root *os.File, expectedUID int) error {
 	entries, err := root.ReadDir(-1)
 	if err != nil {
 		return err
@@ -48,7 +44,7 @@ func validateTreeDirectory(root *os.File, name string, expectedUID int) error {
 		return err
 	}
 	defer child.Close()
-	return validateTreeDescriptor(child, expectedUID)
+	return validateOwnedTree(child, expectedUID)
 }
 
 func validateGitDirectoryAt(checkout *os.File, expectedUID int, description string) error {
@@ -58,12 +54,6 @@ func validateGitDirectoryAt(checkout *os.File, expectedUID int, description stri
 	}
 	defer gitDirectory.Close()
 	return validateOwnedDirectory(gitDirectory, expectedUID, description)
-}
-
-func descriptorStat(file *os.File) (unix.Stat_t, error) {
-	var stat unix.Stat_t
-	err := unix.Fstat(int(file.Fd()), &stat)
-	return stat, err
 }
 
 func entryStat(parent *os.File, name string) (unix.Stat_t, error) {

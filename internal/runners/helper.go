@@ -6,6 +6,7 @@ import (
 	"io"
 
 	"github.com/LevitateOS/soda-os/internal/linuxhost"
+	"github.com/LevitateOS/soda-os/internal/strictjson"
 )
 
 type Lifecycle interface {
@@ -33,7 +34,7 @@ func (helper Helper) Execute(ctx context.Context, actor linuxhost.PKExecIdentity
 
 func (helper Helper) create(ctx context.Context, input io.Reader) (MutationResponse, error) {
 	var request CreateRequest
-	if err := DecodeRequest(input, &request); err != nil {
+	if err := strictjson.Decode(input, &request); err != nil {
 		return MutationResponse{}, err
 	}
 	if err := request.Validate(); err != nil {
@@ -47,7 +48,7 @@ func (helper Helper) create(ctx context.Context, input io.Reader) (MutationRespo
 
 func (helper Helper) mutate(ctx context.Context, action string, input io.Reader) (MutationResponse, error) {
 	var request RunnerRequest
-	if err := DecodeRequest(input, &request); err != nil {
+	if err := strictjson.Decode(input, &request); err != nil {
 		return MutationResponse{}, err
 	}
 	if err := ValidateID(request.ID); err != nil {
