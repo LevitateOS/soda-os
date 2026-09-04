@@ -29,11 +29,7 @@ export function payloadFor(action, data, reportInvalid) {
     };
   }
   if (action === "setup") {
-    return {
-      id: data.get("id"),
-      git_username: data.get("git_username"),
-      git_password: data.get("git_password"),
-    };
+    return { id: data.get("id") };
   }
   if (action === "add-person") {
     if (data.get("password_confirmation") !== data.get("password")) {
@@ -85,7 +81,7 @@ export function successMessage(action, payload, result) {
 }
 
 export function clearSecrets(form) {
-  for (const name of ["password", "password_confirmation", "git_password"]) {
+  for (const name of ["password", "password_confirmation"]) {
     const input = form.elements.namedItem(name);
     if (input) {
       input.value = "";
@@ -94,7 +90,7 @@ export function clearSecrets(form) {
 }
 
 export function clearPayloadSecrets(payload) {
-  for (const name of ["password", "git_password"]) {
+  for (const name of ["password"]) {
     if (Object.hasOwn(payload, name)) {
       payload[name] = "";
     }

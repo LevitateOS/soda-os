@@ -12,7 +12,7 @@ import (
 
 func TestLifecyclePublishesOneDerivedWorkspace(t *testing.T) {
 	catalog := testCatalog(t)
-	entry := CatalogEntry{ID: "site", DisplayName: "Site", CanonicalURL: "https://git.example.test/alice/site.git"}
+	entry := CatalogEntry{ID: "site", DisplayName: "Site", CanonicalURL: "git@git.example.test:alice/site.git"}
 	require.NoError(t, catalog.Add(entry))
 	platform := newFakePlatform()
 	platform.accounts["alice"] = primaryAccount("alice", primaryRoleUser)
@@ -31,7 +31,7 @@ func TestLifecyclePublishesOneDerivedWorkspace(t *testing.T) {
 
 func TestLifecycleDoesNotCleanupAmbiguousFailedPublication(t *testing.T) {
 	catalog := testCatalog(t)
-	entry := CatalogEntry{ID: "site", DisplayName: "Site", CanonicalURL: "https://git.example.test/alice/site.git"}
+	entry := CatalogEntry{ID: "site", DisplayName: "Site", CanonicalURL: "git@git.example.test:alice/site.git"}
 	require.NoError(t, catalog.Add(entry))
 	platform := newFakePlatform()
 	platform.accounts["alice"] = primaryAccount("alice", primaryRoleUser)
@@ -46,7 +46,7 @@ func TestLifecycleDoesNotCleanupAmbiguousFailedPublication(t *testing.T) {
 
 func TestLifecycleRetainsWorkspaceWhenAuthorizedKeysProvenanceIsAmbiguous(t *testing.T) {
 	catalog := testCatalog(t)
-	entry := CatalogEntry{ID: "site", DisplayName: "Site", CanonicalURL: "https://git.example.test/alice/site.git"}
+	entry := CatalogEntry{ID: "site", DisplayName: "Site", CanonicalURL: "git@git.example.test:alice/site.git"}
 	require.NoError(t, catalog.Add(entry))
 	platform := newFakePlatform()
 	platform.accounts["alice"] = primaryAccount("alice", primaryRoleUser)
@@ -61,7 +61,7 @@ func TestLifecycleRetainsWorkspaceWhenAuthorizedKeysProvenanceIsAmbiguous(t *tes
 
 func TestLifecycleRejectsUnlockedExistingWorkspaceBeforeReadiness(t *testing.T) {
 	catalog := testCatalog(t)
-	entry := CatalogEntry{ID: "site", DisplayName: "Site", CanonicalURL: "https://git.example.test/alice/site.git"}
+	entry := CatalogEntry{ID: "site", DisplayName: "Site", CanonicalURL: "git@git.example.test:alice/site.git"}
 	require.NoError(t, catalog.Add(entry))
 	platform := newFakePlatform()
 	platform.accounts["alice"] = primaryAccount("alice", primaryRoleUser)
@@ -79,7 +79,7 @@ func TestLifecycleRejectsUnlockedExistingWorkspaceBeforeReadiness(t *testing.T) 
 
 func TestLifecycleChecksExistingReadyWorkspaceUnderLockBeforeReadingKeys(t *testing.T) {
 	catalog := testCatalog(t)
-	entry := CatalogEntry{ID: "site", DisplayName: "Site", CanonicalURL: "https://git.example.test/alice/site.git"}
+	entry := CatalogEntry{ID: "site", DisplayName: "Site", CanonicalURL: "git@git.example.test:alice/site.git"}
 	require.NoError(t, catalog.Add(entry))
 	platform := newFakePlatform()
 	platform.accounts["alice"] = primaryAccount("alice", primaryRoleUser)
@@ -98,7 +98,7 @@ func TestLifecycleChecksExistingReadyWorkspaceUnderLockBeforeReadingKeys(t *test
 
 func TestProjectRemovalDeletesWorkspacesBeforeCatalog(t *testing.T) {
 	catalog := testCatalog(t)
-	entry := CatalogEntry{ID: "site", DisplayName: "Site", CanonicalURL: "https://git.example.test/site.git"}
+	entry := CatalogEntry{ID: "site", DisplayName: "Site", CanonicalURL: "git@git.example.test:site.git"}
 	require.NoError(t, catalog.Add(entry))
 	platform := newFakePlatform()
 	platform.accounts["alice"] = primaryAccount("alice", primaryRoleUser)
@@ -120,7 +120,7 @@ func TestProjectRemovalDeletesWorkspacesBeforeCatalog(t *testing.T) {
 
 func TestProjectRemovalRetainsCatalogWhenWorkspacePasswordIsNotLocked(t *testing.T) {
 	catalog := testCatalog(t)
-	entry := CatalogEntry{ID: "site", DisplayName: "Site", CanonicalURL: "https://git.example.test/site.git"}
+	entry := CatalogEntry{ID: "site", DisplayName: "Site", CanonicalURL: "git@git.example.test:site.git"}
 	require.NoError(t, catalog.Add(entry))
 	platform := newFakePlatform()
 	platform.accounts["alice"] = primaryAccount("alice", primaryRoleUser)
@@ -214,7 +214,7 @@ func (platform *orderedPreflightPlatform) PreflightDeleteAccount(_ context.Conte
 
 func TestProjectRemovalPreflightsEveryWorkspaceBeforeDeletingAny(t *testing.T) {
 	catalog := testCatalog(t)
-	entry := CatalogEntry{ID: "site", DisplayName: "Site", CanonicalURL: "https://git.example.test/site.git"}
+	entry := CatalogEntry{ID: "site", DisplayName: "Site", CanonicalURL: "git@git.example.test:site.git"}
 	require.NoError(t, catalog.Add(entry))
 	base := newFakePlatform()
 	base.accounts["admin"] = primaryAccount("admin", primaryRoleAdministrator)

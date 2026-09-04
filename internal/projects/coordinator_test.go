@@ -73,12 +73,11 @@ func (privileged *fakePrivileged) HumanPublish(_ context.Context, request Helper
 }
 
 type fakeCloner struct {
-	remote      string
-	credentials CloneCredentials
+	remote string
 }
 
-func (cloner *fakeCloner) Clone(_ context.Context, remote, _ string, credentials CloneCredentials) error {
-	cloner.remote, cloner.credentials = remote, credentials
+func (cloner *fakeCloner) Clone(_ context.Context, remote, _ string) error {
+	cloner.remote = remote
 	return nil
 }
 
@@ -180,7 +179,7 @@ func configureForgejo(t *testing.T, coordinator *Coordinator, calls *int, passwo
 		_, receivedPassword, _ := request.BasicAuth()
 		*password = receivedPassword
 		writer.WriteHeader(http.StatusCreated)
-		_, _ = writer.Write([]byte(`{"name":"site","clone_url":"https://forgejo.example.test/alice/site.git","empty":true,"owner":{"login":"alice"}}`))
+		_, _ = writer.Write([]byte(`{"name":"site","ssh_url":"git@forgejo.example.test:alice/site.git","empty":true,"owner":{"login":"alice"}}`))
 	}))
 	coordinator.Endpoints = fakeEndpoints{forgejoURL: server.URL}
 	coordinator.Forgejo = ForgejoClient{}
@@ -189,7 +188,7 @@ func configureForgejo(t *testing.T, coordinator *Coordinator, calls *int, passwo
 
 func TestCoordinatorListContract(t *testing.T) {
 	coordinator := testCoordinator(t).coordinator
-	require.NoError(t, coordinator.Catalog.Add(CatalogEntry{ID: "site", DisplayName: "Site", CanonicalURL: "https://git.example.test/site.git"}))
+	require.NoError(t, coordinator.Catalog.Add(CatalogEntry{ID: "site", DisplayName: "Site", CanonicalURL: "git@git.example.test:site.git"}))
 	response, err := coordinator.Execute(context.Background(), "alice", "list", strings.NewReader(`{}`))
 	require.NoError(t, err)
 	list := response.(ListResponse)
@@ -201,31 +200,30 @@ func TestCoordinatorListContract(t *testing.T) {
 	require.NotEmpty(t, list.Projects[0].WorkspaceUsername)
 }
 
-func TestCoordinatorSetupKeepsCredentialsOutOfPrivilegedRequest(t *testing.T) {
+func TestCoordinatorSetupUsesNativeSSHWithoutCredentialPayload(t *testing.T) {
 	fixture := testCoordinator(t)
 	coordinator, platform := fixture.coordinator, fixture.platform
 	privileged, cloner := fixture.privileged, fixture.cloner
-	entry := CatalogEntry{ID: "site", DisplayName: "Site", CanonicalURL: "https://git.example.test/site.git"}
+	entry := CatalogEntry{ID: "site", DisplayName: "Site", CanonicalURL: "git@git.example.test:team/site.git"}
 	require.NoError(t, coordinator.Catalog.Add(entry))
-	response, err := coordinator.Execute(context.Background(), "alice", "setup", strings.NewReader(`{"id":"site","git_username":"alice","git_password":"secret"}`))
+	response, err := coordinator.Execute(context.Background(), "alice", "setup", strings.NewReader(`{"id":"site"}`))
 	require.NoError(t, err)
 	require.Equal(t, MutationResponse{OK: true, WorkspaceUsername: "soda-w-example"}, response)
-	require.Equal(t, CloneCredentials{Username: "alice", Password: "secret"}, cloner.credentials)
+	require.Equal(t, entry.CanonicalURL, cloner.remote)
 	require.Equal(t, "workspace-publish", privileged.action)
 	encoded, err := json.Marshal(privileged.request)
 	require.NoError(t, err)
-	require.NotContains(t, string(encoded), "secret")
-	require.NotContains(t, string(encoded), "git_username")
+	require.NotContains(t, string(encoded), "credential")
 	require.Equal(t, []string{"reset:site", "prepare:site", "cleanup:site"}, platform.calls.reset)
 }
 
 func TestCoordinatorSetupSurfacesCleanupFailureAfterPublication(t *testing.T) {
 	fixture := testCoordinator(t)
 	coordinator, platform := fixture.coordinator, fixture.platform
-	require.NoError(t, coordinator.Catalog.Add(CatalogEntry{ID: "site", DisplayName: "Site", CanonicalURL: "https://git.example.test/site.git"}))
+	require.NoError(t, coordinator.Catalog.Add(CatalogEntry{ID: "site", DisplayName: "Site", CanonicalURL: "git@git.example.test:site.git"}))
 	platform.failures.cleanupErr = fmt.Errorf("staging remained")
 
-	_, err := coordinator.Execute(context.Background(), "alice", "setup", strings.NewReader(`{"id":"site","git_username":"alice","git_password":"secret"}`))
+	_, err := coordinator.Execute(context.Background(), "alice", "setup", strings.NewReader(`{"id":"site"}`))
 	require.ErrorContains(t, err, "clean clone staging directory")
 	require.Equal(t, []string{"reset:site", "prepare:site", "cleanup:site"}, platform.calls.reset)
 }
@@ -234,11 +232,11 @@ func TestCoordinatorMissingKeyFailsBeforeCloneOrPrivilegedMutation(t *testing.T)
 	fixture := testCoordinator(t)
 	coordinator, platform := fixture.coordinator, fixture.platform
 	privileged, cloner := fixture.privileged, fixture.cloner
-	entry := CatalogEntry{ID: "site", DisplayName: "Site", CanonicalURL: "https://git.example.test/site.git"}
+	entry := CatalogEntry{ID: "site", DisplayName: "Site", CanonicalURL: "git@git.example.test:site.git"}
 	require.NoError(t, coordinator.Catalog.Add(entry))
 	platform.keys = nil
 
-	_, err := coordinator.Execute(context.Background(), "alice", "setup", strings.NewReader(`{"id":"site","git_username":"alice","git_password":"secret"}`))
+	_, err := coordinator.Execute(context.Background(), "alice", "setup", strings.NewReader(`{"id":"site"}`))
 	require.ErrorContains(t, err, "requires a public key")
 	require.Empty(t, cloner.remote)
 	require.Empty(t, privileged.action)
@@ -269,7 +267,7 @@ func TestCoordinatorCreateForgejoPreflightsCatalogBeforeRepositoryMutation(t *te
 	var password string
 	server := configureForgejo(t, &coordinator, &calls, &password)
 	defer server.Close()
-	require.NoError(t, coordinator.Catalog.Add(CatalogEntry{ID: "site", DisplayName: "Site", CanonicalURL: "https://git.example.test/alice/site.git"}))
+	require.NoError(t, coordinator.Catalog.Add(CatalogEntry{ID: "site", DisplayName: "Site", CanonicalURL: "git@git.example.test:alice/site.git"}))
 	_, err := coordinator.Execute(context.Background(), "alice", "create-forgejo", strings.NewReader(`{"id":"site","display_name":"Site","password":"secret"}`))
 	require.ErrorContains(t, err, "already exists")
 	require.Zero(t, calls, "Forgejo must not be called when the catalog ID already exists")
@@ -288,7 +286,7 @@ func TestCoordinatorReportsCreatedRepositoryWhenCatalogPublicationFails(t *testi
 
 	_, err := coordinator.Execute(context.Background(), "alice", "create-forgejo", strings.NewReader(`{"id":"site","display_name":"Site","password":"secret"}`))
 	require.ErrorIs(t, err, privilegedError)
-	require.ErrorContains(t, err, "repository was created at https://forgejo.example.test/alice/site.git")
+	require.ErrorContains(t, err, "repository was created at git@forgejo.example.test:alice/site.git")
 	require.Equal(t, 1, calls)
 	require.Equal(t, "secret", password)
 }
@@ -297,7 +295,7 @@ func TestCoordinatorSetupReturnsCompleteWorkspaceWithoutCloneOrKeyPreflight(t *t
 	fixture := testCoordinator(t)
 	coordinator, platform := fixture.coordinator, fixture.platform
 	privileged, cloner := fixture.privileged, fixture.cloner
-	entry := CatalogEntry{ID: "site", DisplayName: "Site", CanonicalURL: "https://git.example.test/site.git"}
+	entry := CatalogEntry{ID: "site", DisplayName: "Site", CanonicalURL: "git@git.example.test:site.git"}
 	require.NoError(t, coordinator.Catalog.Add(entry))
 	workspace, err := platform.CreateWorkspace(context.Background(), platform.accounts["alice"], entry.ID)
 	require.NoError(t, err)
@@ -305,7 +303,7 @@ func TestCoordinatorSetupReturnsCompleteWorkspaceWithoutCloneOrKeyPreflight(t *t
 	platform.keys = nil
 	privileged.workspaceUsername = workspace.Username
 
-	response, err := coordinator.Execute(context.Background(), "alice", "setup", strings.NewReader(`{"id":"site","git_username":"","git_password":""}`))
+	response, err := coordinator.Execute(context.Background(), "alice", "setup", strings.NewReader(`{"id":"site"}`))
 	require.NoError(t, err)
 	require.Equal(t, MutationResponse{OK: true, WorkspaceUsername: workspace.Username}, response)
 	require.Empty(t, cloner.remote)

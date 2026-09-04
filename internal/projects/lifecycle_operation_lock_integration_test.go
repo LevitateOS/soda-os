@@ -53,7 +53,7 @@ type blockingSetupCloner struct {
 	release <-chan struct{}
 }
 
-func (cloner blockingSetupCloner) Clone(context.Context, string, string, CloneCredentials) error {
+func (cloner blockingSetupCloner) Clone(context.Context, string, string) error {
 	close(cloner.started)
 	<-cloner.release
 	return nil
@@ -64,7 +64,7 @@ func TestSetupOperationLockBlocksProjectAndHumanRemoval(t *testing.T) {
 	require.NoError(t, catalog.Add(CatalogEntry{
 		ID:           "site",
 		DisplayName:  "Site",
-		CanonicalURL: "https://git.example.test/site.git",
+		CanonicalURL: "git@git.example.test:site.git",
 	}))
 
 	basePlatform := newFakePlatform()
@@ -96,7 +96,7 @@ func TestSetupOperationLockBlocksProjectAndHumanRemoval(t *testing.T) {
 
 	setupResult := make(chan error, 1)
 	go func() {
-		_, err := coordinator.Execute(context.Background(), "alice", "setup", strings.NewReader(`{"id":"site","git_username":"","git_password":""}`))
+		_, err := coordinator.Execute(context.Background(), "alice", "setup", strings.NewReader(`{"id":"site"}`))
 		setupResult <- err
 	}()
 	requireSignal(t, cloneStarted, "setup did not reach the clone while holding the shared operation lock")

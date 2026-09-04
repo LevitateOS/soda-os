@@ -28,10 +28,8 @@ test("form payloads keep secrets only in the synchronous request object", () => 
 
   const setup = payloadFor("setup", new Map([
     ["id", "site"],
-    ["git_username", "alice"],
-    ["git_password", "one-use"],
   ]), assert.fail);
-  assert.deepEqual(setup, { id: "site", git_username: "alice", git_password: "one-use" });
+  assert.deepEqual(setup, { id: "site" });
 
   const person = payloadFor("add-person", new Map([
     ["username", "bob"],
@@ -46,16 +44,14 @@ test("secret clearing covers form controls and request objects", () => {
   const controls = {
     password: { value: "forgejo-secret" },
     password_confirmation: { value: "forgejo-secret" },
-    git_password: { value: "git-secret" },
   };
   clearSecrets({ elements: { namedItem: name => controls[name] ?? null } });
   assert.equal(controls.password.value, "");
   assert.equal(controls.password_confirmation.value, "");
-  assert.equal(controls.git_password.value, "");
 
-  const payload = { password: "forgejo-secret", git_password: "git-secret", id: "site" };
+	const payload = { password: "forgejo-secret", id: "site" };
   clearPayloadSecrets(payload);
-  assert.deepEqual(payload, { password: "", git_password: "", id: "site" });
+	assert.deepEqual(payload, { password: "", id: "site" });
 });
 
 test("destructive actions require exact confirmation", () => {

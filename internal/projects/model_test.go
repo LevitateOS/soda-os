@@ -9,8 +9,8 @@ import (
 func TestCatalogEntryValidation(t *testing.T) {
 	t.Parallel()
 	for _, remote := range []string{
-		"https://git.example.test/team/site.git",
-		"http://git.example.test/alice/site.git",
+		"ssh://git@git.example.test/team/site.git",
+		"git@git.example.test:alice/site.git",
 		"ssh://git@git.example.test/team/site.git",
 		"ssh://git.example.test/team/site.git",
 		"git@git.example.test:team/site.git",

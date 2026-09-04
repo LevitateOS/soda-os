@@ -24,10 +24,10 @@ func TestHelperRejectsUnsupportedCommandsAndParameters(t *testing.T) {
 	_, err := helper.Execute(context.Background(), alice, "run", strings.NewReader(`{}`))
 	require.ErrorContains(t, err, "unsupported")
 
-	_, err = helper.Execute(context.Background(), alice, "workspace-publish", strings.NewReader(`{"id":"site","canonical_url":"https://git.example.test/site.git","path":"/etc"}`))
+	_, err = helper.Execute(context.Background(), alice, "workspace-publish", strings.NewReader(`{"id":"site","canonical_url":"git@git.example.test:site.git","path":"/etc"}`))
 	require.ErrorContains(t, err, "unknown field")
 
-	_, err = helper.Execute(context.Background(), alice, "catalog-add", strings.NewReader(`{"id":"site","display_name":"Site","canonical_url":"https://git.example.test/site.git","password":"secret"}`))
+	_, err = helper.Execute(context.Background(), alice, "catalog-add", strings.NewReader(`{"id":"site","display_name":"Site","canonical_url":"git@git.example.test:site.git","password":"secret"}`))
 	require.ErrorContains(t, err, "unknown field")
 }
 
@@ -40,7 +40,7 @@ func TestHelperRejectsWorkspaceAndSystemCallers(t *testing.T) {
 	for _, caller := range []string{workspace.Username, "sshd"} {
 		account := platform.accounts[caller]
 		identity := PKExecIdentity{Username: caller, UID: account.UID}
-		_, err = helper.Execute(context.Background(), identity, "catalog-add", strings.NewReader(`{"id":"site","display_name":"Site","canonical_url":"https://git.example.test/site.git"}`))
+		_, err = helper.Execute(context.Background(), identity, "catalog-add", strings.NewReader(`{"id":"site","display_name":"Site","canonical_url":"git@git.example.test:site.git"}`))
 		require.ErrorContains(t, err, "not a supported primary")
 	}
 }
@@ -48,7 +48,7 @@ func TestHelperRejectsWorkspaceAndSystemCallers(t *testing.T) {
 func TestHelperRejectsPKExecUIDAccountMismatch(t *testing.T) {
 	helper, _ := testHelper(t)
 	identity := PKExecIdentity{Username: "alice", UID: 2000}
-	_, err := helper.Execute(context.Background(), identity, "catalog-add", strings.NewReader(`{"id":"site","display_name":"Site","canonical_url":"https://git.example.test/site.git"}`))
+	_, err := helper.Execute(context.Background(), identity, "catalog-add", strings.NewReader(`{"id":"site","display_name":"Site","canonical_url":"git@git.example.test:site.git"}`))
 	require.ErrorContains(t, err, "no longer matches")
 }
 

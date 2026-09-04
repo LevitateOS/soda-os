@@ -101,20 +101,11 @@ func validateStructuredRemote(parsed *url.URL) error {
 		return errors.New("must include a host and repository path")
 	}
 	switch strings.ToLower(parsed.Scheme) {
-	case "http", "https":
-		return validateHTTPRemote(parsed)
 	case "ssh":
 		return validateSSHRemote(parsed)
 	default:
-		return errors.New("must use HTTP, HTTPS, SSH, or SCP syntax")
+		return errors.New("must use SSH or SCP syntax")
 	}
-}
-
-func validateHTTPRemote(parsed *url.URL) error {
-	if parsed.User != nil {
-		return errors.New("must not contain user information")
-	}
-	return nil
 }
 
 func validateSSHRemote(parsed *url.URL) error {

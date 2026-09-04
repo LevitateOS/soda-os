@@ -31,14 +31,10 @@ test("coordinator command contains only the executable and allow-listed action",
 });
 
 test("credentials are serialized only into stdin payload", () => {
-  const payload = {
-    id: "website",
-    git_username: "alice",
-    git_password: "one-use-secret",
-  };
+  const payload = { id: "website" };
   assert.equal(
     encodeRequest("setup", payload),
-    '{"id":"website","git_username":"alice","git_password":"one-use-secret"}\n',
+    '{"id":"website"}\n',
   );
   assert.deepEqual(coordinatorCommand("setup"), [coordinatorPath, "setup"]);
 });

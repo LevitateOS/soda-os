@@ -20,13 +20,13 @@ func testCatalog(t *testing.T) *Catalog {
 
 func TestCatalogPersistsExactlyThreeSortedFields(t *testing.T) {
 	catalog := testCatalog(t)
-	require.NoError(t, catalog.Add(CatalogEntry{ID: "zebra", DisplayName: "Zebra", CanonicalURL: "https://git.example.test/zebra.git"}))
+	require.NoError(t, catalog.Add(CatalogEntry{ID: "zebra", DisplayName: "Zebra", CanonicalURL: "git@git.example.test:zebra.git"}))
 	require.NoError(t, catalog.Add(CatalogEntry{ID: "alpha", DisplayName: "Alpha", CanonicalURL: "git@git.example.test:alpha.git"}))
 	contents, err := os.ReadFile(catalog.Path)
 	require.NoError(t, err)
 	require.JSONEq(t, `[
 		{"id":"alpha","display_name":"Alpha","canonical_url":"git@git.example.test:alpha.git"},
-		{"id":"zebra","display_name":"Zebra","canonical_url":"https://git.example.test/zebra.git"}
+		{"id":"zebra","display_name":"Zebra","canonical_url":"git@git.example.test:zebra.git"}
 	]`, string(contents))
 	info, err := os.Stat(catalog.Path)
 	require.NoError(t, err)
@@ -90,7 +90,7 @@ func TestCatalogSerializesConcurrentMutations(t *testing.T) {
 		go func() {
 			defer wait.Done()
 			id := fmt.Sprintf("project-%02d", index)
-			require.NoError(t, catalog.Add(CatalogEntry{ID: id, DisplayName: id, CanonicalURL: "https://git.example.test/" + id + ".git"}))
+			require.NoError(t, catalog.Add(CatalogEntry{ID: id, DisplayName: id, CanonicalURL: "git@git.example.test:" + id + ".git"}))
 		}()
 	}
 	wait.Wait()

@@ -11,17 +11,6 @@ import (
 )
 
 func main() {
-	if projects.IsCredentialHelperInvocation() {
-		if len(os.Args) != 2 {
-			fmt.Fprintln(os.Stderr, "Git credential operation is required")
-			os.Exit(1)
-		}
-		if err := projects.RunCredentialHelper(os.Args[1], os.Stdin, os.Stdout); err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			os.Exit(1)
-		}
-		return
-	}
 	if len(os.Args) != 2 {
 		fmt.Fprintln(os.Stderr, "usage: soda-projects <list|add-existing|create-forgejo|edit|setup|remove|delete-human|add-person>")
 		os.Exit(2)

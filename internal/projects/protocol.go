@@ -26,9 +26,7 @@ type CreateForgejoRequest struct {
 type EditRequest = AddExistingRequest
 
 type SetupRequest struct {
-	ID          string `json:"id"`
-	GitUsername string `json:"git_username"`
-	GitPassword string `json:"git_password"`
+	ID string `json:"id"`
 }
 
 type ProjectRequest struct {

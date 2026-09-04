@@ -33,10 +33,10 @@ type ForgejoKeyRequest struct {
 }
 
 type forgejoRepositoryResponse struct {
-	Name     string `json:"name"`
-	CloneURL string `json:"clone_url"`
-	Empty    *bool  `json:"empty"`
-	Owner    struct {
+	Name   string `json:"name"`
+	SSHURL string `json:"ssh_url"`
+	Empty  *bool  `json:"empty"`
+	Owner  struct {
 		Login string `json:"login"`
 	} `json:"owner"`
 }
@@ -270,10 +270,10 @@ func decodeCreatedForgejoRepository(reader io.Reader, creation ForgejoCreateRequ
 	if created.Empty == nil || !*created.Empty {
 		return CreatedRepository{}, errors.New("Forgejo did not confirm that the repository is empty")
 	}
-	if err := ValidateCanonicalURL(created.CloneURL); err != nil {
+	if err := ValidateCanonicalURL(created.SSHURL); err != nil {
 		return CreatedRepository{}, fmt.Errorf("Forgejo returned an unsafe clone URL: %w", err)
 	}
-	return CreatedRepository{CanonicalURL: created.CloneURL}, nil
+	return CreatedRepository{CanonicalURL: created.SSHURL}, nil
 }
 
 func forgejoDiagnostic(reader io.Reader) string {

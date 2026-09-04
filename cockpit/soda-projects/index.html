@@ -167,15 +167,7 @@
         <div class="form-body">
           <input name="id" type="hidden">
           <p>Project: <strong data-project-name></strong></p>
-          <label>
-            Git username <span class="optional">Optional</span>
-            <input name="git_username" autocomplete="off">
-          </label>
-          <label>
-            Git password or token <span class="optional">Optional</span>
-            <input name="git_password" type="password" autocomplete="off">
-          </label>
-          <p class="field-help">Leave these empty for public repositories or SSH authentication. Any supplied credential is used only by the unprivileged Git process and is not retained.</p>
+          <p class="field-help">Git clones through native SSH authentication. Tea and GitHub CLI authentication remains manual and private to this workspace.</p>
         </div>
         <footer class="dialog-actions">
           <button class="button secondary" type="button" data-dialog-close>Cancel</button>

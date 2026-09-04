@@ -391,8 +391,7 @@ func (coordinator Coordinator) setupNewWorkspace(
 }
 
 func (coordinator Coordinator) cloneForSetup(ctx context.Context, entry CatalogEntry, staging string, request SetupRequest) error {
-	credentials := CloneCredentials{Username: request.GitUsername, Password: request.GitPassword}
-	return coordinator.Cloner.Clone(ctx, entry.CanonicalURL, staging, credentials)
+	return coordinator.Cloner.Clone(ctx, entry.CanonicalURL, staging)
 }
 
 func (coordinator Coordinator) projectResult(ctx context.Context, primary Account, entry CatalogEntry) (MutationResponse, error) {
