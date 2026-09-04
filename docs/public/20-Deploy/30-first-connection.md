@@ -1,3 +1,7 @@
+# Make the first connection
+
+Reach the new machine through its Tailnet with SSH, Cockpit, and Forgejo.
+
 Connect to Soda OS from a laptop or other client that is already authorized on
 the same Tailnet. The first administrator can use OpenSSH for the command line,
 stock Cockpit for browser administration, and Forgejo for Git hosting and
@@ -67,5 +71,5 @@ Tailnet:
 These services are private appliance interfaces. Keep provider firewalls,
 router rules, and Tailnet policy aligned with private Tailnet access.
 
-The machine is now ready for [adding people](people-and-access.md) and
-[cataloguing projects](projects-and-workspaces.md).
+The machine is now ready for [adding people](../30-Develop/10-people-and-access.md) and
+[cataloguing projects](../30-Develop/20-projects-and-workspaces.md).

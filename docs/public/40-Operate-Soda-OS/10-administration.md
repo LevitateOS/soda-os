@@ -1,3 +1,7 @@
+# Administration
+
+Use stock Cockpit and native Linux tools to operate the Soda OS machine.
+
 Soda OS uses stock Cockpit as its browser administration surface. Cockpit owns
 authentication, sessions, and general Linux administration. Soda adds focused
 pages for the small number of product-specific journeys, including **Projects**.
@@ -37,7 +41,7 @@ parallel role database.
 | Select an operating-system image | Native bootc commands |
 
 When workflow execution should run on the Soda machine, follow
-[CI runners](ci-runners.md).
+[CI runners](../30-Develop/40-ci-runners.md).
 
 ## Add and administer people
 
@@ -48,7 +52,7 @@ ordinary Linux tools for password changes and `wheel` membership.
 Forgejo administrator status is separate from Linux administrator status. Use
 Forgejo's own administration interface when a person needs a Forgejo role.
 
-Before removing someone, follow [Data safety and removal](data-safety-and-removal.md).
+Before removing someone, follow [Data safety and removal](30-data-safety-and-removal.md).
 The supported **Remove person…** action deletes that person's local workspaces
 before deleting the primary Linux account last.
 
@@ -95,4 +99,4 @@ not backups. Back up the data the team cannot reconstruct, including:
 - other service data created by the team.
 
 Test that backups can be restored without depending on the running machine.
-Continue with [Updates and fallback](updates-and-fallback.md) for image changes.
+Continue with [Updates and fallback](20-updates-and-fallback.md) for image changes.

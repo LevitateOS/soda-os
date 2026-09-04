@@ -1,3 +1,7 @@
+# Install on premises
+
+Install Soda OS from its network ISO with graphical Anaconda and protected OEMDRV input.
+
 Use the Soda OS network ISO to install a physical server or a locally managed
 virtual machine. The installation uses Fedora's stock graphical **Anaconda**
 installer and a separate protected input image labelled **OEMDRV**.
@@ -120,4 +124,4 @@ If installation does not reach this complete result, correct the cause, create
 fresh protected OEMDRV media with a new one-use Tailscale key, and perform a
 fresh installation.
 
-Continue with [Make the first connection](first-connection.md).
+Continue with [Make the first connection](30-first-connection.md).

@@ -1,3 +1,7 @@
+# Use CI runners
+
+Use Forgejo or GitHub with runners that execute locally on the Soda OS machine.
+
 A CI runner executes workflow jobs. Soda can create runners that execute
 locally on the Soda machine, while Forgejo or GitHub remains responsible for
 the workflow, job queue, repository permissions, secrets, and runner protocol.

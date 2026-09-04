@@ -1,3 +1,7 @@
+# Projects and workspaces
+
+Catalog repositories and give each developer an independent project workspace.
+
 The Soda **Projects** page is the shared menu of repositories that developers
 can turn into independent workspaces. It makes repositories discoverable on
 the machine without taking ownership away from Git or the canonical repository
@@ -117,6 +121,6 @@ were never pushed. The catalog entry is removed last.
 The canonical Forgejo or external repository is preserved. Push important
 commits and separately export non-Git data before confirming removal.
 
-Read [Data safety and removal](data-safety-and-removal.md) before using the
+Read [Data safety and removal](../40-Operate-Soda-OS/30-data-safety-and-removal.md) before using the
 action. For daily access to the resulting workspace, continue with
-[Connect and develop](connect-and-develop.md).
+[Connect and develop](30-connect-and-develop.md).

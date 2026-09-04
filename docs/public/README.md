@@ -11,14 +11,19 @@ Accepted behavior and boundaries come from
 tests provide implementation evidence; they do not narrow the intended product
 described here.
 
-`manifest.json` defines public section order, routes, titles, descriptions, and
-source files. Issue numbers, commits, evidence paths, release readiness, and
-implementation history do not belong in the public manifest or pages.
+Published navigation is derived from the directory and file names. `README.md`
+remains at the root of this directory and is not published.
+
+Each section is a direct child folder named `NN-Title`, and each page is a
+direct child of its section named `NN-slug.md`. The two-digit numeric prefixes
+determine section and page order. The text after a section prefix supplies its
+navigation title, and the text after a page prefix supplies its route slug.
 
 Each published page:
 
-- contains no level-one heading because the website supplies its title;
-- uses relative links to other handbook pages;
+- begins with exactly one level-one heading containing its title;
+- places its page description in the first paragraph after that heading;
+- links to other handbook pages through their real relative Markdown paths;
 - explains unfamiliar terms at first use;
 - identifies who performs a task and what they need;
 - gives concrete steps and the expected successful result; and

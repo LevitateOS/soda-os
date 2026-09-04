@@ -1,3 +1,7 @@
+# Product model
+
+Understand the people, accounts, systems, and ownership boundaries that make up Soda OS.
+
 Soda OS is an understandable, human-owned remote development appliance. Its
 product model is deliberately small: established systems remain authoritative,
 and Soda supplies only the composition and focused transitions needed to turn
@@ -96,6 +100,6 @@ The canonical repository stays in Forgejo or another Git host. A Soda
 workspace is a local clone. Branching, pushing, reviewing, granting access, and
 deleting the canonical repository remain native Git-host activities.
 
-Read [Projects and workspaces](projects-and-workspaces.md) for the exact setup
-journey and [Data safety and removal](data-safety-and-removal.md) for the
+Read [Projects and workspaces](../30-Develop/20-projects-and-workspaces.md) for the exact setup
+journey and [Data safety and removal](../40-Operate-Soda-OS/30-data-safety-and-removal.md) for the
 boundary between local deletion and canonical Git data.

@@ -1,3 +1,7 @@
+# Data safety and removal
+
+Protect important work and understand exactly what destructive Soda OS actions remove.
+
 Soda OS stores real development work in Linux homes and canonical Git
 repositories. Before any destructive action, identify which system owns the
 data, push or export what must survive, and verify the backup from another
@@ -86,4 +90,4 @@ storage failure domain.
 Regularly test a restore into an isolated location. A backup is useful only
 when the team can locate it, decrypt it, and recover the expected files.
 
-For routine host responsibilities, return to [Administration](administration.md).
+For routine host responsibilities, return to [Administration](10-administration.md).

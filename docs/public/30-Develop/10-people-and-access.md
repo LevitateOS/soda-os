@@ -1,3 +1,7 @@
+# Add people and manage access
+
+Create a complete Soda OS identity and grant Linux administrator access when needed.
+
 Use **Add person…** to give a new developer a complete Soda OS identity. The
 operation creates the person's primary Linux account, SSH access, native
 Forgejo identity, and private Tea configuration together.
@@ -91,5 +95,5 @@ Use **Add person…** for complete Soda onboarding rather than creating only a
 Linux account. Use stock Cockpit for ordinary password and `wheel` management
 after onboarding.
 
-Continue with [Projects and workspaces](projects-and-workspaces.md). Before
-deleting anyone, read [Data safety and removal](data-safety-and-removal.md).
+Continue with [Projects and workspaces](20-projects-and-workspaces.md). Before
+deleting anyone, read [Data safety and removal](../40-Operate-Soda-OS/30-data-safety-and-removal.md).

@@ -1,3 +1,7 @@
+# Connect and develop
+
+Work directly in a Soda OS workspace with ordinary SSH tools, editors, and agents.
+
 After selecting **Set up for me**, work directly in the resulting workspace
 with ordinary OpenSSH clients. The remote shell, editor server, commands,
 transfers, development agents, and project services run as the workspace's real
@@ -117,5 +121,5 @@ Coordinate long-lived ports with the trusted team. Soda does not allocate,
 proxy, or namespace project ports.
 
 For the ownership and trust boundary behind this workflow, read
-[Product model](product-model.md). For host-level work, use
-[Administration](administration.md).
+[Product model](../10-Start-here/20-product-model.md). For host-level work, use
+[Administration](../40-Operate-Soda-OS/10-administration.md).

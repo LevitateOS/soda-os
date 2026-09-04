@@ -1,3 +1,7 @@
+# Updates and fallback
+
+Select exact signed Soda OS images with bootc while preserving machine state.
+
 Soda OS uses native bootc operations for explicit operating-system updates and
 fallback. An administrator selects an exact signed Soda image digest, downloads
 it, reviews the resulting deployment state, activates it, and reboots.
@@ -82,4 +86,4 @@ Image selection changes the operating-system deployment. It does not restore a
 workspace, account, repository, or local file that was deliberately deleted.
 
 For deletion and backup consequences, read
-[Data safety and removal](data-safety-and-removal.md).
+[Data safety and removal](30-data-safety-and-removal.md).

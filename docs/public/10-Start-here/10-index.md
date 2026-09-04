@@ -1,3 +1,7 @@
+# Soda OS documentation
+
+Understand Soda OS and follow the path from a new machine to a ready development workspace.
+
 Soda OS turns one powerful cloud or on-premises machine into a private remote
 development system for a trusted team. Developers keep using their own laptops,
 editors, terminals, and coding agents while builds, tests, language tools,
@@ -13,11 +17,11 @@ with ordinary SSH tools.
 Soda OS is cloud-first. For a cloud virtual machine, import the reusable QCOW2
 disk that matches the machine's architecture and provide protected first-boot
 input through NoCloud or ConfigDrive. Start with
-[Deploy to a cloud](deploy-to-cloud.md).
+[Deploy to a cloud](../20-Deploy/10-deploy-to-cloud.md).
 
 For a physical machine or locally managed virtual machine, boot the matching
 network ISO, attach protected OEMDRV input, and complete Fedora's graphical
-Anaconda installer. Follow [Install on premises](install-on-premises.md).
+Anaconda installer. Follow [Install on premises](../20-Deploy/20-install-on-premises.md).
 
 AArch64 and x86-64 are equal Soda OS architectures. Always use the release
 assets for the destination machine's architecture; the resulting product and
@@ -31,7 +35,7 @@ Both deployment paths create:
 - one protected attempt to join the owner's Tailnet; and
 - the Soda Projects experience inside stock Cockpit.
 
-After deployment, [Make the first connection](first-connection.md) from a
+After deployment, [Make the first connection](../20-Deploy/30-first-connection.md) from a
 device already authorized on the Tailnet.
 
 ## Understand the people and workspace model
@@ -45,8 +49,8 @@ one project. It has its own home, complete Git clone, dependencies, data, and
 processes. Alice and Bob can work on the same repository without sharing a
 writable checkout or user-local tools.
 
-Read [Product model](product-model.md) for the ownership and trust boundaries,
-then use [Add people and manage access](people-and-access.md) to onboard the
+Read [Product model](20-product-model.md) for the ownership and trust boundaries,
+then use [Add people and manage access](../30-Develop/10-people-and-access.md) to onboard the
 team.
 
 ## Go from a repository to a ready workspace
@@ -61,8 +65,8 @@ creates the derived workspace account, copies that person's SSH authorization
 and private Tea configuration once, and leaves a complete clone under the
 workspace's `$HOME/Projects/<repository>` directory.
 
-Continue with [Projects and workspaces](projects-and-workspaces.md), then
-[Connect and develop](connect-and-develop.md).
+Continue with [Projects and workspaces](../30-Develop/20-projects-and-workspaces.md), then
+[Connect and develop](../30-Develop/30-connect-and-develop.md).
 
 ## Operate the machine with familiar systems
 
@@ -79,8 +83,8 @@ Soda owns the installable composition, focused Cockpit pages, minimal project
 catalog, workspace convention, and the narrow operations that join those parts
 into a coherent product.
 
-Use [Administration](administration.md) for routine operation and
-[Updates and fallback](updates-and-fallback.md) for explicit image changes.
+Use [Administration](../40-Operate-Soda-OS/10-administration.md) for routine operation and
+[Updates and fallback](../40-Operate-Soda-OS/20-updates-and-fallback.md) for explicit image changes.
 
 ## Protect work before removing anything
 
@@ -91,5 +95,5 @@ permanently deletes that person's local workspaces and primary Linux account;
 Forgejo repositories and the Forgejo identity remain.
 
 Before either action, push important commits and separately export local data
-that does not belong in Git. Read [Data safety and removal](data-safety-and-removal.md)
+that does not belong in Git. Read [Data safety and removal](../40-Operate-Soda-OS/30-data-safety-and-removal.md)
 before removing a project or person.

@@ -1,3 +1,7 @@
+# Deploy to a cloud
+
+Provision an architecture-matched Soda OS QCOW2 with NoCloud or ConfigDrive.
+
 Use the reusable Soda OS QCOW2 to create a cloud virtual machine. This is the
 primary deployment path for infrastructure owners who operate development
 servers in a cloud or private virtualization platform.
@@ -149,4 +153,4 @@ If provisioning does not produce the complete expected result, discard the
 instance, correct the input, create a fresh protected medium with a new
 one-use Tailscale key, and provision a new instance.
 
-Continue with [Make the first connection](first-connection.md).
+Continue with [Make the first connection](30-first-connection.md).
