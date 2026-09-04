@@ -1,6 +1,6 @@
 enable sshd.service
-disable soda-tailscale-enroll.service
 enable forgejo.service
 enable cockpit.socket
 enable tailscaled.service
 enable firewalld.service
+enable soda-setup.service

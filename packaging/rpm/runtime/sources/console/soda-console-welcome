@@ -3,6 +3,10 @@ set -eu
 
 printf '\nWelcome to Soda OS.\n'
 
+if /usr/libexec/soda/soda-setup pending 2>/dev/null; then
+	printf '\nSoda Setup is not yet dismissed. It opens automatically on the machine console and is also available in Cockpit.\n'
+fi
+
 soda-tailnet
 
 address=$(ip -o -4 addr show scope global 2>/dev/null | awk 'NR == 1 { sub(/\/.*/, "", $4); print $4 }')

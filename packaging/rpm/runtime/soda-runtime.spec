@@ -10,14 +10,14 @@ Tailnet enrollment, OpenSSH, firewall, console guidance, and upstream service
 composition for the Soda OS appliance.
 
 %install
-mkdir -p %{buildroot}%{_libexecdir}/soda %{buildroot}%{_bindir} %{buildroot}%{_unitdir} %{buildroot}%{_unitdir}/getty@tty1.service.d %{buildroot}%{_presetdir} %{buildroot}%{_sysctldir} %{buildroot}%{_sysconfdir}/firewalld/zones %{buildroot}%{_sysconfdir}/profile.d %{buildroot}%{_sysconfdir}/cloud/cloud.cfg.d
+mkdir -p %{buildroot}%{_libexecdir}/soda %{buildroot}%{_bindir} %{buildroot}%{_unitdir} %{buildroot}%{_unitdir}/getty@tty1.service.d %{buildroot}%{_presetdir} %{buildroot}%{_sysctldir} %{buildroot}%{_tmpfilesdir} %{buildroot}%{_sysconfdir}/firewalld/zones %{buildroot}%{_sysconfdir}/profile.d
+install -m 0755 %{_sourcedir}/soda-setup %{buildroot}%{_libexecdir}/soda/soda-setup
 install -m 0755 %{_sourcedir}/soda-tailnet %{buildroot}%{_bindir}/soda-tailnet
 install -m 0755 %{_sourcedir}/soda-local-access %{buildroot}%{_bindir}/soda-local-access
 install -m 0755 %{_sourcedir}/soda-console-welcome %{buildroot}%{_libexecdir}/soda/soda-console-welcome
-install -m 0755 %{_sourcedir}/soda-cloud-finalize %{buildroot}%{_libexecdir}/soda/soda-cloud-finalize
-install -m 0644 %{_sourcedir}/99-soda-datasources.cfg %{buildroot}%{_sysconfdir}/cloud/cloud.cfg.d/99-soda-datasources.cfg
-install -m 0644 %{_sourcedir}/soda-tailscale-enroll.service %{buildroot}%{_unitdir}/soda-tailscale-enroll.service
 install -m 0644 %{_sourcedir}/90-soda.preset %{buildroot}%{_presetdir}/90-soda.preset
+install -m 0644 %{_sourcedir}/soda-setup.service %{buildroot}%{_unitdir}/soda-setup.service
+install -m 0644 %{_sourcedir}/soda-runtime.tmpfiles %{buildroot}%{_tmpfilesdir}/soda-runtime.conf
 install -m 0644 %{_sourcedir}/soda-tailnet.xml %{buildroot}%{_sysconfdir}/firewalld/zones/soda-tailnet.xml
 install -m 0644 %{_sourcedir}/10-soda-console.conf %{buildroot}%{_unitdir}/getty@tty1.service.d/10-soda-console.conf
 install -m 0644 %{_sourcedir}/60-soda-console.conf %{buildroot}%{_sysctldir}/60-soda-console.conf
@@ -26,11 +26,11 @@ install -m 0644 %{_sourcedir}/soda-console-welcome.sh %{buildroot}%{_sysconfdir}
 %files
 %{_bindir}/soda-tailnet
 %{_bindir}/soda-local-access
+%{_libexecdir}/soda/soda-setup
 %{_libexecdir}/soda/soda-console-welcome
-%{_libexecdir}/soda/soda-cloud-finalize
-%{_sysconfdir}/cloud/cloud.cfg.d/99-soda-datasources.cfg
-%{_unitdir}/soda-tailscale-enroll.service
 %{_presetdir}/90-soda.preset
+%{_unitdir}/soda-setup.service
+%{_tmpfilesdir}/soda-runtime.conf
 %config(noreplace) %{_sysconfdir}/firewalld/zones/soda-tailnet.xml
 %{_unitdir}/getty@tty1.service.d/10-soda-console.conf
 %{_sysctldir}/60-soda-console.conf
