@@ -5,6 +5,7 @@ package projects
 
 import (
 	"crypto/sha256"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/url"
@@ -34,9 +35,10 @@ func ValidatePrimaryUsername(username string) error {
 
 // CatalogEntry is the complete durable Soda project representation.
 type CatalogEntry struct {
-	ID           string `json:"id"`
-	DisplayName  string `json:"display_name"`
-	CanonicalURL string `json:"canonical_url"`
+	ID           string                     `json:"id"`
+	DisplayName  string                     `json:"display_name"`
+	CanonicalURL string                     `json:"canonical_url"`
+	Additional   map[string]json.RawMessage `json:"-"`
 }
 
 func (entry CatalogEntry) Validate() error {
@@ -52,7 +54,29 @@ func (entry CatalogEntry) Validate() error {
 	if err := ValidateCanonicalURL(entry.CanonicalURL); err != nil {
 		return fmt.Errorf("canonical URL: %w", err)
 	}
+	for field, value := range entry.Additional {
+		if field == "" || !utf8.ValidString(field) {
+			return errors.New("additional catalog field names must be non-empty UTF-8")
+		}
+		if field == "id" || field == "display_name" || field == "canonical_url" {
+			return fmt.Errorf("additional catalog field %q conflicts with a required field", field)
+		}
+		if !json.Valid(value) {
+			return fmt.Errorf("additional catalog field %q must contain valid JSON", field)
+		}
+	}
 	return nil
+}
+
+func (entry CatalogEntry) jsonObject() map[string]json.RawMessage {
+	object := make(map[string]json.RawMessage, len(entry.Additional)+3)
+	for field, value := range entry.Additional {
+		object[field] = append(json.RawMessage(nil), value...)
+	}
+	object["id"], _ = json.Marshal(entry.ID)
+	object["display_name"], _ = json.Marshal(entry.DisplayName)
+	object["canonical_url"], _ = json.Marshal(entry.CanonicalURL)
+	return object
 }
 
 func ValidateCanonicalURL(remote string) error {

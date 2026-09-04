@@ -18,7 +18,7 @@ func testCatalog(t *testing.T) *Catalog {
 	return &Catalog{Path: filepath.Join(root, "catalog", "projects.json"), LockPath: filepath.Join(root, "run", "projects.lock")}
 }
 
-func TestCatalogPersistsExactlyThreeSortedFields(t *testing.T) {
+func TestCatalogPersistsRequiredFieldsInSortedEntries(t *testing.T) {
 	catalog := testCatalog(t)
 	require.NoError(t, catalog.Add(CatalogEntry{ID: "zebra", DisplayName: "Zebra", CanonicalURL: "git@git.example.test:zebra.git"}))
 	require.NoError(t, catalog.Add(CatalogEntry{ID: "alpha", DisplayName: "Alpha", CanonicalURL: "git@git.example.test:alpha.git"}))
@@ -39,12 +39,28 @@ func TestCatalogPersistsExactlyThreeSortedFields(t *testing.T) {
 	require.Equal(t, []CatalogEntry{{ID: "alpha", DisplayName: "New Alpha", CanonicalURL: "ssh://git@git.example.test/alpha.git"}}, entries)
 }
 
-func TestCatalogRejectsExtraDuplicateAndMissingFields(t *testing.T) {
+func TestCatalogPreservesAdditionalFieldsAcrossKnownFieldEdits(t *testing.T) {
+	catalog := testCatalog(t)
+	require.NoError(t, os.MkdirAll(filepath.Dir(catalog.Path), 0o755))
+	require.NoError(t, os.WriteFile(catalog.Path, []byte(`[
+		{"id":"site","display_name":"Site","canonical_url":"git@git.test:site.git","notes":{"owner":"team"},"labels":["web"]}
+	]`), 0o644))
+
+	entry, err := catalog.Get("site")
+	require.NoError(t, err)
+	require.JSONEq(t, `{"owner":"team"}`, string(entry.Additional["notes"]))
+	require.NoError(t, catalog.Edit(CatalogEntry{ID: "site", DisplayName: "New Site", CanonicalURL: entry.CanonicalURL}))
+
+	contents, err := os.ReadFile(catalog.Path)
+	require.NoError(t, err)
+	require.JSONEq(t, `[{"id":"site","display_name":"New Site","canonical_url":"git@git.test:site.git","notes":{"owner":"team"},"labels":["web"]}]`, string(contents))
+}
+
+func TestCatalogRejectsDuplicateAndMissingFields(t *testing.T) {
 	for name, contents := range map[string]string{
-		"extra":     `[{"id":"site","display_name":"Site","canonical_url":"https://git.test/site","owner":"alice"}]`,
-		"duplicate": `[{"id":"site","id":"other","display_name":"Site","canonical_url":"https://git.test/site"}]`,
+		"duplicate": `[{"id":"site","id":"other","display_name":"Site","canonical_url":"git@git.test:site.git"}]`,
 		"missing":   `[{"id":"site","display_name":"Site"}]`,
-		"id":        `[{"id":"site","display_name":"Site","canonical_url":"https://git.test/site"},{"id":"site","display_name":"Other","canonical_url":"https://git.test/other"}]`,
+		"id":        `[{"id":"site","display_name":"Site","canonical_url":"git@git.test:site.git"},{"id":"site","display_name":"Other","canonical_url":"git@git.test:other.git"}]`,
 	} {
 		t.Run(name, func(t *testing.T) {
 			catalog := testCatalog(t)

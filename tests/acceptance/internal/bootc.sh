@@ -1598,9 +1598,9 @@ fallback_capture() {
 	admin_ssh 'cat /var/lib/soda/catalog/projects.json' >"$checkpoint/catalog.json"
 	jq -e '
 		type == "array" and
-		all(.[]; type == "object" and keys == ["canonical_url","display_name","id"]) and
+		all(.[]; type == "object" and has("canonical_url") and has("display_name") and has("id")) and
 		([.[].id] == ([.[].id] | sort))
-	' "$checkpoint/catalog.json" >/dev/null || die "installed catalog is not the exact sorted three-field representation"
+	' "$checkpoint/catalog.json" >/dev/null || die "installed catalog is missing required fields or sorted order"
 	run_privileged_script emit_fallback_state >"$checkpoint/system.json"
 	capture_forgejo_state >"$checkpoint/forgejo.json"
 	jq -e '[.users[] | select(.present) | .login] == ["alice","bob","soda-test"] and all(.workspace_users[]; .present == false)' \
@@ -1775,9 +1775,9 @@ scenario_product() {
 	forgejo_pam_request "$kept_workspace" wrong 401 "$operations/workspace-forgejo-login.json"
 	[ "$(forgejo_user_status "$kept_workspace")" = 404 ] || die "workspace PAM attempt created a Forgejo user"
 
-	# The installed catalog is the exact sorted three-field product fact.
+	# The installed catalog has the required fields without closing future metadata.
 	admin_ssh 'cat /var/lib/soda/catalog/projects.json' >"$operations/catalog-before.json"
-	jq -e 'type == "array" and all(.[]; keys == ["canonical_url","display_name","id"]) and ([.[].id] == ([.[].id] | sort))' \
+	jq -e 'type == "array" and all(.[]; has("canonical_url") and has("display_name") and has("id")) and ([.[].id] == ([.[].id] | sort))' \
 		"$operations/catalog-before.json" >/dev/null
 
 	# Exercise stock Cockpit authentication without placing passwords in argv.

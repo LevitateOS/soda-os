@@ -76,6 +76,9 @@ func (catalog *Catalog) Edit(entry CatalogEntry) error {
 	return catalog.mutate(func(entries []CatalogEntry) ([]CatalogEntry, error) {
 		for index := range entries {
 			if entries[index].ID == entry.ID {
+				if entry.Additional == nil {
+					entry.Additional = entries[index].Additional
+				}
 				entries[index] = entry
 				return entries, nil
 			}
@@ -171,9 +174,13 @@ func populateCatalogTemporary(temporary *os.File, entries []CatalogEntry) error 
 	if err := temporary.Chmod(0o644); err != nil {
 		return fmt.Errorf("protect project catalog: %w", err)
 	}
+	objects := make([]map[string]json.RawMessage, 0, len(entries))
+	for _, entry := range entries {
+		objects = append(objects, entry.jsonObject())
+	}
 	encoder := json.NewEncoder(temporary)
 	encoder.SetIndent("", "  ")
-	if err := encoder.Encode(entries); err != nil {
+	if err := encoder.Encode(objects); err != nil {
 		return fmt.Errorf("encode project catalog: %w", err)
 	}
 	if err := temporary.Sync(); err != nil {
@@ -285,23 +292,23 @@ func decodeCatalogEntry(decoder *json.Decoder) (CatalogEntry, error) {
 	return catalogEntryFromValues(values)
 }
 
-func decodeCatalogFields(decoder *json.Decoder) (map[string]string, error) {
-	values := map[string]string{}
+func decodeCatalogFields(decoder *json.Decoder) (map[string]json.RawMessage, error) {
+	values := map[string]json.RawMessage{}
 	for decoder.More() {
 		field, err := decodeCatalogFieldName(decoder, values)
 		if err != nil {
 			return nil, err
 		}
-		var value string
+		var value json.RawMessage
 		if err := decoder.Decode(&value); err != nil {
-			return nil, fmt.Errorf("catalog field %q must be a string", field)
+			return nil, fmt.Errorf("decode catalog field %q: %w", field, err)
 		}
 		values[field] = value
 	}
 	return values, nil
 }
 
-func decodeCatalogFieldName(decoder *json.Decoder, values map[string]string) (string, error) {
+func decodeCatalogFieldName(decoder *json.Decoder, values map[string]json.RawMessage) (string, error) {
 	token, err := decoder.Token()
 	if err != nil {
 		return "", err
@@ -310,22 +317,41 @@ func decodeCatalogFieldName(decoder *json.Decoder, values map[string]string) (st
 	if !ok {
 		return "", errors.New("catalog field name must be a string")
 	}
-	if field != "id" && field != "display_name" && field != "canonical_url" {
-		return "", fmt.Errorf("unknown catalog field %q", field)
-	}
 	if _, duplicate := values[field]; duplicate {
 		return "", fmt.Errorf("duplicate catalog field %q", field)
 	}
 	return field, nil
 }
 
-func catalogEntryFromValues(values map[string]string) (CatalogEntry, error) {
+func catalogEntryFromValues(values map[string]json.RawMessage) (CatalogEntry, error) {
 	for _, field := range []string{"id", "display_name", "canonical_url"} {
 		if _, present := values[field]; !present {
 			return CatalogEntry{}, fmt.Errorf("catalog entry is missing %q", field)
 		}
 	}
-	return CatalogEntry{ID: values["id"], DisplayName: values["display_name"], CanonicalURL: values["canonical_url"]}, nil
+	entry := CatalogEntry{Additional: map[string]json.RawMessage{}}
+	for field, value := range values {
+		switch field {
+		case "id":
+			if err := json.Unmarshal(value, &entry.ID); err != nil {
+				return CatalogEntry{}, errors.New("catalog field \"id\" must be a string")
+			}
+		case "display_name":
+			if err := json.Unmarshal(value, &entry.DisplayName); err != nil {
+				return CatalogEntry{}, errors.New("catalog field \"display_name\" must be a string")
+			}
+		case "canonical_url":
+			if err := json.Unmarshal(value, &entry.CanonicalURL); err != nil {
+				return CatalogEntry{}, errors.New("catalog field \"canonical_url\" must be a string")
+			}
+		default:
+			entry.Additional[field] = append(json.RawMessage(nil), value...)
+		}
+	}
+	if len(entry.Additional) == 0 {
+		entry.Additional = nil
+	}
+	return entry, nil
 }
 
 func requireJSONDelimiter(decoder *json.Decoder, expected json.Delim, message string) error {

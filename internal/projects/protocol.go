@@ -46,6 +46,14 @@ type AddPersonRequest struct {
 type ProjectView struct {
 	CatalogEntry
 	WorkspaceUsername string `json:"workspace_username"`
+	WorkspaceReady    bool   `json:"workspace_ready"`
+}
+
+func (view ProjectView) MarshalJSON() ([]byte, error) {
+	object := view.CatalogEntry.jsonObject()
+	object["workspace_username"], _ = json.Marshal(view.WorkspaceUsername)
+	object["workspace_ready"], _ = json.Marshal(view.WorkspaceReady)
+	return json.Marshal(object)
 }
 
 type CurrentUserView struct {

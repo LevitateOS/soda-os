@@ -183,7 +183,7 @@ func (coordinator Coordinator) executeAddExisting(ctx context.Context, primary A
 	if err := DecodeRequest(input, &request); err != nil {
 		return nil, err
 	}
-	entry := CatalogEntry(request)
+	entry := CatalogEntry{ID: request.ID, DisplayName: request.DisplayName, CanonicalURL: request.CanonicalURL}
 	if err := entry.Validate(); err != nil {
 		return nil, err
 	}
@@ -299,7 +299,7 @@ func (coordinator Coordinator) createForgejo(ctx context.Context, primary Accoun
 		return MutationResponse{}, err
 	}
 	entry := CatalogEntry{ID: request.ID, DisplayName: request.DisplayName, CanonicalURL: created.CanonicalURL}
-	if err = coordinator.Privileged.CatalogAdd(ctx, HelperCatalogRequest(entry)); err != nil {
+	if err = coordinator.Privileged.CatalogAdd(ctx, HelperCatalogRequest{ID: entry.ID, DisplayName: entry.DisplayName, CanonicalURL: entry.CanonicalURL}); err != nil {
 		return MutationResponse{}, fmt.Errorf("repository was created at %s but catalog publication failed: %w", created.CanonicalURL, err)
 	}
 	return coordinator.projectResult(ctx, primary, entry)
@@ -403,9 +403,9 @@ func (coordinator Coordinator) projectResult(ctx context.Context, primary Accoun
 }
 
 func (coordinator Coordinator) projectView(ctx context.Context, primary Account, entry CatalogEntry) (ProjectView, error) {
-	username, _, err := coordinator.Lifecycle.WorkspaceAssociation(ctx, primary, entry.ID)
+	username, ready, err := coordinator.Lifecycle.WorkspaceAssociation(ctx, primary, entry.ID)
 	if err != nil {
 		return ProjectView{}, err
 	}
-	return ProjectView{CatalogEntry: entry, WorkspaceUsername: username}, nil
+	return ProjectView{CatalogEntry: entry, WorkspaceUsername: username, WorkspaceReady: ready}, nil
 }

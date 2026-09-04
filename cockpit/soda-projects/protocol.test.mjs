@@ -52,6 +52,7 @@ test("list response requires native user and service context", () => {
       display_name: "Website",
       canonical_url: "git@example.test:team/website.git",
       workspace_username: "soda-w-0123456789abcdef01234567",
+      workspace_ready: true,
     }],
     current_user: { username: "alice", administrator: true },
     forgejo_url: "https://soda.tail.example/forgejo",

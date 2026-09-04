@@ -79,6 +79,9 @@ function assertProjectView(project) {
   if (typeof project.workspace_username !== "string") {
     throw new TypeError("project is missing workspace_username");
   }
+  if (typeof project.workspace_ready !== "boolean") {
+    throw new TypeError("project is missing workspace readiness");
+  }
 }
 
 function assertCatalogEntry(project) {
