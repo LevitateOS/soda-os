@@ -6,7 +6,7 @@ Release:        1%{?dist}
 Summary:        Soda OS local CI runner composition
 License:        MIT AND (MIT OR Apache-2.0)
 AutoReqProv:     no
-Requires:       cockpit-system, coreutils, forgejo-runner, krb5-libs, libicu, lttng-ust, openssl-libs, policycoreutils, polkit, shadow-utils, soda-projects, systemd, zlib-ng-compat
+Requires:       cockpit-system, coreutils, forgejo-runner, glibc-common, krb5-libs, libicu, lttng-ust, openssl-libs, policycoreutils, polkit, shadow-utils, systemd, zlib-ng-compat
 
 %description
 The administrator-only stock-Cockpit Runners page and its bounded local Linux

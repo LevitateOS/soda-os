@@ -64,7 +64,7 @@ func TestSetupOperationLockBlocksProjectAndHumanRemoval(t *testing.T) {
 		path:              testOperationLockFile(t),
 		exclusiveAttempts: make(chan struct{}, 2),
 	}
-	lifecycle := Lifecycle{Catalog: catalog, Platform: platform}
+	lifecycle := Lifecycle{Catalog: catalog, Host: platform, Platform: platform}
 
 	publishStarted := make(chan struct{})
 	releasePublish := make(chan struct{})

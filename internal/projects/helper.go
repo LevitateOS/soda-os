@@ -5,21 +5,15 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os"
-	"os/user"
-	"strconv"
+
+	"github.com/LevitateOS/soda-os/internal/linuxhost"
 )
 
 type Helper struct {
 	Lifecycle Lifecycle
 }
 
-type PKExecIdentity struct {
-	Username string
-	UID      int
-}
-
-func (helper Helper) Execute(ctx context.Context, actor PKExecIdentity, action string, input io.Reader) (MutationResponse, error) {
+func (helper Helper) Execute(ctx context.Context, actor linuxhost.PKExecIdentity, action string, input io.Reader) (MutationResponse, error) {
 	account, _, err := helper.Lifecycle.AuthorizePrimary(ctx, actor.Username)
 	if err != nil {
 		return MutationResponse{}, err
@@ -30,7 +24,7 @@ func (helper Helper) Execute(ctx context.Context, actor PKExecIdentity, action s
 	return helper.dispatch(ctx, account, action, input)
 }
 
-func (helper Helper) dispatch(ctx context.Context, account Account, action string, input io.Reader) (MutationResponse, error) {
+func (helper Helper) dispatch(ctx context.Context, account linuxhost.Account, action string, input io.Reader) (MutationResponse, error) {
 	handlers := map[string]func() (MutationResponse, error){
 		"catalog-add":       func() (MutationResponse, error) { return helper.catalogAdd(input) },
 		"catalog-edit":      func() (MutationResponse, error) { return helper.catalogEdit(input) },
@@ -124,23 +118,4 @@ func (helper Helper) humanDelete(ctx context.Context, actorUsername string, inpu
 		return MutationResponse{}, err
 	}
 	return MutationResponse{OK: true}, nil
-}
-
-func PKExecCaller() (PKExecIdentity, error) {
-	if os.Geteuid() != 0 {
-		return PKExecIdentity{}, errors.New("workspace helper must run with effective UID 0")
-	}
-	rawUID, present := os.LookupEnv("PKEXEC_UID")
-	if !present || rawUID == "" {
-		return PKExecIdentity{}, errors.New("PKEXEC_UID is required")
-	}
-	uid, err := strconv.ParseUint(rawUID, 10, 32)
-	if err != nil || uid == 0 {
-		return PKExecIdentity{}, errors.New("PKEXEC_UID must identify a non-root caller")
-	}
-	account, err := user.LookupId(strconv.FormatUint(uid, 10))
-	if err != nil {
-		return PKExecIdentity{}, errors.New("resolve PKEXEC_UID")
-	}
-	return PKExecIdentity{Username: account.Username, UID: int(uid)}, nil
 }

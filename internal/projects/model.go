@@ -10,10 +10,11 @@ import (
 	"fmt"
 	"net/url"
 	"regexp"
-	"strconv"
 	"strings"
 	"unicode"
 	"unicode/utf8"
+
+	"github.com/LevitateOS/soda-os/internal/linuxhost"
 )
 
 const (
@@ -224,27 +225,15 @@ func ParseWorkspaceMarker(marker string) (primaryUsername, projectID string, err
 	return primaryUsername, projectID, nil
 }
 
-// Account is the Linux-native account evidence required by Soda operations.
-type Account struct {
-	Username     string
-	UID          int
-	GID          int
-	PrimaryGroup string
-	GECOS        string
-	Home         string
-	Shell        string
-	Groups       map[string]bool
+func isPrimaryAccount(account linuxhost.Account, uidMin int) bool {
+	return account.UID >= uidMin && projectIDPattern.MatchString(account.Username) && account.HasInteractiveShell() && !account.HasGroup(WorkspaceGroup)
 }
 
-func (account Account) IsPrimary(uidMin int) bool {
-	return account.UID >= uidMin && projectIDPattern.MatchString(account.Username) && interactiveShell(account.Shell) && !account.Groups[WorkspaceGroup]
+func isAdministrator(account linuxhost.Account, uidMin int) bool {
+	return isPrimaryAccount(account, uidMin) && account.IsAdministrator()
 }
 
-func (account Account) IsAdministrator(uidMin int) bool {
-	return account.IsPrimary(uidMin) && account.Groups["wheel"]
-}
-
-func (account Account) ValidateWorkspace(primaryUsername, projectID string, uidMin int) error {
+func validateWorkspaceAccount(account linuxhost.Account, primaryUsername, projectID string, uidMin int) error {
 	expectedUsername, err := DerivedUsername(primaryUsername, projectID)
 	if err != nil {
 		return err
@@ -264,26 +253,10 @@ func (account Account) ValidateWorkspace(primaryUsername, projectID string, uidM
 		return errors.New("workspace account home does not match its association")
 	case account.Shell != WorkspaceShell:
 		return errors.New("workspace account shell does not match the Soda convention")
-	case !account.Groups[WorkspaceGroup]:
+	case !account.HasGroup(WorkspaceGroup):
 		return errors.New("workspace account is not in the workspace group")
-	case account.Groups["wheel"]:
+	case account.IsAdministrator():
 		return errors.New("workspace account must not be an administrator")
 	}
 	return nil
-}
-
-func interactiveShell(shell string) bool {
-	if shell == "" {
-		return false
-	}
-	base := shell[strings.LastIndex(shell, "/")+1:]
-	return base != "false" && base != "nologin"
-}
-
-func parseInt(field, value string) (int, error) {
-	n, err := strconv.Atoi(value)
-	if err != nil || n < 0 {
-		return 0, fmt.Errorf("invalid %s", field)
-	}
-	return n, nil
 }

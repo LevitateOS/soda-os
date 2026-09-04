@@ -1,4 +1,4 @@
-package projects
+package setup
 
 import (
 	"bytes"
@@ -8,14 +8,14 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
 	"strings"
 	"time"
 	"unicode"
+
+	"github.com/LevitateOS/soda-os/internal/linuxhost"
 )
 
-type ForgejoKeyRequest struct {
-	BaseURL   string
+type forgejoKeyRegistration struct {
 	Username  string
 	Password  string
 	PublicKey string
@@ -29,19 +29,17 @@ type forgejoKeyResponse struct {
 	Key string `json:"key"`
 }
 
-// ForgejoClient is the one-shot Soda Setup adapter for the initial
-// administrator. It has no Soda-global token and does not retain the supplied
-// password. Projects does not use it.
-type ForgejoClient struct{}
+// loopbackForgejoClient is the one-shot Soda Setup adapter for the initial
+// administrator. It retains neither a credential nor an identity mirror.
+type loopbackForgejoClient struct {
+	httpClient *http.Client
+}
 
-// RegisterPublicKey authenticates the initial administrator once through
-// Forgejo's native PAM boundary. Forgejo owns the resulting account and
-// public-key record; Soda retains neither a token nor an identity mirror.
-func (ForgejoClient) RegisterPublicKey(ctx context.Context, registration ForgejoKeyRequest) error {
+func (client loopbackForgejoClient) RegisterPublicKey(ctx context.Context, registration forgejoKeyRegistration) error {
 	if err := validateForgejoKeyRegistration(registration); err != nil {
 		return err
 	}
-	httpClient, err := directForgejoHTTPClient()
+	httpClient, err := client.directHTTPClient()
 	if err != nil {
 		return err
 	}
@@ -60,26 +58,33 @@ func (ForgejoClient) RegisterPublicKey(ctx context.Context, registration Forgejo
 	return createForgejoKey(ctx, httpClient, registration)
 }
 
-func validateForgejoKeyRegistration(registration ForgejoKeyRequest) error {
-	if !projectIDPattern.MatchString(registration.Username) {
+func (client loopbackForgejoClient) directHTTPClient() (*http.Client, error) {
+	if client.httpClient != nil {
+		return client.httpClient, nil
+	}
+	return directLocalHTTPClient(30 * time.Second)
+}
+
+func validateForgejoKeyRegistration(registration forgejoKeyRegistration) error {
+	if err := validateAdministratorUsername(registration.Username); err != nil {
 		return errors.New("username is not supported by Forgejo")
 	}
-	if err := validateHumanPassword(registration.Password); err != nil {
+	if err := validateAdministratorPassword(registration.Password); err != nil {
 		return err
 	}
-	key, err := CanonicalAuthorizedKey(registration.PublicKey)
+	key, err := linuxhost.CanonicalAuthorizedKey(registration.PublicKey)
 	if err != nil || key != registration.PublicKey {
 		return errors.New("Forgejo public key is invalid")
 	}
 	return nil
 }
 
-func confirmForgejoUser(ctx context.Context, httpClient *http.Client, registration ForgejoKeyRequest) error {
+func confirmForgejoUser(ctx context.Context, client *http.Client, registration forgejoKeyRegistration) error {
 	request, err := newForgejoUserRequest(ctx, http.MethodGet, registration, "/api/v1/user", nil)
 	if err != nil {
 		return err
 	}
-	response, err := httpClient.Do(request)
+	response, err := client.Do(request)
 	if err != nil {
 		return fmt.Errorf("authenticate Forgejo user: %w", err)
 	}
@@ -97,12 +102,12 @@ func confirmForgejoUser(ctx context.Context, httpClient *http.Client, registrati
 	return nil
 }
 
-func listForgejoKeys(ctx context.Context, httpClient *http.Client, registration ForgejoKeyRequest) ([]forgejoKeyResponse, error) {
+func listForgejoKeys(ctx context.Context, client *http.Client, registration forgejoKeyRegistration) ([]forgejoKeyResponse, error) {
 	request, err := newForgejoUserRequest(ctx, http.MethodGet, registration, "/api/v1/user/keys", nil)
 	if err != nil {
 		return nil, err
 	}
-	response, err := httpClient.Do(request)
+	response, err := client.Do(request)
 	if err != nil {
 		return nil, fmt.Errorf("list Forgejo SSH keys: %w", err)
 	}
@@ -117,7 +122,7 @@ func listForgejoKeys(ctx context.Context, httpClient *http.Client, registration 
 	return keys, nil
 }
 
-func createForgejoKey(ctx context.Context, httpClient *http.Client, registration ForgejoKeyRequest) error {
+func createForgejoKey(ctx context.Context, client *http.Client, registration forgejoKeyRegistration) error {
 	payload, err := json.Marshal(struct {
 		Title string `json:"title"`
 		Key   string `json:"key"`
@@ -130,7 +135,7 @@ func createForgejoKey(ctx context.Context, httpClient *http.Client, registration
 		return err
 	}
 	request.Header.Set("Content-Type", "application/json")
-	response, err := httpClient.Do(request)
+	response, err := client.Do(request)
 	if err != nil {
 		return fmt.Errorf("register Forgejo SSH key: %w", err)
 	}
@@ -141,36 +146,13 @@ func createForgejoKey(ctx context.Context, httpClient *http.Client, registration
 	return nil
 }
 
-func newForgejoUserRequest(ctx context.Context, method string, registration ForgejoKeyRequest, endpoint string, body io.Reader) (*http.Request, error) {
-	base, err := url.Parse(registration.BaseURL)
-	if err != nil || base.Host == "" || (base.Scheme != "http" && base.Scheme != "https") || base.User != nil || base.RawQuery != "" || base.Fragment != "" {
-		return nil, errors.New("Forgejo URL is invalid")
-	}
-	base.Path = strings.TrimSuffix(base.Path, "/") + endpoint
-	request, err := http.NewRequestWithContext(ctx, method, base.String(), body)
+func newForgejoUserRequest(ctx context.Context, method string, registration forgejoKeyRegistration, endpoint string, body io.Reader) (*http.Request, error) {
+	request, err := http.NewRequestWithContext(ctx, method, forgejoBaseURL+endpoint, body)
 	if err != nil {
 		return nil, err
 	}
 	request.SetBasicAuth(registration.Username, registration.Password)
 	return request, nil
-}
-
-func directForgejoHTTPClient() (*http.Client, error) {
-	transport, ok := http.DefaultTransport.(*http.Transport)
-	if !ok {
-		return nil, errors.New("Forgejo HTTP transport is unavailable")
-	}
-	directTransport := transport.Clone()
-	directTransport.Proxy = nil
-	return &http.Client{
-		Transport:     directTransport,
-		Timeout:       30 * time.Second,
-		CheckRedirect: rejectForgejoRedirect,
-	}, nil
-}
-
-func rejectForgejoRedirect(*http.Request, []*http.Request) error {
-	return http.ErrUseLastResponse
 }
 
 func forgejoRejection(response *http.Response) error {

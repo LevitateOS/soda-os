@@ -1,106 +1,73 @@
 package projects
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"io"
-	"os"
-	"os/exec"
+
+	"github.com/LevitateOS/soda-os/internal/linuxhost"
 )
 
-var (
-	ErrAccountNotFound     = errors.New("Linux account not found")
-	ErrForgejoUserNotFound = errors.New("Forgejo account not found")
-)
+var ErrForgejoUserNotFound = errors.New("Forgejo account not found")
 
-type CommandResult struct {
-	Stdout   string
-	Stderr   string
-	ExitCode int
-}
-
-type Command struct {
-	Directory   string
-	Name        string
-	Args        []string
-	Input       io.Reader
-	ExtraFiles  []*os.File
-	Environment []string
-}
-
-type CommandRunner interface {
-	Run(context.Context, Command) (CommandResult, error)
-}
-
-type ExecCommandRunner struct{}
-
-func (ExecCommandRunner) Run(ctx context.Context, request Command) (CommandResult, error) {
-	command := exec.CommandContext(ctx, request.Name, request.Args...)
-	command.Dir = request.Directory
-	command.Stdin = request.Input
-	command.ExtraFiles = request.ExtraFiles
-	command.Env = request.Environment
-	var stdout, stderr bytes.Buffer
-	command.Stdout, command.Stderr = &stdout, &stderr
-	err := command.Run()
-	result := CommandResult{Stdout: stdout.String(), Stderr: stderr.String()}
-	if err == nil {
-		return result, nil
-	}
-	var exitError *exec.ExitError
-	if errors.As(err, &exitError) {
-		result.ExitCode = exitError.ExitCode()
-		return result, nil
-	}
-	return result, err
-}
-
-type Platform interface {
+// LinuxHost is the consumer-owned slice of native Linux behavior required by
+// the Projects workflow. linuxhost.Native is its production implementation.
+type LinuxHost interface {
 	UIDMin() (int, error)
-	LookupAccount(context.Context, string) (Account, error)
-	WorkspaceAccounts(context.Context) ([]Account, error)
-	ReadAuthorizedKeys(Account) ([]byte, error)
+	LookupAccount(context.Context, string) (linuxhost.Account, error)
+	CandidateAccounts(context.Context, string, string) ([]linuxhost.Account, error)
+	ReadAuthorizedKeys(linuxhost.Account) ([]byte, error)
+	InstallAuthorizedKeys(linuxhost.Account, []byte) error
+	PasswordStatus(context.Context, linuxhost.Account) (linuxhost.PasswordStatus, error)
+	PreflightDeleteAccount(context.Context, linuxhost.Account) error
+	DeleteAccount(context.Context, linuxhost.Account) error
+}
+
+// Platform contains only Projects-owned workspace and Forgejo transitions.
+type Platform interface {
 	WorkspaceOperationSharedLock() (io.Closer, error)
 	WorkspaceOperationExclusiveLock() (io.Closer, error)
-	SetupLock(Account, string) (io.Closer, error)
-	WorkspaceReady(Account, string) (bool, error)
-	ValidatePasswordLocked(context.Context, Account) error
-	CreateWorkspace(context.Context, Account, string) (Account, error)
-	InstallAuthorizedKeys(Account, []byte) error
-	GenerateWorkspaceGitKey(context.Context, Account) (string, error)
-	CloneWorkspace(context.Context, Account, string, string) error
-	PreflightDeleteAccount(context.Context, Account) error
+	SetupLock(linuxhost.Account, string) (io.Closer, error)
+	WorkspaceReady(linuxhost.Account, string) (bool, error)
+	CreateWorkspace(context.Context, linuxhost.Account, string) (linuxhost.Account, error)
+	GenerateWorkspaceGitKey(context.Context, linuxhost.Account) (string, error)
+	CloneWorkspace(context.Context, linuxhost.Account, string, string) error
 	DeleteForgejoUser(context.Context, string) error
-	DeleteAccount(context.Context, Account) error
 }
 
 type NativePlatform struct {
-	Runner                CommandRunner
-	LoginDefsPath         string
-	HomeRoot              string
-	RuntimeRoot           string
+	Host                  *linuxhost.Native
 	OperationLockPath     string
 	OperationLockOwnerUID int
+	RuntimeRoot           string
 }
 
-func NewNativePlatform() *NativePlatform {
+func NewNativePlatform(host *linuxhost.Native) *NativePlatform {
 	return &NativePlatform{
-		Runner:            ExecCommandRunner{},
-		LoginDefsPath:     "/etc/login.defs",
-		HomeRoot:          "/home",
-		RuntimeRoot:       "/run/user",
+		Host:              host,
 		OperationLockPath: DefaultWorkspaceOperationLockPath,
+		RuntimeRoot:       "/run/user",
 	}
 }
 
-func (platform *NativePlatform) run(ctx context.Context, name string, args ...string) (CommandResult, error) {
-	return platform.runner().Run(ctx, Command{Name: name, Args: args})
+func (platform *NativePlatform) host() *linuxhost.Native {
+	if platform.Host == nil {
+		platform.Host = linuxhost.NewNative()
+	}
+	return platform.Host
 }
 
-func (platform *NativePlatform) runner() CommandRunner {
-	if platform.Runner == nil {
-		return ExecCommandRunner{}
+func (platform *NativePlatform) run(ctx context.Context, name string, args ...string) (linuxhost.CommandResult, error) {
+	return platform.host().Run(ctx, linuxhost.Command{Name: name, Args: args})
+}
+
+func (platform *NativePlatform) runner() linuxhost.CommandRunner {
+	return platform.host()
+}
+
+func (platform *NativePlatform) runtimeRoot() string {
+	if platform.RuntimeRoot == "" {
+		return "/run/user"
 	}
-	return platform.Runner
+	return platform.RuntimeRoot
 }

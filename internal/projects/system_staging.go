@@ -7,6 +7,7 @@ import (
 	"os"
 	"strconv"
 
+	"github.com/LevitateOS/soda-os/internal/linuxhost"
 	"golang.org/x/sys/unix"
 )
 
@@ -16,7 +17,7 @@ func (lock *nativeSetupLock) Close() error {
 	return errors.Join(unix.Flock(int(lock.file.Fd()), unix.LOCK_UN), lock.file.Close())
 }
 
-func (platform *NativePlatform) SetupLock(account Account, projectID string) (io.Closer, error) {
+func (platform *NativePlatform) SetupLock(account linuxhost.Account, projectID string) (io.Closer, error) {
 	if !projectIDPattern.MatchString(projectID) {
 		return nil, errors.New("project id must match [a-z][a-z0-9-]{0,23}")
 	}
@@ -36,7 +37,7 @@ func (platform *NativePlatform) SetupLock(account Account, projectID string) (io
 	return &nativeSetupLock{file: lock}, nil
 }
 
-func openSetupLockAt(parent *os.File, account Account, projectID string) (*os.File, error) {
+func openSetupLockAt(parent *os.File, account linuxhost.Account, projectID string) (*os.File, error) {
 	name := ".setup-" + projectID + ".lock"
 	descriptor, err := unix.Openat2(int(parent.Fd()), name, &unix.OpenHow{
 		Flags: unix.O_CREAT | unix.O_RDWR | unix.O_CLOEXEC | unix.O_NOFOLLOW,
@@ -74,7 +75,7 @@ func validateOwnedRegularFile(file *os.File, expectedUID int, description string
 	return validateSafeFileMode(stat.Mode, description)
 }
 
-func (platform *NativePlatform) ensureStagingRoot(account Account) (*os.File, error) {
+func (platform *NativePlatform) ensureStagingRoot(account linuxhost.Account) (*os.File, error) {
 	userRuntime, err := platform.openRuntimeUserDirectory(account)
 	if err != nil {
 		return nil, err
@@ -83,8 +84,8 @@ func (platform *NativePlatform) ensureStagingRoot(account Account) (*os.File, er
 	return ensureCallerOwnedDirectoryAt(userRuntime, "soda-projects", account, "workspace setup lock directory")
 }
 
-func (platform *NativePlatform) openRuntimeUserDirectory(account Account) (*os.File, error) {
-	runtimeRoot, err := openAbsoluteDirectoryNoSymlinks(platform.RuntimeRoot)
+func (platform *NativePlatform) openRuntimeUserDirectory(account linuxhost.Account) (*os.File, error) {
+	runtimeRoot, err := openAbsoluteDirectoryNoSymlinks(platform.runtimeRoot())
 	if err != nil {
 		return nil, fmt.Errorf("open runtime root: %w", err)
 	}
@@ -100,7 +101,7 @@ func (platform *NativePlatform) openRuntimeUserDirectory(account Account) (*os.F
 	return userRuntime, nil
 }
 
-func ensureCallerOwnedDirectoryAt(parent *os.File, name string, account Account, description string) (*os.File, error) {
+func ensureCallerOwnedDirectoryAt(parent *os.File, name string, account linuxhost.Account, description string) (*os.File, error) {
 	directory, err := openDirectoryAt(parent, name)
 	if isMissing(err) {
 		if err = unix.Mkdirat(int(parent.Fd()), name, 0o700); err != nil && !errors.Is(err, unix.EEXIST) {

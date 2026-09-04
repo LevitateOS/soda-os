@@ -4,9 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+
+	"github.com/LevitateOS/soda-os/internal/linuxhost"
 )
 
-func (coordinator Coordinator) setup(ctx context.Context, primary Account, request SetupRequest) (MutationResponse, error) {
+func (coordinator Coordinator) setup(ctx context.Context, primary linuxhost.Account, request SetupRequest) (MutationResponse, error) {
 	if !projectIDPattern.MatchString(request.ID) {
 		return MutationResponse{}, errors.New("project id must match [a-z][a-z0-9-]{0,23}")
 	}

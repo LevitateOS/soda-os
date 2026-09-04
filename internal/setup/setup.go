@@ -9,7 +9,7 @@ import (
 	"io"
 	"sort"
 
-	"github.com/LevitateOS/soda-os/internal/projects"
+	"github.com/LevitateOS/soda-os/internal/linuxhost"
 )
 
 const DefaultCompletionPath = "/var/lib/soda/setup-complete"
@@ -151,7 +151,7 @@ func (service Service) CreateAdministrator(ctx context.Context, request Administ
 	if len(status.Administrators) != 0 {
 		return status, errors.New("an ordinary Linux administrator already exists")
 	}
-	key, err := projects.CanonicalAuthorizedKey(request.AuthorizedKey)
+	key, err := linuxhost.CanonicalAuthorizedKey(request.AuthorizedKey)
 	if err != nil {
 		return status, err
 	}

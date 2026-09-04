@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"io"
+
+	"github.com/LevitateOS/soda-os/internal/linuxhost"
 )
 
 type Lifecycle interface {
@@ -19,8 +21,8 @@ type Helper struct {
 	Lifecycle  Lifecycle
 }
 
-func (helper Helper) Execute(ctx context.Context, username, action string, input io.Reader) (MutationResponse, error) {
-	if err := helper.Authorizer.RequireAdministrator(ctx, username); err != nil {
+func (helper Helper) Execute(ctx context.Context, actor linuxhost.PKExecIdentity, action string, input io.Reader) (MutationResponse, error) {
+	if err := helper.Authorizer.RequireAdministrator(ctx, actor); err != nil {
 		return MutationResponse{}, err
 	}
 	if action == "create" {

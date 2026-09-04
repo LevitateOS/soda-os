@@ -8,6 +8,8 @@ import (
 	"io"
 	"os/exec"
 	"strings"
+
+	"github.com/LevitateOS/soda-os/internal/linuxhost"
 )
 
 type PrivilegedProjects interface {
@@ -119,7 +121,7 @@ func (coordinator Coordinator) Execute(ctx context.Context, actorUsername, actio
 	return coordinator.dispatch(ctx, primary, uidMin, action, input)
 }
 
-func (coordinator Coordinator) dispatch(ctx context.Context, primary Account, uidMin int, action string, input io.Reader) (any, error) {
+func (coordinator Coordinator) dispatch(ctx context.Context, primary linuxhost.Account, uidMin int, action string, input io.Reader) (any, error) {
 	handlers := map[string]func() (any, error){
 		"list":             func() (any, error) { return coordinator.executeList(ctx, primary, uidMin, input) },
 		"add-existing":     func() (any, error) { return coordinator.executeAddExisting(ctx, primary, input) },
@@ -147,7 +149,7 @@ func (coordinator Coordinator) executeRemoveWorkspace(ctx context.Context, input
 	return MutationResponse{OK: true}, nil
 }
 
-func (coordinator Coordinator) executeList(ctx context.Context, primary Account, uidMin int, input io.Reader) (any, error) {
+func (coordinator Coordinator) executeList(ctx context.Context, primary linuxhost.Account, uidMin int, input io.Reader) (any, error) {
 	var request EmptyRequest
 	if err := DecodeRequest(input, &request); err != nil {
 		return nil, err
@@ -155,7 +157,7 @@ func (coordinator Coordinator) executeList(ctx context.Context, primary Account,
 	return coordinator.list(ctx, primary, uidMin)
 }
 
-func (coordinator Coordinator) executeAddExisting(ctx context.Context, primary Account, input io.Reader) (any, error) {
+func (coordinator Coordinator) executeAddExisting(ctx context.Context, primary linuxhost.Account, input io.Reader) (any, error) {
 	var request AddExistingRequest
 	if err := DecodeRequest(input, &request); err != nil {
 		return nil, err
@@ -170,7 +172,7 @@ func (coordinator Coordinator) executeAddExisting(ctx context.Context, primary A
 	return coordinator.projectResult(ctx, primary, entry)
 }
 
-func (coordinator Coordinator) executeEdit(ctx context.Context, primary Account, input io.Reader) (any, error) {
+func (coordinator Coordinator) executeEdit(ctx context.Context, primary linuxhost.Account, input io.Reader) (any, error) {
 	var request EditRequest
 	if err := DecodeRequest(input, &request); err != nil {
 		return nil, err
@@ -188,7 +190,7 @@ func (coordinator Coordinator) executeEdit(ctx context.Context, primary Account,
 	return coordinator.projectResult(ctx, primary, request.apply(current))
 }
 
-func (coordinator Coordinator) executeSetup(ctx context.Context, primary Account, input io.Reader) (any, error) {
+func (coordinator Coordinator) executeSetup(ctx context.Context, primary linuxhost.Account, input io.Reader) (any, error) {
 	var request SetupRequest
 	if err := DecodeRequest(input, &request); err != nil {
 		return nil, err
@@ -218,7 +220,7 @@ func (coordinator Coordinator) executeDeleteHuman(ctx context.Context, input io.
 	return MutationResponse{OK: true}, nil
 }
 
-func (coordinator Coordinator) list(ctx context.Context, primary Account, uidMin int) (ListResponse, error) {
+func (coordinator Coordinator) list(ctx context.Context, primary linuxhost.Account, uidMin int) (ListResponse, error) {
 	entries, err := coordinator.Catalog.List()
 	if err != nil {
 		return ListResponse{}, err
@@ -233,11 +235,11 @@ func (coordinator Coordinator) list(ctx context.Context, primary Account, uidMin
 	}
 	return ListResponse{
 		Projects:    views,
-		CurrentUser: CurrentUserView{Username: primary.Username, Administrator: primary.IsAdministrator(uidMin)},
+		CurrentUser: CurrentUserView{Username: primary.Username, Administrator: isAdministrator(primary, uidMin)},
 	}, nil
 }
 
-func (coordinator Coordinator) projectResult(ctx context.Context, primary Account, entry CatalogEntry) (MutationResponse, error) {
+func (coordinator Coordinator) projectResult(ctx context.Context, primary linuxhost.Account, entry CatalogEntry) (MutationResponse, error) {
 	view, err := coordinator.projectView(ctx, primary, entry)
 	if err != nil {
 		return MutationResponse{}, err
@@ -245,7 +247,7 @@ func (coordinator Coordinator) projectResult(ctx context.Context, primary Accoun
 	return MutationResponse{OK: true, Project: &view}, nil
 }
 
-func (coordinator Coordinator) projectView(ctx context.Context, primary Account, entry CatalogEntry) (ProjectView, error) {
+func (coordinator Coordinator) projectView(ctx context.Context, primary linuxhost.Account, entry CatalogEntry) (ProjectView, error) {
 	username, exists, err := coordinator.Lifecycle.WorkspaceAssociation(ctx, primary, entry.ID)
 	if err != nil {
 		return ProjectView{}, err

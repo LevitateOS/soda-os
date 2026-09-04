@@ -6,14 +6,17 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/LevitateOS/soda-os/internal/linuxhost"
 	"github.com/stretchr/testify/require"
 )
 
 type fakeAuthorizer struct{ err error }
 
-func (authorizer fakeAuthorizer) RequireAdministrator(context.Context, string) error {
+func (authorizer fakeAuthorizer) RequireAdministrator(context.Context, linuxhost.PKExecIdentity) error {
 	return authorizer.err
 }
+
+var testAdministrator = linuxhost.PKExecIdentity{Username: "alice", UID: 1000}
 
 type fakeLocal struct{ views []RunnerView }
 
@@ -49,7 +52,7 @@ func (privileged *fakePrivileged) Remove(_ context.Context, request RunnerReques
 func TestCoordinatorRequiresAdministratorBeforeReadingInputOrState(t *testing.T) {
 	privileged := &fakePrivileged{}
 	coordinator := Coordinator{Authorizer: fakeAuthorizer{err: errors.New("administrator status is required")}, Local: fakeLocal{}, Privileged: privileged}
-	_, err := coordinator.Execute(context.Background(), "alice", "create", strings.NewReader(`not-json`))
+	_, err := coordinator.Execute(context.Background(), testAdministrator, "create", strings.NewReader(`not-json`))
 	require.ErrorContains(t, err, "administrator")
 	require.Empty(t, privileged.action)
 }
@@ -59,7 +62,7 @@ func TestCoordinatorUsesOnlyTheBundledForgejoEndpoint(t *testing.T) {
 	coordinator := Coordinator{
 		Authorizer: fakeAuthorizer{}, Local: fakeLocal{}, Privileged: privileged,
 	}
-	response, err := coordinator.Execute(context.Background(), "alice", "create", strings.NewReader(`{
+	response, err := coordinator.Execute(context.Background(), testAdministrator, "create", strings.NewReader(`{
 		"id":"forgejo-one","provider":"forgejo","registration_url":"https://external.invalid",
 		"registration_id":"33834eef-e758-48c4-a676-1745426747aa",
 		"labels":"soda-arm64:host","registration_token":"provider-input"
@@ -74,7 +77,7 @@ func TestCoordinatorReportsExactLocalListenerAndCapacityCounts(t *testing.T) {
 		{Descriptor: Descriptor{ID: "one"}, Capacity: 1, Service: ServiceState{Active: "active", Sub: "running"}},
 		{Descriptor: Descriptor{ID: "two"}, Capacity: 1, Service: ServiceState{Active: "failed", Sub: "failed"}},
 	}}}
-	response, err := coordinator.Execute(context.Background(), "alice", "list", strings.NewReader(`{}`))
+	response, err := coordinator.Execute(context.Background(), testAdministrator, "list", strings.NewReader(`{}`))
 	require.NoError(t, err)
 	require.Equal(t, 2, response.(ListResponse).RunnerCount)
 	require.Equal(t, 1, response.(ListResponse).ActiveListeners)

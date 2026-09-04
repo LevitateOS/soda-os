@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/LevitateOS/soda-os/internal/projects"
+	"github.com/LevitateOS/soda-os/internal/linuxhost"
 	"github.com/LevitateOS/soda-os/internal/runners"
 )
 
@@ -15,15 +15,15 @@ func main() {
 		fmt.Fprintln(os.Stderr, "usage: soda-runner-helper <create|start|stop|restart|remove>")
 		os.Exit(2)
 	}
-	actor, err := projects.PKExecCaller()
+	actor, err := linuxhost.PKExecCaller()
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
-	platform := projects.NewNativePlatform()
-	authorizer := runners.LinuxAuthorizer{Lifecycle: projects.Lifecycle{Catalog: projects.NewCatalog(), Platform: platform}}
+	accounts := linuxhost.NewNative()
+	authorizer := runners.LinuxAuthorizer{Accounts: accounts}
 	helper := runners.Helper{Authorizer: authorizer, Lifecycle: runners.NewNative()}
-	response, err := helper.Execute(context.Background(), actor.Username, os.Args[1], os.Stdin)
+	response, err := helper.Execute(context.Background(), actor, os.Args[1], os.Stdin)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)

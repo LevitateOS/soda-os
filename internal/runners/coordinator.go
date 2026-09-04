@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"io"
+
+	"github.com/LevitateOS/soda-os/internal/linuxhost"
 )
 
 type LocalReader interface {
@@ -24,8 +26,8 @@ type Coordinator struct {
 	Privileged PrivilegedRunners
 }
 
-func (coordinator Coordinator) Execute(ctx context.Context, username, action string, input io.Reader) (any, error) {
-	if err := coordinator.Authorizer.RequireAdministrator(ctx, username); err != nil {
+func (coordinator Coordinator) Execute(ctx context.Context, actor linuxhost.PKExecIdentity, action string, input io.Reader) (any, error) {
+	if err := coordinator.Authorizer.RequireAdministrator(ctx, actor); err != nil {
 		return nil, err
 	}
 	switch action {
