@@ -152,7 +152,7 @@ func validPlatformArchitecture(spec PlatformArchitecture, requested string, expe
 }
 
 func validPlatformBase(spec PlatformBase) bool {
-	return digestReference(spec.Reference) && filepath.Base(spec.Archive) != "." && strings.HasSuffix(spec.Archive, ".tar") &&
+	return digestReference(spec.Reference) && spec.Archive != "" &&
 		validSHA256(spec.ArchiveSHA256) && spec.BootcNEVRA != "" && spec.RuntimePackageLock != ""
 }
 

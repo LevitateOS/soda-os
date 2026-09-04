@@ -59,6 +59,17 @@ func TestPlatformBuildAcceptsReviewedRenamedGoArchive(t *testing.T) {
 	require.True(t, validPlatformBuild(builder, "arm64"))
 }
 
+func TestPlatformBaseAcceptsReviewedExtensionIndependentArchive(t *testing.T) {
+	base := PlatformBase{
+		Reference:          "quay.io/fedora/fedora-bootc@sha256:" + strings.Repeat("a", 64),
+		Archive:            "distro/base/fedora-base",
+		ArchiveSHA256:      strings.Repeat("b", 64),
+		BootcNEVRA:         "bootc-0:1-1.fc44.aarch64",
+		RuntimePackageLock: "distro/locks/runtime-packages-aarch64.toml",
+	}
+	require.True(t, validPlatformBase(base))
+}
+
 func TestRequireNativeHostArchitecture(t *testing.T) {
 	for _, test := range []struct {
 		name, target, host, message string
