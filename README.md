@@ -59,10 +59,10 @@ reconciliation service.
 
 The [base principles](docs/principles.md) explain the product purpose. The
 [architectural reset](docs/architecture-reset.md) defines the accepted
-architecture. See the public handbook for [installation](docs/public/installation-model.md),
-[accounts and workspaces](docs/public/accounts-and-workspaces.md),
-[projects and Git](docs/public/projects-and-git.md), and
-[administration](docs/public/administration.md).
+architecture. See the public handbook for [installation](docs/public/20-Deploy/20-install-on-premises.md),
+[people and access](docs/public/30-Develop/10-people-and-access.md),
+[projects and workspaces](docs/public/30-Develop/20-projects-and-workspaces.md),
+and [administration](docs/public/40-Operate-Soda-OS/10-administration.md).
 
 ## Repository layout
 

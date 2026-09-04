@@ -21,6 +21,11 @@ Each published page begins with exactly one level-one heading containing its
 title. Its first paragraph is the page description. Links between handbook
 pages use their real relative Markdown paths.
 
+When a task leaves Soda's responsibility, link to the authoritative upstream
+documentation at that point in the instructions. Keep Soda-specific guidance
+focused on the product boundary and do not reproduce upstream manuals or
+invent Soda wrappers for native tools.
+
 The website synchronizer rejects raw HTML, images, unsafe links, broken local
 links, and malformed page structure. It renders a deterministic snapshot; the
 deployed website never fetches this repository at runtime.

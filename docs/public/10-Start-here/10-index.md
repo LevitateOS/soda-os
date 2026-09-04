@@ -1,68 +1,65 @@
 # Soda OS documentation
 
-Understand the Soda OS product model and the path from installation to a private development workspace.
+Install a Soda machine, connect your team, create isolated workspaces, and operate the system safely.
 
-Soda OS turns one powerful Linux machine into a remote development system for
-a trusted team. Developers keep using their laptops, editors, terminals, and
-browsers while builds, tests, agents, databases, and project processes run on
-the Soda machine.
+Soda OS turns one Linux machine into a shared remote development system. Each
+person has a normal Linux account for identity and administration, while daily
+development happens in a separate workspace for each person and project.
 
-## Product contract
+## Choose where to start
 
-### From one ISO to development
+- **Infrastructure owner:** start with [Deploy to a cloud](../20-Deploy/10-deploy-to-cloud.md)
+  or [Install on premises](../20-Deploy/20-install-on-premises.md).
+- **Administrator:** complete [Make the first connection](../20-Deploy/30-first-connection.md),
+  then [add people and manage access](../30-Develop/10-people-and-access.md).
+- **Developer:** start with [Projects and workspaces](../30-Develop/20-projects-and-workspaces.md),
+  then [Connect and develop](../30-Develop/30-connect-and-develop.md).
+- **System operator:** use [Administration](../40-Operate-Soda-OS/10-administration.md),
+  [Updates and fallback](../40-Operate-Soda-OS/20-updates-and-fallback.md), and
+  [Data safety and removal](../40-Operate-Soda-OS/30-data-safety-and-removal.md).
 
-The owner boots one architecture-matched network ISO and uses stock graphical
-Anaconda for storage, networking, and installation. After reboot, the common
-interactive first-boot setup creates the administrator, installs the SSH public
-key, prepares Forgejo, and selects Tailscale or LAN-only access.
+Read [Product model](20-product-model.md) first if you want to understand the
+accounts, services, and ownership boundaries behind these tasks.
 
-Reusable QCOW2 systems use that same setup through their console. The same
-bounded setup operations can be reopened in Cockpit.
+## From download to development
 
-### People and workspaces
+1. Open [Download](/download) and choose the artifact for the machine's
+   architecture.
+2. Install with the network ISO or import the reusable QCOW2.
+3. Finish the common first-boot setup from the machine console.
+4. Connect over the LAN or Tailscale with SSH, Cockpit, and Forgejo.
+5. Add one primary account for each person.
+6. Add or create a project in Cockpit's **Projects** page.
+7. Select **Set up for me** to create your isolated workspace.
+8. Connect directly to that workspace with OpenSSH.
+9. Use `mise` to install the tools required by you or the project.
 
-Each person has one primary Linux account for identity and administration.
-Linux `wheel` membership means administrator. Development happens in a separate
-workspace account for each person-project pair.
+## Prerequisites
 
-Every workspace has its own Linux UID, private home, full Git clone,
-dependencies, processes, and mutable state. Developers connect directly to it
-through ordinary OpenSSH.
+- An x86-64 or AArch64 machine or virtual machine.
+- A disk whose contents may be replaced during installation.
+- Network access while using the network installer.
+- Console access for installation and first-boot setup.
+- One SSH public key for the first administrator.
+- Either a trusted LAN or a Tailscale network.
 
-### Projects and Git
+Cloud deployments require a usable VM console. Soda does not use public SSH as
+an onboarding path.
 
-Stock Cockpit supplies host administration and one Soda Projects page. Everyone
-can view and edit the shared project list, add an existing repository, create a
-native empty Forgejo repository, and set up their own workspace.
+## Expected result
 
-Forgejo or the external Git host owns repositories, permissions, and
-collaboration. Soda registers each person's public SSH key with Forgejo, and
-Git uses SSH.
+You finish with a remotely accessible Soda machine, a primary administrator,
+native Forgejo access, and a private development workspace reached through
+ordinary SSH.
 
-Tea and GitHub CLI are available in every workspace. Sign in to each manually
-inside that workspace; Soda does not copy tokens or configuration.
+## If something fails
 
-### Tools and services
+Keep the exact error shown by Anaconda, first-boot setup, Cockpit, Forgejo, or
+the command you ran. Soda reports native failures instead of hiding them behind
+a background workflow. Retry only the failed task after correcting its stated
+cause.
 
-`mise` installs and selects development tools for one workspace or for the
-project. Shared project tools are stored once and use upstream-native caches.
-Soda does not run a toolchain downloader or maintain a version database.
+## Next step
 
-On a trusted LAN, SSH, Cockpit, Forgejo, and development servers are directly
-reachable. Cloud deployments use Tailscale and never expose those services to
-the public Internet.
-
-### Destructive actions
-
-Each person can remove only their own workspace. An administrator can remove a
-whole project, permanently deleting every local workspace and uncommitted file
-while leaving the canonical Forgejo repository intact.
-
-Removing a person deletes their workspaces first, their Forgejo account second,
-and their primary Linux account last. Failures show exactly what succeeded and
-remains. The trusted team coordinates before destructive actions; Soda adds no
-approval, archive, transfer, rollback, or recovery workflow.
-
-Read [Installation model](20-installation-model.md),
-[Accounts and workspaces](../20-Core-workflow/10-accounts-and-workspaces.md), or
-[Projects and Git](../20-Core-workflow/20-projects-and-git.md) to continue.
+Read [Product model](20-product-model.md), or go directly to the deployment
+guide for your environment.

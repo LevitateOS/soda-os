@@ -20,8 +20,8 @@ func TestRuntimeImageBootcContainerContract(t *testing.T) {
 		"COPY --from=rpm-inputs /soda-runtime-*.rpm /var/tmp/soda-rpms/",
 		"COPY --from=rpm-inputs /soda-projects-*.rpm /var/tmp/soda-rpms/",
 		"COPY --from=rpm-inputs /soda-forgejo-*.rpm /var/tmp/soda-rpms/",
-		"COPY --from=rpm-inputs /soda-bun-*.rpm /var/tmp/soda-rpms/",
 		"COPY --from=rpm-inputs /soda-tea-*.rpm /var/tmp/soda-rpms/",
+		"COPY --from=rpm-inputs /mise-*.rpm /var/tmp/soda-rpms/",
 		"COPY --from=lock-inputs /fedora-packages.txt /var/tmp/soda-lock/fedora-packages.txt",
 		"COPY --from=lock-inputs /expected-packages.txt /var/tmp/soda-lock/expected-packages.txt",
 		"dnf -y remove avahi", "! rpm -q avahi", "! test -e /usr/lib/systemd/system/avahi-daemon.service",
@@ -38,14 +38,14 @@ func TestRuntimeImageBootcContainerContract(t *testing.T) {
 		"/usr/sbin/sshd -t -h /run/soda-sshd-hostkey", "rm -f /run/soda-sshd-hostkey /run/soda-sshd-hostkey.pub",
 		"--enablerepo=updates-testing", `test "$(rpm -q --qf '%{NAME}-%{EPOCHNUM}:%{VERSION}-%{RELEASE}.%{ARCH}' bootc)" = "${BOOTC_NEVRA}"`,
 		"bootc switch --help | grep -F -- '--download-only'", "bootc switch --help | grep -F -- '--from-downloaded'",
-		"test -r /usr/share/soda/toolset-commands.txt", `while IFS= read -r command; do command -v "$command" >/dev/null; done < /usr/share/soda/toolset-commands.txt`,
+		"mise --version",
 		"rpm-inventory.sha256", "sha256sum --check rpm-inventory.sha256", "/usr/lib/sysimage/libdnf5/transaction_history.sqlite*",
 		"/var/cache/ldconfig/aux-cache", "/var/cache/libdnf5", "/var/lib/dnf/repos", "/var/log/dnf5.log", "/run/dnf",
 	} {
 		require.Contains(t, containerfile, expected)
 	}
 	for _, obsolete := range []string{
-		"rpm -q skopeo",
+		"rpm -q skopeo", "soda-bun", "/usr/share/soda/toolset-commands.txt",
 		".artifacts/bootc/distribution",
 		"/usr/share/soda/release/distribution.json",
 		"org.sodaos.state-schema",
@@ -121,7 +121,7 @@ func TestRuntimeImageRPMStagingContract(t *testing.T) {
 	require.NoError(t, err)
 	require.NotContains(t, string(staging), "soda-state-directories.service")
 	require.NotContains(t, string(staging), "opt-soda-toolchains.mount")
-	require.Contains(t, string(staging), `b.path("distro/toolset-commands.txt"), filepath.Join(sources, "toolset-commands.txt")`)
+	require.NotContains(t, string(staging), "toolset-commands.txt")
 	require.Contains(t, string(staging), `b.path("packaging/rpm/runtime/sources/systemd/soda-tailscale-enroll.service"), filepath.Join(sources, "soda-tailscale-enroll.service")`)
 	require.Contains(t, string(staging), `b.path("packaging/rpm/runtime/sources/nftables/soda-ingress.nft"), filepath.Join(sources, "soda-ingress.nft")`)
 	require.Contains(t, string(staging), `b.path("packaging/rpm/runtime/sources/systemd/nftables.service.d/10-soda-ingress.conf"), filepath.Join(sources, "10-soda-ingress.conf")`)
@@ -173,7 +173,7 @@ func TestReleaseRPMContract(t *testing.T) {
 	releaseSpec, err := os.ReadFile(filepath.Join("..", "..", "..", "packaging", "rpm", "release", "soda-release.spec"))
 	require.NoError(t, err)
 	require.Contains(t, string(releaseSpec), `%{_prefix}/lib/soda/os-release`)
-	require.Contains(t, string(releaseSpec), `%{_datadir}/soda/toolset-commands.txt`)
+	require.NotContains(t, string(releaseSpec), "toolset-commands.txt")
 	require.NotContains(t, string(releaseSpec), `%{_sysconfdir}/soda-release`)
 }
 

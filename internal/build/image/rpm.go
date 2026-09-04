@@ -53,13 +53,24 @@ func (b *Builder) prepareRPMWorkspace() (rpmWorkspace, error) {
 }
 
 func (b *Builder) buildLockedRPMs(ctx context.Context, workspace rpmWorkspace, revision string) error {
+	if err := b.stageLockedRPMs(ctx, workspace, revision); err != nil {
+		return err
+	}
+	if err := b.writeLockedInstallInputs(workspace.rpms); err != nil {
+		return err
+	}
+	fmt.Printf("Built locked Soda RPM inputs at %s\n", workspace.rpms)
+	return nil
+}
+
+func (b *Builder) stageLockedRPMs(ctx context.Context, workspace rpmWorkspace, revision string) error {
 	if err := b.buildProductBinaries(ctx, revision); err != nil {
 		return err
 	}
 	if err := b.stageRPMSources(workspace.build, filepath.Join(workspace.topdir, "SOURCES")); err != nil {
 		return err
 	}
-	for _, name := range targetRPMs {
+	for _, name := range builtRPMs {
 		if err := b.rpmbuild(ctx, name); err != nil {
 			return err
 		}
@@ -71,10 +82,9 @@ func (b *Builder) buildLockedRPMs(ctx context.Context, workspace rpmWorkspace, r
 			return err
 		}
 	}
-	if err := b.writeLockedInstallInputs(workspace.rpms); err != nil {
+	if err := b.stageMiseRPM(workspace.rpms); err != nil {
 		return err
 	}
-	fmt.Printf("Built locked Soda RPM inputs at %s\n", workspace.rpms)
 	return nil
 }
 
@@ -173,9 +183,6 @@ func (b *Builder) buildGoBinaries(ctx context.Context, revision string) error {
 }
 
 func (b *Builder) stageRPMSources(build, sources string) error {
-	if err := b.stageBunSource(sources); err != nil {
-		return err
-	}
 	if err := b.stageTeaSource(sources); err != nil {
 		return err
 	}
@@ -220,7 +227,6 @@ func (b *Builder) stageNonBunRPMSources(build, sources string) error {
 		{b.path("packaging/rpm/forgejo/sources/pam/soda-forgejo"), filepath.Join(sources, "soda-forgejo.pam")},
 		{b.path("packaging/rpm/forgejo/sources/selinux/soda-forgejo-shadow.te"), filepath.Join(sources, "soda-forgejo-shadow.te")},
 		{b.path("packaging/rpm/release/sources/BASE_SYSTEM.md"), filepath.Join(sources, "BASE_SYSTEM.md")},
-		{b.path("distro/toolset-commands.txt"), filepath.Join(sources, "toolset-commands.txt")},
 		{b.path("assets/branding/source/soda-symbol.svg"), filepath.Join(sources, "soda-symbol.svg")},
 	}
 	for _, size := range []string{"16", "24", "32", "48", "64", "128", "256", "512"} {
@@ -251,7 +257,7 @@ func (b *Builder) writeLockedInstallInputs(rpms string) error {
 			continue
 		}
 		if !isFile(filepath.Join(rpms, item.File)) {
-			return fmt.Errorf("locked local RPM %s is missing", item.File)
+			return fmt.Errorf("locked RPM %s is missing", item.File)
 		}
 	}
 	for path, lines := range map[string][]string{

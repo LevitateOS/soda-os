@@ -59,11 +59,12 @@ func TestBootcContractForEqualSiblingArchitectures(t *testing.T) {
 			lock, err := builder.packageLock()
 			require.NoError(t, err)
 			require.Equal(t, builder.Spec.Base.Reference, lock.BaseReference)
-			require.Greater(t, len(lock.Package), len(targetRPMs))
+			require.Greater(t, len(lock.Package), len(builtRPMs)+len(externalRPMs))
 			require.Contains(t, lock.Package, lockedPackage{Name: "bootc", NEVRA: expected[0], Source: "fedora"})
 			tailscaleNEVRA := "tailscale-0:1.98.8-1.fc44." + architecture
 			require.Contains(t, lock.Package, lockedPackage{Name: "tailscale", NEVRA: tailscaleNEVRA, Source: "fedora"})
 			require.Contains(t, lock.Package, lockedPackage{Name: "soda-forgejo", NEVRA: expected[1], Source: "local-rpm", File: strings.ReplaceAll(expected[1], "-0:", "-") + ".rpm"})
+			require.Contains(t, lock.Package, lockedPackage{Name: "mise", NEVRA: "mise-0:2026.9.1-1.fc44." + architecture, Source: "external-rpm", File: "mise-2026.9.1-1.fc44." + architecture + ".rpm"})
 			require.Equal(t, expected[2], builder.Spec.Image.PackageLock)
 			require.Equal(t, expected[3], builder.Spec.Platform.Builder.PackageLock)
 			require.Equal(t, expected[4], builder.Spec.Platform.Installer.ToolLock)
@@ -220,7 +221,7 @@ file = "soda-release.rpm"
 `
 	require.NoError(t, os.WriteFile(filepath.Join(root, "distro", "locks", "runtime-packages-aarch64.toml"), []byte(lock), 0o644))
 	builder := &Builder{Root: root, Spec: config.DistroSpec{Image: config.ImageSpec{PackageLock: "distro/locks/runtime-packages-aarch64.toml"}}}
-	require.ErrorContains(t, builder.writeLockedInstallInputs(filepath.Join(root, "rpms")), "locked local RPM soda-release.rpm is missing")
+	require.ErrorContains(t, builder.writeLockedInstallInputs(filepath.Join(root, "rpms")), "locked RPM soda-release.rpm is missing")
 }
 
 func TestPrepareLocalBootcBaseUsesExactDigestDerivedLocalTag(t *testing.T) {
@@ -266,7 +267,7 @@ func TestSodaRPMsAreScriptletFree(t *testing.T) {
 	root, err := filepath.Abs(filepath.Join("..", "..", ".."))
 	require.NoError(t, err)
 	scriptlet := regexp.MustCompile(`(?m)^%(?:pre(?:un|trans)?|post(?:un|trans)?|trigger\w*|filetrigger\w*|transfiletrigger\w*|verifyscript)(?:\s|$)`)
-	for _, name := range targetRPMs {
+	for _, name := range builtRPMs {
 		owner := strings.TrimPrefix(name, "soda-")
 		spec, err := os.ReadFile(filepath.Join(root, "packaging", "rpm", owner, name+".spec"))
 		require.NoError(t, err)
