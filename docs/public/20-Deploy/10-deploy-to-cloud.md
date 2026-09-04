@@ -18,7 +18,7 @@ path.
 
 ## Download and verify the image
 
-1. Open [Download](/download) or the [latest GitHub
+1. Open the [latest GitHub
    Release](https://github.com/LevitateOS/soda-os/releases/latest).
 2. Select the `.qcow2.zst`, checksum, release record, and Sigstore bundle for
    the VM architecture.
