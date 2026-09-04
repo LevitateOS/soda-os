@@ -149,7 +149,7 @@ Through the Soda Projects page, a person can:
 
 - add an existing Git repository URL;
 - select **Set up for me**;
-- edit a catalog entry;
+- edit a catalog entry's display information and additional metadata;
 - remove their own workspace.
 
 Only an administrator removes an entire project from Soda. The catalog does
@@ -158,14 +158,22 @@ remain explicit product decisions.
 
 Repositories are created through Forgejo or the external authoritative Git host
 and then added to Projects with their SSH clone URL. Projects does not create
-repositories.
+repositories. A project's ID and canonical URL do not change in place. An
+administrator replaces an incorrect URL by removing the project and its local
+workspaces, then adding it again; the Git host's repository remains.
 
 Selecting **Set up for me** prepares that person's derived workspace account and
 workspace-private outbound Git key. If the authoritative Git host has not
 authorized the public key, Projects reports it for the person to register
 natively before retrying. Successful setup leaves a complete checkout at
 `$HOME/Projects/<repository>` that can be opened directly through SSH. Projects
-accepts no Forgejo password and registers no workspace key.
+reports whether the derived Linux workspace account exists, not a synthetic
+readiness state, so a retained account is visible while clone completion is
+retried. Projects accepts no Forgejo password and registers no workspace key.
+
+Project listing and workspace setup do not depend on Tailscale. The Cockpit
+page uses the current browser hostname for SSH guidance instead of making Soda
+choose between an approved LAN and Tailnet path.
 
 The catalog records only the minimum Soda-specific association needed to offer
 the project through this appliance. It does not become a database of:

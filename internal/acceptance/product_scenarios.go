@@ -20,6 +20,7 @@ func (state *runnerState) exerciseProductScenarios(ctx context.Context, scenario
 		state.verifyMiseOwnership,
 		state.verifyWorkspaceRemoval,
 		state.verifyCockpitAndRoles,
+		state.verifyExternalSSHRepository,
 		state.verifyProjectRemoval,
 		state.verifyPartialPersonDeletion,
 	}
@@ -61,7 +62,7 @@ func (state *runnerState) verifyIndependentWorkspaceUIDs(ctx context.Context, sc
 }
 
 func (state *runnerState) verifyWorkspaceForgejoAbsence(ctx context.Context, scenario *scenarioState) error {
-	script := "set -eu; url=$(printf '{}\\n' | /usr/libexec/soda/soda-projects list | jq -er .forgejo_url); for user in " + scenario.adminSpace + " " + scenario.aliceSpace + " " + scenario.bobSpace + "; do test \"$(curl --silent --output /dev/null --write-out '%{http_code}' \"$url/api/v1/users/$user\")\" = 404; done"
+	script := "set -eu; url=" + forgejoLoopbackEndpoint + "; for user in " + scenario.adminSpace + " " + scenario.aliceSpace + " " + scenario.bobSpace + "; do test \"$(curl --silent --output /dev/null --write-out '%{http_code}' \"$url/api/v1/users/$user\")\" = 404; done"
 	return scenario.remote.Capture(ctx, "product/workspace-forgejo-absence", []byte(script), "/bin/bash", "-s")
 }
 
@@ -125,11 +126,7 @@ func cockpitLoginStatus(ctx context.Context, remote Remote, username string, pas
 }
 
 func forgejoAuthenticatedUser(ctx context.Context, remote Remote, username string, password []byte) (forgejoUser, error) {
-	endpoint, err := forgejoEndpoint(ctx, remote)
-	if err != nil {
-		return forgejoUser{}, err
-	}
-	config := fmt.Sprintf("user = %s\nsilent\nshow-error\nfail-with-body\nurl = %s\n", curlConfigQuote(username+":"+string(bytes.TrimSpace(password))), curlConfigQuote(endpoint+"/api/v1/user"))
+	config := fmt.Sprintf("user = %s\nsilent\nshow-error\nfail-with-body\nurl = %s\n", curlConfigQuote(username+":"+string(bytes.TrimSpace(password))), curlConfigQuote(forgejoLoopbackEndpoint+"/api/v1/user"))
 	output, err := remote.Exchange(ctx, "product/"+username+"-forgejo-user", []byte(config), "curl", "--config", "-")
 	if err != nil {
 		return forgejoUser{}, err
@@ -224,7 +221,7 @@ func (state *runnerState) verifyProjectRemoval(ctx context.Context, scenario *sc
 	if err != nil {
 		return err
 	}
-	script := "! getent passwd " + adminSetup.WorkspaceUsername + " >/dev/null; ! getent passwd " + bobSetup.WorkspaceUsername + " >/dev/null; url=$(printf '{}\\n' | /usr/libexec/soda/soda-projects list | jq -er .forgejo_url); curl --fail --silent \"$url/api/v1/repos/" + state.options.Administrator.Username + "/removable\" >/dev/null"
+	script := "! getent passwd " + adminSetup.WorkspaceUsername + " >/dev/null; ! getent passwd " + bobSetup.WorkspaceUsername + " >/dev/null; curl --fail --silent \"" + forgejoLoopbackEndpoint + "/api/v1/repos/" + state.options.Administrator.Username + "/removable\" >/dev/null"
 	return scenario.remote.Capture(ctx, "product/project-removal-preserves-forgejo", []byte(script), "/bin/bash", "-s")
 }
 
@@ -270,12 +267,8 @@ func (state *runnerState) verifyBlockedDeletionEvidence(scenario *scenarioState)
 }
 
 func (state *runnerState) deleteOwnedRepository(ctx context.Context, remote Remote, password []byte) error {
-	endpoint, err := forgejoEndpoint(ctx, remote)
-	if err != nil {
-		return err
-	}
-	config := fmt.Sprintf("user = %s\nrequest = \"DELETE\"\nurl = %s\nfail-with-body\nsilent\nshow-error\n", curlConfigQuote("obsolete:"+string(bytes.TrimSpace(password))), curlConfigQuote(endpoint+"/api/v1/repos/obsolete/owned"))
-	_, err = remote.Exchange(ctx, "product/owned-native-delete", []byte(config), "curl", "--config", "-")
+	config := fmt.Sprintf("user = %s\nrequest = \"DELETE\"\nurl = %s\nfail-with-body\nsilent\nshow-error\n", curlConfigQuote("obsolete:"+string(bytes.TrimSpace(password))), curlConfigQuote(forgejoLoopbackEndpoint+"/api/v1/repos/obsolete/owned"))
+	_, err := remote.Exchange(ctx, "product/owned-native-delete", []byte(config), "curl", "--config", "-")
 	return err
 }
 

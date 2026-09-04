@@ -16,6 +16,12 @@ Forgejo advertises SSH clone URLs through OpenSSH; its embedded SSH server
 remains disabled. Soda has no runtime API, daemon, proxy, TCP control listener,
 or local control socket.
 
+At initialization Forgejo uses the machine's static hostname for its advertised
+HTTP and SSH domains. When a Tailnet identity is available, initialization uses
+that identity instead. Native maintenance and acceptance calls from the host use
+Forgejo's loopback listener; the Projects list does not publish or select a
+Forgejo endpoint.
+
 Workspace accounts share the host network namespace. Projects choose
 non-conflicting ports. A developer can send a normal development-server URL to
 a teammate and it works over the LAN or Tailnet, including hot reload.
@@ -50,3 +56,7 @@ binding, determines which ingress paths reach it.
 
 Raw-QEMU host port forwards are acceptance-harness details and never product
 ingress evidence.
+
+Projects list and setup operations are independent of Tailscale enrollment.
+The Cockpit browser derives SSH guidance from the hostname used to open the
+page, preserving the owner's selected LAN or Tailnet route.

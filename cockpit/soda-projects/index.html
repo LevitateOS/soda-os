@@ -168,7 +168,7 @@
         <header class="dialog-header">
           <div>
             <h2 id="edit-project-title">Edit project</h2>
-            <p>The project ID remains unchanged. Edits affect future setup only.</p>
+            <p>The project ID and canonical Git URL remain unchanged. Display-name and metadata edits affect future setup only.</p>
           </div>
           <button class="icon-button" type="button" data-dialog-close aria-label="Close">×</button>
         </header>
@@ -181,8 +181,9 @@
           </label>
           <label>
             Canonical Git URL
-            <input name="canonical_url" required type="text" inputmode="url" autocomplete="off">
+            <input name="canonical_url" readonly type="text" inputmode="url" aria-describedby="canonical-url-edit-help">
           </label>
+          <p class="field-help" id="canonical-url-edit-help">To replace this URL, an administrator must remove the project and its local workspaces, then add the project again with the replacement SSH URL. Removing the project does not delete the canonical repository.</p>
           <label>
             Additional metadata <span class="optional">JSON object</span>
             <textarea name="additional_metadata" rows="4"></textarea>

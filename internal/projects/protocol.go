@@ -37,7 +37,89 @@ func (request *CatalogMutationRequest) UnmarshalJSON(contents []byte) error {
 
 type AddExistingRequest = CatalogMutationRequest
 
-type EditRequest = AddExistingRequest
+type EditRequest struct {
+	ID          string                     `json:"id"`
+	DisplayName string                     `json:"display_name"`
+	Additional  map[string]json.RawMessage `json:"-"`
+}
+
+func (request EditRequest) Validate() error {
+	if err := validateCatalogIdentity(request.ID, request.DisplayName); err != nil {
+		return err
+	}
+	return validateCatalogAdditionalFields(request.Additional)
+}
+
+func (request EditRequest) MarshalJSON() ([]byte, error) {
+	object := make(map[string]json.RawMessage, len(request.Additional)+2)
+	for field, value := range request.Additional {
+		object[field] = append(json.RawMessage(nil), value...)
+	}
+	object["id"], _ = json.Marshal(request.ID)
+	object["display_name"], _ = json.Marshal(request.DisplayName)
+	return json.Marshal(object)
+}
+
+func (request *EditRequest) UnmarshalJSON(contents []byte) error {
+	var values map[string]json.RawMessage
+	if err := json.Unmarshal(contents, &values); err != nil {
+		return err
+	}
+	decoded, err := editRequestFromValues(values)
+	if err != nil {
+		return err
+	}
+	*request = decoded
+	return nil
+}
+
+func editRequestFromValues(values map[string]json.RawMessage) (EditRequest, error) {
+	if _, present := values["canonical_url"]; present {
+		return EditRequest{}, errors.New(`edit request must not include "canonical_url"; remove and re-add the project to replace its canonical URL`)
+	}
+	for _, field := range []string{"id", "display_name"} {
+		if _, present := values[field]; !present {
+			return EditRequest{}, fmt.Errorf("edit request is missing %q", field)
+		}
+	}
+	request := EditRequest{Additional: map[string]json.RawMessage{}}
+	for field, value := range values {
+		if err := decodeEditField(&request, field, value); err != nil {
+			return EditRequest{}, err
+		}
+	}
+	return request, nil
+}
+
+func decodeEditField(request *EditRequest, field string, value json.RawMessage) error {
+	var target *string
+	switch field {
+	case "id":
+		target = &request.ID
+	case "display_name":
+		target = &request.DisplayName
+	default:
+		request.Additional[field] = append(json.RawMessage(nil), value...)
+		return nil
+	}
+	if err := json.Unmarshal(value, target); err != nil {
+		return fmt.Errorf("edit field %q must be a string", field)
+	}
+	return nil
+}
+
+func (request EditRequest) apply(current CatalogEntry) CatalogEntry {
+	additional := request.Additional
+	if additional == nil {
+		additional = current.Additional
+	}
+	return CatalogEntry{
+		ID:           current.ID,
+		DisplayName:  request.DisplayName,
+		CanonicalURL: current.CanonicalURL,
+		Additional:   additional,
+	}
+}
 
 type SetupRequest struct {
 	ID string `json:"id"`
@@ -54,7 +136,7 @@ type DeleteHumanRequest struct {
 type ProjectView struct {
 	CatalogEntry
 	WorkspaceUsername string `json:"workspace_username"`
-	WorkspaceReady    bool   `json:"workspace_ready"`
+	WorkspaceExists   bool   `json:"workspace_exists"`
 }
 
 func (view ProjectView) MarshalJSON() ([]byte, error) {
@@ -68,7 +150,7 @@ func (view ProjectView) MarshalJSON() ([]byte, error) {
 	}
 	object["catalog_metadata"], _ = json.Marshal(metadata)
 	object["workspace_username"], _ = json.Marshal(view.WorkspaceUsername)
-	object["workspace_ready"], _ = json.Marshal(view.WorkspaceReady)
+	object["workspace_exists"], _ = json.Marshal(view.WorkspaceExists)
 	return json.Marshal(object)
 }
 
@@ -80,8 +162,6 @@ type CurrentUserView struct {
 type ListResponse struct {
 	Projects    []ProjectView   `json:"projects"`
 	CurrentUser CurrentUserView `json:"current_user"`
-	ForgejoURL  string          `json:"forgejo_url"`
-	SSHHost     string          `json:"ssh_host"`
 }
 
 type MutationResponse struct {
@@ -92,6 +172,8 @@ type MutationResponse struct {
 }
 
 type HelperCatalogRequest = CatalogMutationRequest
+
+type HelperEditRequest = EditRequest
 
 type HelperWorkspaceRequest struct {
 	ID           string `json:"id"`

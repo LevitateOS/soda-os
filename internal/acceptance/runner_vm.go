@@ -133,7 +133,29 @@ jq -nc --arg connection "$connection" '{connection:$connection}' | /usr/libexec/
 	if err := local.Capture(ctx, "iso/lan-after-tailscale", []byte(localAccessCheck), "/bin/bash", "-s"); err != nil {
 		return Remote{}, err
 	}
+	if err := state.verifyTailnetAfterLAN(ctx, tailnet); err != nil {
+		return Remote{}, err
+	}
 	return local, nil
+}
+
+func (state *runnerState) verifyTailnetAfterLAN(ctx context.Context, tailnet Remote) error {
+	waitCtx, cancel := context.WithTimeout(ctx, 2*time.Minute)
+	defer cancel()
+	if err := tailnet.WaitReady(waitCtx); err != nil {
+		return fmt.Errorf("verify Tailnet after LAN: %w", err)
+	}
+	if err := tailnet.Capture(ctx, "iso/tailnet-after-lan", []byte(tailscaleAccessCheck), "/bin/bash", "-s"); err != nil {
+		return err
+	}
+	output, err := CommandOutput(ctx, CommandSpec{Name: "curl", Args: []string{
+		"--fail", "--silent", "--show-error", "--max-time", "10",
+		"http://" + urlHost(tailnet.Host) + ":30000/api/healthz",
+	}})
+	if err != nil {
+		return fmt.Errorf("verify Forgejo over Tailnet after LAN: %w", err)
+	}
+	return state.evidence.Write("iso/tailnet-forgejo-after-lan.txt", output)
 }
 
 func (state *runnerState) tailnetRemote(host string) Remote {

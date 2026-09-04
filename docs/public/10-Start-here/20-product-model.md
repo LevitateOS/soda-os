@@ -30,8 +30,10 @@ and remove entire projects with all local workspaces.
 
 A developer has one primary account but performs development inside derived
 workspace accounts. A developer may create repositories through their native
-Git host, create or edit shared project entries, create their own workspace,
-and remove only their own workspace.
+Git host, add shared project entries, edit their display information and
+additional metadata, create their own workspace, and remove only their own
+workspace. Project identity and canonical repository URL do not change in
+place.
 
 ## Account types
 
@@ -77,6 +79,12 @@ copied. The workspace keeps its outbound Git private key locally. If the Git
 host does not yet know its public key, setup reports the key and retains the
 workspace so the person can register it through the host's native interface
 and retry.
+
+The Projects page reports whether the derived Linux account exists. That fact
+remains true after an authorization failure retains the account and key, even
+though setup must still be retried to complete the clone. Project listing and
+setup do not require Tailscale enrollment. SSH guidance uses the hostname
+through which the person opened Cockpit.
 
 ## Access model
 

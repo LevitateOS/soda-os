@@ -65,6 +65,13 @@ For a LAN installation, obtain the address from Soda Setup, the console,
 or Cockpit's networking page. For Tailscale, use the confirmed MagicDNS name or
 Tailnet address.
 
+Open Cockpit with the LAN hostname or Tailnet name that developers should use.
+The Projects page builds its SSH guidance from that browser hostname; it does
+not choose or require a Tailscale identity. Before Tailnet enrollment, bundled
+Forgejo advertises the machine's static hostname. After enrollment, restarting
+Forgejo lets it advertise the Tailnet identity while the LAN path remains
+available.
+
 | Service | LAN installation | Cloud installation |
 |---|---|---|
 | OpenSSH, port 22 | Direct LAN or Tailscale | Tailscale only |

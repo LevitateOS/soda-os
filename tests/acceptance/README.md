@@ -51,6 +51,12 @@ pre-release runs, not a claim that release CI's later-built bytes were booted.
 - In a cloud topology, SSH, Cockpit, and Forgejo are reachable through
   Tailscale and rejected from public ingress.
 - Tailscale does not block LAN access.
+- On the reusable QCOW2, Projects list and a complete manual-key workspace
+  setup succeed over the trusted local path while Tailscale is disconnected.
+- A separate Cockpit JavaScript source test verifies that browser SSH guidance
+  follows the hostname used to open Cockpit and that Projects returns no
+  selected LAN, Forgejo, or Tailnet endpoint. The native runner does not claim
+  installed-browser evidence for that presentation behavior.
 - A normal development-server link works for a teammate over LAN or Tailscale,
   including hot reload, without Soda port or process tracking.
 
@@ -71,6 +77,12 @@ pre-release runs, not a claim that release CI's later-built bytes were booted.
 - Every workspace keeps its outbound private Git key locally. Its public key is
   registered manually through the authoritative Git host's native user
   interface, after which retrying setup completes the clone.
+- Native Forgejo API fixture operations use its guest loopback listener rather
+  than obtaining an endpoint from Projects.
+- External-host SSH behavior uses one bounded `git-shell` account and bare
+  repository inside the disposable guest. This proves native SSH repository
+  interoperability and manual key registration, not a remote deployment or
+  external-network reachability.
 - Tea and gh are available and require manual, separate authentication in each
   workspace.
 - No Tea token/configuration, gh configuration, private key, or credential is
@@ -82,8 +94,14 @@ pre-release runs, not a claim that release CI's later-built bytes were booted.
   field contract or membership model.
 - Repositories are created through native Forgejo behavior and then added to
   Projects with `add-existing`; Projects exposes no repository-creation action.
+- An edit request omits the canonical URL, an injected URL is rejected without
+  changing the catalog, and URL replacement requires administrator removal and
+  re-addition. Project removal still preserves the authoritative repository.
 - Each person-project pair receives an independent UID, home, full clone,
   dependencies, processes, and mutable state.
+- `workspace_exists` follows derived Linux account existence. It is true for a
+  retained account before clone retry succeeds and does not claim checkout
+  readiness.
 - A person can remove only their own workspace.
 - Only an administrator can remove a whole project; it deletes the shared Soda
   entry and every local workspace, including uncommitted work, while preserving

@@ -69,21 +69,18 @@ func (catalog *Catalog) Add(entry CatalogEntry) error {
 	})
 }
 
-func (catalog *Catalog) Edit(entry CatalogEntry) error {
-	if err := entry.Validate(); err != nil {
+func (catalog *Catalog) Edit(request EditRequest) error {
+	if err := request.Validate(); err != nil {
 		return err
 	}
 	return catalog.mutate(func(entries []CatalogEntry) ([]CatalogEntry, error) {
 		for index := range entries {
-			if entries[index].ID == entry.ID {
-				if entry.Additional == nil {
-					entry.Additional = entries[index].Additional
-				}
-				entries[index] = entry
+			if entries[index].ID == request.ID {
+				entries[index] = request.apply(entries[index])
 				return entries, nil
 			}
 		}
-		return nil, fmt.Errorf("project %q does not exist", entry.ID)
+		return nil, fmt.Errorf("project %q does not exist", request.ID)
 	})
 }
 

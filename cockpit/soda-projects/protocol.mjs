@@ -68,9 +68,6 @@ function assertListResponse(response) {
       typeof response.current_user.administrator !== "boolean") {
     throw new TypeError("list response has an invalid current_user");
   }
-  if (typeof response.forgejo_url !== "string" || typeof response.ssh_host !== "string") {
-    throw new TypeError("list response is missing native service locations");
-  }
 }
 
 function assertProjectView(project) {
@@ -78,8 +75,8 @@ function assertProjectView(project) {
   if (typeof project.workspace_username !== "string") {
     throw new TypeError("project is missing workspace_username");
   }
-  if (typeof project.workspace_ready !== "boolean") {
-    throw new TypeError("project is missing workspace readiness");
+  if (typeof project.workspace_exists !== "boolean") {
+    throw new TypeError("project is missing workspace existence");
   }
 }
 

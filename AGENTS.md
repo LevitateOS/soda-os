@@ -40,7 +40,12 @@ machinery, or architecture that only its authors can understand.
   operation leaves a complete clone
   beneath the derived workspace account's `$HOME/Projects/<repository>` without
   retaining Git credentials or workflow state. Repositories are created through
-  the authoritative Git host, then added to the catalog by SSH clone URL.
+  the authoritative Git host, then added to the catalog by SSH clone URL. The
+  project ID and canonical URL are immutable after addition; replacing the URL
+  requires administrator removal of the project and its local workspaces,
+  followed by re-adding it. Listing projects and setting up a workspace never
+  depend on Tailscale identity. Browser SSH guidance uses the host through which
+  the person opened Cockpit.
 - Workspace isolation means separate Linux homes, checkouts, user-local
   dependencies, process ownership, and project-local data. Projects select
   non-conflicting host ports themselves. Podman is an optional installed tool,
@@ -148,15 +153,19 @@ smallest Soda-specific project workflow. The target behavior is:
 - stock Cockpit with Soda branding and one focused Soda Projects page;
 - a minimal shared declarative project catalog editable by every primary
   human, without an unapproved closed metadata field list, repository-
-  membership model, or capability state;
+  membership model, or capability state; display information and additional
+  metadata are editable, while project identity and canonical URL are not;
 - synchronous workspace setup whose accepted outcome is a derived account and
   complete clone produced through native user-authenticated Git or repository-
   host behavior without retained credentials; setup requires a key in the
   primary account's standard `~/.ssh/authorized_keys` before mutation and
   copies those public keys once; each workspace's outbound public key is
   registered manually through the authoritative Git host before retrying setup;
+  `workspace_exists` reports the derived Linux account even while a failed
+  clone remains retryable, and listing or setup does not require Tailscale;
 - native repository creation through Forgejo or the external authoritative Git
-  host, followed by adding its SSH clone URL to the Soda catalog;
+  host, followed by adding its SSH clone URL to the Soda catalog; changing that
+  immutable URL requires administrator removal and re-addition;
 - direct ordinary OpenSSH login, commands, SFTP, and process attribution as the
   derived workspace UID, without forced commands or synthetic homes;
 - repository lifecycle and access through bundled Forgejo or the external

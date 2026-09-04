@@ -87,14 +87,12 @@ func rejectForgejoKey(keys []forgejoKey, rejected []byte, label, username string
 	return nil
 }
 
+const forgejoLoopbackEndpoint = "http://127.0.0.1:30000"
+
 func (state *runnerState) registerForgejoKey(ctx context.Context, remote Remote, password, publicKey []byte, evidence string) error {
-	endpoint, err := forgejoEndpoint(ctx, remote)
-	if err != nil {
-		return err
-	}
 	payload, err := json.Marshal(map[string]string{
 		"key":   strings.TrimSpace(string(publicKey)),
-		"title": "Soda OS acceptance workspace",
+		"title": "Soda OS acceptance " + evidence,
 	})
 	if err != nil {
 		return err
@@ -102,7 +100,7 @@ func (state *runnerState) registerForgejoKey(ctx context.Context, remote Remote,
 	config := fmt.Sprintf(
 		"user = %s\nsilent\nshow-error\nfail-with-body\nurl = %s\n",
 		curlConfigQuote(remote.Username+":"+string(bytes.TrimSpace(password))),
-		curlConfigQuote(endpoint+"/api/v1/user/keys"),
+		curlConfigQuote(forgejoLoopbackEndpoint+"/api/v1/user/keys"),
 	)
 	_, err = remote.Exchange(ctx, evidence, []byte(config), "curl", "--config", "-", "--json", string(payload))
 	return err
@@ -149,37 +147,16 @@ func containsPublicKey(keys []forgejoKey, expected []byte) (bool, error) {
 }
 
 func forgejoKeys(ctx context.Context, remote Remote, username string, password []byte) ([]forgejoKey, error) {
-	endpoint, err := forgejoEndpoint(ctx, remote)
-	if err != nil {
-		return nil, err
-	}
-	config := fmt.Sprintf("user = %s\nsilent\nshow-error\nfail-with-body\nurl = %s\n", curlConfigQuote(username+":"+string(bytes.TrimSpace(password))), curlConfigQuote(endpoint+"/api/v1/user/keys"))
+	config := fmt.Sprintf("user = %s\nsilent\nshow-error\nfail-with-body\nurl = %s\n", curlConfigQuote(username+":"+string(bytes.TrimSpace(password))), curlConfigQuote(forgejoLoopbackEndpoint+"/api/v1/user/keys"))
 	output, err := remote.Exchange(ctx, "product/"+username+"-forgejo-keys", []byte(config), "curl", "--config", "-")
 	if err != nil {
 		return nil, err
 	}
 	var keys []forgejoKey
-	if err = json.Unmarshal(output, &keys); err != nil {
+	if err := json.Unmarshal(output, &keys); err != nil {
 		return nil, err
 	}
 	return keys, nil
-}
-
-func forgejoEndpoint(ctx context.Context, remote Remote) (string, error) {
-	list, err := remote.Output(ctx, []byte("{}\n"), "/usr/libexec/soda/soda-projects", "list")
-	if err != nil {
-		return "", err
-	}
-	var endpoint struct {
-		ForgejoURL string `json:"forgejo_url"`
-	}
-	if err = json.Unmarshal(list, &endpoint); err != nil {
-		return "", err
-	}
-	if endpoint.ForgejoURL == "" {
-		return "", errors.New("Projects did not report a Forgejo endpoint")
-	}
-	return endpoint.ForgejoURL, nil
 }
 
 func canonicalPublicKey(contents []byte) (string, error) {

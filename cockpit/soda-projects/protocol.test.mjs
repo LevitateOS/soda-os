@@ -54,7 +54,7 @@ test("request encoder accepts objects and rejects alternate wire shapes", () => 
   assert.throws(() => encodeRequest("list", null), /must be a JSON object/);
 });
 
-test("list response requires native user and service context", () => {
+test("list response has only catalog, workspace-existence, and current-user fields", () => {
   const response = {
     projects: [{
       id: "website",
@@ -62,16 +62,31 @@ test("list response requires native user and service context", () => {
       canonical_url: "git@example.test:team/website.git",
       catalog_metadata: { team: "web" },
       workspace_username: "soda-w-0123456789abcdef01234567",
-      workspace_ready: true,
+      workspace_exists: true,
     }],
     current_user: { username: "alice", administrator: true },
-    forgejo_url: "https://soda.tail.example/forgejo",
-    ssh_host: "soda.tail.example",
   };
-  assert.deepEqual(decodeResponse("list", JSON.stringify(response)), response);
+  const decoded = decodeResponse("list", JSON.stringify(response));
+  assert.deepEqual(decoded, response);
+  assert.deepEqual(Object.keys(decoded), ["projects", "current_user"]);
+  assert.deepEqual(Object.keys(decoded.projects[0]), [
+    "id",
+    "display_name",
+    "canonical_url",
+    "catalog_metadata",
+    "workspace_username",
+    "workspace_exists",
+  ]);
   assert.throws(
     () => decodeResponse("list", JSON.stringify({ ...response, projects: null })),
     /missing projects/,
+  );
+  assert.throws(
+    () => decodeResponse("list", JSON.stringify({
+      ...response,
+      projects: [{ ...response.projects[0], workspace_exists: undefined, workspace_ready: true }],
+    })),
+    /missing workspace existence/,
   );
 });
 

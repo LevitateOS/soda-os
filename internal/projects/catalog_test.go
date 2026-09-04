@@ -33,14 +33,14 @@ func TestCatalogPersistsRequiredFieldsInSortedEntries(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, os.FileMode(0o644), info.Mode().Perm())
 
-	require.NoError(t, catalog.Edit(CatalogEntry{ID: "alpha", DisplayName: "New Alpha", CanonicalURL: "ssh://git@git.example.test/alpha.git"}))
+	require.NoError(t, catalog.Edit(EditRequest{ID: "alpha", DisplayName: "New Alpha"}))
 	require.NoError(t, catalog.Remove("zebra"))
 	entries, err := catalog.List()
 	require.NoError(t, err)
-	require.Equal(t, []CatalogEntry{{ID: "alpha", DisplayName: "New Alpha", CanonicalURL: "ssh://git@git.example.test/alpha.git"}}, entries)
+	require.Equal(t, []CatalogEntry{{ID: "alpha", DisplayName: "New Alpha", CanonicalURL: "git@git.example.test:alpha.git"}}, entries)
 }
 
-func TestCatalogPreservesAdditionalFieldsAcrossKnownFieldEdits(t *testing.T) {
+func TestCatalogEditPreservesCanonicalURLAndSupportsMetadata(t *testing.T) {
 	catalog := testCatalog(t)
 	require.NoError(t, os.MkdirAll(filepath.Dir(catalog.Path), 0o755))
 	require.NoError(t, os.WriteFile(catalog.Path, []byte(`[
@@ -50,11 +50,24 @@ func TestCatalogPreservesAdditionalFieldsAcrossKnownFieldEdits(t *testing.T) {
 	entry, err := catalog.Get("site")
 	require.NoError(t, err)
 	require.JSONEq(t, `{"owner":"team"}`, string(entry.Additional["notes"]))
-	require.NoError(t, catalog.Edit(CatalogEntry{ID: "site", DisplayName: "New Site", CanonicalURL: entry.CanonicalURL}))
+	require.NoError(t, catalog.Edit(EditRequest{ID: "site", DisplayName: "New Site"}))
 
 	contents, err := os.ReadFile(catalog.Path)
 	require.NoError(t, err)
 	require.JSONEq(t, `[{"id":"site","display_name":"New Site","canonical_url":"git@git.test:site.git","notes":{"owner":"team"},"labels":["web"]}]`, string(contents))
+
+	require.NoError(t, catalog.Edit(EditRequest{
+		ID: "site", DisplayName: "Final Site",
+		Additional: map[string]json.RawMessage{
+			"notes":  json.RawMessage(`{"owner":"new-team"}`),
+			"labels": json.RawMessage(`["service"]`),
+		},
+	}))
+	entry, err = catalog.Get("site")
+	require.NoError(t, err)
+	require.Equal(t, "git@git.test:site.git", entry.CanonicalURL)
+	require.JSONEq(t, `{"owner":"new-team"}`, string(entry.Additional["notes"]))
+	require.JSONEq(t, `["service"]`, string(entry.Additional["labels"]))
 }
 
 func TestCatalogRejectsDuplicateAndMissingFields(t *testing.T) {

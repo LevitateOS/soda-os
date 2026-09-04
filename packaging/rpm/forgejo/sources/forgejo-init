@@ -22,10 +22,10 @@ if [ ! -e "$target" ]; then
   mv "$target.tmp" "$target"
 fi
 
-identity=localhost
+identity=$(hostnamectl --static)
 address=0.0.0.0
 port=30000
-root_url=http://127.0.0.1:${port}/
+root_url=http://${identity}:${port}/
 
 # Forgejo always listens on IPv4. Firewalld admits it only through an explicitly
 # trusted NetworkManager connection or Tailscale's independent netfilter path.
@@ -39,6 +39,7 @@ sed \
   -e "s|^HTTP_ADDR = .*|HTTP_ADDR = ${address}|" \
   -e "s|^HTTP_PORT = .*|HTTP_PORT = ${port}|" \
   -e "s|^DOMAIN = .*|DOMAIN = ${identity}|" \
+  -e "s|^SSH_DOMAIN = .*|SSH_DOMAIN = ${identity}|" \
   -e "s|^ROOT_URL = .*|ROOT_URL = ${root_url}|" \
   "$target" > "$target.tmp"
 chown root:git "$target.tmp"
