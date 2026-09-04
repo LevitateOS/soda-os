@@ -44,23 +44,51 @@ func (network NativeNetwork) Status(ctx context.Context) ([]Connection, bool, er
 		return nil, false, fmt.Errorf("list active NetworkManager connections: %s", strings.TrimSpace(result.Stderr))
 	}
 	connections := make([]Connection, 0)
-	seen := map[string]bool{}
-	for _, name := range strings.Split(strings.TrimSpace(result.Stdout), "\n") {
-		name = strings.TrimSpace(name)
-		if name == "" || strings.ContainsAny(name, "\x00\r\n") || seen[name] {
-			continue
+	for _, name := range activeConnectionNames(result.Stdout) {
+		connection, include, inspectErr := inspectNetworkManagerConnection(ctx, runner, name)
+		if inspectErr != nil {
+			return nil, false, inspectErr
 		}
-		seen[name] = true
-		zone, zoneErr := runner.Run(ctx, projects.Command{Name: "/usr/bin/nmcli", Args: []string{"--get-values", "connection.zone", "connection", "show", name}})
-		if zoneErr != nil {
-			return nil, false, zoneErr
+		if include {
+			connections = append(connections, connection)
 		}
-		connections = append(connections, Connection{Name: name, LocalNetworkAllowed: zone.ExitCode == 0 && strings.TrimSpace(zone.Stdout) == "trusted"})
 	}
 	sort.Slice(connections, func(i, j int) bool { return connections[i].Name < connections[j].Name })
 	status, statusErr := client.Status(ctx)
 	connected := statusErr == nil && status.EnrollmentState() == tailnet.Enrolled
 	return connections, connected, nil
+}
+
+func activeConnectionNames(output string) []string {
+	names := make([]string, 0)
+	seen := map[string]bool{}
+	for _, value := range strings.Split(strings.TrimSpace(output), "\n") {
+		name := strings.TrimSpace(value)
+		if name == "" || strings.ContainsAny(name, "\x00\r\n") || seen[name] {
+			continue
+		}
+		seen[name] = true
+		names = append(names, name)
+	}
+	return names
+}
+
+func inspectNetworkManagerConnection(ctx context.Context, runner projects.CommandRunner, name string) (Connection, bool, error) {
+	connectionType, err := runner.Run(ctx, projects.Command{Name: "/usr/bin/nmcli", Args: []string{"--get-values", "connection.type", "connection", "show", name}})
+	if err != nil {
+		return Connection{}, false, err
+	}
+	if connectionType.ExitCode != 0 {
+		return Connection{}, false, fmt.Errorf("inspect NetworkManager connection %s: %s", name, strings.TrimSpace(connectionType.Stderr))
+	}
+	if strings.TrimSpace(connectionType.Stdout) == "loopback" {
+		return Connection{}, false, nil
+	}
+	zone, err := runner.Run(ctx, projects.Command{Name: "/usr/bin/nmcli", Args: []string{"--get-values", "connection.zone", "connection", "show", name}})
+	if err != nil {
+		return Connection{}, false, err
+	}
+	return Connection{Name: name, LocalNetworkAllowed: zone.ExitCode == 0 && strings.TrimSpace(zone.Stdout) == "trusted"}, true, nil
 }
 
 func (network NativeNetwork) AllowLocalNetwork(ctx context.Context, connection string) error {

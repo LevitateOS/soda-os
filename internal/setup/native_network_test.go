@@ -18,6 +18,9 @@ type networkRunner struct {
 
 func (runner *networkRunner) Run(_ context.Context, request projects.Command) (projects.CommandResult, error) {
 	runner.requests = append(runner.requests, request)
+	if request.Name == "/usr/bin/nmcli" {
+		return networkManagerResult(request), nil
+	}
 	switch request.Name {
 	case "/usr/bin/tailscale":
 		if len(request.ExtraFiles) != 1 {
@@ -28,15 +31,24 @@ func (runner *networkRunner) Run(_ context.Context, request projects.Command) (p
 			return projects.CommandResult{}, err
 		}
 		runner.secret = string(contents)
-	case "/usr/bin/nmcli":
-		if reflect.DeepEqual(request.Args, []string{"--get-values", "NAME", "connection", "show", "--active"}) {
-			return projects.CommandResult{Stdout: "wired\nTailscale\n"}, nil
-		}
-		if request.Args[len(request.Args)-1] == "wired" {
-			return projects.CommandResult{Stdout: "trusted\n"}, nil
-		}
 	}
 	return projects.CommandResult{}, nil
+}
+
+func networkManagerResult(request projects.Command) projects.CommandResult {
+	if reflect.DeepEqual(request.Args, []string{"--get-values", "NAME", "connection", "show", "--active"}) {
+		return projects.CommandResult{Stdout: "wired\nTailscale\nlo\n"}
+	}
+	if request.Args[1] == "connection.type" && request.Args[len(request.Args)-1] == "lo" {
+		return projects.CommandResult{Stdout: "loopback\n"}
+	}
+	if request.Args[1] == "connection.type" {
+		return projects.CommandResult{Stdout: "802-3-ethernet\n"}
+	}
+	if request.Args[len(request.Args)-1] == "wired" {
+		return projects.CommandResult{Stdout: "trusted\n"}
+	}
+	return projects.CommandResult{}
 }
 
 type connectedTailnet struct{}
