@@ -36,7 +36,8 @@ After separately authorized builds, run on both matching architectures:
 1. Complete graphical Anaconda account creation, reboot, and verify normal login,
    home ownership, administrator privilege, and cloud-init-disabled ISO startup.
 2. Provision QCOW2 through VM tooling; check key/password behavior, network
-   protection, persistence, and skipping unnecessary interactive Setup.
+   protection, persistence, and explicit automatic-Setup dismissal after
+   administrator console login.
 3. Start Forgejo before cloud-init finishes Tailscale enrollment. Verify the
    conditional refresh reruns native initialization and advertises the intended
    reachable Tailnet address. After native signup and workspace Git-key

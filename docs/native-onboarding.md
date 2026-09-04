@@ -15,7 +15,9 @@ Soda Setup is temporary and handles only missing network trust or Tailscale
 enrollment. It starts after an authenticated administrator logs in on an
 interactive machine console and uses ordinary privilege elevation. Cancellation
 or failure returns to the logged-in shell. SSH, SCP, and SFTP do not launch it.
-Native network readiness skips automatic Setup. Administrators can reopen it
+Native network readiness permits explicit dismissal but does not suppress
+automatic Setup. It keeps appearing after an administrator console login until
+they choose **Don't show Setup automatically**. Administrators can reopen it
 with `sudo /usr/libexec/soda/soda-setup console` or through Cockpit.
 
 Default-drop protection remains in place. Explicitly trust only a trusted LAN
@@ -67,7 +69,7 @@ After separately authorized builds, run on both matching architectures:
 1. Complete graphical Anaconda account creation, reboot, and verify normal login,
    home ownership, administrator privilege, and cloud-init-disabled ISO startup.
 2. Provision QCOW2 through VM tooling; check key/password behavior, network
-   protection, persistence, and skipping unnecessary interactive Setup.
+   protection, persistence, and explicit automatic-Setup dismissal.
 3. Start Forgejo before cloud-init finishes Tailscale enrollment. Verify the
    conditional refresh reruns native initialization and advertises the intended
    reachable Tailnet address. After native signup and workspace Git-key

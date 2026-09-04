@@ -54,7 +54,9 @@ Soda Setup is temporary and handles only missing network trust or Tailscale
 enrollment. It starts after an authenticated administrator logs in on an
 interactive machine console and uses ordinary privilege elevation. Cancellation
 or failure returns to the logged-in shell. SSH, SCP, and SFTP do not launch it.
-Native network readiness skips automatic Setup. Administrators can reopen it
+Native network readiness permits explicit dismissal but does not suppress
+automatic Setup. It keeps appearing after an administrator console login until
+they choose **Don't show Setup automatically**. Administrators can reopen it
 with `sudo /usr/libexec/soda/soda-setup console` or through Cockpit.
 
 Default-drop protection remains in place. Explicitly trust only a trusted LAN
@@ -349,7 +351,8 @@ fallback package manager, retry queue, or reconciliation service.
 The reset is complete when both matching-native architectures demonstrate:
 
 1. Graphical Anaconda creates ISO accounts; normal login precedes Setup.
-2. Standard cloud-init provisions QCOW2 and native readiness skips Setup.
+2. Standard cloud-init provisions QCOW2; automatic Setup requires an explicit
+   dismissal after administrator console login.
 3. LAN exposes SSH, Cockpit, Forgejo, and normal development-server links;
    cloud exposes them only through Tailscale.
 4. Linux and `wheel` remain authoritative for people and administrators.

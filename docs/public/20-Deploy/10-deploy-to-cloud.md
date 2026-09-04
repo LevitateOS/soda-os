@@ -64,8 +64,9 @@ record check.
    final root partition and filesystem to the supplied volume.
 4. Attach a console and configure firmware and machine type supported by the
    provider for the selected architecture.
-5. Do not attach account passwords, SSH keys, Tailscale keys, or setup scripts
-   as instance metadata.
+5. Supply the standard cloud-init user-data shown below through the provider's
+   supported user-data or instance-metadata facility. Do not attach a separate
+   credential disk, use public SSH as a bootstrap, or run a Soda setup script.
 
 ## Protect network access
 
@@ -180,12 +181,13 @@ address already matches.
 
 ## Expected result
 
-The QCOW2 boots from the enlarged disk, cloud-init provisions the Linux account
-and chosen private network access, and native readiness skips interactive
-Setup. No Soda service is reachable from the public Internet. If networking
-still needs configuration, log in on the console as a provisioned administrator
-and use network-only Setup. Register the first Forgejo owner before teammates
-begin signing in, as described in [Make the first connection](30-first-connection.md).
+The QCOW2 boots from the enlarged disk and cloud-init provisions the Linux
+account and chosen private network access. Setup still appears after an
+administrator console login until they explicitly choose **Don't show Setup
+automatically**; it remains available through Cockpit and manual console
+launches. No Soda service is reachable from the public Internet. Register the
+first Forgejo owner before teammates begin signing in, as described in [Make
+the first connection](30-first-connection.md).
 
 ## If something fails
 

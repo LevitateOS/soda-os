@@ -178,11 +178,12 @@ operation, retry semantics, runtime verification, documentation set, and
 architecture issue before demonstrating an upstream gap.
 
 That conclusion was later superseded by an explicit product decision. The
-current release uses one finished network ISO, graphical Anaconda only for
+current release uses one finished network ISO, graphical Anaconda for
 installation-owned responsibilities, and **Soda Setup** as a temporary
-post-install workaround shared by ISO and QCOW2 through the console and
-Cockpit. There is no human-facing OEMDRV, cloud-init provisioning path, second
-credential image, or duplicate onboarding implementation.
+post-login networking workaround through the console and Cockpit. Standard
+Fedora cloud-init is the human-facing provisioning path for QCOW2 deployments;
+VM tooling supplies its user-data. There is no human-facing OEMDRV, second
+credential image, or duplicate Soda-owned onboarding implementation.
 
 The intended permanent architecture is one complete installation journey with
 no separate Soda-owned post-install setup. That direction does not authorize

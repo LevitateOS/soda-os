@@ -77,7 +77,9 @@ device. Double-check the target before starting.
    the installed system.
 
 Anaconda creates the Linux administrator. After reboot, log in normally.
-Network-only Soda Setup appears if neither a trusted LAN nor Tailscale is ready.
+Network-only Soda Setup appears after administrator console login until the
+administrator explicitly chooses **Don't show Setup automatically**. A trusted
+LAN or Tailscale makes dismissal available; it does not dismiss Setup itself.
 ISO installation disables cloud-init so it cannot alter the Anaconda accounts.
 
 ## Expected result
