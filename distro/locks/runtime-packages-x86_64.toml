@@ -272,6 +272,12 @@ nevra = "make-1:4.4.1-12.fc44.x86_64"
 source = "fedora"
 
 [[package]]
+name = "mise"
+nevra = "mise-0:2026.9.1-1.fc44.x86_64"
+source = "external-rpm"
+file = "mise-2026.9.1-1.fc44.x86_64.rpm"
+
+[[package]]
 name = "nftables"
 nevra = "nftables-1:1.1.6-2.fc44.x86_64"
 source = "fedora"
@@ -544,12 +550,6 @@ name = "soda-forgejo"
 nevra = "soda-forgejo-0:15.0.7-6.fc44.x86_64"
 source = "local-rpm"
 file = "soda-forgejo-15.0.7-6.fc44.x86_64.rpm"
-
-[[package]]
-name = "soda-bun"
-nevra = "soda-bun-0:1.4.0-1.fc44.x86_64"
-source = "local-rpm"
-file = "soda-bun-1.4.0-1.fc44.x86_64.rpm"
 
 [[package]]
 name = "soda-tea"

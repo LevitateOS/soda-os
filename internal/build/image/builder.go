@@ -20,7 +20,8 @@ import (
 
 const sodaRegistry = "ghcr.io/levitateos/soda-os"
 
-var targetRPMs = []string{"soda-release", "soda-runtime", "soda-projects", "soda-forgejo", "soda-bun", "soda-tea"}
+var builtRPMs = []string{"soda-release", "soda-runtime", "soda-projects", "soda-forgejo", "soda-tea"}
+var externalRPMs = []string{"mise"}
 
 var requiredStockCockpitPackages = []string{
 	"cockpit-bridge",
@@ -42,6 +43,12 @@ type lockedPackage struct {
 	NEVRA  string `toml:"nevra"`
 	Source string `toml:"source"`
 	File   string `toml:"file"`
+}
+
+type runtimePackageSources struct {
+	Built       []string
+	External    []string
+	BootcLocked bool
 }
 
 type Builder struct {
@@ -98,9 +105,30 @@ func (b *Builder) Check(_ context.Context) error {
 	return errors.Join(
 		validateImageSpec(spec),
 		validateRuntimePackageLock(lock, spec),
+		b.validateMiseRuntimeInput(lock),
 		validateStockCockpitLockClosure(lock),
 		b.validateBuildInputs(),
 	)
+}
+
+func (b *Builder) validateMiseRuntimeInput(runtime packageLock) error {
+	lock, err := readMiseSourceLock(b.path("distro/locks/mise-source.toml"))
+	if err != nil {
+		return err
+	}
+	expected, err := lock.runtimePackage(b.Spec.Platform.Architecture.Name)
+	if err != nil {
+		return err
+	}
+	for _, item := range runtime.Package {
+		if item.Name == "mise" {
+			if item != expected {
+				return errors.New("runtime package lock differs from the reviewed mise input")
+			}
+			return nil
+		}
+	}
+	return errors.New("runtime package lock is missing the reviewed mise input")
 }
 
 func validateImageSpec(spec config.DistroSpec) error {
@@ -111,15 +139,15 @@ func validateImageSpec(spec config.DistroSpec) error {
 }
 
 func validateRuntimePackageLock(lock packageLock, spec config.DistroSpec) error {
-	if lock.SchemaVersion != 1 || lock.BaseReference != spec.Base.Reference || len(lock.Package) <= len(targetRPMs) {
+	if lock.SchemaVersion != 1 || lock.BaseReference != spec.Base.Reference || len(lock.Package) <= len(builtRPMs)+len(externalRPMs) {
 		return errors.New("package lock does not bind the configured Fedora bootc base")
 	}
-	local, bootcLocked, err := classifyRuntimePackages(lock.Package, spec.Platform.Base.BootcNEVRA)
+	sources, err := classifyRuntimePackages(lock.Package, spec.Platform.Base.BootcNEVRA)
 	if err != nil {
 		return err
 	}
-	if !bootcLocked || strings.Join(local, ",") != strings.Join(targetRPMs, ",") {
-		return errors.New("package lock must contain the locked bootc package and exactly the Soda RPM inputs")
+	if !sources.BootcLocked || strings.Join(sources.Built, ",") != strings.Join(builtRPMs, ",") || strings.Join(sources.External, ",") != strings.Join(externalRPMs, ",") {
+		return errors.New("package lock must contain the locked bootc package, Soda RPM inputs, and reviewed external RPM inputs")
 	}
 	return nil
 }
@@ -141,18 +169,22 @@ func validateStockCockpitLockClosure(lock packageLock) error {
 	return nil
 }
 
-func classifyRuntimePackages(packages []lockedPackage, bootcNEVRA string) ([]string, bool, error) {
-	seen, local, bootcLocked := make(map[string]bool, len(packages)), make([]string, 0, len(targetRPMs)), false
+func classifyRuntimePackages(packages []lockedPackage, bootcNEVRA string) (runtimePackageSources, error) {
+	seen := make(map[string]bool, len(packages))
+	sources := runtimePackageSources{Built: make([]string, 0, len(builtRPMs)), External: make([]string, 0, len(externalRPMs))}
 	for _, item := range packages {
 		if err := validateLockedPackage(item, seen); err != nil {
-			return nil, false, err
+			return runtimePackageSources{}, err
 		}
 		if item.Source == "local-rpm" {
-			local = append(local, item.Name)
+			sources.Built = append(sources.Built, item.Name)
 		}
-		bootcLocked = bootcLocked || item.Name == "bootc" && item.NEVRA == bootcNEVRA
+		if item.Source == "external-rpm" {
+			sources.External = append(sources.External, item.Name)
+		}
+		sources.BootcLocked = sources.BootcLocked || item.Name == "bootc" && item.NEVRA == bootcNEVRA
 	}
-	return local, bootcLocked, nil
+	return sources, nil
 }
 
 func validateLockedPackage(item lockedPackage, seen map[string]bool) error {
@@ -163,14 +195,14 @@ func validateLockedPackage(item lockedPackage, seen map[string]bool) error {
 	if item.Source == "fedora" && item.File == "" {
 		return nil
 	}
-	if item.Source == "local-rpm" && item.File != "" && filepath.Base(item.File) == item.File {
+	if (item.Source == "local-rpm" || item.Source == "external-rpm") && item.File != "" && filepath.Base(item.File) == item.File {
 		return nil
 	}
 	return fmt.Errorf("package lock entry %s has an unsupported source or file", item.Name)
 }
 
 func (b *Builder) validateBuildInputs() error {
-	for _, path := range []string{"packaging/bootc/Containerfile", "packaging/builder/Containerfile", b.Spec.Platform.Builder.PackageLock, b.Spec.Platform.Installer.PackageLock, b.Spec.Platform.Installer.ToolLock, b.Spec.Platform.Installer.ISOConfig, "packaging/rpm/release/soda-release.spec", "packaging/rpm/runtime/soda-runtime.spec", "packaging/rpm/projects/soda-projects.spec", "packaging/rpm/forgejo/soda-forgejo.spec", "packaging/rpm/forgejo/sources/patches/0001-pam-do-not-retain-password.patch", "packaging/rpm/bun/soda-bun.spec", "packaging/rpm/bun/sources/LICENSE.md", "packaging/rpm/tea/soda-tea.spec", "packaging/rpm/tea/sources/LICENSE", "packaging/rpm/tea/sources/0001-secret-safe-deterministic-login.patch", "distro/locks/forgejo-source.toml", "distro/locks/bun-source.toml", "distro/locks/tea-source.toml", "distro/toolset-commands.txt"} {
+	for _, path := range []string{"packaging/bootc/Containerfile", "packaging/builder/Containerfile", b.Spec.Platform.Builder.PackageLock, b.Spec.Platform.Installer.PackageLock, b.Spec.Platform.Installer.ToolLock, b.Spec.Platform.Installer.ISOConfig, "packaging/rpm/release/soda-release.spec", "packaging/rpm/runtime/soda-runtime.spec", "packaging/rpm/projects/soda-projects.spec", "packaging/rpm/forgejo/soda-forgejo.spec", "packaging/rpm/forgejo/sources/patches/0001-pam-do-not-retain-password.patch", "packaging/rpm/tea/soda-tea.spec", "packaging/rpm/tea/sources/LICENSE", "packaging/rpm/tea/sources/0001-secret-safe-deterministic-login.patch", "distro/locks/forgejo-source.toml", "distro/locks/mise-source.toml", "distro/locks/tea-source.toml"} {
 		if !isFile(b.path(path)) {
 			return fmt.Errorf("required bootc build input %s is missing", path)
 		}
