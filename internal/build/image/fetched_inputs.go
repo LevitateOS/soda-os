@@ -33,7 +33,6 @@ func (b *Builder) prepareImageBuildInputs(ctx context.Context) (imageBuildInputs
 // the RPM builder or runs an upstream build.
 func (b *Builder) verifyFetchedBuildInputs() error {
 	return errors.Join(
-		b.verifyGoBuilderArchive(),
 		b.verifyForgejoInput(),
 		b.verifyTeaInput(),
 		b.verifyGitHubRunnerInput(),

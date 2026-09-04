@@ -92,7 +92,7 @@ func TestRepositoryBuildContextExcludesCredentialsAndUnrelatedArtifacts(t *testi
 		require.Contains(t, ignore, excluded+"\n")
 	}
 	for _, included := range []string{
-		"!.artifacts/builder/packages.lock", "!.artifacts/builder/go.tar.gz",
+		"!.artifacts/builder/packages.lock",
 		"!.artifacts/installer/context/installer-packages.txt", "!.artifacts/installer/context/installer-boot-packages.txt",
 		"!.artifacts/installer/context/installer-efi-vendor.txt", "!.artifacts/installer/context/interactive-defaults.ks",
 		"!.artifacts/installer/context/iso.yaml",
