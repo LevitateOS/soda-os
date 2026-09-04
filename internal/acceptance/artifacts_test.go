@@ -25,6 +25,25 @@ func TestValidateArtifactsRequiresMatchingNativeRecordsAndChecksums(t *testing.T
 	require.Equal(t, strings.Repeat("b", 40), validated.Fallback.SourceRevision)
 }
 
+func TestValidateArtifactsAcceptsSchema4CandidateAndSchema3Fallback(t *testing.T) {
+	directory := t.TempDir()
+	candidate := writeArtifactFixture(t, directory, "candidate", strings.Repeat("a", 40))
+	fallback := writeArtifactFixture(t, directory, "fallback", strings.Repeat("b", 40))
+	contents, err := os.ReadFile(candidate.Record)
+	require.NoError(t, err)
+	var record releaseRecord
+	require.NoError(t, json.Unmarshal(contents, &record))
+	record.SchemaVersion = 4
+	record.RuntimePackageLock = "distro/locks/runtime-packages-x86_64.toml"
+	record.RuntimeLockSHA256 = strings.Repeat("a", 64)
+	contents, err = json.Marshal(record)
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(candidate.Record, contents, 0o600))
+
+	_, err = ValidateArtifacts(candidate, fallback)
+	require.NoError(t, err)
+}
+
 func TestValidateArtifactsRejectsSymlink(t *testing.T) {
 	directory := t.TempDir()
 	candidate := writeArtifactFixture(t, directory, "candidate", strings.Repeat("a", 40))

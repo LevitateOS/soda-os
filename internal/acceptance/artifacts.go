@@ -80,7 +80,7 @@ func readReleaseRecord(path string) (releaseRecord, error) {
 }
 
 func validReleaseRecord(record releaseRecord) bool {
-	if record.SchemaVersion != 3 || !gitRevision(record.SourceRevision) {
+	if (record.SchemaVersion != 3 && record.SchemaVersion != 4) || !gitRevision(record.SourceRevision) {
 		return false
 	}
 	if record.SodaVersion == "" || record.Channel == "" || !exactReference(record.FedoraBaseReference) {
@@ -89,7 +89,14 @@ func validReleaseRecord(record releaseRecord) bool {
 	if !strings.HasPrefix(record.SodaImageReference, release.Repository+"@sha256:") {
 		return false
 	}
-	return exactReference(record.SodaImageReference) && validReleaseChecksums(record)
+	if !exactReference(record.SodaImageReference) || !validReleaseChecksums(record) {
+		return false
+	}
+	return validReleaseRuntimeLock(record)
+}
+
+func validReleaseRuntimeLock(record releaseRecord) bool {
+	return record.SchemaVersion != 4 || (record.RuntimePackageLock != "" && validHex(record.RuntimeLockSHA256))
 }
 
 func validReleaseChecksums(record releaseRecord) bool {
