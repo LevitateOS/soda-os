@@ -56,8 +56,10 @@ artifact_paths() {
 
 build_environment() {
     run=$1
-    install -d -m 0700 "$run/tmp" "$run/go-cache"
-    export RUNNER_TEMP=$run/tmp TMPDIR=$run/tmp GOCACHE=$run/go-cache
+    temp=$(mktemp -d "$(dirname "$SODA_RELEASE_ROOT")/t.XXXXXX")
+    ln -s "$temp" "$run/tmp"
+    install -d -m 0700 "$run/go-cache"
+    export RUNNER_TEMP=$temp TMPDIR=$temp GOCACHE=$run/go-cache
 }
 
 checkout_source() {
