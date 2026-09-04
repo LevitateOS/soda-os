@@ -14,14 +14,13 @@ hooks-install:
 
 check:
     test -z "$(gofmt -l $(find . -name '*.go' -not -path './.artifacts/*'))"
-    sh -n tests/acceptance/unattended.sh
-    sh -n tests/acceptance/internal/bootc.sh
-    tests/acceptance/unattended.sh --help >/dev/null
+    go run ./cmd/soda-acceptance --help >/dev/null
     ./scripts/check-complexity.sh
     ./scripts/check-release-identity.sh
     ./scripts/check-release-ci.sh
     node --test cockpit/soda-projects/*.test.mjs
     go vet ./...
+    go test -race ./internal/acceptance
     go test ./...
     go run ./cmd/soda-image --architecture aarch64 check
     go run ./cmd/soda-image --architecture x86_64 check

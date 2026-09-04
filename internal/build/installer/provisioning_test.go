@@ -142,124 +142,15 @@ func TestTailscaleEnrollmentRemainsOneAttemptAndAlwaysCleansSecrets(t *testing.T
 	}
 }
 
-func TestAcceptanceUsesTheProtectedAnswerMediaBoundary(t *testing.T) {
+func TestAcceptanceUsesOneGoWorkflow(t *testing.T) {
 	root := filepath.Join("..", "..", "..")
-	runner := readInstallerFixture(t, root, "tests/acceptance/unattended.sh")
-	for _, expected := range []string{
-		"Usage:\n  tests/acceptance/unattended.sh run",
-		"installer-input",
-		`--tailscale-auth-key-file "$tailscale_key"`,
-		`--nocloud-tailscale-auth-key-file PATH`,
-		`--configdrive-tailscale-auth-key-file PATH`,
-		`--candidate-qcow2 PATH`,
-		`--password-file "$password_file"`,
-		`--output "$oemdrv"`,
-		`work_dir=$(mktemp -d "${TMPDIR:-/tmp}/soda-acceptance-run.XXXXXX")`,
-		`export SODA_ACCEPTANCE_DISK=$disk`,
-		`sanitize_evidence`,
-		`run_cloud_scenario nocloud "$nocloud_tailscale_key" true`,
-		`run_cloud_scenario configdrive "$configdrive_tailscale_key" false`,
-		`run_no_datasource_scenario`,
-	} {
-		require.Contains(t, runner, expected)
+	entry := readInstallerFixture(t, root, "cmd/soda-acceptance/main.go")
+	for _, expected := range []string{"soda-acceptance", "runCommand()", "recordCommand()", "candidate-iso", "candidate-qcow2", "fallback-oci"} {
+		require.Contains(t, entry, expected)
 	}
-	for _, obsolete := range []string{
-		"%addon org_fedoraproject_soda",
-		"tailscale_auth_key=$tailscale_auth_key",
-		`user --name=$admin`,
-		"start_x86_unattended_boot_selector",
-		"runner.env",
-		"prepare)",
-		`admin_key=$evidence_dir/admin`,
-		`password_file=$evidence_dir/admin-password`,
-		`stat -c %a "$oemdrv"`,
-	} {
-		require.NotContains(t, runner, obsolete)
-	}
-	require.Contains(t, runner, `'.Peer[]? | select(.ID == $id)'`)
-	require.Contains(t, runner, `wait_for_exit "$qemu_pid" 120`)
-	require.Contains(t, runner, `tailscale_command=/Applications/Tailscale.app/Contents/MacOS/Tailscale`)
-	require.Contains(t, runner, `TAILSCALE_BE_CLI=1 "$tailscale_command" "$@"`)
-	require.Contains(t, runner, `host_tailscale status --json`)
-	require.NotContains(t, runner, "\n\t\ttailscale status --json")
-
-	bootRunner := readInstallerFixture(t, root, "tests/acceptance/internal/bootc.sh")
-	require.Contains(t, bootRunner, "SODA_ACCEPTANCE_KICKSTART_ISO is required for launch install")
-	require.Contains(t, bootRunner, "SODA_ACCEPTANCE_CLOUD_INPUT is required for launch cloud")
-	require.Contains(t, bootRunner, `launch requires install, installed, cloud, or bare`)
-	require.Contains(t, bootRunner, `emit_cloud_provisioning_checks`)
-	require.Contains(t, bootRunner, "start_installer_input_ejector")
-	require.Contains(t, bootRunner, "while kill -0 \"$qemu_pid\" 2>/dev/null; do")
-	require.Contains(t, bootRunner, `kill -KILL "$qemu_pid"`)
-	require.Contains(t, bootRunner, `"execute":"blockdev-remove-medium"`)
-	require.Contains(t, bootRunner, `failed_units=$(systemctl --failed --no-legend --plain || true)`)
-	require.Contains(t, bootRunner, `if test -n "$failed_units"; then`)
-	require.Contains(t, bootRunner, `printf "%s\n" "$failed_units"`)
-	require.Contains(t, bootRunner, `systemctl status --no-pager --full -- "$failed_unit"`)
-	require.Contains(t, bootRunner, `journalctl --boot --no-pager --unit "$failed_unit" --lines 100`)
-	require.Contains(t, bootRunner, `uid=$(id -u nokey)`)
-	require.Contains(t, bootRunner, `Keyless fixture still owns processes after native logind termination`)
-	require.Contains(t, bootRunner, `/etc/ssh/sshd_config.d/41-soda-project-accounts.conf`)
-	require.Contains(t, bootRunner, `/usr/libexec/soda/soda-cockpit`)
-	require.NotContains(t, bootRunner, "start_x86_unattended_boot_selector")
-	require.NotContains(t, bootRunner, `"execute":"send-key"`)
-}
-
-func TestAcceptanceExposesOnePublicWorkflow(t *testing.T) {
-	root := filepath.Join("..", "..", "..")
-	publicPath := filepath.Join(root, "tests", "acceptance", "unattended.sh")
-	publicInfo, err := os.Stat(publicPath)
-	require.NoError(t, err)
-	require.NotZero(t, publicInfo.Mode().Perm()&0o111)
-
-	privatePath := filepath.Join(root, "tests", "acceptance", "internal", "bootc.sh")
-	privateInfo, err := os.Stat(privatePath)
-	require.NoError(t, err)
-	require.Zero(t, privateInfo.Mode().Perm()&0o111)
-
-	_, err = os.Stat(filepath.Join(root, "tests", "acceptance", "bootc.sh"))
-	require.ErrorIs(t, err, os.ErrNotExist)
-
-	runner := readInstallerFixture(t, root, "tests/acceptance/unattended.sh")
-	for _, expected := range []string{
-		`fallback seed-b`,
-		`fallback stage "$target"`,
-		`fallback compare b-current a-selected`,
-		`fallback compare b-current b-restored`,
-		`scenario product`,
-		`capture final`,
-		`SODA_ACCEPTANCE_LATER_PRIMARY_PASSWORD_FILE`,
-		`SODA_ACCEPTANCE_PERSON_KEYS_DIR`,
-		`registry_data=$work_dir/registry`,
-		`--user "$(id -u):$(id -g)"`,
-		`--volume "$registry_data:/var/lib/registry"`,
-	} {
-		require.Contains(t, runner, expected)
-	}
-	for _, obsolete := range []string{"runner.env", "VNC", "vnc", "two terminals"} {
-		require.NotContains(t, runner, obsolete)
-	}
-	require.NotContains(t, runner, "final-pre-capstone")
-	bootRunner := readInstallerFixture(t, root, "tests/acceptance/internal/bootc.sh")
-	for _, expected := range []string{
-		`ensure_person_key`,
-		`forgejo_pam_request alice wrong 401`,
-		`forgejo_pam_request alice correct 200`,
-		`forgejo_pam_request bob correct 200`,
-		`admin_ssh /usr/libexec/soda/soda-projects delete-human`,
-		`forgejo_pam_request alice correct 200`,
-		`test ! -e "$HOME/.config/tea/config.yml"`,
-		`root:soda-forgejo-shadow:40`,
-		`workspace PAM attempt created a Forgejo user`,
-	} {
-		require.Contains(t, bootRunner, expected)
-	}
-	for _, relative := range []string{
-		"tests/acceptance/registry-image.txt",
-		"tests/acceptance/skopeo-image.txt",
-	} {
-		value := strings.TrimSpace(readInstallerFixture(t, root, relative))
-		require.Regexp(t, `^[a-z0-9./-]+@sha256:[0-9a-f]{64}$`, value)
+	for _, old := range []string{"tests/acceptance/unattended.sh", "tests/acceptance/internal/bootc.sh"} {
+		_, err := os.Lstat(filepath.Join(root, old))
+		require.ErrorIs(t, err, os.ErrNotExist)
 	}
 }
 

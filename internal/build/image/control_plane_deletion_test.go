@@ -52,15 +52,14 @@ func TestResidualControlPlaneIsAbsent(t *testing.T) {
 
 func TestAcceptanceRequiresZeroResidualControlPlane(t *testing.T) {
 	root := filepath.Join("..", "..", "..")
-	helper, err := os.ReadFile(filepath.Join(root, "tests", "acceptance", "internal", "bootc.sh"))
+	checks, err := os.ReadFile(filepath.Join(root, "internal", "acceptance", "guest_scripts.go"))
 	require.NoError(t, err)
-	for _, expected := range []string{"sodad.service=absent", "/usr/libexec/soda/sodad", "/usr/bin/sodactl", "/run/soda/sodad.sock", "soda-api=absent", "/var/log/soda", "soda-runtime-control-plane-ownership=absent"} {
-		require.Contains(t, string(helper), expected)
+	for _, expected := range []string{"sodad.service", "/usr/libexec/soda/sodad", "/usr/bin/sodactl", "/run/soda/sodad.sock"} {
+		require.Contains(t, string(checks), expected)
 	}
-	require.NotContains(t, string(helper), "sodactl health")
+	require.NotContains(t, string(checks), "sodactl health")
 
-	runner, err := os.ReadFile(filepath.Join(root, "tests", "acceptance", "unattended.sh"))
+	runner, err := os.ReadFile(filepath.Join(root, "internal", "acceptance", "scenarios.go"))
 	require.NoError(t, err)
-	require.Contains(t, string(runner), `capture final`)
-	require.NotContains(t, string(runner), "final-pre-capstone")
+	require.Contains(t, string(runner), `captureCore(ctx, scenario.remote, "final")`)
 }
