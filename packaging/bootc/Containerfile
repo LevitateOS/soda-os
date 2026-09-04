@@ -33,7 +33,9 @@ RUN dnf -y --setopt=install_weak_deps=False --enablerepo=updates-testing install
     && dnf -y remove avahi \
     && ! rpm -q avahi \
     && ! test -e /usr/lib/systemd/system/avahi-daemon.service \
-	&& firewall-offline-cmd --set-default-zone=drop \
+    && firewall-offline-cmd --set-default-zone=drop \
+    && sed -i '/^[[:space:]]*$/d' /usr/lib/sysusers.d/forgejo-runner.conf \
+    && systemd-sysusers --dry-run /usr/lib/sysusers.d/forgejo-runner.conf \
     && dnf clean all \
     && rm -rf \
       /usr/lib/sysimage/libdnf5/transaction_history.sqlite* \
