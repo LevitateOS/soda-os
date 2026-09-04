@@ -133,6 +133,24 @@ func TestInstallerEnvironmentPinsBIOSHybridBootModule(t *testing.T) {
 	}
 }
 
+func TestInstallerPackageLocksKeepDirectInstallerRequirements(t *testing.T) {
+	root := filepath.Join("..", "..", "..")
+	for _, architecture := range []string{"aarch64", "x86_64"} {
+		lock, err := os.ReadFile(filepath.Join(root, "distro", "locks", "installer-packages-"+architecture+".toml"))
+		require.NoError(t, err)
+		for _, requirement := range []string{
+			"kernel-7.1.13-200.fc44." + architecture,
+			"kernel-modules-extra-7.1.13-200.fc44." + architecture,
+			"nfs-utils-1:2.8.7-7.fc44." + architecture,
+			"openssh-0:10.2p1-14.fc44." + architecture,
+			"openssl-1:3.5.8-1.fc44." + architecture,
+			"util-linux-0:2.41.5-1.fc44." + architecture,
+		} {
+			require.Contains(t, string(lock), requirement)
+		}
+	}
+}
+
 func TestInstallerEnvironmentUsesDefaultTargetRequiredByAnacondaGenerator(t *testing.T) {
 	contents, err := os.ReadFile(filepath.Join("..", "..", "..", "packaging", "installer", "Containerfile"))
 	require.NoError(t, err)
