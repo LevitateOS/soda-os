@@ -27,17 +27,28 @@ Development happens in a separate derived Linux workspace account for every
 selected person-project pair. Each workspace has its own UID, private home,
 complete Git clone, dependencies, processes, and mutable state.
 
-Soda registers each person's public SSH key with their Forgejo account. Git
-uses SSH. Workspace creation copies the person's current public SSH keys once
-into the workspace's standard `authorized_keys`. It never copies private keys,
-Tea configuration, gh configuration, or tokens. Tea and GitHub CLI are
-available in every workspace, and each is authenticated manually there.
+Soda Setup creates the first same-named Linux and Forgejo administrator and
+installs that administrator's public SSH key in Linux and registers it with
+Forgejo. Later primary accounts are created through stock Cockpit or Linux; a
+person's first normal Forgejo sign-in creates their matching profile through
+PAM, and they manage Forgejo keys there. Git uses SSH.
+
+Workspace creation copies the person's current public SSH keys once into the
+workspace's standard `authorized_keys` and creates a workspace-private outbound
+Git key. When repository authentication is unavailable, Projects reports that
+public key for the person to register through the authoritative Git host before
+retrying. Projects accepts no Forgejo password and registers no workspace key.
+It never copies private keys, Tea configuration, gh configuration, or tokens.
+Tea and GitHub CLI are available in every workspace, and each is authenticated
+manually there.
 
 Stock Cockpit provides host administration and one focused Soda Projects page.
-Everyone can view and edit the shared project list and create or remove their
-own workspace. Only an administrator removes an entire project. That operation
-permanently deletes the shared Soda entry and every local workspace, including
-uncommitted work, while leaving the canonical Forgejo repository intact.
+Repositories are created through Forgejo or the external authoritative Git host
+and added to the shared project list with their SSH clone URL. Everyone can view
+and edit that list and create or remove their own workspace. Only an
+administrator removes an entire project. That operation permanently deletes the
+shared Soda entry and every local workspace, including uncommitted work, while
+leaving the canonical repository intact.
 
 Removing a person deletes their workspaces first, their Forgejo account second,
 and their primary Linux account last. A failure stops immediately and reports
@@ -45,11 +56,13 @@ what succeeded and remains. Soda adds no rollback, archive, transfer, approval,
 or recovery workflow; the trusted team coordinates destructive actions.
 
 `mise` owns development-tool installation, versions, and project toolchain
-configuration. Tools can be installed for one workspace or shared once by a
-project. Upstream tool managers own their shared download caches. Soda owns no
-toolchain package manager, downloader, cache service, profile system, or
-version database. Coding assistants are selected and authenticated separately
-per workspace.
+configuration. People invoke and configure `mise` directly inside their
+workspaces; project configuration is shared through the project's native
+repository workflow. Upstream tool managers own their caches. Projects exposes
+no tool selector, install action, shared tool storage, status, retry, or cleanup
+lifecycle. Soda owns no toolchain package manager, downloader, cache service,
+profile system, or version database. Coding assistants are selected and
+authenticated separately per workspace.
 
 Administrators update explicitly through native bootc operations. Automatic
 updates are disabled. Supported fallback selects an earlier exact signed image

@@ -17,17 +17,18 @@ type forgejoKey struct {
 }
 
 type scenarioIdentity struct {
-	primary       string
-	workspace     string
-	key           string
-	primaryPublic string
+	primary            string
+	workspace          string
+	key                string
+	primaryPublic      string
+	setupAdministrator bool
 }
 
 func (state *runnerState) verifyWorkspaceGitKeys(ctx context.Context, scenario *scenarioState) error {
 	identities := []scenarioIdentity{
-		{state.options.Administrator.Username, scenario.adminSpace, state.paths.adminKey, state.paths.adminPublicKey},
-		{"alice", scenario.aliceSpace, state.personKeyPath("alice"), state.personKeyPath("alice") + ".pub"},
-		{"bob", scenario.bobSpace, state.personKeyPath("bob"), state.personKeyPath("bob") + ".pub"},
+		{state.options.Administrator.Username, scenario.adminSpace, state.paths.adminKey, state.paths.adminPublicKey, true},
+		{"alice", scenario.aliceSpace, state.personKeyPath("alice"), state.personKeyPath("alice") + ".pub", false},
+		{"bob", scenario.bobSpace, state.personKeyPath("bob"), state.personKeyPath("bob") + ".pub", false},
 	}
 	for _, identity := range identities {
 		if err := state.verifyForgejoKeys(ctx, scenario, identity); err != nil {
@@ -55,16 +56,82 @@ func (state *runnerState) verifyForgejoKeys(
 	if err != nil {
 		return err
 	}
-	for label, expected := range map[string][]byte{"primary": primaryPublic, "workspace": workspacePublic} {
-		found, keyErr := containsPublicKey(keys, expected)
-		if keyErr != nil {
-			return keyErr
-		}
-		if !found {
-			return fmt.Errorf("Forgejo account %s does not contain its %s public key", identity.primary, label)
-		}
+	if err = requireForgejoKey(keys, workspacePublic, "manually registered workspace", identity.primary); err != nil {
+		return err
+	}
+	if identity.setupAdministrator {
+		return requireForgejoKey(keys, primaryPublic, "Soda Setup-installed administrator", identity.primary)
+	}
+	return rejectForgejoKey(keys, primaryPublic, "Linux", identity.primary)
+}
+
+func requireForgejoKey(keys []forgejoKey, expected []byte, label, username string) error {
+	found, err := containsPublicKey(keys, expected)
+	if err != nil {
+		return err
+	}
+	if !found {
+		return fmt.Errorf("Forgejo account %s does not contain its %s public key", username, label)
 	}
 	return nil
+}
+
+func rejectForgejoKey(keys []forgejoKey, rejected []byte, label, username string) error {
+	found, err := containsPublicKey(keys, rejected)
+	if err != nil {
+		return err
+	}
+	if found {
+		return fmt.Errorf("PAM-created Forgejo account %s unexpectedly contains its %s public key", username, label)
+	}
+	return nil
+}
+
+func (state *runnerState) registerForgejoKey(ctx context.Context, remote Remote, password, publicKey []byte, evidence string) error {
+	endpoint, err := forgejoEndpoint(ctx, remote)
+	if err != nil {
+		return err
+	}
+	payload, err := json.Marshal(map[string]string{
+		"key":   strings.TrimSpace(string(publicKey)),
+		"title": "Soda OS acceptance workspace",
+	})
+	if err != nil {
+		return err
+	}
+	config := fmt.Sprintf(
+		"user = %s\nsilent\nshow-error\nfail-with-body\nurl = %s\n",
+		curlConfigQuote(remote.Username+":"+string(bytes.TrimSpace(password))),
+		curlConfigQuote(endpoint+"/api/v1/user/keys"),
+	)
+	_, err = remote.Exchange(ctx, evidence, []byte(config), "curl", "--config", "-", "--json", string(payload))
+	return err
+}
+
+func workspacePublicKeyFromDiagnostic(diagnostic []byte) ([]byte, error) {
+	const algorithm = "ssh-ed25519 "
+	start := bytes.Index(diagnostic, []byte(algorithm))
+	if start < 0 {
+		return nil, errors.New("workspace setup failure did not report its outbound Git public key")
+	}
+	material := diagnostic[start+len(algorithm):]
+	end := 0
+	for end < len(material) && isBase64KeyByte(material[end]) {
+		end++
+	}
+	if end == 0 {
+		return nil, errors.New("workspace setup failure reported an invalid outbound Git public key")
+	}
+	key := []byte(algorithm + string(material[:end]))
+	canonical, err := canonicalPublicKey(key)
+	if err != nil {
+		return nil, fmt.Errorf("validate reported workspace public key: %w", err)
+	}
+	return []byte(canonical), nil
+}
+
+func isBase64KeyByte(value byte) bool {
+	return value >= 'A' && value <= 'Z' || value >= 'a' && value <= 'z' || value >= '0' && value <= '9' || value == '+' || value == '/' || value == '='
 }
 
 func containsPublicKey(keys []forgejoKey, expected []byte) (bool, error) {

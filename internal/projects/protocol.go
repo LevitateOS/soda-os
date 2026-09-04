@@ -37,25 +37,10 @@ func (request *CatalogMutationRequest) UnmarshalJSON(contents []byte) error {
 
 type AddExistingRequest = CatalogMutationRequest
 
-type CreateForgejoRequest struct {
-	ID          string `json:"id"`
-	DisplayName string `json:"display_name"`
-	Password    string `json:"password"`
-}
-
 type EditRequest = AddExistingRequest
 
 type SetupRequest struct {
-	ID              string   `json:"id"`
-	ForgejoPassword string   `json:"forgejo_password"`
-	WorkspaceTools  []string `json:"workspace_tools"`
-	ProjectTools    []string `json:"project_tools"`
-}
-
-type ToolRequest struct {
-	ID    string   `json:"id"`
-	Scope string   `json:"scope"`
-	Tools []string `json:"tools"`
+	ID string `json:"id"`
 }
 
 type ProjectRequest struct {
@@ -64,12 +49,6 @@ type ProjectRequest struct {
 
 type DeleteHumanRequest struct {
 	Username string `json:"username"`
-}
-
-type AddPersonRequest struct {
-	Username      string `json:"username"`
-	Password      string `json:"password"`
-	AuthorizedKey string `json:"authorized_key"`
 }
 
 type ProjectView struct {
@@ -115,26 +94,12 @@ type MutationResponse struct {
 type HelperCatalogRequest = CatalogMutationRequest
 
 type HelperWorkspaceRequest struct {
-	ID             string   `json:"id"`
-	CanonicalURL   string   `json:"canonical_url"`
-	WorkspaceTools []string `json:"workspace_tools"`
-	ProjectTools   []string `json:"project_tools"`
+	ID           string `json:"id"`
+	CanonicalURL string `json:"canonical_url"`
 }
-
-type HelperToolRequest = ToolRequest
 
 type HelperHumanRequest struct {
 	Username string `json:"username"`
-}
-
-type HelperHumanCreateRequest struct {
-	Username string `json:"username"`
-	Password string `json:"password"`
-}
-
-type HelperHumanPublishRequest struct {
-	Username      string `json:"username"`
-	AuthorizedKey string `json:"authorized_key"`
 }
 
 // DecodeRequest accepts exactly one flat JSON object, rejects duplicate and

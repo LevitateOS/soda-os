@@ -129,10 +129,13 @@ collaboration, issues, pull requests, releases, sessions, tokens, and native
 deletion consequences. External Git hosts own the equivalent facts for their
 repositories.
 
-The initial first-boot composition creates the same-named Linux and Forgejo
-administrator. Each later supported person receives a matching ordinary
-Forgejo account. Soda registers that person's SSH public key with Forgejo. Git
-uses SSH.
+Soda Setup creates the initial same-named Linux and Forgejo administrator and
+installs that administrator's public SSH key in Linux and registers it with
+Forgejo. Later primary accounts are created through stock Cockpit or Linux. A
+later person's first normal Forgejo sign-in authenticates through PAM and
+creates the matching ordinary Forgejo profile; that person manages public keys
+through Forgejo's native interface. Soda has no later-person creation or Forgejo
+pre-provisioning path. Git uses SSH.
 
 Workspace accounts remain Linux-only development identities and never become
 Forgejo users. Linux `wheel` membership does not grant Forgejo administration.
@@ -155,12 +158,16 @@ No closed project metadata field list is approved. In particular, the former
 name-and-Git-address-only and exact-three-fields rules are rejected. Any new
 user-visible project information requires an explicit product decision.
 
-A project may refer to an existing Git remote or begin as a native empty
-repository in bundled Forgejo. Selecting **Set up for me** synchronously leaves
-one derived workspace account and a complete clone under that account's
-`$HOME/Projects`. Git and the initiating user own authentication. Soda retains
-no credential, partial-workflow state, job, retry record, or reconciliation
-record.
+A repository is created through bundled Forgejo or the external authoritative
+Git host, then added to Projects with its credential-free SSH clone URL.
+Projects creates no repository. Selecting **Set up for me** prepares one derived
+workspace account and its workspace-private outbound Git key, then attempts the
+clone. If repository authentication is unavailable, Projects reports the public
+key for the person to register through the authoritative Git host and the person
+retries. Successful setup leaves a complete clone under the workspace account's
+`$HOME/Projects`. Projects accepts no Forgejo password, registers no workspace
+key, and retains no credential, partial-workflow state, job, retry record, or
+reconciliation record.
 
 Each person may remove only their own workspace.
 
@@ -195,11 +202,11 @@ host overview, metrics, services, logs, terminal, storage, and networking.
 Soda adds branding, the Projects page, and access to the same Soda Setup state
 and bounded operations used on the console.
 
-Soda may retain fixed, one-shot privileged operations only for accepted
-first-boot, catalog, workspace, Forgejo public-key registration, tool-scope,
-project-removal, and person-removal transitions that genuinely require root.
-They accept only bounded product inputs and expose no arbitrary command, path,
-UID, process selector, credential, or general account/repository API.
+Soda may retain fixed, one-shot privileged operations only for accepted Soda
+Setup, catalog, workspace, project-removal, and person-removal transitions
+that genuinely require root. They accept only bounded product inputs and expose
+no arbitrary command, path, UID, process selector, credential, or general
+account/repository API.
 
 Soda ships no separate dashboard, web server, session service, generic daemon,
 runtime API, database, RPC contract, control socket, or generic privileged
@@ -208,17 +215,14 @@ bridge.
 ## Development tools
 
 `mise` is the approved owner of development-tool installation, versions, and
-project toolchain configuration. Soda may offer multiple convenience choices
-when creating a project or workspace. Examples such as Go, Rust, web, and
-Python are not a closed list.
-
-Later installation chooses either **my workspace** or **this project**. Any
-project user may add shared project tools; there is no approval or membership
-subsystem. Shared project tools are stored once and reused by that project's
-workspaces. Upstream tool managers own their native shared download caches.
-Soda owns no cache format, cache service, downloader, package manager, version
-manager, profile system, or toolchain database. Installed dependencies and
-other mutable development state remain private to each workspace.
+project toolchain configuration. Soda ships `mise`; people invoke and configure
+it directly in their workspaces. Project configuration is shared through the
+project's native repository workflow. Upstream tool managers own their native
+cache behavior. Projects exposes no tool selection, installation action, shared
+tool storage, status translation, retry, or cleanup lifecycle. Soda owns no
+cache format, cache service, downloader, package manager, version manager,
+profile system, or toolchain database. Installed dependencies and other mutable
+development state remain private to each workspace.
 
 Coding assistants are personal and workspace-specific. A person selects them
 per workspace and logs into each separately. Credentials are never copied.
@@ -285,9 +289,8 @@ model, Soda-owned dependency cache or downloader, custom OS updater, or
 workflow/job/retry/reconciliation platform.
 
 A narrow integration is allowed only for the Projects UI/catalog, workspace
-accounts, Forgejo public-key registration, `mise` project/workspace scopes,
-upstream caches, optional workspace assistants, the current temporary Soda
-Setup composition, and fixed one-shot privileged actions.
+accounts, the current temporary Soda Setup composition, and fixed one-shot
+privileged actions.
 
 ## Current implementation
 
@@ -321,11 +324,12 @@ The following remain engineering questions, not product decisions:
    complete installation journey without a separate Soda-owned post-install
    setup.
 2. Exact LAN and cloud firewall/service binding on Fedora 44.
-3. Forgejo public-key registration through the exact shipped version.
+3. Soda Setup's initial-administrator public-key registration through the exact
+   shipped Forgejo version.
 4. Catalog syntax, path, fields required by approved UI, and concurrency.
 5. Workspace naming, classification, staging, and process removal.
-6. `mise` operation on Fedora 44 with enforcing SELinux, both architectures,
-   shared permissions, concurrency, workspace scope, and project scope.
+6. Direct `mise` operation on Fedora 44 with enforcing SELinux on both
+   architectures, without a Soda wrapper or parallel tool state.
 7. Upstream-native shared cache behavior without Soda-owned cache state.
 8. Matching-native ISO/QCOW2 first-boot and volume-growth behavior.
 9. Signed acceptance-record schema and Cosign identity verification.
@@ -347,7 +351,10 @@ The reset is complete when both matching-native architectures demonstrate:
 3. LAN exposes SSH, Cockpit, Forgejo, and normal development-server links;
    cloud exposes them only through Tailscale.
 4. Linux and `wheel` remain authoritative for people and administrators.
-5. Each person's public SSH key is registered in Forgejo, and Git uses SSH.
+5. Soda Setup registers the initial administrator's public SSH key in Forgejo;
+   later Forgejo profiles are created through normal PAM sign-in, people manage
+   their Forgejo keys natively, workspace keys are registered manually with the
+   authoritative Git host, and Git uses SSH.
 6. Every selected person-project pair receives a separate Linux account, home,
    full clone, dependencies, processes, and mutable state.
 7. Public keys are copied once; Tea and gh authenticate manually per workspace;
@@ -361,8 +368,8 @@ The reset is complete when both matching-native architectures demonstrate:
     primary Linux account, exposing partial failure without rollback.
 11. Normal development-server links work over LAN and Tailscale without Soda
     port or process tracking.
-12. `mise` provides workspace and shared-project tool scopes and upstream cache
-    reuse without a Soda toolchain subsystem.
+12. People invoke and configure `mise` directly in workspaces without a Soda
+    tool selector, installer, shared storage model, or lifecycle.
 13. Native manual update and fallback preserve authoritative mutable state.
 14. The signed pre-release record covers both architectures and exact source.
 15. Release CI builds each B once, structurally verifies and signs the exact

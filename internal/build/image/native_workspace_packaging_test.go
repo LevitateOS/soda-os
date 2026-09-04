@@ -183,11 +183,13 @@ func TestNativeWorkspaceRPMOwnsTheStockCockpitProjectsSurface(t *testing.T) {
 	dependencies := specRequires(text)
 	for _, name := range []string{
 		"cockpit-system", "cockpit-ws", "coreutils", "git-core", "glibc-common", "openssh-clients", "policycoreutils", "polkit",
-		"procps-ng", "shadow-utils", "systemd", "tailscale", "util-linux",
+		"procps-ng", "shadow-utils", "soda-forgejo", "systemd", "tailscale", "util-linux",
 	} {
 		require.Contains(t, dependencies, name)
 	}
 	require.NotContains(t, dependencies, "soda-runtime")
+	require.NotContains(t, dependencies, "soda-tea")
+	require.NotContains(t, dependencies, "mise")
 	require.NotContains(t, dependencies, "util-linux-core")
 
 	tmpfiles, err := os.ReadFile(filepath.Join(root, "packaging", "rpm", "projects", "sources", "tmpfiles", "soda-projects.conf"))
@@ -195,7 +197,6 @@ func TestNativeWorkspaceRPMOwnsTheStockCockpitProjectsSurface(t *testing.T) {
 	require.Equal(t, []string{
 		"d /var/lib/soda/catalog 0755 root root -",
 		`f /var/lib/soda/catalog/projects.json 0644 root root - []\n`,
-		"d /var/lib/soda/mise 0755 root root -",
 		"d /run/lock/soda 0755 root root -",
 		"f /run/lock/soda/workspace-operations.lock 0444 root root -",
 	}, packagingNonCommentLines(string(tmpfiles)))

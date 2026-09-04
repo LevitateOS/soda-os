@@ -300,7 +300,7 @@ Soda may retain narrowly bounded product integration for:
 
 - The shared Projects catalog and Cockpit page.
 - Creating and removing Linux workspace accounts.
-- Registering a person's SSH key with Forgejo.
+- Registering only the initial administrator's SSH key during Soda Setup.
 - One-shot privileged operations that perform only those approved actions.
 
 Soda ships mise, but developers use mise directly. Repository-native mise
@@ -343,6 +343,10 @@ These findings are recorded for explicit review. They are not silently resolved 
   Linux user; the user's first normal Forgejo login authenticates through PAM
   and lets Forgejo create its internal profile. Soda has no later-user **Add
   Person** flow and does not pre-provision the Forgejo profile or personal key.
+- **Resolved workspace-key boundary:** Projects accepts no Forgejo password and
+  registers no workspace key. It reports the workspace's outbound public key
+  after failed native SSH authentication; the person registers that key through
+  the authoritative Git host and retries setup.
 - **Resolved repository-creation boundary:** users create repositories through
   Forgejo or GitHub, then add their SSH clone addresses to Soda. Soda retains
   only the shared catalog and workspace orchestration and removes its Forgejo

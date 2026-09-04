@@ -1,6 +1,8 @@
 # Add people and manage access
 
-Create one primary Linux identity per teammate, register their Forgejo SSH access, and grant administrator capability only through `wheel`.
+Create one primary Linux identity per teammate, let Forgejo create its own
+identity at first normal login, and grant administrator capability only through
+`wheel`.
 
 ## Understand the identities
 
@@ -15,23 +17,28 @@ Development happens in workspace accounts, not in the primary home.
 ## Prerequisites
 
 - Sign in to Cockpit as a primary account in `wheel`.
-- Obtain the new person's chosen username, initial password, and SSH public
-  key through a trusted channel.
-- Confirm that the public key belongs to that person. Never request or accept a
-  private key.
+- Obtain the new person's chosen username and initial password through a trusted
+  channel.
+- Obtain the person's public SSH key through a trusted channel. Confirm that it
+  belongs to them. Never request or accept a private key.
 
 ## Add a person
 
 1. Open Cockpit at `https://SODA_HOST:9090`.
-2. Open **Projects** and select **Add person**.
-3. Enter the username.
-4. Enter and confirm the initial password.
-5. Paste the person's SSH public key.
-6. Review the result and submit the operation once.
+2. Open stock Cockpit's **Accounts** page and create an ordinary Linux user with
+   the person's stable username and initial password. Do not grant administrator
+   capability unless that is intended.
+3. Install the person's public key in the primary account's standard
+   `~/.ssh/authorized_keys` file through ordinary Linux administration.
+4. Ask the person to sign in to Forgejo normally with the same Linux username
+   and password. Forgejo uses PAM to authenticate the login and creates its
+   account at that time.
+5. In Forgejo's native user settings, the person registers any public SSH key
+   they want to use for repository access.
 
-Soda creates an ordinary primary Linux account, a corresponding non-admin
-Forgejo account, and registers the public key with Forgejo. The person is not
-added to `wheel`.
+The Soda **Projects** page does not create people, pre-create later Forgejo
+accounts, or register primary-account keys with Forgejo. The person is not
+added to `wheel` unless an administrator grants that native Linux capability.
 
 Give the initial password to the person through a separate trusted channel.
 They should change it after their first login.
@@ -55,7 +62,9 @@ Use Cockpit **Accounts** or native Linux tools for primary-account passwords.
 Use standard `~/.ssh/authorized_keys` files for Linux SSH access and Forgejo's
 native SSH-key interface for repository access. The [Forgejo user
 guide](https://forgejo.org/docs/latest/user/) covers its account and repository
-features.
+features. Soda Setup is the one composition point that creates the initial
+Linux and Forgejo administrator and installs that administrator's Forgejo key;
+later people follow the native flow above.
 
 Workspace setup copies the person's current public authorized keys once. A
 later primary-key change does not silently modify existing workspaces; update
@@ -69,22 +78,25 @@ tokens into another account.
 Ask the person to:
 
 1. Sign in to Cockpit with the primary Linux username and password.
-2. Sign in to Forgejo with the corresponding account.
-3. Confirm the registered public key in Forgejo.
+2. Complete their first normal Forgejo login with the same Linux credentials.
+3. If they need repository SSH access, add and confirm their key in Forgejo's
+   native user settings.
 4. Open **Projects** and create their first workspace.
 
 ## Expected result
 
-The teammate has one ordinary primary Linux account, one corresponding
-non-administrator Forgejo account, and the same public key registered for Linux
-and Forgejo access. They have no workspace until they select **Set up for me**.
+The teammate has one ordinary primary Linux account and, after first login, one
+corresponding non-administrator Forgejo account. Linux and Forgejo each retain
+their own keys. The teammate has no workspace until they select **Set up for
+me**.
 
 ## If adding a person fails
 
-Soda stops at the failing boundary and reports which parts succeeded. Do not
-assume a hidden rollback occurred. If the Linux account or Forgejo account now
-exists, inspect it through Cockpit or Forgejo before retrying the reported
-remaining step.
+Inspect the failing native owner. Use Cockpit or Linux tools to check account,
+password, group, home, or `authorized_keys` problems. If first Forgejo login
+fails, confirm the Linux credentials and inspect Forgejo's PAM error before
+retrying. Manage repository keys through Forgejo after login; there is no Soda
+person-creation workflow to roll back or resume.
 
 ## Remove a person
 

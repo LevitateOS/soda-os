@@ -3,8 +3,6 @@ package projects
 import (
 	"context"
 	"io"
-	"net/http"
-	"net/http/httptest"
 	"strings"
 	"sync"
 	"testing"
@@ -50,22 +48,6 @@ func (lock synchronizedOperationLock) Close() error {
 	return lock.Closer.Close()
 }
 
-func newWorkspaceForgejoServer(t *testing.T) *httptest.Server {
-	t.Helper()
-	return httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		switch request.URL.Path {
-		case "/api/v1/user":
-			_, _ = writer.Write([]byte(`{"login":"alice"}`))
-		case "/api/v1/user/keys":
-			if request.Method == http.MethodGet {
-				_, _ = writer.Write([]byte(`[]`))
-				return
-			}
-			writer.WriteHeader(http.StatusCreated)
-		}
-	}))
-}
-
 func TestSetupOperationLockBlocksProjectAndHumanRemoval(t *testing.T) {
 	catalog := testCatalog(t)
 	require.NoError(t, catalog.Add(CatalogEntry{
@@ -96,20 +78,17 @@ func TestSetupOperationLockBlocksProjectAndHumanRemoval(t *testing.T) {
 		workspacePublicKey: strings.TrimSpace(string(testAuthorizedKey(t))),
 		publishStarted:     publishStarted, publishRelease: releasePublish,
 	}
-	forgejo := newWorkspaceForgejoServer(t)
-	defer forgejo.Close()
 	coordinator := Coordinator{
 		Catalog:    catalog,
 		Lifecycle:  lifecycle,
 		Platform:   platform,
 		Privileged: privileged,
-		Forgejo:    ForgejoClient{},
-		Endpoints:  fakeEndpoints{forgejoURL: forgejo.URL},
+		Endpoints:  fakeEndpoints{},
 	}
 
 	setupResult := make(chan error, 1)
 	go func() {
-		_, err := coordinator.Execute(context.Background(), "alice", "setup", strings.NewReader(`{"id":"site","forgejo_password":"one-use"}`))
+		_, err := coordinator.Execute(context.Background(), "alice", "setup", strings.NewReader(`{"id":"site"}`))
 		setupResult <- err
 	}()
 	requireSignal(t, publishStarted, "setup did not reach clone publication while holding the shared operation lock")

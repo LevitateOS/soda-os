@@ -22,7 +22,6 @@ type fakePlatform struct {
 type fakePlatformFailures struct {
 	fakeWorkspaceFailures
 	fakeAccountFailures
-	fakeMiseFailures
 }
 
 type fakeWorkspaceFailures struct {
@@ -39,15 +38,9 @@ type fakeAccountFailures struct {
 	forgejoErr   error
 }
 
-type fakeMiseFailures struct {
-	miseErr       error
-	removeMiseErr error
-}
-
 type fakePlatformCalls struct {
 	fakeWorkspaceCalls
 	fakeAccountCalls
-	fakeMiseCalls
 }
 
 type fakeWorkspaceCalls struct {
@@ -65,11 +58,6 @@ type fakeAccountCalls struct {
 	createdPrimary []string
 	publishedHuman []string
 	deletionEvents []string
-}
-
-type fakeMiseCalls struct {
-	miseInstalls []string
-	miseRemovals []string
 }
 
 type fakeSetupLock struct {
@@ -217,16 +205,6 @@ func (platform *fakePlatform) CloneWorkspace(_ context.Context, workspace Accoun
 	}
 	platform.ready[workspace.Username+":"+id] = true
 	return nil
-}
-
-func (platform *fakePlatform) InstallMiseTools(_ context.Context, account Account, projectID string, workspaceTools, projectTools []string) error {
-	platform.calls.miseInstalls = append(platform.calls.miseInstalls, fmt.Sprintf("%s:%s:workspace=%v:project=%v", account.Username, projectID, workspaceTools, projectTools))
-	return platform.failures.miseErr
-}
-
-func (platform *fakePlatform) RemoveMiseProject(projectID string) error {
-	platform.calls.miseRemovals = append(platform.calls.miseRemovals, projectID)
-	return platform.failures.removeMiseErr
 }
 
 func (platform *fakePlatform) PreflightDeleteAccount(_ context.Context, account Account) error {

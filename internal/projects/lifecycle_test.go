@@ -32,44 +32,6 @@ func TestLifecyclePreparesAndCompletesOneDerivedWorkspace(t *testing.T) {
 	require.Empty(t, platform.calls.deleted)
 }
 
-func TestLifecycleCompletesWorkspaceThenInstallsSelectedMiseTools(t *testing.T) {
-	catalog := testCatalog(t)
-	entry := CatalogEntry{ID: "site", DisplayName: "Site", CanonicalURL: "git@git.example.test:site.git"}
-	require.NoError(t, catalog.Add(entry))
-	platform := newFakePlatform()
-	platform.accounts["alice"] = primaryAccount("alice", primaryRoleUser)
-	lifecycle := Lifecycle{Catalog: catalog, Platform: platform}
-
-	request := HelperWorkspaceRequest{
-		ID: entry.ID, CanonicalURL: entry.CanonicalURL,
-		WorkspaceTools: []string{"node@22"}, ProjectTools: []string{"go@1.25"},
-	}
-	_, err := lifecycle.PrepareWorkspace(context.Background(), "alice", request)
-	require.NoError(t, err)
-	username, err := lifecycle.CompleteWorkspace(context.Background(), "alice", request)
-	require.NoError(t, err)
-	require.Equal(t, []string{username + ":site:workspace=[node@22]:project=[go@1.25]"}, platform.calls.miseInstalls)
-}
-
-func TestLifecycleRetainsReadyWorkspaceWhenMiseFails(t *testing.T) {
-	catalog := testCatalog(t)
-	entry := CatalogEntry{ID: "site", DisplayName: "Site", CanonicalURL: "git@git.example.test:site.git"}
-	require.NoError(t, catalog.Add(entry))
-	platform := newFakePlatform()
-	platform.accounts["alice"] = primaryAccount("alice", primaryRoleUser)
-	platform.failures.miseErr = errors.New("mise backend failed")
-	lifecycle := Lifecycle{Catalog: catalog, Platform: platform}
-
-	username, _ := DerivedUsername("alice", entry.ID)
-	request := HelperWorkspaceRequest{ID: entry.ID, CanonicalURL: entry.CanonicalURL, WorkspaceTools: []string{"node@22"}}
-	_, err := lifecycle.PrepareWorkspace(context.Background(), "alice", request)
-	require.NoError(t, err)
-	_, err = lifecycle.CompleteWorkspace(context.Background(), "alice", request)
-	require.ErrorContains(t, err, "workspace "+username+" and its complete clone were retained; mise setup can be retried")
-	require.Contains(t, platform.accounts, username)
-	require.Empty(t, platform.calls.deleted)
-}
-
 func TestLifecycleRetainsPreparedWorkspaceWhenCloneFails(t *testing.T) {
 	catalog := testCatalog(t)
 	entry := CatalogEntry{ID: "site", DisplayName: "Site", CanonicalURL: "git@git.example.test:alice/site.git"}

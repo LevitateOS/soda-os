@@ -39,18 +39,18 @@ machinery, or architecture that only its authors can understand.
   human-project-to-workspace-account convention. A successful **Set up for me**
   operation leaves a complete clone
   beneath the derived workspace account's `$HOME/Projects/<repository>` without
-  retaining Git credentials or workflow state. A no-URL project begins as a
-  native empty Forgejo repository.
+  retaining Git credentials or workflow state. Repositories are created through
+  the authoritative Git host, then added to the catalog by SSH clone URL.
 - Workspace isolation means separate Linux homes, checkouts, user-local
   dependencies, process ownership, and project-local data. Projects select
   non-conflicting host ports themselves. Podman is an optional installed tool,
   not Soda's isolation mechanism or a Soda-managed subsystem.
 - `mise` owns development-tool installation, versions, and project toolchain
-  configuration. Soda may offer multiple convenience selections for workspace
-  or shared-project scope, but it owns no toolchain installer, version manager,
-  downloader, cache format, profile system, or parallel state model. Tea and
-  GitHub CLI are available in every workspace; each workspace authenticates
-  them manually and separately.
+  configuration. Developers invoke it directly through its native commands and
+  repository configuration. Soda owns no tool picker, toolchain installer,
+  version manager, downloader, cache format, profile system, shared tool store,
+  or parallel state model. Tea and GitHub CLI are available in every workspace;
+  each workspace authenticates them manually and separately.
 - Linux administrators use native `bootc` commands for explicit update checks,
   staging, activation, and supported fallback. Fallback to an earlier image
   must preserve current Linux account, password, group, and administrator
@@ -61,7 +61,7 @@ machinery, or architecture that only its authors can understand.
   fallback, experimental, or second-class target.
 - Human installation uses one completed network ISO, stock graphical Anaconda
   for installation-owned responsibilities, and one common interactive
-  first-boot setup shared with QCOW2. There is no human-facing OEMDRV, second
+  Soda Setup shared with QCOW2. There is no human-facing OEMDRV, second
   credential image, cloud-init provisioning path, or public-SSH bootstrap.
 
 ### Standing commit authorization
@@ -141,9 +141,10 @@ smallest Soda-specific project workflow. The target behavior is:
 - stable primary usernames and a Linux-native distinction between primary and
   workspace accounts, without a Soda identity database or rename
   reconciliation;
-- first-boot creation of the initial Linux/Forgejo administrator, later primary
-  humans with registered Forgejo SSH keys, and no workspace-account Forgejo
-  identities or ongoing role synchronization;
+- Soda Setup creation of the initial Linux/Forgejo administrator and its key;
+  later primary humans created through stock Cockpit or Linux, first normal
+  Forgejo PAM login, native manual key registration, and no workspace-account
+  Forgejo identities or ongoing role synchronization;
 - stock Cockpit with Soda branding and one focused Soda Projects page;
 - a minimal shared declarative project catalog editable by every primary
   human, without an unapproved closed metadata field list, repository-
@@ -152,9 +153,10 @@ smallest Soda-specific project workflow. The target behavior is:
   complete clone produced through native user-authenticated Git or repository-
   host behavior without retained credentials; setup requires a key in the
   primary account's standard `~/.ssh/authorized_keys` before mutation and
-  copies those public keys once;
-- native empty Forgejo repositories for no-URL projects, without generated
-  initial content or an assumed push-to-create mechanism;
+  copies those public keys once; each workspace's outbound public key is
+  registered manually through the authoritative Git host before retrying setup;
+- native repository creation through Forgejo or the external authoritative Git
+  host, followed by adding its SSH clone URL to the Soda catalog;
 - direct ordinary OpenSSH login, commands, SFTP, and process attribution as the
   derived workspace UID, without forced commands or synthetic homes;
 - repository lifecycle and access through bundled Forgejo or the external
@@ -165,8 +167,8 @@ smallest Soda-specific project workflow. The target behavior is:
 - administrator-only Soda-aware human deletion that removes derived local
   workspaces first, the Forgejo account second, and the primary Linux account
   last, without a watcher for out-of-band Linux deletion;
-- `mise`-owned workspace and shared-project development tools, upstream-native
-  shared caches, and workspace-private installed dependencies and assistants;
+- direct `mise`-owned development tools and repository configuration, with
+  workspace-private installed dependencies and assistants;
 - administrator-controlled native `bootc` operations and an account-preserving
   supported fallback, without claiming direct `bootc rollback` before it is
   verified and without a Soda update service; and
@@ -178,7 +180,7 @@ services, jobs, retries, rollback, reconciliation, toolchain profiles, broad
 immutable tool manifests, copied Tea credentials, alternate onboarding paths,
 and translated update state are implementation evidence and deletion targets,
 not preservation contracts. The catalog, derived workspace-account convention,
-Projects page, first-boot composition, and narrow synchronous operations are
+Projects page, Soda Setup composition, and narrow synchronous operations are
 retained outcomes; they must not become a generic control plane.
 
 Do not add Internet-scale, enterprise, attacker-first, or multi-path machinery

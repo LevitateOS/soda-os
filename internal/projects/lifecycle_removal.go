@@ -82,11 +82,8 @@ func (lifecycle Lifecycle) removeProjectUnlocked(ctx context.Context, actorUsern
 		}
 		removed = append(removed, account.Username)
 	}
-	if err = lifecycle.Platform.RemoveMiseProject(projectID); err != nil {
-		return fmt.Errorf("%s; shared mise project storage, shared catalog entry, and canonical repository remain: %w", removedProjectWorkspaceDescription(removed), err)
-	}
 	if err = lifecycle.Catalog.removeUnlocked(projectID); err != nil {
-		return fmt.Errorf("%s and shared mise project storage; shared catalog entry and canonical repository remain: %w", removedProjectWorkspaceDescription(removed), err)
+		return fmt.Errorf("%s; shared catalog entry and canonical repository remain: %w", removedProjectWorkspaceDescription(removed), err)
 	}
 	return nil
 }

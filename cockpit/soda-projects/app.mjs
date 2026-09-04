@@ -4,8 +4,6 @@ import {
   encodeRequest,
 } from "./protocol.mjs";
 import {
-  clearPayloadSecrets,
-  clearSecrets,
   errorMessage,
   humanDeletionHidden,
   payloadFor,
@@ -27,20 +25,14 @@ const elements = {
   rows: document.querySelector("#project-rows"),
   empty: document.querySelector("#empty-projects"),
   humanPanel: document.querySelector("#human-deletion-panel"),
-  forgejoDescription: document.querySelector("#forgejo-description"),
 };
 
 document.querySelector("#refresh-projects").addEventListener("click", loadProjects);
 document.querySelector("#open-add-existing").addEventListener("click", () => openDialog("add-existing-dialog"));
-document.querySelector("#open-create-forgejo").addEventListener("click", () => openDialog("create-forgejo-dialog"));
 document.querySelector("#open-delete-human").addEventListener("click", () => openDialog("delete-human-dialog"));
-document.querySelector("#open-add-person").addEventListener("click", () => openDialog("add-person-dialog"));
 document.querySelectorAll("[data-action-form]").forEach(form => form.addEventListener("submit", submitAction));
 document.querySelectorAll("[data-dialog-close]").forEach(button => button.addEventListener("click", () => {
   button.closest("dialog").close();
-}));
-document.querySelectorAll("dialog").forEach(dialog => dialog.addEventListener("close", () => {
-  clearSecrets(dialog.querySelector("form"));
 }));
 
 elements.rows.addEventListener("click", event => {
@@ -85,15 +77,12 @@ async function loadProjects() {
 }
 
 function render() {
-  const { projects, current_user: currentUser, forgejo_url: forgejoURL } = state.data;
+  const { projects, current_user: currentUser } = state.data;
   elements.summary.textContent = `${projects.length} ${projects.length === 1 ? "project" : "projects"} available to ${currentUser.username}.`;
   elements.rows.replaceChildren(...projects.map(projectRow));
   elements.tableWrap.hidden = projects.length === 0;
   elements.empty.hidden = projects.length !== 0;
   elements.humanPanel.hidden = humanDeletionHidden(currentUser);
-  elements.forgejoDescription.textContent = forgejoURL
-    ? `Creates an empty repository in your native Forgejo namespace at ${forgejoURL}.`
-    : "Creates an empty repository in your native Forgejo namespace.";
 }
 
 function projectRow(project) {
@@ -127,7 +116,6 @@ function projectRow(project) {
   actionsCell.className = "row-actions";
   actionsCell.append(projectButton("Set up for me", "setup", project.id, "primary"));
   if (project.workspace_ready) {
-	actionsCell.append(projectButton("Add tools", "install-tools", project.id, "secondary"));
     actionsCell.append(projectButton("Remove my workspace", "remove-workspace", project.id, "danger-link"));
   }
   actionsCell.append(projectButton("Edit", "edit", project.id, "secondary"));
@@ -162,8 +150,6 @@ function prepareProjectDialog(action, project) {
     form.elements.additional_metadata.value = JSON.stringify(project.catalog_metadata, null, 2);
   } else if (action === "setup") {
     dialog.querySelector("[data-project-name]").textContent = project.display_name;
-  } else if (action === "install-tools") {
-	dialog.querySelector("[data-project-name]").textContent = project.display_name;
   } else if (action === "remove" || action === "remove-workspace") {
     dialog.querySelector("[data-confirmation-value]").textContent = project.id;
   }
@@ -200,15 +186,12 @@ async function submitAction(event) {
   setBusy(true);
   try {
     const operation = invoke(action, payload);
-    clearSecrets(form);
-    clearPayloadSecrets(payload);
     const result = await operation;
     form.closest("dialog").close();
     const message = successMessage(action, payload, result);
     await loadProjects();
     showNotice(message, "success");
   } catch (error) {
-    clearSecrets(form);
     showNotice(errorMessage(error), "error");
   } finally {
     setBusy(false);

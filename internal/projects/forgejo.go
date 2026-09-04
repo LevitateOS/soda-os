@@ -14,32 +14,11 @@ import (
 	"unicode"
 )
 
-type CreatedRepository struct {
-	CanonicalURL string
-}
-
-type ForgejoCreateRequest struct {
-	BaseURL  string
-	Username string
-	Password string
-	ID       string
-}
-
 type ForgejoKeyRequest struct {
 	BaseURL   string
 	Username  string
 	Password  string
 	PublicKey string
-	Title     string
-}
-
-type forgejoRepositoryResponse struct {
-	Name   string `json:"name"`
-	SSHURL string `json:"ssh_url"`
-	Empty  *bool  `json:"empty"`
-	Owner  struct {
-		Login string `json:"login"`
-	} `json:"owner"`
 }
 
 type forgejoUserResponse struct {
@@ -50,36 +29,14 @@ type forgejoKeyResponse struct {
 	Key string `json:"key"`
 }
 
-// ForgejoClient uses Forgejo's initiating-user endpoint. It has no Soda-global
-// token and does not retain the supplied password.
+// ForgejoClient is the one-shot Soda Setup adapter for the initial
+// administrator. It has no Soda-global token and does not retain the supplied
+// password. Projects does not use it.
 type ForgejoClient struct{}
 
-func (ForgejoClient) Create(ctx context.Context, creation ForgejoCreateRequest) (CreatedRepository, error) {
-	if err := validateForgejoCreation(creation); err != nil {
-		return CreatedRepository{}, err
-	}
-	request, err := newForgejoRepositoryRequest(ctx, creation)
-	if err != nil {
-		return CreatedRepository{}, err
-	}
-	httpClient, err := directForgejoHTTPClient()
-	if err != nil {
-		return CreatedRepository{}, err
-	}
-	response, err := httpClient.Do(request)
-	if err != nil {
-		return CreatedRepository{}, fmt.Errorf("create Forgejo repository: %w", err)
-	}
-	defer response.Body.Close()
-	if response.StatusCode != http.StatusCreated {
-		return CreatedRepository{}, forgejoRejection(response)
-	}
-	return decodeCreatedForgejoRepository(response.Body, creation)
-}
-
-// RegisterPublicKey authenticates the person once through Forgejo's native PAM
-// boundary. Forgejo owns the resulting account and public-key record; Soda
-// retains neither a token nor an identity mirror.
+// RegisterPublicKey authenticates the initial administrator once through
+// Forgejo's native PAM boundary. Forgejo owns the resulting account and
+// public-key record; Soda retains neither a token nor an identity mirror.
 func (ForgejoClient) RegisterPublicKey(ctx context.Context, registration ForgejoKeyRequest) error {
 	if err := validateForgejoKeyRegistration(registration); err != nil {
 		return err
@@ -164,7 +121,7 @@ func createForgejoKey(ctx context.Context, httpClient *http.Client, registration
 	payload, err := json.Marshal(struct {
 		Title string `json:"title"`
 		Key   string `json:"key"`
-	}{Title: forgejoKeyTitle(registration), Key: registration.PublicKey})
+	}{Title: "Soda OS", Key: registration.PublicKey})
 	if err != nil {
 		return err
 	}
@@ -184,13 +141,6 @@ func createForgejoKey(ctx context.Context, httpClient *http.Client, registration
 	return nil
 }
 
-func forgejoKeyTitle(registration ForgejoKeyRequest) string {
-	if registration.Title != "" {
-		return registration.Title
-	}
-	return "Soda OS"
-}
-
 func newForgejoUserRequest(ctx context.Context, method string, registration ForgejoKeyRequest, endpoint string, body io.Reader) (*http.Request, error) {
 	base, err := url.Parse(registration.BaseURL)
 	if err != nil || base.Host == "" || (base.Scheme != "http" && base.Scheme != "https") || base.User != nil || base.RawQuery != "" || base.Fragment != "" {
@@ -202,41 +152,6 @@ func newForgejoUserRequest(ctx context.Context, method string, registration Forg
 		return nil, err
 	}
 	request.SetBasicAuth(registration.Username, registration.Password)
-	return request, nil
-}
-
-func validateForgejoCreation(creation ForgejoCreateRequest) error {
-	if !projectIDPattern.MatchString(creation.Username) {
-		return errors.New("current username is not supported by Forgejo")
-	}
-	if creation.Password == "" || strings.ContainsAny(creation.Password, "\x00\r\n") {
-		return errors.New("Forgejo password is required")
-	}
-	if !projectIDPattern.MatchString(creation.ID) {
-		return errors.New("project id must match [a-z][a-z0-9-]{0,23}")
-	}
-	return nil
-}
-
-func newForgejoRepositoryRequest(ctx context.Context, creation ForgejoCreateRequest) (*http.Request, error) {
-	base, err := url.Parse(creation.BaseURL)
-	if err != nil || base.Host == "" || (base.Scheme != "http" && base.Scheme != "https") || base.User != nil || base.RawQuery != "" || base.Fragment != "" {
-		return nil, errors.New("Forgejo URL is invalid")
-	}
-	base.Path = strings.TrimSuffix(base.Path, "/") + "/api/v1/user/repos"
-	payload, err := json.Marshal(struct {
-		Name     string `json:"name"`
-		AutoInit bool   `json:"auto_init"`
-	}{Name: creation.ID, AutoInit: false})
-	if err != nil {
-		return nil, err
-	}
-	request, err := http.NewRequestWithContext(ctx, http.MethodPost, base.String(), bytes.NewReader(payload))
-	if err != nil {
-		return nil, err
-	}
-	request.Header.Set("Content-Type", "application/json")
-	request.SetBasicAuth(creation.Username, creation.Password)
 	return request, nil
 }
 
@@ -261,27 +176,9 @@ func rejectForgejoRedirect(*http.Request, []*http.Request) error {
 func forgejoRejection(response *http.Response) error {
 	diagnostic := forgejoDiagnostic(response.Body)
 	if diagnostic == "" {
-		return fmt.Errorf("Forgejo rejected repository creation with status %d", response.StatusCode)
+		return fmt.Errorf("Forgejo rejected the request with status %d", response.StatusCode)
 	}
-	return fmt.Errorf("Forgejo rejected repository creation with status %d: %s", response.StatusCode, diagnostic)
-}
-
-func decodeCreatedForgejoRepository(reader io.Reader, creation ForgejoCreateRequest) (CreatedRepository, error) {
-	var created forgejoRepositoryResponse
-	decoder := json.NewDecoder(io.LimitReader(reader, 1<<20))
-	if err := decoder.Decode(&created); err != nil {
-		return CreatedRepository{}, fmt.Errorf("decode Forgejo repository: %w", err)
-	}
-	if created.Name != creation.ID || created.Owner.Login != creation.Username {
-		return CreatedRepository{}, errors.New("Forgejo returned a repository with unexpected ownership")
-	}
-	if created.Empty == nil || !*created.Empty {
-		return CreatedRepository{}, errors.New("Forgejo did not confirm that the repository is empty")
-	}
-	if err := ValidateCanonicalURL(created.SSHURL); err != nil {
-		return CreatedRepository{}, fmt.Errorf("Forgejo returned an unsafe clone URL: %w", err)
-	}
-	return CreatedRepository{CanonicalURL: created.SSHURL}, nil
+	return fmt.Errorf("Forgejo rejected the request with status %d: %s", response.StatusCode, diagnostic)
 }
 
 func forgejoDiagnostic(reader io.Reader) string {
