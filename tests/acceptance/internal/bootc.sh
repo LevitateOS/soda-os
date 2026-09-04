@@ -799,6 +799,7 @@ set -eu
 test "$(systemctl is-enabled firewalld.service)" = enabled
 test "$(systemctl is-enabled nftables.service 2>/dev/null || true)" != enabled
 test "$(firewall-cmd --get-default-zone)" = drop
+firewall-cmd --zone=soda-tailnet --list-interfaces | tr ' ' '\n' | grep -Fx tailscale0 >/dev/null
 test -x /usr/bin/soda-local-access
 members=$(getent group soda-workspaces | cut -d: -f4 | tr ',' ' ')
 for username in $members; do

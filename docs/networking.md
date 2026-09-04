@@ -40,7 +40,9 @@ zone and reactivates it. `soda-local-access CONNECTION off` assigns it to the
 `drop` zone again. The command does not infer trust from addresses or select a
 connection itself.
 
-Tailscale keeps its normal independent netfilter path. It does not modify the
+Tailscale keeps its normal independent netfilter path. The packaged
+`soda-tailnet` firewalld zone explicitly accepts `tailscale0`, so firewalld's
+default `drop` policy cannot override Tailscale ingress. It does not modify the
 NetworkManager connection zone, so enrolling Tailscale never narrows a trusted
 LAN connection. Forgejo listens on IPv4; firewalld, rather than listener
 binding, determines which ingress paths reach it.
