@@ -85,7 +85,7 @@ func testCoordinator(t *testing.T) coordinatorFixture {
 	platform := newFakePlatform()
 	platform.accounts["alice"] = primaryAccount("alice", primaryRoleAdministrator)
 	privileged := &fakePrivileged{workspacePublicKey: strings.TrimSpace(string(testAuthorizedKey(t)))}
-	lifecycle := Lifecycle{Catalog: catalog, Platform: platform}
+	lifecycle := Lifecycle{Catalog: catalog, Host: platform, Platform: platform}
 	return coordinatorFixture{
 		coordinator: Coordinator{Catalog: catalog, Lifecycle: lifecycle, Platform: platform, Privileged: privileged},
 		platform:    platform,

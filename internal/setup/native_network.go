@@ -8,7 +8,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/LevitateOS/soda-os/internal/projects"
+	"github.com/LevitateOS/soda-os/internal/linuxhost"
 	"github.com/LevitateOS/soda-os/internal/tailnet"
 	"golang.org/x/sys/unix"
 )
@@ -18,14 +18,14 @@ type TailnetStatus interface {
 }
 
 type NativeNetwork struct {
-	Runner  projects.CommandRunner
+	Runner  linuxhost.CommandRunner
 	Tailnet TailnetStatus
 }
 
-func (network NativeNetwork) dependencies() (projects.CommandRunner, TailnetStatus) {
+func (network NativeNetwork) dependencies() (linuxhost.CommandRunner, TailnetStatus) {
 	runner := network.Runner
 	if runner == nil {
-		runner = projects.ExecCommandRunner{}
+		runner = linuxhost.ExecCommandRunner{}
 	}
 	client := network.Tailnet
 	if client == nil {
@@ -36,7 +36,7 @@ func (network NativeNetwork) dependencies() (projects.CommandRunner, TailnetStat
 
 func (network NativeNetwork) Status(ctx context.Context) ([]Connection, bool, error) {
 	runner, client := network.dependencies()
-	result, err := runner.Run(ctx, projects.Command{Name: "/usr/bin/nmcli", Args: []string{"--get-values", "NAME", "connection", "show", "--active"}})
+	result, err := runner.Run(ctx, linuxhost.Command{Name: "/usr/bin/nmcli", Args: []string{"--get-values", "NAME", "connection", "show", "--active"}})
 	if err != nil {
 		return nil, false, err
 	}
@@ -73,8 +73,8 @@ func activeConnectionNames(output string) []string {
 	return names
 }
 
-func inspectNetworkManagerConnection(ctx context.Context, runner projects.CommandRunner, name string) (Connection, bool, error) {
-	connectionType, err := runner.Run(ctx, projects.Command{Name: "/usr/bin/nmcli", Args: []string{"--get-values", "connection.type", "connection", "show", name}})
+func inspectNetworkManagerConnection(ctx context.Context, runner linuxhost.CommandRunner, name string) (Connection, bool, error) {
+	connectionType, err := runner.Run(ctx, linuxhost.Command{Name: "/usr/bin/nmcli", Args: []string{"--get-values", "connection.type", "connection", "show", name}})
 	if err != nil {
 		return Connection{}, false, err
 	}
@@ -84,7 +84,7 @@ func inspectNetworkManagerConnection(ctx context.Context, runner projects.Comman
 	if strings.TrimSpace(connectionType.Stdout) == "loopback" {
 		return Connection{}, false, nil
 	}
-	zone, err := runner.Run(ctx, projects.Command{Name: "/usr/bin/nmcli", Args: []string{"--get-values", "connection.zone", "connection", "show", name}})
+	zone, err := runner.Run(ctx, linuxhost.Command{Name: "/usr/bin/nmcli", Args: []string{"--get-values", "connection.zone", "connection", "show", name}})
 	if err != nil {
 		return Connection{}, false, err
 	}
@@ -96,7 +96,7 @@ func (network NativeNetwork) AllowLocalNetwork(ctx context.Context, connection s
 		return errors.New("an active NetworkManager connection is required")
 	}
 	runner, _ := network.dependencies()
-	result, err := runner.Run(ctx, projects.Command{Name: "/usr/bin/soda-local-access", Args: []string{connection, "on"}})
+	result, err := runner.Run(ctx, linuxhost.Command{Name: "/usr/bin/soda-local-access", Args: []string{connection, "on"}})
 	if err != nil {
 		return err
 	}
@@ -132,8 +132,8 @@ func validateTailscaleAuthKey(authKey string) error {
 	return nil
 }
 
-func enrollTailscale(ctx context.Context, runner projects.CommandRunner, secret *os.File) error {
-	result, err := runner.Run(ctx, projects.Command{
+func enrollTailscale(ctx context.Context, runner linuxhost.CommandRunner, secret *os.File) error {
+	result, err := runner.Run(ctx, linuxhost.Command{
 		Name: "/usr/bin/tailscale", Args: []string{"up", "--auth-key=file:/proc/self/fd/3"}, ExtraFiles: []*os.File{secret},
 	})
 	if err != nil {
@@ -153,8 +153,8 @@ func verifyTailscaleConnected(ctx context.Context, client TailnetStatus) error {
 	return nil
 }
 
-func restartForgejoForTailnet(ctx context.Context, runner projects.CommandRunner) error {
-	result, err := runner.Run(ctx, projects.Command{Name: "/usr/bin/systemctl", Args: []string{"restart", "forgejo.service"}})
+func restartForgejoForTailnet(ctx context.Context, runner linuxhost.CommandRunner) error {
+	result, err := runner.Run(ctx, linuxhost.Command{Name: "/usr/bin/systemctl", Args: []string{"restart", "forgejo.service"}})
 	if err != nil || result.ExitCode != 0 {
 		return errors.New("Tailscale connected, but Forgejo could not reload its Tailnet address")
 	}

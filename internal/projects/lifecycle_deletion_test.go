@@ -22,7 +22,7 @@ func TestHumanDeletionReportsEveryRetainedIdentityAfterWorkspaceFailure(t *testi
 	}
 	platform.deleteErr[retained.Username] = errors.New("workspace process cannot terminate")
 
-	err = (Lifecycle{Catalog: testCatalog(t), Platform: platform}).DeleteHuman(context.Background(), "admin", "alice")
+	err = (Lifecycle{Catalog: testCatalog(t), Host: platform, Platform: platform}).DeleteHuman(context.Background(), "admin", "alice")
 	require.ErrorContains(t, err, "removed Soda workspaces "+removed.Username+"; workspace "+retained.Username+", Forgejo account, and primary Linux account remain")
 	require.Equal(t, []string{"linux:" + removed.Username}, platform.calls.deletionEvents)
 	require.Contains(t, platform.accounts, "alice")
@@ -43,7 +43,7 @@ func TestProjectRemovalReportsPartialProgressAndSupportsRetry(t *testing.T) {
 		removed, retained = retained, removed
 	}
 	platform.deleteErr[retained.Username] = errors.New("workspace process cannot terminate")
-	lifecycle := Lifecycle{Catalog: catalog, Platform: platform}
+	lifecycle := Lifecycle{Catalog: catalog, Host: platform, Platform: platform}
 
 	err = lifecycle.RemoveProject(context.Background(), "admin", entry.ID)
 	require.ErrorContains(t, err, "removed local workspaces "+removed.Username)
@@ -68,7 +68,7 @@ func TestOwnWorkspaceRemovalReportsEverythingRetainedOnFailure(t *testing.T) {
 	require.NoError(t, err)
 	platform.deleteErr[workspace.Username] = errors.New("workspace process cannot terminate")
 
-	err = (Lifecycle{Catalog: catalog, Platform: platform}).RemoveWorkspace(context.Background(), "alice", entry.ID)
+	err = (Lifecycle{Catalog: catalog, Host: platform, Platform: platform}).RemoveWorkspace(context.Background(), "alice", entry.ID)
 	require.ErrorContains(t, err, "no workspace was removed; workspace "+workspace.Username+", shared catalog entry, other local workspaces, and canonical repository remain")
 	require.Contains(t, platform.accounts, workspace.Username)
 }

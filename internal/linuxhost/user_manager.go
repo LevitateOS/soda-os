@@ -1,4 +1,4 @@
-package projects
+package linuxhost
 
 import (
 	"context"
@@ -7,9 +7,9 @@ import (
 	"strings"
 )
 
-func (platform *NativePlatform) resetFailedUserManager(ctx context.Context, account Account) error {
+func (native *Native) resetFailedUserManager(ctx context.Context, account Account) error {
 	unit := "user@" + strconv.Itoa(account.UID) + ".service"
-	state, err := platform.userManagerActiveState(ctx, unit)
+	state, err := native.userManagerActiveState(ctx, unit)
 	if err != nil {
 		return err
 	}
@@ -19,14 +19,12 @@ func (platform *NativePlatform) resetFailedUserManager(ctx context.Context, acco
 	if state != "failed" {
 		return fmt.Errorf("inspect %s failure state: unexpected active state %q", unit, state)
 	}
-
-	result, err := platform.run(ctx, "/usr/bin/systemctl", "reset-failed", unit)
+	result, err := native.run(ctx, "/usr/bin/systemctl", "reset-failed", unit)
 	if err != nil {
 		return err
 	}
 	if result.ExitCode != 0 {
-		// systemd may unload the per-user manager between inspection and reset.
-		current, inspectErr := platform.userManagerActiveState(ctx, unit)
+		current, inspectErr := native.userManagerActiveState(ctx, unit)
 		if inspectErr == nil && current == "inactive" {
 			return nil
 		}
@@ -35,8 +33,8 @@ func (platform *NativePlatform) resetFailedUserManager(ctx context.Context, acco
 	return nil
 }
 
-func (platform *NativePlatform) userManagerActiveState(ctx context.Context, unit string) (string, error) {
-	result, err := platform.run(ctx, "/usr/bin/systemctl", "show", "--property=ActiveState", "--value", unit)
+func (native *Native) userManagerActiveState(ctx context.Context, unit string) (string, error) {
+	result, err := native.run(ctx, "/usr/bin/systemctl", "show", "--property=ActiveState", "--value", unit)
 	if err != nil {
 		return "", err
 	}

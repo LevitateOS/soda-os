@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/user"
 
+	"github.com/LevitateOS/soda-os/internal/linuxhost"
 	"github.com/LevitateOS/soda-os/internal/projects"
 )
 
@@ -21,8 +22,9 @@ func main() {
 		os.Exit(1)
 	}
 	catalog := projects.NewCatalog()
-	platform := projects.NewNativePlatform()
-	lifecycle := projects.Lifecycle{Catalog: catalog, Platform: platform}
+	host := linuxhost.NewNative()
+	platform := projects.NewNativePlatform(host)
+	lifecycle := projects.Lifecycle{Catalog: catalog, Host: host, Platform: platform}
 	coordinator := projects.Coordinator{
 		Catalog: catalog, Lifecycle: lifecycle, Platform: platform,
 		Privileged: projects.PKExecInvoker{},

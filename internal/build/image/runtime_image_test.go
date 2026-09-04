@@ -150,6 +150,12 @@ func TestRuntimeImageRPMStagingContract(t *testing.T) {
 func TestRuntimeHostCompositionRPMContract(t *testing.T) {
 	runtimeSpec, err := os.ReadFile(filepath.Join("..", "..", "..", "packaging", "rpm", "runtime", "soda-runtime.spec"))
 	require.NoError(t, err)
+	dependencies := specRequires(string(runtimeSpec))
+	for _, name := range []string{
+		"coreutils", "glibc-common", "NetworkManager", "policycoreutils", "shadow-utils", "soda-forgejo", "systemd", "tailscale", "util-linux-core",
+	} {
+		require.Contains(t, dependencies, name)
+	}
 	require.NotContains(t, string(runtimeSpec), "soda-state-directories.service")
 	require.NotContains(t, string(runtimeSpec), "opt-soda-toolchains.mount")
 	require.NotContains(t, string(runtimeSpec), "soda-tailscale-enroll.service")

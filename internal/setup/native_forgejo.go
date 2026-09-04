@@ -14,7 +14,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/LevitateOS/soda-os/internal/projects"
+	"github.com/LevitateOS/soda-os/internal/linuxhost"
 	"golang.org/x/sys/unix"
 )
 
@@ -30,13 +30,12 @@ type forgejoUser struct {
 }
 
 type NativeForgejo struct {
-	Runner projects.CommandRunner
-	Client projects.ForgejoClient
+	Runner linuxhost.CommandRunner
 }
 
-func (forgejo NativeForgejo) runner() projects.CommandRunner {
+func (forgejo NativeForgejo) runner() linuxhost.CommandRunner {
 	if forgejo.Runner == nil {
-		return projects.ExecCommandRunner{}
+		return linuxhost.ExecCommandRunner{}
 	}
 	return forgejo.Runner
 }
@@ -71,8 +70,8 @@ func (forgejo NativeForgejo) PrepareAdministrator(ctx context.Context, request A
 	if err = forgejo.waitHealthy(ctx); err != nil {
 		return err
 	}
-	if err = forgejo.Client.RegisterPublicKey(ctx, projects.ForgejoKeyRequest{
-		BaseURL: forgejoBaseURL, Username: request.Username, Password: request.Password, PublicKey: strings.TrimSpace(request.AuthorizedKey),
+	if err = (loopbackForgejoClient{}).RegisterPublicKey(ctx, forgejoKeyRegistration{
+		Username: request.Username, Password: request.Password, PublicKey: strings.TrimSpace(request.AuthorizedKey),
 	}); err != nil {
 		return fmt.Errorf("Forgejo administrator %s was retained without the requested public key: %w", request.Username, err)
 	}
@@ -93,7 +92,7 @@ func forgejoAdministratorPreparation(users []forgejoUser, username string) (bool
 }
 
 func (forgejo NativeForgejo) users(ctx context.Context) ([]forgejoUser, error) {
-	result, err := forgejo.runner().Run(ctx, projects.Command{
+	result, err := forgejo.runner().Run(ctx, linuxhost.Command{
 		Name: "/usr/sbin/runuser", Args: []string{"--user", "git", "--", "/usr/bin/forgejo", "admin", "user", "list", "--config", forgejoConfig},
 	})
 	if err != nil {
@@ -294,7 +293,7 @@ func stopForgejoProcess(command *exec.Cmd) error {
 }
 
 func (forgejo NativeForgejo) systemctl(ctx context.Context, action, unit string) error {
-	result, err := forgejo.runner().Run(ctx, projects.Command{Name: "/usr/bin/systemctl", Args: []string{action, unit}})
+	result, err := forgejo.runner().Run(ctx, linuxhost.Command{Name: "/usr/bin/systemctl", Args: []string{action, unit}})
 	if err != nil || result.ExitCode != 0 {
 		return fmt.Errorf("%s %s", action, unit)
 	}

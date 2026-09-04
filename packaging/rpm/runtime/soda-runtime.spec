@@ -3,7 +3,7 @@ Version:        %{soda_version}
 Release:        1%{?dist}
 Summary:        Soda OS host composition
 License:        MIT OR Apache-2.0
-Requires:       ca-certificates, firewalld, iproute, NetworkManager, openssh-server, policycoreutils, shadow-utils, soda-forgejo = 15.0.7, systemd, tailscale, util-linux-core
+Requires:       ca-certificates, coreutils, firewalld, glibc-common, iproute, NetworkManager, openssh-server, policycoreutils, shadow-utils, soda-forgejo = 15.0.7, systemd, tailscale, util-linux-core
 
 %description
 Tailnet enrollment, OpenSSH, firewall, console guidance, and upstream service

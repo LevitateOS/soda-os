@@ -7,16 +7,16 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/LevitateOS/soda-os/internal/projects"
+	"github.com/LevitateOS/soda-os/internal/linuxhost"
 	"github.com/LevitateOS/soda-os/internal/tailnet"
 )
 
 type networkRunner struct {
-	requests []projects.Command
+	requests []linuxhost.Command
 	secret   string
 }
 
-func (runner *networkRunner) Run(_ context.Context, request projects.Command) (projects.CommandResult, error) {
+func (runner *networkRunner) Run(_ context.Context, request linuxhost.Command) (linuxhost.CommandResult, error) {
 	runner.requests = append(runner.requests, request)
 	if request.Name == "/usr/bin/nmcli" {
 		return networkManagerResult(request), nil
@@ -24,31 +24,31 @@ func (runner *networkRunner) Run(_ context.Context, request projects.Command) (p
 	switch request.Name {
 	case "/usr/bin/tailscale":
 		if len(request.ExtraFiles) != 1 {
-			return projects.CommandResult{ExitCode: 1}, nil
+			return linuxhost.CommandResult{ExitCode: 1}, nil
 		}
 		contents, err := io.ReadAll(request.ExtraFiles[0])
 		if err != nil {
-			return projects.CommandResult{}, err
+			return linuxhost.CommandResult{}, err
 		}
 		runner.secret = string(contents)
 	}
-	return projects.CommandResult{}, nil
+	return linuxhost.CommandResult{}, nil
 }
 
-func networkManagerResult(request projects.Command) projects.CommandResult {
+func networkManagerResult(request linuxhost.Command) linuxhost.CommandResult {
 	if reflect.DeepEqual(request.Args, []string{"--get-values", "NAME", "connection", "show", "--active"}) {
-		return projects.CommandResult{Stdout: "wired\nTailscale\nlo\n"}
+		return linuxhost.CommandResult{Stdout: "wired\nTailscale\nlo\n"}
 	}
 	if request.Args[1] == "connection.type" && request.Args[len(request.Args)-1] == "lo" {
-		return projects.CommandResult{Stdout: "loopback\n"}
+		return linuxhost.CommandResult{Stdout: "loopback\n"}
 	}
 	if request.Args[1] == "connection.type" {
-		return projects.CommandResult{Stdout: "802-3-ethernet\n"}
+		return linuxhost.CommandResult{Stdout: "802-3-ethernet\n"}
 	}
 	if request.Args[len(request.Args)-1] == "wired" {
-		return projects.CommandResult{Stdout: "trusted\n"}
+		return linuxhost.CommandResult{Stdout: "trusted\n"}
 	}
-	return projects.CommandResult{}
+	return linuxhost.CommandResult{}
 }
 
 type connectedTailnet struct{}

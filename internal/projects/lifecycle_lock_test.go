@@ -2,6 +2,7 @@ package projects
 
 import (
 	"context"
+	"github.com/LevitateOS/soda-os/internal/linuxhost"
 	"testing"
 	"time"
 
@@ -16,11 +17,11 @@ func TestLifecycleMutationHoldsTheSingleProjectsLock(t *testing.T) {
 	_, err := platform.CreateWorkspace(context.Background(), platform.accounts["alice"], "site")
 	require.NoError(t, err)
 	entered, release := make(chan struct{}), make(chan struct{})
-	platform.onDelete = func(Account) {
+	platform.onDelete = func(linuxhost.Account) {
 		close(entered)
 		<-release
 	}
-	lifecycle := Lifecycle{Catalog: catalog, Platform: platform}
+	lifecycle := Lifecycle{Catalog: catalog, Host: platform, Platform: platform}
 	removeResult := make(chan error, 1)
 	go func() { removeResult <- lifecycle.RemoveProject(context.Background(), "alice", "site") }()
 	<-entered

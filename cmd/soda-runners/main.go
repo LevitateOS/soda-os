@@ -7,7 +7,7 @@ import (
 	"os"
 	"os/user"
 
-	"github.com/LevitateOS/soda-os/internal/projects"
+	"github.com/LevitateOS/soda-os/internal/linuxhost"
 	"github.com/LevitateOS/soda-os/internal/runners"
 )
 
@@ -21,14 +21,15 @@ func main() {
 		fmt.Fprintln(os.Stderr, "resolve current Linux account:", err)
 		os.Exit(1)
 	}
-	platform := projects.NewNativePlatform()
-	authorizer := runners.LinuxAuthorizer{Lifecycle: projects.Lifecycle{Catalog: projects.NewCatalog(), Platform: platform}}
+	accounts := linuxhost.NewNative()
+	authorizer := runners.LinuxAuthorizer{Accounts: accounts}
 	coordinator := runners.Coordinator{
 		Authorizer: authorizer,
 		Local:      runners.NewNative(),
 		Privileged: runners.PKExecInvoker{},
 	}
-	response, err := coordinator.Execute(context.Background(), current.Username, os.Args[1], os.Stdin)
+	actor := linuxhost.PKExecIdentity{Username: current.Username, UID: os.Getuid()}
+	response, err := coordinator.Execute(context.Background(), actor, os.Args[1], os.Stdin)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)

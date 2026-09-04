@@ -1,4 +1,4 @@
-package projects
+package linuxhost
 
 import (
 	"bytes"
@@ -14,9 +14,10 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-const maximumAuthorizedKeysSize = 1 << 20
-
-const stagedAuthorizedKeysName = ".soda-authorized-keys.tmp"
+const (
+	maximumAuthorizedKeysSize = 1 << 20
+	stagedAuthorizedKeysName  = ".soda-authorized-keys.tmp"
+)
 
 var ErrAuthorizedKeysPublished = errors.New("authorized_keys is published or has ambiguous provenance")
 
@@ -28,9 +29,9 @@ func CanonicalAuthorizedKey(input string) (string, error) {
 	return strings.TrimSpace(string(ssh.MarshalAuthorizedKey(publicKey))), nil
 }
 
-func (platform *NativePlatform) ReadAuthorizedKeys(account Account) ([]byte, error) {
+func (native *Native) ReadAuthorizedKeys(account Account) ([]byte, error) {
 	path := filepath.Join(account.Home, ".ssh", "authorized_keys")
-	keyFile, err := platform.openAuthorizedKeys(account, path)
+	keyFile, err := native.openAuthorizedKeys(account, path)
 	if err != nil {
 		return nil, err
 	}
@@ -45,8 +46,8 @@ func (platform *NativePlatform) ReadAuthorizedKeys(account Account) ([]byte, err
 	return contents, nil
 }
 
-func (platform *NativePlatform) openAuthorizedKeys(account Account, path string) (*os.File, error) {
-	home, err := platform.openValidatedAccountHome(account)
+func (native *Native) openAuthorizedKeys(account Account, path string) (*os.File, error) {
+	home, err := native.OpenAccountHome(account)
 	if err != nil {
 		return nil, fmt.Errorf("open account home: %w", err)
 	}
@@ -67,8 +68,7 @@ func (platform *NativePlatform) openAuthorizedKeys(account Account, path string)
 
 func openOwnedAuthorizedKeys(sshDirectory *os.File, expectedUID int, path string) (*os.File, error) {
 	descriptor, err := unix.Openat2(int(sshDirectory.Fd()), "authorized_keys", &unix.OpenHow{
-		Flags:   unix.O_RDONLY | unix.O_CLOEXEC | unix.O_NOFOLLOW,
-		Resolve: unix.RESOLVE_BENEATH | unix.RESOLVE_NO_MAGICLINKS | unix.RESOLVE_NO_SYMLINKS,
+		Flags: unix.O_RDONLY | unix.O_CLOEXEC | unix.O_NOFOLLOW, Resolve: unix.RESOLVE_BENEATH | unix.RESOLVE_NO_MAGICLINKS | unix.RESOLVE_NO_SYMLINKS,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("open %s: %w", path, err)
@@ -86,8 +86,8 @@ func openOwnedAuthorizedKeys(sshDirectory *os.File, expectedUID int, path string
 }
 
 func validateAuthorizedKeyFile(keyFile *os.File, expectedUID int, path string) error {
-	var stat unix.Stat_t
-	if err := unix.Fstat(int(keyFile.Fd()), &stat); err != nil {
+	stat, err := descriptorStat(keyFile)
+	if err != nil {
 		return fmt.Errorf("inspect %s: %w", path, err)
 	}
 	if stat.Mode&unix.S_IFMT != unix.S_IFREG {
@@ -96,7 +96,7 @@ func validateAuthorizedKeyFile(keyFile *os.File, expectedUID int, path string) e
 	if int(stat.Uid) != expectedUID {
 		return fmt.Errorf("%s has unexpected ownership", path)
 	}
-	if err := validateSafeFileMode(stat.Mode, path); err != nil {
+	if err = validateSafeFileMode(stat.Mode, path); err != nil {
 		return err
 	}
 	if stat.Size < 0 || stat.Size > maximumAuthorizedKeysSize {
@@ -127,28 +127,28 @@ func validateAuthorizedKeyContents(contents []byte, path string) error {
 	return nil
 }
 
-func (platform *NativePlatform) InstallAuthorizedKeys(account Account, contents []byte) error {
+func (native *Native) InstallAuthorizedKeys(account Account, contents []byte) error {
 	path := filepath.Join(account.Home, ".ssh", "authorized_keys")
 	if err := validateAuthorizedKeyContents(contents, path); err != nil {
 		return err
 	}
-	home, err := platform.openValidatedAccountHome(account)
+	home, err := native.OpenAccountHome(account)
 	if err != nil {
-		return fmt.Errorf("open workspace home: %w", err)
+		return fmt.Errorf("open account home: %w", err)
 	}
 	defer home.Close()
-	if err = validateOwnedDirectory(home, account.UID, "workspace home"); err != nil {
+	if err = validateOwnedDirectory(home, account.UID, "account home"); err != nil {
 		return err
 	}
 	sshDirectory, err := ensureOwnedDirectoryAt(home, ".ssh", account)
 	if err != nil {
-		return fmt.Errorf("prepare workspace SSH directory: %w", err)
+		return fmt.Errorf("prepare account SSH directory: %w", err)
 	}
 	defer sshDirectory.Close()
-	return platform.installAuthorizedKeysAt(home, sshDirectory, account, contents, path)
+	return native.installAuthorizedKeysAt(home, sshDirectory, account, contents, path)
 }
 
-func (platform *NativePlatform) installAuthorizedKeysAt(home, sshDirectory *os.File, account Account, contents []byte, path string) (returnErr error) {
+func (native *Native) installAuthorizedKeysAt(home, sshDirectory *os.File, account Account, contents []byte, path string) (returnErr error) {
 	keyFile, err := createStagedAuthorizedKeysAt(sshDirectory, path)
 	if err != nil {
 		return err
@@ -166,20 +166,16 @@ func (platform *NativePlatform) installAuthorizedKeysAt(home, sshDirectory *os.F
 	if err = ownStagedAuthorizedKeys(keyFile, account, path); err != nil {
 		return err
 	}
-	if err = platform.relabelAuthorizedKeys(home, sshDirectory, keyFile, account); err != nil {
+	if err = native.relabelAuthorizedKeys(home, sshDirectory, keyFile, account); err != nil {
 		return err
 	}
 	published, err = publishAuthorizedKeys(sshDirectory, keyFile)
-	if err != nil {
-		return err
-	}
-	return nil
+	return err
 }
 
 func createStagedAuthorizedKeysAt(parent *os.File, path string) (*os.File, error) {
 	descriptor, err := unix.Openat2(int(parent.Fd()), stagedAuthorizedKeysName, &unix.OpenHow{
-		Flags:   unix.O_CREAT | unix.O_EXCL | unix.O_WRONLY | unix.O_CLOEXEC | unix.O_NOFOLLOW,
-		Mode:    0o600,
+		Flags: unix.O_CREAT | unix.O_EXCL | unix.O_WRONLY | unix.O_CLOEXEC | unix.O_NOFOLLOW, Mode: 0o600,
 		Resolve: unix.RESOLVE_BENEATH | unix.RESOLVE_NO_MAGICLINKS | unix.RESOLVE_NO_SYMLINKS,
 	})
 	if err != nil {
@@ -225,45 +221,48 @@ func ownStagedAuthorizedKeys(keyFile *os.File, account Account, path string) err
 	return validateOwnedRegularFile(keyFile, account.UID, path)
 }
 
-func (platform *NativePlatform) relabelAuthorizedKeys(home, sshDirectory, keyFile *os.File, account Account) error {
-	if err := validateDescriptorEntry(home, ".ssh", sshDirectory); err != nil {
-		return fmt.Errorf("validate workspace SSH pathname: %w", err)
+func validateOwnedRegularFile(file *os.File, expectedUID int, description string) error {
+	stat, err := descriptorStat(file)
+	if err != nil {
+		return fmt.Errorf("inspect %s: %w", description, err)
 	}
-	if err := validateRegularDescriptorEntry(sshDirectory, stagedAuthorizedKeysName, keyFile); err != nil {
-		return fmt.Errorf("validate workspace authorized_keys pathname: %w", err)
+	if stat.Mode&unix.S_IFMT != unix.S_IFREG {
+		return fmt.Errorf("%s is not a regular file", description)
 	}
-	sshPath := filepath.Join(account.Home, ".ssh")
-	result, err := platform.run(context.Background(), "/usr/sbin/restorecon", "-R", sshPath)
+	if int(stat.Uid) != expectedUID {
+		return fmt.Errorf("%s has unexpected ownership", description)
+	}
+	if stat.Nlink != 1 {
+		return fmt.Errorf("%s has unexpected link count", description)
+	}
+	return validateSafeFileMode(stat.Mode, description)
+}
+
+func (native *Native) relabelAuthorizedKeys(home, sshDirectory, keyFile *os.File, account Account) error {
+	if err := validateDescriptorEntry(home, ".ssh", sshDirectory, unix.S_IFDIR); err != nil {
+		return fmt.Errorf("validate account SSH pathname: %w", err)
+	}
+	if err := validateDescriptorEntry(sshDirectory, stagedAuthorizedKeysName, keyFile, unix.S_IFREG); err != nil {
+		return fmt.Errorf("validate account authorized_keys pathname: %w", err)
+	}
+	result, err := native.run(context.Background(), "/usr/sbin/restorecon", "-R", filepath.Join(account.Home, ".ssh"))
 	if err != nil {
 		return err
 	}
 	if result.ExitCode != 0 {
 		return fmt.Errorf("restorecon failed: %s", strings.TrimSpace(result.Stderr))
 	}
-	return validateRelabeledAuthorizedKeys(home, sshDirectory, keyFile)
-}
-
-func validateRelabeledAuthorizedKeys(home, sshDirectory, keyFile *os.File) error {
-	if err := validateDescriptorEntry(home, ".ssh", sshDirectory); err != nil {
-		return fmt.Errorf("validate relabeled workspace SSH pathname: %w", err)
+	if err = validateDescriptorEntry(home, ".ssh", sshDirectory, unix.S_IFDIR); err != nil {
+		return fmt.Errorf("validate relabeled account SSH pathname: %w", err)
 	}
-	if err := validateRegularDescriptorEntry(sshDirectory, stagedAuthorizedKeysName, keyFile); err != nil {
-		return fmt.Errorf("validate relabeled workspace authorized_keys pathname: %w", err)
-	}
-	return nil
+	return validateDescriptorEntry(sshDirectory, stagedAuthorizedKeysName, keyFile, unix.S_IFREG)
 }
 
 func publishAuthorizedKeys(sshDirectory, keyFile *os.File) (bool, error) {
-	if err := validateRegularDescriptorEntry(sshDirectory, stagedAuthorizedKeysName, keyFile); err != nil {
+	if err := validateDescriptorEntry(sshDirectory, stagedAuthorizedKeysName, keyFile, unix.S_IFREG); err != nil {
 		return false, fmt.Errorf("validate staged authorized_keys pathname: %w", err)
 	}
-	err := unix.Renameat2(
-		int(sshDirectory.Fd()),
-		stagedAuthorizedKeysName,
-		int(sshDirectory.Fd()),
-		"authorized_keys",
-		unix.RENAME_NOREPLACE,
-	)
+	err := unix.Renameat2(int(sshDirectory.Fd()), stagedAuthorizedKeysName, int(sshDirectory.Fd()), "authorized_keys", unix.RENAME_NOREPLACE)
 	if err != nil {
 		if errors.Is(err, unix.EEXIST) {
 			return false, errors.Join(ErrAuthorizedKeysPublished, fmt.Errorf("publish authorized_keys: %w", err))
@@ -271,16 +270,16 @@ func publishAuthorizedKeys(sshDirectory, keyFile *os.File) (bool, error) {
 		return false, fmt.Errorf("publish authorized_keys: %w", err)
 	}
 	if err = unix.Fsync(int(sshDirectory.Fd())); err != nil {
-		return true, errors.Join(ErrAuthorizedKeysPublished, fmt.Errorf("sync workspace SSH directory: %w", err))
+		return true, errors.Join(ErrAuthorizedKeysPublished, fmt.Errorf("sync account SSH directory: %w", err))
 	}
-	if err = validateRegularDescriptorEntry(sshDirectory, "authorized_keys", keyFile); err != nil {
+	if err = validateDescriptorEntry(sshDirectory, "authorized_keys", keyFile, unix.S_IFREG); err != nil {
 		return true, errors.Join(ErrAuthorizedKeysPublished, fmt.Errorf("validate published authorized_keys pathname: %w", err))
 	}
 	return true, nil
 }
 
 func cleanupStagedAuthorizedKeys(sshDirectory, keyFile *os.File) error {
-	if err := validateRegularDescriptorEntry(sshDirectory, stagedAuthorizedKeysName, keyFile); err != nil {
+	if err := validateDescriptorEntry(sshDirectory, stagedAuthorizedKeysName, keyFile, unix.S_IFREG); err != nil {
 		return fmt.Errorf("retain ambiguous staged authorized_keys: %w", err)
 	}
 	if err := unix.Unlinkat(int(sshDirectory.Fd()), stagedAuthorizedKeysName, 0); err != nil {

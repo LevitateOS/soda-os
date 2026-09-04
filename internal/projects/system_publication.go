@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/LevitateOS/soda-os/internal/linuxhost"
 	"golang.org/x/sys/unix"
 )
 
@@ -17,7 +18,7 @@ type publicationTarget struct {
 	directory *os.File
 }
 
-func (platform *NativePlatform) WorkspaceReady(account Account, projectID string) (bool, error) {
+func (platform *NativePlatform) WorkspaceReady(account linuxhost.Account, projectID string) (bool, error) {
 	projectsDirectory, exists, err := platform.openWorkspaceProjects(account)
 	if err != nil || !exists {
 		return false, err
@@ -39,13 +40,13 @@ func (platform *NativePlatform) WorkspaceReady(account Account, projectID string
 	return true, nil
 }
 
-func (platform *NativePlatform) GenerateWorkspaceGitKey(ctx context.Context, workspace Account) (string, error) {
+func (platform *NativePlatform) GenerateWorkspaceGitKey(ctx context.Context, workspace linuxhost.Account) (string, error) {
 	keyPath := workspaceGitKeyPath(workspace)
 	publicKey, err := platform.workspaceGitPublicKey(ctx, workspace, keyPath)
 	if err == nil {
 		return publicKey, nil
 	}
-	result, generateErr := platform.runner().Run(ctx, Command{Name: "/usr/sbin/runuser", Args: []string{
+	result, generateErr := platform.runner().Run(ctx, linuxhost.Command{Name: "/usr/sbin/runuser", Args: []string{
 		"--user", workspace.Username, "--", "/usr/bin/ssh-keygen", "-q", "-t", "ed25519", "-N", "", "-C", "soda-workspace=" + workspace.Username, "-f", keyPath,
 	}})
 	if generateErr != nil {
@@ -57,8 +58,8 @@ func (platform *NativePlatform) GenerateWorkspaceGitKey(ctx context.Context, wor
 	return platform.workspaceGitPublicKey(ctx, workspace, keyPath)
 }
 
-func (platform *NativePlatform) workspaceGitPublicKey(ctx context.Context, workspace Account, keyPath string) (string, error) {
-	result, err := platform.runner().Run(ctx, Command{Name: "/usr/sbin/runuser", Args: []string{
+func (platform *NativePlatform) workspaceGitPublicKey(ctx context.Context, workspace linuxhost.Account, keyPath string) (string, error) {
+	result, err := platform.runner().Run(ctx, linuxhost.Command{Name: "/usr/sbin/runuser", Args: []string{
 		"--user", workspace.Username, "--", "/usr/bin/ssh-keygen", "-y", "-f", keyPath,
 	}})
 	if err != nil {
@@ -67,14 +68,14 @@ func (platform *NativePlatform) workspaceGitPublicKey(ctx context.Context, works
 	if result.ExitCode != 0 {
 		return "", fmt.Errorf("read workspace outbound Git key: %s", strings.TrimSpace(result.Stderr))
 	}
-	key, err := CanonicalAuthorizedKey(result.Stdout)
+	key, err := linuxhost.CanonicalAuthorizedKey(result.Stdout)
 	if err != nil {
 		return "", fmt.Errorf("read workspace outbound Git key: %w", err)
 	}
 	return key, nil
 }
 
-func (platform *NativePlatform) CloneWorkspace(ctx context.Context, workspace Account, projectID, remote string) error {
+func (platform *NativePlatform) CloneWorkspace(ctx context.Context, workspace linuxhost.Account, projectID, remote string) error {
 	if err := ValidateCanonicalURL(remote); err != nil {
 		return fmt.Errorf("clone URL: %w", err)
 	}
@@ -95,7 +96,7 @@ func (platform *NativePlatform) CloneWorkspace(ctx context.Context, workspace Ac
 	}
 	defer target.directory.Close()
 	keyPath := workspaceGitKeyPath(workspace)
-	result, err := platform.runner().Run(ctx, Command{Name: "/usr/sbin/runuser", Args: []string{
+	result, err := platform.runner().Run(ctx, linuxhost.Command{Name: "/usr/sbin/runuser", Args: []string{
 		"--user", workspace.Username, "--", "/usr/bin/env", "-i",
 		"HOME=" + workspace.Home,
 		"USER=" + workspace.Username,
@@ -120,9 +121,9 @@ func (platform *NativePlatform) CloneWorkspace(ctx context.Context, workspace Ac
 	return finalizeWorkspacePublication(projectsDirectory, target.name, projectID)
 }
 
-func (platform *NativePlatform) removePreviousCloneAttempt(ctx context.Context, workspace Account, projectID string) error {
+func (platform *NativePlatform) removePreviousCloneAttempt(ctx context.Context, workspace linuxhost.Account, projectID string) error {
 	path := filepath.Join(workspace.Home, "Projects", ".soda-"+projectID+".tmp")
-	result, err := platform.runner().Run(ctx, Command{Name: "/usr/sbin/runuser", Args: []string{
+	result, err := platform.runner().Run(ctx, linuxhost.Command{Name: "/usr/sbin/runuser", Args: []string{
 		"--user", workspace.Username, "--", "/usr/bin/rm", "--recursive", "--force", "--", path,
 	}})
 	if err != nil {
@@ -134,12 +135,12 @@ func (platform *NativePlatform) removePreviousCloneAttempt(ctx context.Context, 
 	return nil
 }
 
-func workspaceGitKeyPath(workspace Account) string {
+func workspaceGitKeyPath(workspace linuxhost.Account) string {
 	return filepath.Join(workspace.Home, ".ssh", "id_ed25519_soda")
 }
 
-func (platform *NativePlatform) openWorkspaceProjects(account Account) (*os.File, bool, error) {
-	home, err := platform.openValidatedAccountHome(account)
+func (platform *NativePlatform) openWorkspaceProjects(account linuxhost.Account) (*os.File, bool, error) {
+	home, err := platform.host().OpenAccountHome(account)
 	if err != nil {
 		return nil, false, fmt.Errorf("open workspace home: %w", err)
 	}
@@ -177,8 +178,8 @@ func validateReadyGitDirectory(checkout *os.File, expectedUID int) error {
 	return validateOwnedDirectory(gitDirectory, expectedUID, "workspace .git directory")
 }
 
-func (platform *NativePlatform) openWorkspaceProjectsForPublication(workspace Account) (*os.File, error) {
-	home, err := platform.openValidatedAccountHome(workspace)
+func (platform *NativePlatform) openWorkspaceProjectsForPublication(workspace linuxhost.Account) (*os.File, error) {
+	home, err := platform.host().OpenAccountHome(workspace)
 	if err != nil {
 		return nil, fmt.Errorf("open workspace home: %w", err)
 	}
@@ -193,7 +194,7 @@ func (platform *NativePlatform) openWorkspaceProjectsForPublication(workspace Ac
 	return projectsDirectory, nil
 }
 
-func reservePublicationTarget(projectsDirectory *os.File, workspace Account, projectID string) (publicationTarget, error) {
+func reservePublicationTarget(projectsDirectory *os.File, workspace linuxhost.Account, projectID string) (publicationTarget, error) {
 	target := publicationTarget{
 		name: ".soda-" + projectID + ".tmp",
 		path: filepath.Join(workspace.Home, "Projects", ".soda-"+projectID+".tmp"),
@@ -213,7 +214,7 @@ func reservePublicationTarget(projectsDirectory *os.File, workspace Account, pro
 	return target, nil
 }
 
-func reserveOwnedDirectory(parent *os.File, name string, account Account, path string) error {
+func reserveOwnedDirectory(parent *os.File, name string, account linuxhost.Account, path string) error {
 	if err := unix.Mkdirat(int(parent.Fd()), name, 0o700); err != nil {
 		if errors.Is(err, unix.EEXIST) {
 			return fmt.Errorf("workspace publication path %s already exists", path)

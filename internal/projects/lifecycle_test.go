@@ -3,6 +3,7 @@ package projects
 import (
 	"context"
 	"errors"
+	"github.com/LevitateOS/soda-os/internal/linuxhost"
 	"os"
 	"testing"
 
@@ -15,7 +16,7 @@ func TestLifecyclePreparesAndCompletesOneDerivedWorkspace(t *testing.T) {
 	require.NoError(t, catalog.Add(entry))
 	platform := newFakePlatform()
 	platform.accounts["alice"] = primaryAccount("alice", primaryRoleUser)
-	lifecycle := Lifecycle{Catalog: catalog, Platform: platform}
+	lifecycle := Lifecycle{Catalog: catalog, Host: platform, Platform: platform}
 
 	preparation, err := lifecycle.PrepareWorkspace(context.Background(), "alice", HelperWorkspaceRequest{ID: "site", CanonicalURL: entry.CanonicalURL})
 	require.NoError(t, err)
@@ -39,7 +40,7 @@ func TestLifecycleRetainsPreparedWorkspaceWhenCloneFails(t *testing.T) {
 	platform := newFakePlatform()
 	platform.accounts["alice"] = primaryAccount("alice", primaryRoleUser)
 	platform.failures.cloneErr = errors.New("clone failed")
-	lifecycle := Lifecycle{Catalog: catalog, Platform: platform}
+	lifecycle := Lifecycle{Catalog: catalog, Host: platform, Platform: platform}
 
 	request := HelperWorkspaceRequest{ID: "site", CanonicalURL: entry.CanonicalURL}
 	_, err := lifecycle.PrepareWorkspace(context.Background(), "alice", request)
@@ -55,11 +56,11 @@ func TestLifecycleRetainsWorkspaceWhenAuthorizedKeysProvenanceIsAmbiguous(t *tes
 	require.NoError(t, catalog.Add(entry))
 	platform := newFakePlatform()
 	platform.accounts["alice"] = primaryAccount("alice", primaryRoleUser)
-	platform.failures.installErr = errors.Join(ErrAuthorizedKeysPublished, errors.New("authorized_keys already exists"))
-	lifecycle := Lifecycle{Catalog: catalog, Platform: platform}
+	platform.failures.installErr = errors.Join(linuxhost.ErrAuthorizedKeysPublished, errors.New("authorized_keys already exists"))
+	lifecycle := Lifecycle{Catalog: catalog, Host: platform, Platform: platform}
 
 	_, err := lifecycle.PrepareWorkspace(context.Background(), "alice", HelperWorkspaceRequest{ID: entry.ID, CanonicalURL: entry.CanonicalURL})
-	require.ErrorIs(t, err, ErrAuthorizedKeysPublished)
+	require.ErrorIs(t, err, linuxhost.ErrAuthorizedKeysPublished)
 	require.ErrorContains(t, err, "was retained because inbound SSH keys may be incomplete")
 	require.Empty(t, platform.calls.deleted)
 }
@@ -74,7 +75,7 @@ func TestLifecycleRejectsUnlockedExistingWorkspaceBeforePreparation(t *testing.T
 	require.NoError(t, err)
 	platform.ready[workspace.Username+":"+entry.ID] = true
 	platform.failures.passwordErr = errors.New("workspace password is not locked")
-	lifecycle := Lifecycle{Catalog: catalog, Platform: platform}
+	lifecycle := Lifecycle{Catalog: catalog, Host: platform, Platform: platform}
 
 	_, err = lifecycle.PrepareWorkspace(context.Background(), "alice", HelperWorkspaceRequest{ID: entry.ID, CanonicalURL: entry.CanonicalURL})
 	require.ErrorContains(t, err, "password is not locked")
@@ -92,7 +93,7 @@ func TestLifecycleChecksExistingWorkspaceUnderLockBeforeReadingKeys(t *testing.T
 	require.NoError(t, err)
 	platform.ready[workspace.Username+":"+entry.ID] = true
 	platform.keys = nil
-	lifecycle := Lifecycle{Catalog: catalog, Platform: platform}
+	lifecycle := Lifecycle{Catalog: catalog, Host: platform, Platform: platform}
 
 	preparation, err := lifecycle.PrepareWorkspace(context.Background(), "alice", HelperWorkspaceRequest{ID: entry.ID, CanonicalURL: entry.CanonicalURL})
 	require.NoError(t, err)
@@ -112,11 +113,11 @@ func TestProjectRemovalDeletesWorkspacesBeforeCatalog(t *testing.T) {
 		require.NoError(t, err)
 		platform.accounts[workspace.Username] = workspace
 	}
-	platform.onDelete = func(Account) {
+	platform.onDelete = func(linuxhost.Account) {
 		_, err := catalog.Get("site")
 		require.NoError(t, err, "catalog entry must remain until every account is deleted")
 	}
-	lifecycle := Lifecycle{Catalog: catalog, Platform: platform}
+	lifecycle := Lifecycle{Catalog: catalog, Host: platform, Platform: platform}
 	require.NoError(t, lifecycle.RemoveProject(context.Background(), "alice", "site"))
 	require.Len(t, platform.calls.deleted, 2)
 	_, err := catalog.Get("site")
@@ -132,7 +133,7 @@ func TestProjectRemovalRetainsCatalogWhenWorkspacePasswordIsNotLocked(t *testing
 	workspace, err := platform.CreateWorkspace(context.Background(), platform.accounts["alice"], entry.ID)
 	require.NoError(t, err)
 	platform.failures.passwordErr = errors.New("workspace password is not locked")
-	lifecycle := Lifecycle{Catalog: catalog, Platform: platform}
+	lifecycle := Lifecycle{Catalog: catalog, Host: platform, Platform: platform}
 
 	err = lifecycle.RemoveProject(context.Background(), "alice", entry.ID)
 	require.ErrorContains(t, err, "password is not locked")
@@ -148,7 +149,7 @@ func TestProjectRemovalRequiresAdministratorBeforeMutation(t *testing.T) {
 	require.NoError(t, catalog.Add(entry))
 	platform := newFakePlatform()
 	platform.accounts["alice"] = primaryAccount("alice", primaryRoleUser)
-	lifecycle := Lifecycle{Catalog: catalog, Platform: platform}
+	lifecycle := Lifecycle{Catalog: catalog, Host: platform, Platform: platform}
 
 	err := lifecycle.RemoveProject(context.Background(), "alice", entry.ID)
 	require.ErrorContains(t, err, "administrator status is required")
@@ -167,7 +168,7 @@ func TestPersonRemovesOnlyTheirOwnWorkspace(t *testing.T) {
 	require.NoError(t, err)
 	bobWorkspace, err := platform.CreateWorkspace(context.Background(), platform.accounts["bob"], entry.ID)
 	require.NoError(t, err)
-	lifecycle := Lifecycle{Catalog: catalog, Platform: platform}
+	lifecycle := Lifecycle{Catalog: catalog, Host: platform, Platform: platform}
 
 	require.NoError(t, lifecycle.RemoveWorkspace(context.Background(), "alice", entry.ID))
 	require.Equal(t, []string{aliceWorkspace.Username}, platform.calls.deleted)
@@ -184,7 +185,7 @@ func TestHumanDeletionDeletesDerivedAccountsAndPrimaryLast(t *testing.T) {
 	platform.accounts["alice"] = primaryAccount("alice", primaryRoleUser)
 	workspace, err := platform.CreateWorkspace(context.Background(), platform.accounts["alice"], "site")
 	require.NoError(t, err)
-	lifecycle := Lifecycle{Catalog: catalog, Platform: platform}
+	lifecycle := Lifecycle{Catalog: catalog, Host: platform, Platform: platform}
 
 	require.NoError(t, lifecycle.DeleteHuman(context.Background(), "admin", "alice"))
 	require.Equal(t, []string{workspace.Username, "alice"}, platform.calls.deleted)
@@ -199,7 +200,7 @@ func TestHumanDeletionStopsAfterForgejoFailureAndReportsRemainingAccounts(t *tes
 	workspace, err := platform.CreateWorkspace(context.Background(), platform.accounts["alice"], "site")
 	require.NoError(t, err)
 	platform.failures.forgejoErr = errors.New("Forgejo refuses users that own repositories")
-	lifecycle := Lifecycle{Catalog: catalog, Platform: platform}
+	lifecycle := Lifecycle{Catalog: catalog, Host: platform, Platform: platform}
 
 	err = lifecycle.DeleteHuman(context.Background(), "admin", "alice")
 	require.ErrorContains(t, err, "removed Soda workspaces "+workspace.Username+"; Forgejo account and primary Linux account alice remain")
@@ -212,7 +213,7 @@ func TestHumanDeletionRetriesAfterForgejoAccountWasAlreadyRemoved(t *testing.T) 
 	platform.accounts["admin"] = primaryAccount("admin", primaryRoleAdministrator)
 	platform.accounts["alice"] = primaryAccount("alice", primaryRoleUser)
 	platform.failures.forgejoErr = ErrForgejoUserNotFound
-	lifecycle := Lifecycle{Catalog: testCatalog(t), Platform: platform}
+	lifecycle := Lifecycle{Catalog: testCatalog(t), Host: platform, Platform: platform}
 
 	require.NoError(t, lifecycle.DeleteHuman(context.Background(), "admin", "alice"))
 	require.Equal(t, []string{"forgejo:alice", "linux:alice"}, platform.calls.deletionEvents)
@@ -227,7 +228,7 @@ func TestHumanDeletionRetainsPrimaryWhenWorkspacePasswordIsNotLocked(t *testing.
 	workspace, err := platform.CreateWorkspace(context.Background(), platform.accounts["alice"], "site")
 	require.NoError(t, err)
 	platform.failures.passwordErr = errors.New("workspace password is not locked")
-	lifecycle := Lifecycle{Catalog: catalog, Platform: platform}
+	lifecycle := Lifecycle{Catalog: catalog, Host: platform, Platform: platform}
 
 	err = lifecycle.DeleteHuman(context.Background(), "admin", "alice")
 	require.ErrorContains(t, err, "password is not locked")
@@ -239,15 +240,15 @@ func TestHumanDeletionRetainsPrimaryWhenWorkspacePasswordIsNotLocked(t *testing.
 
 type orderedPreflightPlatform struct {
 	*fakePlatform
-	workspaces       []Account
+	workspaces       []linuxhost.Account
 	preflightFailure map[string]error
 }
 
-func (platform *orderedPreflightPlatform) WorkspaceAccounts(context.Context) ([]Account, error) {
-	return append([]Account(nil), platform.workspaces...), nil
+func (platform *orderedPreflightPlatform) CandidateAccounts(context.Context, string, string) ([]linuxhost.Account, error) {
+	return append([]linuxhost.Account(nil), platform.workspaces...), nil
 }
 
-func (platform *orderedPreflightPlatform) PreflightDeleteAccount(_ context.Context, account Account) error {
+func (platform *orderedPreflightPlatform) PreflightDeleteAccount(_ context.Context, account linuxhost.Account) error {
 	platform.calls.preflights = append(platform.calls.preflights, account.Username)
 	return platform.preflightFailure[account.Username]
 }
@@ -264,10 +265,10 @@ func TestProjectRemovalPreflightsEveryWorkspaceBeforeDeletingAny(t *testing.T) {
 	require.NoError(t, err)
 	platform := &orderedPreflightPlatform{
 		fakePlatform:     base,
-		workspaces:       []Account{first, second},
+		workspaces:       []linuxhost.Account{first, second},
 		preflightFailure: map[string]error{second.Username: errors.New("second workspace failed preflight")},
 	}
-	lifecycle := Lifecycle{Catalog: catalog, Platform: platform}
+	lifecycle := Lifecycle{Catalog: catalog, Host: platform, Platform: platform}
 
 	err = lifecycle.RemoveProject(context.Background(), "admin", entry.ID)
 	require.ErrorContains(t, err, "second workspace failed preflight")
@@ -287,10 +288,10 @@ func TestHumanDeletionPreflightsPrimaryBeforeDeletingWorkspaces(t *testing.T) {
 	require.NoError(t, err)
 	platform := &orderedPreflightPlatform{
 		fakePlatform:     base,
-		workspaces:       []Account{workspace},
+		workspaces:       []linuxhost.Account{workspace},
 		preflightFailure: map[string]error{"alice": errors.New("primary failed preflight")},
 	}
-	lifecycle := Lifecycle{Catalog: testCatalog(t), Platform: platform}
+	lifecycle := Lifecycle{Catalog: testCatalog(t), Host: platform, Platform: platform}
 
 	err = lifecycle.DeleteHuman(context.Background(), "admin", "alice")
 	require.ErrorContains(t, err, "primary failed preflight")
@@ -310,10 +311,10 @@ func TestHumanDeletionPreflightsEveryWorkspaceBeforeDeletingAnyAccount(t *testin
 	require.NoError(t, err)
 	platform := &orderedPreflightPlatform{
 		fakePlatform:     base,
-		workspaces:       []Account{first, second},
+		workspaces:       []linuxhost.Account{first, second},
 		preflightFailure: map[string]error{second.Username: errors.New("second workspace failed preflight")},
 	}
-	lifecycle := Lifecycle{Catalog: testCatalog(t), Platform: platform}
+	lifecycle := Lifecycle{Catalog: testCatalog(t), Host: platform, Platform: platform}
 
 	err = lifecycle.DeleteHuman(context.Background(), "admin", "alice")
 	require.ErrorContains(t, err, "second workspace failed preflight")
@@ -336,7 +337,7 @@ type recordingRunner struct {
 	onRun func(string, string, []string, []*os.File) error
 }
 
-func (runner *recordingRunner) Run(_ context.Context, request Command) (CommandResult, error) {
+func (runner *recordingRunner) Run(_ context.Context, request linuxhost.Command) (linuxhost.CommandResult, error) {
 	runner.calls = append(runner.calls, recordedCommand{
 		directory:  request.Directory,
 		name:       request.Name,
@@ -345,8 +346,8 @@ func (runner *recordingRunner) Run(_ context.Context, request Command) (CommandR
 	})
 	if runner.onRun != nil {
 		if err := runner.onRun(request.Directory, request.Name, request.Args, request.ExtraFiles); err != nil {
-			return CommandResult{}, err
+			return linuxhost.CommandResult{}, err
 		}
 	}
-	return CommandResult{}, nil
+	return linuxhost.CommandResult{}, nil
 }

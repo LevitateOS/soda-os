@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+
+	"github.com/LevitateOS/soda-os/internal/linuxhost"
 )
 
 func (lifecycle Lifecycle) RemoveWorkspace(ctx context.Context, actorUsername, projectID string) error {
@@ -28,8 +30,8 @@ func (lifecycle Lifecycle) removeWorkspaceUnlocked(ctx context.Context, actorUse
 		return err
 	}
 	username, _ := DerivedUsername(primary.Username, projectID)
-	workspace, err := lifecycle.Platform.LookupAccount(ctx, username)
-	if errors.Is(err, ErrAccountNotFound) {
+	workspace, err := lifecycle.Host.LookupAccount(ctx, username)
+	if errors.Is(err, linuxhost.ErrAccountNotFound) {
 		return nil
 	}
 	if err != nil {
@@ -38,7 +40,7 @@ func (lifecycle Lifecycle) removeWorkspaceUnlocked(ctx context.Context, actorUse
 	if err = lifecycle.preflightWorkspaceDeletion(ctx, workspace, primary.Username, projectID, uidMin); err != nil {
 		return fmt.Errorf("no workspace was removed; workspace %s, shared catalog entry, other local workspaces, and canonical repository remain: %w", username, err)
 	}
-	if err = lifecycle.Platform.DeleteAccount(ctx, workspace); err != nil {
+	if err = lifecycle.Host.DeleteAccount(ctx, workspace); err != nil {
 		return fmt.Errorf("no workspace was removed; workspace %s, shared catalog entry, other local workspaces, and canonical repository remain: delete workspace: %w", username, err)
 	}
 	return nil
@@ -60,13 +62,13 @@ func (lifecycle Lifecycle) removeProjectUnlocked(ctx context.Context, actorUsern
 	if err != nil {
 		return err
 	}
-	if !actor.IsAdministrator(uidMin) {
+	if !isAdministrator(actor, uidMin) {
 		return errors.New("administrator status is required")
 	}
 	if _, err := lifecycle.Catalog.Get(projectID); err != nil {
 		return err
 	}
-	accounts, err := lifecycle.Platform.WorkspaceAccounts(ctx)
+	accounts, err := lifecycle.Host.CandidateAccounts(ctx, WorkspaceGroup, workspaceMarkerKey)
 	if err != nil {
 		return err
 	}
@@ -76,7 +78,7 @@ func (lifecycle Lifecycle) removeProjectUnlocked(ctx context.Context, actorUsern
 	}
 	removed := make([]string, 0, len(targets))
 	for index, account := range targets {
-		if err = lifecycle.Platform.DeleteAccount(ctx, account); err != nil {
+		if err = lifecycle.Host.DeleteAccount(ctx, account); err != nil {
 			remaining := accountNames(targets[index:])
 			return fmt.Errorf("%s; local workspaces %s, shared catalog entry, and canonical repository remain: delete workspace %s: %w", removedProjectWorkspaceDescription(removed), strings.Join(remaining, ", "), account.Username, err)
 		}
@@ -88,8 +90,8 @@ func (lifecycle Lifecycle) removeProjectUnlocked(ctx context.Context, actorUsern
 	return nil
 }
 
-func (lifecycle Lifecycle) projectDeletionTargets(ctx context.Context, accounts []Account, projectID string, uidMin int) ([]Account, error) {
-	targets := []Account{}
+func (lifecycle Lifecycle) projectDeletionTargets(ctx context.Context, accounts []linuxhost.Account, projectID string, uidMin int) ([]linuxhost.Account, error) {
+	targets := []linuxhost.Account{}
 	for _, account := range accounts {
 		primary, associatedProject, err := ParseWorkspaceMarker(account.GECOS)
 		if err != nil {
@@ -107,7 +109,7 @@ func (lifecycle Lifecycle) projectDeletionTargets(ctx context.Context, accounts 
 	return targets, nil
 }
 
-func accountNames(accounts []Account) []string {
+func accountNames(accounts []linuxhost.Account) []string {
 	names := make([]string, 0, len(accounts))
 	for _, account := range accounts {
 		names = append(names, account.Username)
@@ -138,11 +140,11 @@ func (lifecycle Lifecycle) deleteHumanUnlocked(ctx context.Context, actorUsernam
 	if err != nil {
 		return err
 	}
-	accounts, err := lifecycle.Platform.WorkspaceAccounts(ctx)
+	accounts, err := lifecycle.Host.CandidateAccounts(ctx, WorkspaceGroup, workspaceMarkerKey)
 	if err != nil {
 		return err
 	}
-	if err = lifecycle.Platform.PreflightDeleteAccount(ctx, target); err != nil {
+	if err = lifecycle.Host.PreflightDeleteAccount(ctx, target); err != nil {
 		return err
 	}
 	workspaces, err := lifecycle.humanDeletionTargets(ctx, accounts, targetUsername, uidMin)
@@ -151,7 +153,7 @@ func (lifecycle Lifecycle) deleteHumanUnlocked(ctx context.Context, actorUsernam
 	}
 	removed := make([]string, 0, len(workspaces))
 	for _, account := range workspaces {
-		if err = lifecycle.Platform.DeleteAccount(ctx, account); err != nil {
+		if err = lifecycle.Host.DeleteAccount(ctx, account); err != nil {
 			return fmt.Errorf("%s; workspace %s, Forgejo account, and primary Linux account remain: delete workspace: %w", removedWorkspaceDescription(removed), account.Username, err)
 		}
 		removed = append(removed, account.Username)
@@ -159,7 +161,7 @@ func (lifecycle Lifecycle) deleteHumanUnlocked(ctx context.Context, actorUsernam
 	if err = lifecycle.Platform.DeleteForgejoUser(ctx, target.Username); err != nil && !errors.Is(err, ErrForgejoUserNotFound) {
 		return fmt.Errorf("%s; Forgejo account and primary Linux account %s remain: delete Forgejo account: %w", removedWorkspaceDescription(removed), target.Username, err)
 	}
-	if err = lifecycle.Platform.DeleteAccount(ctx, target); err != nil {
+	if err = lifecycle.Host.DeleteAccount(ctx, target); err != nil {
 		return fmt.Errorf("%s and Forgejo account %s; primary Linux account remains: %w", removedWorkspaceDescription(removed), target.Username, err)
 	}
 	return nil
@@ -172,26 +174,26 @@ func removedWorkspaceDescription(workspaces []string) string {
 	return "removed Soda workspaces " + strings.Join(workspaces, ", ")
 }
 
-func (lifecycle Lifecycle) authorizeHumanDeletion(ctx context.Context, actorUsername, targetUsername string) (Account, int, error) {
+func (lifecycle Lifecycle) authorizeHumanDeletion(ctx context.Context, actorUsername, targetUsername string) (linuxhost.Account, int, error) {
 	actor, uidMin, err := lifecycle.AuthorizePrimary(ctx, actorUsername)
 	if err != nil {
-		return Account{}, 0, err
+		return linuxhost.Account{}, 0, err
 	}
-	if !actor.IsAdministrator(uidMin) {
-		return Account{}, 0, errors.New("administrator status is required")
+	if !isAdministrator(actor, uidMin) {
+		return linuxhost.Account{}, 0, errors.New("administrator status is required")
 	}
-	target, err := lifecycle.Platform.LookupAccount(ctx, targetUsername)
+	target, err := lifecycle.Host.LookupAccount(ctx, targetUsername)
 	if err != nil {
-		return Account{}, 0, err
+		return linuxhost.Account{}, 0, err
 	}
-	if !target.IsPrimary(uidMin) {
-		return Account{}, 0, errors.New("target is not a supported primary Linux account")
+	if !isPrimaryAccount(target, uidMin) {
+		return linuxhost.Account{}, 0, errors.New("target is not a supported primary Linux account")
 	}
 	return target, uidMin, nil
 }
 
-func (lifecycle Lifecycle) humanDeletionTargets(ctx context.Context, accounts []Account, targetUsername string, uidMin int) ([]Account, error) {
-	targets := []Account{}
+func (lifecycle Lifecycle) humanDeletionTargets(ctx context.Context, accounts []linuxhost.Account, targetUsername string, uidMin int) ([]linuxhost.Account, error) {
+	targets := []linuxhost.Account{}
 	for _, account := range accounts {
 		primary, projectID, err := ParseWorkspaceMarker(account.GECOS)
 		if err != nil {
@@ -209,12 +211,16 @@ func (lifecycle Lifecycle) humanDeletionTargets(ctx context.Context, accounts []
 	return targets, nil
 }
 
-func (lifecycle Lifecycle) preflightWorkspaceDeletion(ctx context.Context, account Account, primary, projectID string, uidMin int) error {
-	if err := account.ValidateWorkspace(primary, projectID, uidMin); err != nil {
+func (lifecycle Lifecycle) preflightWorkspaceDeletion(ctx context.Context, account linuxhost.Account, primary, projectID string, uidMin int) error {
+	if err := validateWorkspaceAccount(account, primary, projectID, uidMin); err != nil {
 		return err
 	}
-	if err := lifecycle.Platform.ValidatePasswordLocked(ctx, account); err != nil {
+	status, err := lifecycle.Host.PasswordStatus(ctx, account)
+	if err != nil {
 		return err
 	}
-	return lifecycle.Platform.PreflightDeleteAccount(ctx, account)
+	if status != linuxhost.PasswordLocked {
+		return fmt.Errorf("workspace account %s does not have a locked password", account.Username)
+	}
+	return lifecycle.Host.PreflightDeleteAccount(ctx, account)
 }

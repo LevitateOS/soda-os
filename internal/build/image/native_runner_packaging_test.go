@@ -40,6 +40,9 @@ func TestRunnerPackageOwnsOnlyFocusedLocalComposition(t *testing.T) {
 	contents, err := os.ReadFile(filepath.Join(root, "packaging", "rpm", "runners", "soda-runners.spec"))
 	require.NoError(t, err)
 	spec := string(contents)
+	page, err := os.ReadFile(filepath.Join(root, "cockpit", "soda-runners", "index.html"))
+	require.NoError(t, err)
+	require.NotContains(t, string(page), "soda-projects")
 	for _, expected := range []string{
 		"%{_libexecdir}/soda/soda-runners",
 		"%{_libexecdir}/soda/soda-runner-helper",
@@ -56,9 +59,13 @@ func TestRunnerPackageOwnsOnlyFocusedLocalComposition(t *testing.T) {
 		require.NotContains(t, strings.ToLower(spec), absent)
 	}
 	dependencies := specRequires(spec)
-	for _, dependency := range []string{"forgejo-runner", "krb5-libs", "libicu", "lttng-ust", "openssl-libs", "policycoreutils", "polkit", "shadow-utils", "systemd", "zlib-ng-compat"} {
-		require.Contains(t, dependencies, dependency)
-	}
+	require.Equal(t, map[string]bool{
+		"cockpit-system": true, "coreutils": true, "forgejo-runner": true, "glibc-common": true,
+		"krb5-libs": true, "libicu": true, "lttng-ust": true, "openssl-libs": true,
+		"policycoreutils": true, "polkit": true, "shadow-utils": true, "systemd": true,
+		"zlib-ng-compat": true,
+	}, dependencies)
+	require.NotContains(t, dependencies, "soda-projects")
 }
 
 func TestRunnerServiceUsesDedicatedUnprivilegedHardenedAccount(t *testing.T) {

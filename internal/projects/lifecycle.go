@@ -5,45 +5,48 @@ import (
 	"errors"
 	"fmt"
 	"io"
+
+	"github.com/LevitateOS/soda-os/internal/linuxhost"
 )
 
 type Lifecycle struct {
 	Catalog  *Catalog
+	Host     LinuxHost
 	Platform Platform
 }
 
-func (lifecycle Lifecycle) AuthorizePrimary(ctx context.Context, username string) (Account, int, error) {
-	uidMin, err := lifecycle.Platform.UIDMin()
+func (lifecycle Lifecycle) AuthorizePrimary(ctx context.Context, username string) (linuxhost.Account, int, error) {
+	uidMin, err := lifecycle.Host.UIDMin()
 	if err != nil {
-		return Account{}, 0, err
+		return linuxhost.Account{}, 0, err
 	}
-	account, err := lifecycle.Platform.LookupAccount(ctx, username)
+	account, err := lifecycle.Host.LookupAccount(ctx, username)
 	if err != nil {
-		return Account{}, 0, err
+		return linuxhost.Account{}, 0, err
 	}
-	if !account.IsPrimary(uidMin) {
-		return Account{}, 0, errors.New("caller is not a supported primary Linux account")
+	if !isPrimaryAccount(account, uidMin) {
+		return linuxhost.Account{}, 0, errors.New("caller is not a supported primary Linux account")
 	}
 	return account, uidMin, nil
 }
 
-func (lifecycle Lifecycle) WorkspaceAssociation(ctx context.Context, primary Account, projectID string) (string, bool, error) {
+func (lifecycle Lifecycle) WorkspaceAssociation(ctx context.Context, primary linuxhost.Account, projectID string) (string, bool, error) {
 	username, err := DerivedUsername(primary.Username, projectID)
 	if err != nil {
 		return "", false, err
 	}
-	uidMin, err := lifecycle.Platform.UIDMin()
+	uidMin, err := lifecycle.Host.UIDMin()
 	if err != nil {
 		return "", false, err
 	}
-	account, err := lifecycle.Platform.LookupAccount(ctx, username)
-	if errors.Is(err, ErrAccountNotFound) {
+	account, err := lifecycle.Host.LookupAccount(ctx, username)
+	if errors.Is(err, linuxhost.ErrAccountNotFound) {
 		return username, false, nil
 	}
 	if err != nil {
 		return "", false, err
 	}
-	if err = account.ValidateWorkspace(primary.Username, projectID, uidMin); err != nil {
+	if err = validateWorkspaceAccount(account, primary.Username, projectID, uidMin); err != nil {
 		return "", false, err
 	}
 	return username, true, nil
@@ -89,25 +92,25 @@ func (lifecycle Lifecycle) prepareWorkspaceUnlocked(ctx context.Context, primary
 	return lifecycle.workspacePreparation(ctx, workspace)
 }
 
-func (lifecycle Lifecycle) createPreparedWorkspace(ctx context.Context, target publishTarget) (Account, error) {
-	keys, err := lifecycle.Platform.ReadAuthorizedKeys(target.primary)
+func (lifecycle Lifecycle) createPreparedWorkspace(ctx context.Context, target publishTarget) (linuxhost.Account, error) {
+	keys, err := lifecycle.Host.ReadAuthorizedKeys(target.primary)
 	if err != nil {
-		return Account{}, err
+		return linuxhost.Account{}, err
 	}
 	workspace, err := lifecycle.Platform.CreateWorkspace(ctx, target.primary, target.entry.ID)
 	if err != nil {
-		return Account{}, err
+		return linuxhost.Account{}, err
 	}
 	if err = lifecycle.validateWorkspace(ctx, workspace, target); err != nil {
-		return Account{}, fmt.Errorf("new workspace was retained because its Linux state is invalid: %w", err)
+		return linuxhost.Account{}, fmt.Errorf("new workspace was retained because its Linux state is invalid: %w", err)
 	}
-	if err = lifecycle.Platform.InstallAuthorizedKeys(workspace, keys); err != nil {
-		return Account{}, fmt.Errorf("workspace %s was retained because inbound SSH keys may be incomplete: %w", workspace.Username, err)
+	if err = lifecycle.Host.InstallAuthorizedKeys(workspace, keys); err != nil {
+		return linuxhost.Account{}, fmt.Errorf("workspace %s was retained because inbound SSH keys may be incomplete: %w", workspace.Username, err)
 	}
 	return workspace, nil
 }
 
-func (lifecycle Lifecycle) workspacePreparation(ctx context.Context, workspace Account) (WorkspacePreparation, error) {
+func (lifecycle Lifecycle) workspacePreparation(ctx context.Context, workspace linuxhost.Account) (WorkspacePreparation, error) {
 	publicKey, err := lifecycle.Platform.GenerateWorkspaceGitKey(ctx, workspace)
 	if err != nil {
 		return WorkspacePreparation{}, fmt.Errorf("workspace %s and its inbound SSH keys were retained; outbound Git key generation can be retried: %w", workspace.Username, err)
@@ -116,7 +119,7 @@ func (lifecycle Lifecycle) workspacePreparation(ctx context.Context, workspace A
 }
 
 type publishTarget struct {
-	primary Account
+	primary linuxhost.Account
 	entry   CatalogEntry
 	uidMin  int
 }
@@ -136,17 +139,17 @@ func (lifecycle Lifecycle) prepareWorkspaceTarget(ctx context.Context, primaryUs
 	return publishTarget{primary: primary, entry: entry, uidMin: uidMin}, nil
 }
 
-func (lifecycle Lifecycle) existingWorkspace(ctx context.Context, target publishTarget) (Account, bool, error) {
+func (lifecycle Lifecycle) existingWorkspace(ctx context.Context, target publishTarget) (linuxhost.Account, bool, error) {
 	username, _ := DerivedUsername(target.primary.Username, target.entry.ID)
-	existing, err := lifecycle.Platform.LookupAccount(ctx, username)
-	if errors.Is(err, ErrAccountNotFound) {
-		return Account{}, false, nil
+	existing, err := lifecycle.Host.LookupAccount(ctx, username)
+	if errors.Is(err, linuxhost.ErrAccountNotFound) {
+		return linuxhost.Account{}, false, nil
 	}
 	if err != nil {
-		return Account{}, false, err
+		return linuxhost.Account{}, false, err
 	}
 	if err = lifecycle.validateWorkspace(ctx, existing, target); err != nil {
-		return Account{}, false, err
+		return linuxhost.Account{}, false, err
 	}
 	return existing, true, nil
 }
@@ -189,11 +192,18 @@ func (lifecycle Lifecycle) completeWorkspaceUnlocked(ctx context.Context, primar
 	return workspace.Username, nil
 }
 
-func (lifecycle Lifecycle) validateWorkspace(ctx context.Context, workspace Account, target publishTarget) error {
-	if err := workspace.ValidateWorkspace(target.primary.Username, target.entry.ID, target.uidMin); err != nil {
+func (lifecycle Lifecycle) validateWorkspace(ctx context.Context, workspace linuxhost.Account, target publishTarget) error {
+	if err := validateWorkspaceAccount(workspace, target.primary.Username, target.entry.ID, target.uidMin); err != nil {
 		return err
 	}
-	return lifecycle.Platform.ValidatePasswordLocked(ctx, workspace)
+	status, err := lifecycle.Host.PasswordStatus(ctx, workspace)
+	if err != nil {
+		return err
+	}
+	if status != linuxhost.PasswordLocked {
+		return fmt.Errorf("workspace account %s does not have a locked password", workspace.Username)
+	}
+	return nil
 }
 
 func closeLockWithError(lock io.Closer, operationErr error, description string) error {
