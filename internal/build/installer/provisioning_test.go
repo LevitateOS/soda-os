@@ -24,7 +24,7 @@ func TestInstallerEnvironmentUsesOneStockInteractivePath(t *testing.T) {
 	profile := readInstallerFixture(t, root, "packaging/installer/branding/sodaos.conf")
 	require.Contains(t, profile, "can_copy_input_kickstart = False")
 	require.Contains(t, profile, "can_save_output_kickstart = False")
-	require.Contains(t, profile, "hidden_spokes = UserSpoke PasswordSpoke")
+	require.Contains(t, profile, "hidden_spokes = PasswordSpoke")
 	require.Contains(t, containerfile, `install_items+=" /usr/share/anaconda/interactive-defaults.ks "`)
 
 	for _, architecture := range []string{"aarch64", "x86_64"} {

@@ -3,7 +3,7 @@ Version:        %{soda_version}
 Release:        1%{?dist}
 Summary:        Soda OS host composition
 License:        MIT OR Apache-2.0
-Requires:       ca-certificates, coreutils, firewalld, glibc-common, iproute, NetworkManager, openssh-server, policycoreutils, shadow-utils, soda-forgejo = 15.0.7, systemd, tailscale, util-linux-core
+Requires:       cloud-init, ca-certificates, coreutils, firewalld, glibc-common, iproute, NetworkManager, openssh-server, policycoreutils, shadow-utils, sudo, soda-forgejo = 15.0.7, systemd, tailscale, util-linux-core
 
 %description
 Tailnet enrollment, OpenSSH, firewall, console guidance, and upstream service
@@ -16,7 +16,6 @@ install -m 0755 %{_sourcedir}/soda-tailnet %{buildroot}%{_bindir}/soda-tailnet
 install -m 0755 %{_sourcedir}/soda-local-access %{buildroot}%{_bindir}/soda-local-access
 install -m 0755 %{_sourcedir}/soda-console-welcome %{buildroot}%{_libexecdir}/soda/soda-console-welcome
 install -m 0644 %{_sourcedir}/90-soda.preset %{buildroot}%{_presetdir}/90-soda.preset
-install -m 0644 %{_sourcedir}/soda-setup.service %{buildroot}%{_unitdir}/soda-setup.service
 install -m 0644 %{_sourcedir}/soda-runtime.tmpfiles %{buildroot}%{_tmpfilesdir}/soda-runtime.conf
 install -m 0644 %{_sourcedir}/soda-tailnet.xml %{buildroot}%{_sysconfdir}/firewalld/zones/soda-tailnet.xml
 install -m 0644 %{_sourcedir}/10-soda-console.conf %{buildroot}%{_unitdir}/getty@tty1.service.d/10-soda-console.conf
@@ -29,7 +28,6 @@ install -m 0644 %{_sourcedir}/soda-console-welcome.sh %{buildroot}%{_sysconfdir}
 %{_libexecdir}/soda/soda-setup
 %{_libexecdir}/soda/soda-console-welcome
 %{_presetdir}/90-soda.preset
-%{_unitdir}/soda-setup.service
 %{_tmpfilesdir}/soda-runtime.conf
 %config(noreplace) %{_sysconfdir}/firewalld/zones/soda-tailnet.xml
 %{_unitdir}/getty@tty1.service.d/10-soda-console.conf

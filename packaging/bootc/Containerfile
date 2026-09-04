@@ -30,9 +30,8 @@ COPY --from=lock-inputs /expected-packages.txt /var/tmp/soda-lock/expected-packa
 RUN dnf -y --setopt=install_weak_deps=False --enablerepo=updates-testing install \
       $(cat /var/tmp/soda-lock/fedora-packages.txt) \
       /var/tmp/soda-rpms/*.rpm \
-    && dnf -y remove avahi cloud-init \
+    && dnf -y remove avahi \
     && ! rpm -q avahi \
-    && ! rpm -q cloud-init \
     && ! test -e /usr/lib/systemd/system/avahi-daemon.service \
     && firewall-offline-cmd --set-default-zone=drop \
     && sed -i '/^[[:space:]]*$/d' /usr/lib/sysusers.d/forgejo-runner.conf \
@@ -60,8 +59,9 @@ RUN dnf -y --setopt=install_weak_deps=False --enablerepo=updates-testing install
     && grep -Fx 'SupplementaryGroups=soda-forgejo-shadow' /usr/lib/systemd/system/forgejo.service \
     && install -o root -g root -m 0644 /usr/lib/soda/pam/cockpit /etc/pam.d/cockpit \
     && restorecon -F /etc/pam.d/cockpit \
-    && systemctl preset sshd.service cockpit.socket forgejo.service tailscaled.service firewalld.service soda-setup.service \
-    && systemctl enable sshd.service cockpit.socket forgejo.service tailscaled.service firewalld.service soda-setup.service \
+    && systemctl preset sshd.service cockpit.socket forgejo.service tailscaled.service firewalld.service \
+    && systemctl enable sshd.service cockpit.socket forgejo.service tailscaled.service firewalld.service \
+    && systemctl enable cloud-init-main.service cloud-init-local.service cloud-config.service cloud-final.service \
     && getent passwd git \
     && systemctl mask bootc-fetch-apply-updates.timer \
     && cp -f /usr/lib/soda/os-release /etc/os-release \
