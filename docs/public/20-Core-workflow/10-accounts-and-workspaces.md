@@ -1,3 +1,7 @@
+# Accounts and workspaces
+
+How primary Linux accounts and per-person, per-project workspace accounts keep development work independent.
+
 Soda gives each person one Linux identity for using the machine and a separate
 Linux environment for every project they work on.
 
@@ -61,4 +65,4 @@ then their Forgejo account, then their primary Linux account.
 These operations permanently delete local data and may destroy uncommitted
 work. Forgejo owns the consequences of deleting its user record; Soda does not
 transfer or preserve Forgejo-owned data. Read
-[Administration](administration.md) before using these actions.
+[Administration](../30-Operate-Soda-OS/10-administration.md) before using these actions.

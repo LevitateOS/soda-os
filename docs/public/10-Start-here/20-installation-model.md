@@ -1,3 +1,7 @@
+# Installation model
+
+Install one architecture-matched image, then complete the common interactive first-boot setup.
+
 Installing Soda OS takes one architecture-matched network ISO from a blank
 machine to the common interactive first-boot setup.
 
@@ -48,5 +52,5 @@ over the LAN. Tailscale is optional and never blocks LAN access.
 In a cloud environment, connect Tailscale before using those services. They are
 not exposed to the public Internet.
 
-Continue with [Administration](administration.md) to add people or
-[Connect and develop](connect-and-develop.md) to enter a workspace.
+Continue with [Administration](../30-Operate-Soda-OS/10-administration.md) to add people or
+[Connect and develop](../20-Core-workflow/30-connect-and-develop.md) to enter a workspace.

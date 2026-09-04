@@ -1,3 +1,7 @@
+# Updates and recovery
+
+How administrators use native bootc operations while preserving current accounts and workspace state.
+
 Soda changes its operating-system image with native bootc operations while
 Linux and the owning services retain machine-specific state.
 
@@ -40,5 +44,5 @@ An earlier image is not a backup of deleted workspace data. Project and person
 removal permanently delete local files and are not undone by image fallback.
 
 Use the exact digest and native bootc sequence published for the release. Read
-[Administration](administration.md) before destructive project or person
+[Administration](10-administration.md) before destructive project or person
 actions.

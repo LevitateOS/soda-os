@@ -1,3 +1,7 @@
+# Administration
+
+How stock Cockpit, Linux administrator status, and Soda's focused Projects page fit together.
+
 Soda keeps general machine administration in stock Cockpit and ordinary Linux
 tools. The Projects page contains only Soda-specific project, workspace, and
 person lifecycle actions.
@@ -61,5 +65,5 @@ Use Cockpit, `systemctl`, and `journalctl` for host inspection. Use native bootc
 commands for explicit image update and fallback. Soda has no runtime daemon,
 health API, update service, or general administration CLI.
 
-Read [Projects and Git](projects-and-git.md) for workspace behavior and
-[Updates and recovery](updates-and-recovery.md) for image lifecycle.
+Read [Projects and Git](../20-Core-workflow/20-projects-and-git.md) for workspace behavior and
+[Updates and recovery](20-updates-and-recovery.md) for image lifecycle.

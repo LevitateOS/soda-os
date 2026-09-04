@@ -1,3 +1,7 @@
+# Soda OS documentation
+
+Understand the Soda OS product model and the path from installation to a private development workspace.
+
 Soda OS turns one powerful Linux machine into a remote development system for
 a trusted team. Developers keep using their laptops, editors, terminals, and
 browsers while builds, tests, agents, databases, and project processes run on
@@ -59,6 +63,6 @@ and their primary Linux account last. Failures show exactly what succeeded and
 remains. The trusted team coordinates before destructive actions; Soda adds no
 approval, archive, transfer, rollback, or recovery workflow.
 
-Read [Installation model](installation-model.md),
-[Accounts and workspaces](accounts-and-workspaces.md), or
-[Projects and Git](projects-and-git.md) to continue.
+Read [Installation model](20-installation-model.md),
+[Accounts and workspaces](../20-Core-workflow/10-accounts-and-workspaces.md), or
+[Projects and Git](../20-Core-workflow/20-projects-and-git.md) to continue.

@@ -1,3 +1,7 @@
+# Projects and Git
+
+How the project catalog, Forgejo, external Git hosts, and Set up for me divide responsibility.
+
 The Soda Projects page is the shared list of repositories that developers can
 turn into private workspaces.
 
@@ -58,5 +62,5 @@ The trusted team coordinates first. Soda provides no approval, transfer,
 archive, preservation, rollback, or recovery workflow. If removal fails, the
 page shows exactly what succeeded and remains so an administrator can retry.
 
-Read [Accounts and workspaces](accounts-and-workspaces.md) for the identity
-model and [Administration](administration.md) for person deletion.
+Read [Accounts and workspaces](10-accounts-and-workspaces.md) for the identity
+model and [Administration](../30-Operate-Soda-OS/10-administration.md) for person deletion.

@@ -1,3 +1,7 @@
+# Connect and develop
+
+Use LAN or Tailscale, ordinary SSH, mise, and normal development-server links.
+
 The Soda machine runs development work while your laptop, editor, terminal, or
 browser remains the interface.
 
