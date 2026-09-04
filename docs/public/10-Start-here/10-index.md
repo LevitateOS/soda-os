@@ -23,8 +23,9 @@ accounts, services, and ownership boundaries behind these tasks.
 
 ## From download to development
 
-1. Open [Download](/download) and choose the artifact for the machine's
-   architecture.
+1. Open [Deploy to a cloud](../20-Deploy/10-deploy-to-cloud.md) or
+   [Install on premises](../20-Deploy/20-install-on-premises.md), then choose
+   the artifact for the machine's architecture.
 2. Install with the network ISO or import the reusable QCOW2.
 3. Finish the common first-boot setup from the machine console.
 4. Connect over the LAN or Tailscale with SSH, Cockpit, and Forgejo.
