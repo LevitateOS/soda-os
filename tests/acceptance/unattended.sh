@@ -116,7 +116,7 @@ validate_artifact_set() {
 	expected_platform=$4
 	need_file "$record"
 	need_file "$oci"
-	[ "$(record_value "$record" '.schema_version')" = 3 ] || die "$label record is not schema 3"
+	[ "$(record_value "$record" '.schema_version')" = 4 ] || die "$label record is not schema 4"
 	[ "$(record_value "$record" '.platform')" = "$expected_platform" ] || die "$label record is for the wrong platform"
 	reference=$(record_value "$record" '.soda_image_reference')
 	case "$reference" in

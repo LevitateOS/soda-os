@@ -49,7 +49,7 @@ func newInstallerInputFixture(t *testing.T) installerInputFixture {
 	digest := sha256.Sum256(isoContents)
 	record := filepath.Join(root, "release.json")
 	recordContents, err := json.Marshal(map[string]any{
-		"schema_version": 3,
+		"schema_version": 4,
 		"platform":       "linux/amd64",
 		"iso_sha256":     hex.EncodeToString(digest[:]),
 	})
