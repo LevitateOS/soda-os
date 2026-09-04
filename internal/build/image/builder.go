@@ -244,6 +244,9 @@ func (b *Builder) BuildImage(ctx context.Context) error {
 	if err := b.buildRPMs(ctx, inputs.revision); err != nil {
 		return err
 	}
+	if err := b.verifySourceRevision(ctx, inputs.revision); err != nil {
+		return err
+	}
 	images := b.artifactPath("images")
 	if err := os.MkdirAll(images, 0o755); err != nil {
 		return err
@@ -312,6 +315,17 @@ func (b *Builder) sourceRevision(ctx context.Context) (string, error) {
 		return "", fmt.Errorf("source revision %q is not a full Git commit ID", revision)
 	}
 	return revision, nil
+}
+
+func (b *Builder) verifySourceRevision(ctx context.Context, expected string) error {
+	actual, err := b.sourceRevision(ctx)
+	if err != nil {
+		return err
+	}
+	if actual != expected {
+		return errors.New("source revision changed while building locked RPM inputs")
+	}
+	return nil
 }
 
 func (b *Builder) packageLock() (packageLock, error) {
