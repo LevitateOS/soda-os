@@ -57,11 +57,10 @@ func readTeaSourceLock(path string) (teaSourceLock, error) {
 
 func (lock teaSourceLock) validate() error {
 	valid := semanticVersionPattern.MatchString(lock.Version) && validGitCommit(lock.Commit) &&
-		lock.SourceArchive == "tea-src-"+lock.Version+".tar.gz" &&
-		lock.SourceURL == "https://gitea.com/gitea/tea/archive/v"+lock.Version+".tar.gz" && validSHA256(lock.SourceSHA256) &&
-		lock.LicenseURL == "https://gitea.com/gitea/tea/raw/tag/v"+lock.Version+"/LICENSE" && validSHA256(lock.LicenseSHA256)
+		validSourceArchive(lock.SourceArchive) && lock.SourceURL != "" && validSHA256(lock.SourceSHA256) &&
+		lock.LicenseURL != "" && validSHA256(lock.LicenseSHA256)
 	if !valid {
-		return errors.New("Tea source lock differs from the selected source contract")
+		return errors.New("Tea source lock is incomplete or invalid")
 	}
 	return nil
 }

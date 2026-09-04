@@ -177,16 +177,8 @@ type provenanceRunDetails struct {
 }
 
 func (p *Publication) writeImageProvenance(record Record, spec config.DistroSpec) (string, func(), error) {
-	if record.RuntimePackageLock != spec.Platform.Base.RuntimePackageLock {
-		return "", nil, errors.New("release record runtime package lock differs from the selected platform")
-	}
-	lockPath := filepath.Join(p.root, record.RuntimePackageLock)
-	lockSHA256, err := fileSHA256(lockPath)
-	if err != nil {
-		return "", nil, fmt.Errorf("checksum %s runtime package lock: %w", spec.Platform.Architecture.Name, err)
-	}
-	if lockSHA256 != record.RuntimeLockSHA256 {
-		return "", nil, errors.New("release record runtime package lock checksum differs from the selected platform")
+	if err := p.validateRecordedRuntimeLock(record, spec); err != nil {
+		return "", nil, err
 	}
 	imageDigest := strings.TrimPrefix(record.SodaImageReference, Repository+"@sha256:")
 	_, baseDigest, found := strings.Cut(record.FedoraBaseReference, "@sha256:")
@@ -235,6 +227,24 @@ func (p *Publication) writeImageProvenance(record Record, spec config.DistroSpec
 		return "", nil, fmt.Errorf("close image provenance: %w", err)
 	}
 	return path, func() { _ = os.Remove(path) }, nil
+}
+
+func (p *Publication) validateRecordedRuntimeLock(record Record, spec config.DistroSpec) error {
+	if record.RuntimePackageLock != spec.Platform.Base.RuntimePackageLock {
+		return errors.New("release record runtime package lock differs from the selected platform")
+	}
+	lockPath := record.RuntimePackageLock
+	if !filepath.IsAbs(lockPath) {
+		lockPath = filepath.Join(p.root, lockPath)
+	}
+	lockSHA256, err := fileSHA256(lockPath)
+	if err != nil {
+		return fmt.Errorf("checksum %s runtime package lock: %w", spec.Platform.Architecture.Name, err)
+	}
+	if lockSHA256 != record.RuntimeLockSHA256 {
+		return errors.New("release record runtime package lock checksum differs from the selected platform")
+	}
+	return nil
 }
 
 func (p *Publication) skopeo(args ...string) process.Command {

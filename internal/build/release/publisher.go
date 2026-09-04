@@ -108,10 +108,14 @@ func (p *Publisher) CreateRecord(ctx context.Context, options RecordOptions) (Re
 
 func (p *Publisher) runtimeLockIdentity() (string, string, error) {
 	path := p.spec.Platform.Base.RuntimePackageLock
-	if path == "" || filepath.IsAbs(path) {
-		return "", "", errors.New("release record requires a relative selected runtime package lock")
+	if path == "" {
+		return "", "", errors.New("release record requires a selected runtime package lock")
 	}
-	digest, err := fileSHA256(filepath.Join(p.root, path))
+	resolvedPath := path
+	if !filepath.IsAbs(resolvedPath) {
+		resolvedPath = filepath.Join(p.root, resolvedPath)
+	}
+	digest, err := fileSHA256(resolvedPath)
 	if err != nil {
 		return "", "", fmt.Errorf("checksum selected runtime package lock: %w", err)
 	}

@@ -233,6 +233,22 @@ func TestImageProvenanceBindsTheRecordedRuntimeLock(t *testing.T) {
 	require.ErrorContains(t, err, "runtime package lock checksum differs")
 }
 
+func TestImageProvenanceAcceptsConfiguredAbsoluteRuntimeLock(t *testing.T) {
+	publication := testPublication(t, &publicationRunner{}, "arm64")
+	options, _ := writeUploadArtifacts(t, testArmPublicationSpec(), testRevision)
+	record, err := readStrictRecord(options.RecordPath)
+	require.NoError(t, err)
+	spec := testArmPublicationSpec()
+	lockPath := filepath.Join(publication.root, "runtime.lock")
+	spec.Platform.Base.RuntimePackageLock = lockPath
+	record.RuntimePackageLock = lockPath
+
+	path, cleanup, err := publication.writeImageProvenance(record, spec)
+	require.NoError(t, err)
+	defer cleanup()
+	require.FileExists(t, path)
+}
+
 func TestImageSigningChecksRecordedRuntimeLockBeforeCosign(t *testing.T) {
 	runner := &publicationRunner{}
 	publication := testPublication(t, runner, "arm64")

@@ -51,6 +51,28 @@ func TestCreateRecordUsesLocalArchiveDigest(t *testing.T) {
 	require.NotContains(t, string(contents), "state_schema")
 }
 
+func TestCreateRecordAcceptsConfiguredAbsoluteRuntimeLock(t *testing.T) {
+	img := matchingTestImage(t)
+	archive := writeOCIArchive(t, img)
+	iso := filepath.Join(t.TempDir(), "SodaOS.iso")
+	require.NoError(t, os.WriteFile(iso, []byte("installer bytes"), 0o644))
+	qcow2, qcow2ZST := writeQCOW2Artifacts(t)
+	lockPath := filepath.Join(t.TempDir(), "runtime.lock")
+	require.NoError(t, os.WriteFile(lockPath, []byte("runtime lock\n"), 0o644))
+	spec := testSpec()
+	spec.Platform.Base.RuntimePackageLock = lockPath
+	publisher := &Publisher{root: t.TempDir(), spec: spec, hostArchitecture: "arm64", isoValidator: &fakeISOValidator{}}
+
+	result, err := publisher.CreateRecord(context.Background(), RecordOptions{ArchivePath: archive, ISOPath: iso, QCOW2Path: qcow2, QCOW2ZSTPath: qcow2ZST, OutputDir: t.TempDir()})
+	require.NoError(t, err)
+	contents, err := os.ReadFile(result.RecordPath)
+	require.NoError(t, err)
+	var record Record
+	require.NoError(t, json.Unmarshal(contents, &record))
+	require.Equal(t, lockPath, record.RuntimePackageLock)
+	require.Equal(t, sha256Hex([]byte("runtime lock\n")), record.RuntimeLockSHA256)
+}
+
 func TestCreateRecordBindsInspectedISO(t *testing.T) {
 	iso := filepath.Join(t.TempDir(), "SodaOS.iso")
 	require.NoError(t, os.WriteFile(iso, []byte("installer bytes"), 0o644))
