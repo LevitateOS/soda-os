@@ -17,7 +17,7 @@ installation.
 
 ## Download and verify the installer
 
-1. Open [Download](/download) or the [latest GitHub
+1. Open the [latest GitHub
    Release](https://github.com/LevitateOS/soda-os/releases/latest).
 2. Select the ISO, checksum, release record, and Sigstore bundle for the
    machine architecture.
