@@ -97,7 +97,7 @@ func printStatus(output io.Writer, status setup.Status) {
 
 func consoleMenu(status setup.Status) string {
 	menu := "\n1. Create the primary Linux administrator\n" +
-		"2. Allow access from the local network\n" +
+		"2. Allow access from the local network.\n" +
 		"3. Connect Tailscale\n" +
 		"4. Dismiss Soda Setup\n" +
 		"q. Leave setup running for the next startup\nChoose: "
