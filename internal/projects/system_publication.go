@@ -78,11 +78,17 @@ func (platform *NativePlatform) CloneWorkspace(ctx context.Context, workspace Ac
 	if err := ValidateCanonicalURL(remote); err != nil {
 		return fmt.Errorf("clone URL: %w", err)
 	}
+	if !projectIDPattern.MatchString(projectID) {
+		return errors.New("project id must match [a-z][a-z0-9-]{0,23}")
+	}
 	projectsDirectory, err := platform.openWorkspaceProjectsForPublication(workspace)
 	if err != nil {
 		return err
 	}
 	defer projectsDirectory.Close()
+	if err = platform.removePreviousCloneAttempt(ctx, workspace, projectID); err != nil {
+		return err
+	}
 	target, err := reservePublicationTarget(projectsDirectory, workspace, projectID)
 	if err != nil {
 		return err
@@ -112,6 +118,20 @@ func (platform *NativePlatform) CloneWorkspace(ctx context.Context, workspace Ac
 		return err
 	}
 	return finalizeWorkspacePublication(projectsDirectory, target.name, projectID)
+}
+
+func (platform *NativePlatform) removePreviousCloneAttempt(ctx context.Context, workspace Account, projectID string) error {
+	path := filepath.Join(workspace.Home, "Projects", ".soda-"+projectID+".tmp")
+	result, err := platform.runner().Run(ctx, Command{Name: "/usr/sbin/runuser", Args: []string{
+		"--user", workspace.Username, "--", "/usr/bin/rm", "--recursive", "--force", "--", path,
+	}})
+	if err != nil {
+		return fmt.Errorf("remove incomplete workspace clone from previous attempt: %w", err)
+	}
+	if result.ExitCode != 0 {
+		return fmt.Errorf("remove incomplete workspace clone from previous attempt: %s", strings.TrimSpace(result.Stderr))
+	}
+	return nil
 }
 
 func workspaceGitKeyPath(workspace Account) string {
