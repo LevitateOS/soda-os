@@ -72,34 +72,6 @@ func (privileged *fakePrivileged) HumanPublish(_ context.Context, request Helper
 	return privileged.record("human-publish", request)
 }
 
-type fakeTea struct {
-	preflight []string
-	verified  []string
-	staged    []string
-	cleaned   []string
-	err       error
-}
-
-func (tea *fakeTea) Preflight(_ Account, username string) error {
-	tea.preflight = append(tea.preflight, username)
-	return tea.err
-}
-
-func (tea *fakeTea) StageLogin(_ context.Context, _ Account, username, _, _ string) error {
-	tea.staged = append(tea.staged, username)
-	return tea.err
-}
-
-func (tea *fakeTea) VerifyLogin(_ context.Context, _ Account, username string) error {
-	tea.verified = append(tea.verified, username)
-	return tea.err
-}
-
-func (tea *fakeTea) CleanupStaging(_ Account, username string) error {
-	tea.cleaned = append(tea.cleaned, username)
-	return tea.err
-}
-
 type fakeCloner struct {
 	remote      string
 	credentials CloneCredentials
@@ -115,7 +87,6 @@ type coordinatorFixture struct {
 	platform    *fakePlatform
 	privileged  *fakePrivileged
 	cloner      *fakeCloner
-	tea         *fakeTea
 }
 
 func testCoordinator(t *testing.T) coordinatorFixture {
@@ -125,44 +96,71 @@ func testCoordinator(t *testing.T) coordinatorFixture {
 	platform.accounts["alice"] = primaryAccount("alice", primaryRoleAdministrator)
 	privileged := &fakePrivileged{}
 	cloner := &fakeCloner{}
-	tea := &fakeTea{}
 	lifecycle := Lifecycle{Catalog: catalog, Platform: platform}
 	return coordinatorFixture{
-		coordinator: Coordinator{Catalog: catalog, Lifecycle: lifecycle, Platform: platform, Privileged: privileged, Forgejo: ForgejoClient{}, Cloner: cloner, Endpoints: fakeEndpoints{}, Tea: tea},
+		coordinator: Coordinator{Catalog: catalog, Lifecycle: lifecycle, Platform: platform, Privileged: privileged, Forgejo: ForgejoClient{}, Cloner: cloner, Endpoints: fakeEndpoints{}},
 		platform:    platform,
 		privileged:  privileged,
 		cloner:      cloner,
-		tea:         tea,
 	}
 }
 
-func TestCoordinatorAddPersonKeepsTeaSecretOutOfPublishRequest(t *testing.T) {
+func TestCoordinatorAddPersonRegistersForgejoKeyWithoutPrivilegedSecret(t *testing.T) {
 	fixture := testCoordinator(t)
 	key := strings.TrimSpace(string(testAuthorizedKey(t)))
+	var registered string
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		username, password, ok := request.BasicAuth()
+		require.True(t, ok)
+		require.Equal(t, "bob", username)
+		require.Equal(t, "initial secret", password)
+		switch request.URL.Path {
+		case "/api/v1/user":
+			_, _ = writer.Write([]byte(`{"login":"bob"}`))
+		case "/api/v1/user/keys":
+			if request.Method == http.MethodGet {
+				_, _ = writer.Write([]byte(`[]`))
+				return
+			}
+			var body struct {
+				Key string `json:"key"`
+			}
+			require.NoError(t, json.NewDecoder(request.Body).Decode(&body))
+			registered = body.Key
+			writer.WriteHeader(http.StatusCreated)
+		default:
+			t.Fatalf("unexpected Forgejo request %s %s", request.Method, request.URL.Path)
+		}
+	}))
+	defer server.Close()
+	fixture.coordinator.Endpoints = fakeEndpoints{forgejoURL: server.URL}
 	response, err := fixture.coordinator.Execute(context.Background(), "alice", "add-person", strings.NewReader(
 		`{"username":"bob","password":"initial secret","authorized_key":`+fmt.Sprintf("%q", key)+`}`,
 	))
 	require.NoError(t, err)
 	require.Equal(t, MutationResponse{OK: true}, response)
 	require.Equal(t, []string{"human-create", "human-publish"}, fixture.privileged.actions)
-	require.Equal(t, []string{"bob"}, fixture.tea.preflight)
-	require.Equal(t, []string{"bob"}, fixture.tea.staged)
-	require.Equal(t, []string{"bob"}, fixture.tea.cleaned)
+	require.Equal(t, key, registered)
 	encoded, err := json.Marshal(fixture.privileged.request)
 	require.NoError(t, err)
 	require.NotContains(t, string(encoded), "initial secret")
 	require.NotContains(t, string(encoded), "token")
 }
 
-func TestCoordinatorAddPersonChecksTeaStagingBeforeLinuxMutation(t *testing.T) {
+func TestCoordinatorAddPersonRetainsLinuxStateWhenForgejoRegistrationFails(t *testing.T) {
 	fixture := testCoordinator(t)
-	fixture.tea.err = errors.New("staging conflict")
 	key := strings.TrimSpace(string(testAuthorizedKey(t)))
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		writer.WriteHeader(http.StatusUnauthorized)
+		_, _ = writer.Write([]byte(`{"message":"wrong password"}`))
+	}))
+	defer server.Close()
+	fixture.coordinator.Endpoints = fakeEndpoints{forgejoURL: server.URL}
 	_, err := fixture.coordinator.Execute(context.Background(), "alice", "add-person", strings.NewReader(
 		`{"username":"bob","password":"initial secret","authorized_key":`+fmt.Sprintf("%q", key)+`}`,
 	))
-	require.ErrorContains(t, err, "staging conflict")
-	require.Empty(t, fixture.privileged.actions)
+	require.ErrorContains(t, err, "Linux account bob and its SSH key were retained")
+	require.Equal(t, []string{"human-create", "human-publish"}, fixture.privileged.actions)
 }
 
 func TestCoordinatorAddPersonRequiresAdministratorBeforeMutation(t *testing.T) {

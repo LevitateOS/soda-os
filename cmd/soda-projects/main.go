@@ -37,7 +37,7 @@ func main() {
 	coordinator := projects.Coordinator{
 		Catalog: catalog, Lifecycle: lifecycle, Platform: platform,
 		Privileged: projects.PKExecInvoker{}, Forgejo: projects.ForgejoClient{},
-		Cloner: projects.GitCloner{}, Endpoints: projects.TailnetEndpoints{}, Tea: projects.NewNativeTea(platform),
+		Cloner: projects.GitCloner{}, Endpoints: projects.TailnetEndpoints{},
 	}
 	response, err := coordinator.Execute(context.Background(), current.Username, os.Args[1], os.Stdin)
 	if err != nil {

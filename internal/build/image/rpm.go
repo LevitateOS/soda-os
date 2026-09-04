@@ -142,23 +142,16 @@ func (b *Builder) buildTea(ctx context.Context) error {
 	if err = verifyFileSHA256(archive, lock.SourceSHA256); err != nil {
 		return fmt.Errorf("verify Tea source; run just tea-source: %w", err)
 	}
-	patch := b.path("packaging/rpm/tea/sources/0001-secret-safe-deterministic-login.patch")
-	if err = verifyFileSHA256(patch, lock.PatchSHA256); err != nil {
-		return fmt.Errorf("verify Tea login patch: %w", err)
-	}
 	script := strings.Join([]string{
 		"set -eu",
 		"rm -rf /src/.artifacts/build/tea-source /src/.artifacts/build/tea-go-cache /src/.artifacts/build/tea-go-tmp",
 		"mkdir -p /src/.artifacts/build/tea-source /src/.artifacts/build/tea-go-cache /src/.artifacts/build/tea-go-tmp",
 		"tar -xzf /src/.artifacts/tools/" + lock.SourceArchive + " -C /src/.artifacts/build/tea-source --strip-components=1",
 		"cd /src/.artifacts/build/tea-source",
-		"patch --batch --forward --fuzz=0 --strip=1 --input=/src/packaging/rpm/tea/sources/0001-secret-safe-deterministic-login.patch",
 		"go test ./cmd/login ./modules/task ./modules/config",
 		"TEA_VERSION=" + lock.Version + " make BUILDMODE=-buildvcs=false build",
 		"install -m 0755 tea /src/.artifacts/build/tea",
 		"/src/.artifacts/build/tea --version | grep -F '" + lock.Version + "'",
-		"/src/.artifacts/build/tea logins add --help | grep -F -- '--password-stdin'",
-		"/src/.artifacts/build/tea logins add --help | grep -F -- '--token-name'",
 	}, "\n")
 	return b.docker(ctx, []string{
 		"CGO_ENABLED=0",

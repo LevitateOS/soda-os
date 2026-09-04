@@ -232,6 +232,61 @@ forgejo_user_status() {
 	"
 }
 
+person_key_path() {
+	username=$1
+	printf '%s\n' "$username" | LC_ALL=C grep -Eq '^[a-z][a-z0-9-]{0,23}$' ||
+		die "invalid acceptance person-key username $username"
+	directory=${SODA_ACCEPTANCE_PERSON_KEYS_DIR:-}
+	[ -n "$directory" ] || die "SODA_ACCEPTANCE_PERSON_KEYS_DIR is required"
+	printf '%s/%s\n' "$directory" "$username"
+}
+
+ensure_person_key() {
+	username=$1
+	printf '%s\n' "$username" | LC_ALL=C grep -Eq '^[a-z][a-z0-9-]{0,23}$' ||
+		die "invalid acceptance person-key username $username"
+	if [ "$username" = "$admin" ]; then
+		key=${SODA_ACCEPTANCE_ADMIN_KEY:-}
+		[ -n "$key" ] || die "SODA_ACCEPTANCE_ADMIN_KEY is required"
+		need_file "$key"
+		need_file "$key.pub"
+		printf '%s\n' "$key"
+		return
+	fi
+	key=$(person_key_path "$username")
+	if test -f "$key" && test -f "$key.pub"; then
+		printf '%s\n' "$key"
+		return
+	fi
+	if test -e "$key" || test -e "$key.pub"; then
+		die "acceptance person key for $username is incomplete"
+	fi
+	need ssh-keygen
+	directory=$(dirname "$key")
+	mkdir -p "$directory"
+	chmod 0700 "$directory"
+	ssh-keygen -q -t ed25519 -N '' -C "soda-acceptance-$username" -f "$key"
+	chmod 0600 "$key"
+	printf '%s\n' "$key"
+}
+
+forgejo_public_key_registered() {
+	username=$1
+	output=$2
+	printf '%s\n' "$username" | LC_ALL=C grep -Eq '^[a-z][a-z0-9-]{0,31}$' ||
+		die "invalid Forgejo public-key fixture username $username"
+	person_key=$(ensure_person_key "$username")
+	key=$(awk 'NF == 2 || NF == 3 {print $1 " " $2; exit}' "$person_key.pub")
+	test -n "$key" || die "acceptance public key is invalid"
+	admin_ssh "
+		set -eu
+		forgejo_url=\$(printf '{}\\n' | /usr/libexec/soda/soda-projects list | jq -er .forgejo_url)
+		curl --fail --silent --show-error \"\$forgejo_url/api/v1/users/$username/keys\"
+	" >"$output"
+	jq -e --arg key "$key" 'any(.[]; .key == $key)' "$output" >/dev/null ||
+		die "Forgejo does not contain $username's registered public SSH key"
+}
+
 require_dir() {
 	case "$architecture" in
 		aarch64|x86_64) ;;
@@ -760,9 +815,9 @@ capture() {
 /usr/share/licenses/soda-tea/LICENSE"
 		test "$(rpm -ql soda-tea)" = "$expected_tea_files"
 		echo "soda-tea-ownership=executable-and-license-only"
-		test "$(stat -c %a "$HOME/.config/tea/config.yml")" = 600
-		tea api --login soda user | jq -e --arg username "$(id -un)" ".login == \$username" >/dev/null
-		echo "installer-administrator-tea-login=verified"
+		test ! -e "$HOME/.config/tea/config.yml"
+		test ! -e "$HOME/.config/gh/hosts.yml"
+		echo "installer-administrator-forge-cli-configuration=absent"
 		for path in /etc/gh /var/lib/gh /etc/soda/gh /var/lib/soda/gh /etc/tea /var/lib/tea /etc/soda/tea /var/lib/soda/tea; do
 			if test -e "$path"; then
 				echo "unexpected-forge-cli-state=$path"
@@ -951,8 +1006,8 @@ add_person_request() {
 	username=$1
 	printf '%s\n' "$username" | LC_ALL=C grep -Eq '^[a-z][a-z0-9-]{0,23}$' || die "invalid person fixture username"
 	fixture=$(later_primary_password_file)
-	need_file "$admin_key.pub"
-	jq -cn --rawfile password "$fixture" --rawfile authorized_key "$admin_key.pub" --arg username "$username" \
+	person_key=$(ensure_person_key "$username")
+	jq -cn --rawfile password "$fixture" --rawfile authorized_key "$person_key.pub" --arg username "$username" \
 		'{username:$username,password:($password|gsub("[\\r\\n]+$";"")),authorized_key:($authorized_key|gsub("[\\r\\n]+$";""))}' |
 		admin_ssh /usr/libexec/soda/soda-projects add-person
 }
@@ -960,69 +1015,11 @@ add_person_request() {
 primary_ssh() {
 	username=$1
 	shift
+	person_key=$(ensure_person_key "$username")
 	need_file "$(known_hosts_path)"
 	ssh -T -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
-		-o "UserKnownHostsFile=$(known_hosts_path)" -i "$SODA_ACCEPTANCE_ADMIN_KEY" -p "$guest_ssh_port" \
+		-o "UserKnownHostsFile=$(known_hosts_path)" -i "$person_key" -p "$guest_ssh_port" \
 		"$username@$guest_host" "$@"
-}
-
-primary_tea_api() {
-	username=$1
-	endpoint=$2
-	payload=$3
-	printf '%s' "$payload" | primary_ssh "$username" /usr/bin/tea api --login soda --data @- "$endpoint"
-}
-
-forgejo_pam_create_tea_scope_repository() {
-	output=$1
-	fixture=$(later_primary_password_file)
-	raw=$acceptance_dir/.forgejo-tea-scope-$$.response
-	trap 'rm -f "$raw"' 0 1 2 15
-	forgejo_url=$(admin_ssh 'printf "{}\n" | /usr/libexec/soda/soda-projects list | jq -er .forgejo_url')
-	printf '%s\n' "$forgejo_url" | LC_ALL=C grep -Eq '^http://(\[[0-9A-Fa-f:]+\]|[A-Za-z0-9][A-Za-z0-9._-]*):[0-9]{1,5}$' ||
-		die "installed Forgejo URL is not a credential-free Tailnet HTTP endpoint"
-	forgejo_port=${forgejo_url##*:}
-	request_host=$guest_host
-	case "$request_host" in *:*) request_host=[$request_host] ;; esac
-	{
-		printf 'user = "alice:'
-		tr -d '\r\n' <"$fixture"
-		printf '"\nsilent\nshow-error\nwrite-out = "\\n%%{http_code}\\n"\n'
-	} | curl --config - --request POST --header 'Content-Type: application/json' \
-		--data-binary '{"name":"tea-scope-smoke","auto_init":true}' \
-		--url "http://$request_host:$forgejo_port/api/v1/user/repos" >"$raw"
-	status=$(tail -n 1 "$raw")
-	sed '$d' "$raw" >"$output"
-	rm -f "$raw"
-	trap - 0 1 2 15
-	[ "$status" = 201 ] || die "Forgejo PAM repository creation returned HTTP $status, expected 201"
-}
-
-exercise_tea_scopes() {
-	operations=$1
-	repository=tea-scope-smoke
-	forgejo_pam_create_tea_scope_repository "$operations/tea-repository.json"
-	base=$(jq -er '.default_branch | select(test("^[A-Za-z0-9._/-]+$"))' "$operations/tea-repository.json")
-	jq -e '.name == "tea-scope-smoke" and .owner.login == "alice"' "$operations/tea-repository.json" >/dev/null
-
-	branch_payload=$(jq -cn --arg base "$base" '{new_branch_name:"tea-scope-proof",old_branch_name:$base}')
-	primary_tea_api alice "repos/alice/$repository/branches" "$branch_payload" >"$operations/tea-branch.json"
-	primary_tea_api alice "repos/alice/$repository/contents/proof.txt" \
-		'{"branch":"tea-scope-proof","content":"U29kYSBUZWEgc2NvcGUgcHJvb2YK","message":"add Tea scope proof"}' \
-		>"$operations/tea-content.json"
-	primary_tea_api alice "repos/alice/$repository/issues" \
-		'{"title":"Tea issue scope proof","body":"native user-owned Tea authentication"}' \
-		>"$operations/tea-issue.json"
-	pull_payload=$(jq -cn --arg base "$base" '{title:"Tea pull request scope proof",head:"tea-scope-proof",base:$base}')
-	primary_tea_api alice "repos/alice/$repository/pulls" "$pull_payload" >"$operations/tea-pull.json"
-	release_payload=$(jq -cn --arg base "$base" \
-		'{tag_name:"tea-scope-v1",target_commitish:$base,name:"Tea release scope proof"}')
-	primary_tea_api alice "repos/alice/$repository/releases" "$release_payload" >"$operations/tea-release.json"
-	jq -e '.name == "tea-scope-proof"' "$operations/tea-branch.json" >/dev/null
-	jq -e '.content.name == "proof.txt"' "$operations/tea-content.json" >/dev/null
-	jq -e '.number > 0' "$operations/tea-issue.json" >/dev/null
-	jq -e '.number > 0' "$operations/tea-pull.json" >/dev/null
-	jq -e '.tag_name == "tea-scope-v1"' "$operations/tea-release.json" >/dev/null
 }
 
 emit_seed_accounts() {
@@ -1066,12 +1063,8 @@ exercise_seed_forgejo_pam() {
 	forgejo_pam_request obsolete correct 200 "$operations/obsolete-forgejo-login.json"
 	jq -e '.login == "obsolete" and .active == true and .is_admin == false' \
 		"$operations/obsolete-forgejo-login.json" >/dev/null || die "obsolete fixture did not become an ordinary native Forgejo user"
-	for username in alice obsolete; do
-		primary_ssh "$username" 'test "$(stat -c %a "$HOME/.config/tea/config.yml")" = 600; tea api --login soda user' \
-			>"$operations/$username-tea-user.json"
-		jq -e --arg username "$username" '.login == $username' "$operations/$username-tea-user.json" >/dev/null ||
-			die "$username Tea login has the wrong identity"
-	done
+	forgejo_public_key_registered alice "$operations/alice-forgejo-keys.json"
+	forgejo_public_key_registered obsolete "$operations/obsolete-forgejo-keys.json"
 	run_privileged_script emit_verify_pam_verifiers >"$operations/pam-verifiers.txt"
 }
 
@@ -1083,17 +1076,16 @@ exercise_mutated_forgejo_pam() {
 	forgejo_pam_request bob correct 200 "$operations/bob-forgejo-login.json"
 	jq -e '.login == "bob" and .active == true and .is_admin == false' \
 		"$operations/bob-forgejo-login.json" >/dev/null || die "Bob did not become an ordinary native Forgejo user"
-	[ "$(forgejo_user_status obsolete)" = 200 ] || die "Linux deletion removed the obsolete native Forgejo user"
-	primary_ssh bob 'tea api --login soda user' >"$operations/bob-tea-user.json"
-	jq -e '.login == "bob"' "$operations/bob-tea-user.json" >/dev/null || die "Bob Tea login has the wrong identity"
+	forgejo_public_key_registered bob "$operations/bob-forgejo-keys.json"
+	[ "$(forgejo_user_status obsolete)" = 404 ] || die "Soda-aware human deletion retained the obsolete Forgejo account"
 	run_privileged_script emit_verify_pam_verifiers >"$operations/mutated-pam-verifiers.txt"
 }
 
 emit_verify_pam_verifiers() {
 	cat <<'EOF'
 test "$(id -u)" -eq 0
-for username in alice obsolete bob; do
-	if getent passwd "$username" >/dev/null || test "$username" = obsolete; then
+for username in alice bob; do
+	if getent passwd "$username" >/dev/null; then
 		row=$(sqlite3 /var/lib/forgejo/data/forgejo.db \
 			"select count(*) || ':' || sum(case when passwd = '' and salt = '' and passwd_hash_algo = '' then 1 else 0 end) from user where lower_name = '$username' and login_type = 4;")
 		test "$row" = 1:1
@@ -1502,7 +1494,7 @@ capture_forgejo_state() {
 		set -eu
 		forgejo_url=$(printf "{}\n" | /usr/libexec/soda/soda-projects list | jq -er .forgejo_url)
 		users=$(
-			for login in soda-test alice obsolete bob; do
+			for login in soda-test alice obsolete bob charlie; do
 				status=$(curl --silent --show-error --output /dev/null --write-out "%{http_code}" "$forgejo_url/api/v1/users/$login")
 				case "$status" in
 					200)
@@ -1534,12 +1526,15 @@ capture_forgejo_state() {
 }
 
 fallback_workspace_ssh() {
-	workspace_target=$1
+	primary_username=$1
+	workspace_target=$2
 	shift
+	shift
+	printf '%s\n' "$primary_username" | LC_ALL=C grep -Eq '^[a-z][a-z0-9-]{0,23}$' ||
+		die "invalid workspace primary username $primary_username"
 	printf '%s\n' "$workspace_target" | LC_ALL=C grep -Eq '^soda-w-[0-9a-f]{24}$' ||
 		die "invalid derived workspace username $workspace_target"
-	workspace_key=${SODA_ACCEPTANCE_WORKSPACE_KEY:-${SODA_ACCEPTANCE_ADMIN_KEY:-}}
-	[ -n "$workspace_key" ] || die "SODA_ACCEPTANCE_WORKSPACE_KEY or SODA_ACCEPTANCE_ADMIN_KEY is required"
+	workspace_key=$(ensure_person_key "$primary_username")
 	need_file "$workspace_key"
 	need_file "$(known_hosts_path)"
 	ssh -T -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
@@ -1551,7 +1546,7 @@ fallback_workspace_process() {
 	checkpoint=$1
 	workspace_target=$(printf '{}\n' | admin_ssh /usr/libexec/soda/soda-projects list |
 		jq -er '.projects[] | select(.id == "kept") | .workspace_username')
-	fallback_workspace_ssh "$workspace_target" '
+	fallback_workspace_ssh "$admin" "$workspace_target" '
 		set -eu
 		state=$HOME/.local/state/soda-acceptance
 		mkdir -p "$state"
@@ -1609,7 +1604,7 @@ fallback_capture() {
 	' "$checkpoint/catalog.json" >/dev/null || die "installed catalog is not the exact sorted three-field representation"
 	run_privileged_script emit_fallback_state >"$checkpoint/system.json"
 	capture_forgejo_state >"$checkpoint/forgejo.json"
-	jq -e '[.users[] | select(.present) | .login] == ["alice","bob","obsolete","soda-test"] and all(.workspace_users[]; .present == false)' \
+	jq -e '[.users[] | select(.present) | .login] == ["alice","bob","soda-test"] and all(.workspace_users[]; .present == false)' \
 		"$checkpoint/forgejo.json" >/dev/null || die "Forgejo native user evidence is incomplete"
 	fallback_workspace_process "$checkpoint"
 	catalog_sha=$(sha256sum "$checkpoint/catalog.json" | awk '{print $1}')
@@ -1665,17 +1660,19 @@ primary_project_request() {
 	action=$2
 	request=$3
 	printf '%s\n' "$username" | LC_ALL=C grep -Eq '^[a-z][a-z0-9-]{0,23}$' || die "invalid primary username $username"
+	person_key=$(ensure_person_key "$username")
 	need_file "$(known_hosts_path)"
 	printf '%s\n' "$request" | ssh -T -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
-		-o "UserKnownHostsFile=$(known_hosts_path)" -i "$SODA_ACCEPTANCE_ADMIN_KEY" -p "$guest_ssh_port" \
+		-o "UserKnownHostsFile=$(known_hosts_path)" -i "$person_key" -p "$guest_ssh_port" \
 		"$username@$guest_host" "/usr/libexec/soda/soda-projects '$action'"
 }
 
 missing_key_project_request() {
 	request=$1
+	person_key=$(ensure_person_key nokey)
 	need_file "$(known_hosts_path)"
 	printf '%s\n' "$request" | ssh -T -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
-		-o "UserKnownHostsFile=$(known_hosts_path)" -i "$SODA_ACCEPTANCE_ADMIN_KEY" -p "$guest_ssh_port" \
+		-o "UserKnownHostsFile=$(known_hosts_path)" -i "$person_key" -p "$guest_ssh_port" \
 		"nokey@$guest_host" 'rm -f "$HOME/.ssh/authorized_keys"; exec /usr/libexec/soda/soda-projects setup'
 }
 
@@ -1774,11 +1771,10 @@ scenario_product() {
 	forgejo_pam_request bob correct 200 "$operations/bob-forgejo-final-login.json"
 	jq -e '.login == "bob" and .active == true and .is_admin == false' \
 		"$operations/bob-forgejo-final-login.json" >/dev/null || die "Bob's final Forgejo PAM login is not ordinary"
-	[ "$(forgejo_user_status obsolete)" = 200 ] || die "deleted Linux user no longer has its independent Forgejo record"
+	[ "$(forgejo_user_status obsolete)" = 404 ] || die "Soda-aware deletion retained obsolete's Forgejo record"
 	kept_workspace=$(project_workspace kept)
 	forgejo_pam_request "$kept_workspace" wrong 401 "$operations/workspace-forgejo-login.json"
 	[ "$(forgejo_user_status "$kept_workspace")" = 404 ] || die "workspace PAM attempt created a Forgejo user"
-	exercise_tea_scopes "$operations"
 
 	# The installed catalog is the exact sorted three-field product fact.
 	admin_ssh 'cat /var/lib/soda/catalog/projects.json' >"$operations/catalog-before.json"
@@ -1821,47 +1817,42 @@ scenario_product() {
 	alice_workspace=$(jq -er '.workspace_username' "$operations/alice-setup.json")
 	bob_workspace=$(jq -er '.workspace_username' "$operations/bob-setup.json")
 	[ "$alice_workspace" != "$bob_workspace" ] || die "two humans received the same workspace account"
-	for workspace in "$alice_workspace" "$bob_workspace"; do
+	for association in "alice:$alice_workspace" "bob:$bob_workspace"; do
+		primary=${association%%:*}
+		workspace=${association#*:}
 		printf '%s\n' "$workspace" | LC_ALL=C grep -Eq '^soda-w-[0-9a-f]{24}$' || die "invalid workspace username"
-		fallback_workspace_ssh "$workspace" 'test "$(id -u)" -eq "$(stat -c %u "$HOME")"; test -d "$HOME/Projects/kept/.git"; printf "%s\n" "$(id -un):$(id -u):$HOME"'
+		fallback_workspace_ssh "$primary" "$workspace" 'test "$(id -u)" -eq "$(stat -c %u "$HOME")"; test -d "$HOME/Projects/kept/.git"; printf "%s\n" "$(id -un):$(id -u):$HOME"'
 	done >"$operations/workspace-identities.txt"
 	for association in "alice:$alice_workspace" "bob:$bob_workspace"; do
 		primary=${association%%:*}
 		workspace=${association#*:}
-		primary_hash=$(primary_ssh "$primary" 'sha256sum "$HOME/.config/tea/config.yml" | cut -d" " -f1')
-		workspace_hash=$(fallback_workspace_ssh "$workspace" 'sha256sum "$HOME/.config/tea/config.yml" | cut -d" " -f1')
-		[ "$primary_hash" = "$workspace_hash" ] || die "$primary Tea configuration was not copied opaquely"
-		fallback_workspace_ssh "$workspace" 'tea api --login soda user' >"$operations/$primary-workspace-tea.json"
-		jq -e --arg primary "$primary" '.login == $primary' "$operations/$primary-workspace-tea.json" >/dev/null ||
-			die "$primary workspace Tea login has the wrong identity"
+		fallback_workspace_ssh "$primary" "$workspace" 'test ! -e "$HOME/.config/tea/config.yml"; test ! -e "$HOME/.config/gh/hosts.yml"'
 	done
-	[ "$(primary_ssh alice 'sha256sum "$HOME/.config/tea/config.yml" | cut -d" " -f1')" != \
-	  "$(primary_ssh bob 'sha256sum "$HOME/.config/tea/config.yml" | cut -d" " -f1')" ] ||
-		die "Alice and Bob unexpectedly share one Tea configuration"
-	[ "$(fallback_workspace_ssh "$alice_workspace" 'id -u')" != "$(fallback_workspace_ssh "$bob_workspace" 'id -u')" ] ||
+	[ "$(fallback_workspace_ssh alice "$alice_workspace" 'id -u')" != "$(fallback_workspace_ssh bob "$bob_workspace" 'id -u')" ] ||
 		die "two humans received the same workspace UID"
-	fallback_workspace_ssh "$alice_workspace" 'printf alice-private >"$HOME/Projects/kept/alice-private.txt"; nohup sleep 300 </dev/null > /dev/null 2>&1 & echo $! >"$HOME/alice-process.pid"'
-	fallback_workspace_ssh "$bob_workspace" 'test ! -e "$HOME/Projects/kept/alice-private.txt"; printf bob-private >"$HOME/Projects/kept/bob-private.txt"'
+	fallback_workspace_ssh alice "$alice_workspace" 'printf alice-private >"$HOME/Projects/kept/alice-private.txt"; nohup sleep 300 </dev/null > /dev/null 2>&1 & echo $! >"$HOME/alice-process.pid"'
+	fallback_workspace_ssh bob "$bob_workspace" 'test ! -e "$HOME/Projects/kept/alice-private.txt"; printf bob-private >"$HOME/Projects/kept/bob-private.txt"'
 
 	# Direct command, SCP, and SFTP use ordinary OpenSSH as the derived UID.
-	fallback_workspace_ssh "$alice_workspace" 'test "$(id -un)" = '"$alice_workspace"'; pwd' >"$operations/direct-command.txt"
+	alice_key=$(ensure_person_key alice)
+	fallback_workspace_ssh alice "$alice_workspace" 'test "$(id -un)" = '"$alice_workspace"'; pwd' >"$operations/direct-command.txt"
 	printf 'id -un\nexit\n' | ssh -T -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
-		-o "UserKnownHostsFile=$(known_hosts_path)" -i "${SODA_ACCEPTANCE_ADMIN_KEY}" -p "$guest_ssh_port" \
+		-o "UserKnownHostsFile=$(known_hosts_path)" -i "$alice_key" -p "$guest_ssh_port" \
 		"$alice_workspace@$guest_host" >"$operations/direct-shell.txt"
 	grep -Fx "$alice_workspace" "$operations/direct-shell.txt" >/dev/null || die "direct workspace shell did not run as the derived UID"
 	printf 'scp-product-evidence\n' >"$operations/scp-input.txt"
 	scp -q -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
-		-o "UserKnownHostsFile=$(known_hosts_path)" -i "${SODA_ACCEPTANCE_ADMIN_KEY}" -P "$guest_ssh_port" \
+		-o "UserKnownHostsFile=$(known_hosts_path)" -i "$alice_key" -P "$guest_ssh_port" \
 		"$operations/scp-input.txt" "$alice_workspace@$guest_host:scp-input.txt"
-	fallback_workspace_ssh "$alice_workspace" 'test "$(cat "$HOME/scp-input.txt")" = scp-product-evidence'
+	fallback_workspace_ssh alice "$alice_workspace" 'test "$(cat "$HOME/scp-input.txt")" = scp-product-evidence'
 	printf 'pwd\nls -l scp-input.txt\nquit\n' | sftp -q -b - \
 		-o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
-		-o "UserKnownHostsFile=$(known_hosts_path)" -i "${SODA_ACCEPTANCE_ADMIN_KEY}" -P "$guest_ssh_port" \
+		-o "UserKnownHostsFile=$(known_hosts_path)" -i "$alice_key" -P "$guest_ssh_port" \
 		"$alice_workspace@$guest_host" >"$operations/sftp.txt"
 
 	# Projects choose non-conflicting host ports without a Soda port registry.
-	fallback_workspace_ssh "$alice_workspace" 'nohup python3 -m http.server 18080 --directory "$HOME/Projects/kept" </dev/null >"$HOME/port.log" 2>&1 & echo $! >"$HOME/port.pid"'
-	fallback_workspace_ssh "$bob_workspace" 'nohup python3 -m http.server 18081 --directory "$HOME/Projects/kept" </dev/null >"$HOME/port.log" 2>&1 & echo $! >"$HOME/port.pid"'
+	fallback_workspace_ssh alice "$alice_workspace" 'nohup python3 -m http.server 18080 --directory "$HOME/Projects/kept" </dev/null >"$HOME/port.log" 2>&1 & echo $! >"$HOME/port.pid"'
+	fallback_workspace_ssh bob "$bob_workspace" 'nohup python3 -m http.server 18081 --directory "$HOME/Projects/kept" </dev/null >"$HOME/port.log" 2>&1 & echo $! >"$HOME/port.pid"'
 	for port_and_file in 18080:alice-private.txt 18081:bob-private.txt; do
 		port=${port_and_file%%:*}
 		file=${port_and_file#*:}
@@ -1873,22 +1864,23 @@ scenario_product() {
 	done
 
 	# Catalog edits do not reconcile an already published workspace.
-	before_remote=$(fallback_workspace_ssh "$kept_workspace" 'git -C "$HOME/Projects/kept" remote get-url origin')
+	before_remote=$(fallback_workspace_ssh "$admin" "$kept_workspace" 'git -C "$HOME/Projects/kept" remote get-url origin')
 	kept_url=$(jq -er '.[] | select(.id == "kept") | .canonical_url' "$operations/catalog-before.json")
 	jq -cn --arg id kept --arg display_name 'Kept after catalog edit' --arg canonical_url "$kept_url" \
 		'{id:$id,display_name:$display_name,canonical_url:$canonical_url}' |
 		admin_ssh /usr/libexec/soda/soda-projects edit >"$operations/catalog-edit.json"
-	[ "$(fallback_workspace_ssh "$kept_workspace" 'git -C "$HOME/Projects/kept" remote get-url origin')" = "$before_remote" ] ||
+	[ "$(fallback_workspace_ssh "$admin" "$kept_workspace" 'git -C "$HOME/Projects/kept" remote get-url origin')" = "$before_remote" ] ||
 		die "catalog edit reconciled an existing checkout"
 
 	# Soda-aware human deletion is cascading and deletes the primary last.
-	capture_forgejo_state >"$operations/forgejo-before-human-delete.json"
 	primary_project_request charlie setup '{"id":"kept","git_username":"","git_password":""}' >"$operations/charlie-setup.json"
 	charlie_workspace=$(jq -er '.workspace_username' "$operations/charlie-setup.json")
+	capture_forgejo_state >"$operations/forgejo-before-human-delete.json"
 	jq -cn '{username:"charlie"}' | admin_ssh /usr/libexec/soda/soda-projects delete-human >"$operations/charlie-delete.json"
 	admin_ssh "! getent passwd charlie >/dev/null; ! getent passwd '$charlie_workspace' >/dev/null; test ! -e /home/charlie; test ! -e '/home/$charlie_workspace'"
 	capture_forgejo_state >"$operations/forgejo-after-human-delete.json"
-	diff -u "$operations/forgejo-before-human-delete.json" "$operations/forgejo-after-human-delete.json"
+	jq -e '.users[] | select(.login == "charlie") | .present == true' "$operations/forgejo-before-human-delete.json" >/dev/null
+	jq -e '.users[] | select(.login == "charlie") | .present == false' "$operations/forgejo-after-human-delete.json" >/dev/null
 
 	# Generic Linux deletion is deliberately non-cascading.
 	project_password_request create-forgejo generic 'Generic deletion fixture' >"$operations/generic-create.json"
@@ -1906,7 +1898,7 @@ scenario_product() {
 	primary_project_request alice setup '{"id":"removable","git_username":"","git_password":""}' >"$operations/removable-alice-setup.json"
 	removable_admin=$(jq -er '.workspace_username' "$operations/removable-admin-setup.json")
 	removable_alice=$(jq -er '.workspace_username' "$operations/removable-alice-setup.json")
-	fallback_workspace_ssh "$removable_alice" 'nohup sleep 300 </dev/null >/dev/null 2>&1 &'
+	fallback_workspace_ssh alice "$removable_alice" 'nohup sleep 300 </dev/null >/dev/null 2>&1 &'
 	project_request remove removable >"$operations/removable-remove.json"
 	admin_ssh "! getent passwd '$removable_admin' >/dev/null; ! getent passwd '$removable_alice' >/dev/null; jq -e 'all(.[]; .id != \"removable\")' /var/lib/soda/catalog/projects.json >/dev/null"
 	admin_ssh 'forgejo_url=$(printf "{}\n" | /usr/libexec/soda/soda-projects list | jq -er .forgejo_url); curl --fail --silent "$forgejo_url/api/v1/repos/soda-test/removable" >/dev/null'
@@ -1933,7 +1925,7 @@ scenario() {
 		product) scenario_product ;;
 		cloud)
 			run_privileged_script emit_cloud_provisioning_checks
-			admin_ssh 'tea api --login soda user' | jq -e --arg username "$admin" '.login == $username' >/dev/null
+			admin_ssh 'test ! -e "$HOME/.config/tea/config.yml"; test ! -e "$HOME/.config/gh/hosts.yml"'
 			;;
 		*) die "scenario requires product or cloud" ;;
 	esac

@@ -79,9 +79,9 @@ export function successMessage(action, payload, result) {
     return `${payload.id} and its local workspaces were removed. The canonical repository was not deleted.`;
   }
   if (action === "add-person") {
-    return `${payload.username} was added as an ordinary Soda OS user with a private Forgejo login.`;
+    return `${payload.username} was added with a matching Forgejo account and public SSH key.`;
   }
-  return `${payload.username} and their local Soda workspaces were removed. Forgejo was not changed.`;
+  return `${payload.username}, their local Soda workspaces, and their Forgejo account were removed.`;
 }
 
 export function clearSecrets(form) {

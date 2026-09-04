@@ -202,7 +202,7 @@ func validateLockedPackage(item lockedPackage, seen map[string]bool) error {
 }
 
 func (b *Builder) validateBuildInputs() error {
-	for _, path := range []string{"packaging/bootc/Containerfile", "packaging/builder/Containerfile", b.Spec.Platform.Builder.PackageLock, b.Spec.Platform.Installer.PackageLock, b.Spec.Platform.Installer.ToolLock, b.Spec.Platform.Installer.ISOConfig, "packaging/rpm/release/soda-release.spec", "packaging/rpm/runtime/soda-runtime.spec", "packaging/rpm/projects/soda-projects.spec", "packaging/rpm/forgejo/soda-forgejo.spec", "packaging/rpm/forgejo/sources/patches/0001-pam-do-not-retain-password.patch", "packaging/rpm/tea/soda-tea.spec", "packaging/rpm/tea/sources/LICENSE", "packaging/rpm/tea/sources/0001-secret-safe-deterministic-login.patch", "distro/locks/forgejo-source.toml", "distro/locks/mise-source.toml", "distro/locks/tea-source.toml"} {
+	for _, path := range []string{"packaging/bootc/Containerfile", "packaging/builder/Containerfile", b.Spec.Platform.Builder.PackageLock, b.Spec.Platform.Installer.PackageLock, b.Spec.Platform.Installer.ToolLock, b.Spec.Platform.Installer.ISOConfig, "packaging/rpm/release/soda-release.spec", "packaging/rpm/runtime/soda-runtime.spec", "packaging/rpm/projects/soda-projects.spec", "packaging/rpm/forgejo/soda-forgejo.spec", "packaging/rpm/forgejo/sources/patches/0001-pam-do-not-retain-password.patch", "packaging/rpm/tea/soda-tea.spec", "packaging/rpm/tea/sources/LICENSE", "distro/locks/forgejo-source.toml", "distro/locks/mise-source.toml", "distro/locks/tea-source.toml"} {
 		if !isFile(b.path(path)) {
 			return fmt.Errorf("required bootc build input %s is missing", path)
 		}

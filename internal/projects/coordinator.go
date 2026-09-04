@@ -37,13 +37,6 @@ type PrivilegedProjects interface {
 	HumanPublish(context.Context, HelperHumanPublishRequest) error
 }
 
-type HumanTea interface {
-	Preflight(Account, string) error
-	StageLogin(context.Context, Account, string, string, string) error
-	VerifyLogin(context.Context, Account, string) error
-	CleanupStaging(Account, string) error
-}
-
 type PKExecInvoker struct {
 	Binary     string
 	HelperPath string
@@ -137,7 +130,6 @@ type Coordinator struct {
 	Forgejo    ForgejoClient
 	Cloner     Cloner
 	Endpoints  EndpointSource
-	Tea        HumanTea
 }
 
 func (coordinator Coordinator) Execute(ctx context.Context, actorUsername, action string, input io.Reader) (any, error) {
@@ -175,7 +167,7 @@ func (coordinator Coordinator) executeAddPerson(ctx context.Context, actor Accou
 	if !actor.IsAdministrator(uidMin) {
 		return nil, errors.New("administrator status is required")
 	}
-	return coordinator.addPerson(ctx, actor, request)
+	return coordinator.addPerson(ctx, request)
 }
 
 func (coordinator Coordinator) executeList(ctx context.Context, primary Account, uidMin int, input io.Reader) (any, error) {
@@ -335,12 +327,6 @@ func (coordinator Coordinator) setupWithOperationLock(ctx context.Context, prima
 }
 
 func (coordinator Coordinator) setupLocked(ctx context.Context, primary Account, request SetupRequest) (MutationResponse, error) {
-	if coordinator.Tea == nil {
-		return MutationResponse{}, errors.New("Tea login boundary is unavailable")
-	}
-	if err := coordinator.Tea.VerifyLogin(ctx, primary, primary.Username); err != nil {
-		return MutationResponse{}, fmt.Errorf("verify primary Tea login: %w", err)
-	}
 	entry, err := coordinator.Catalog.Get(request.ID)
 	if err != nil {
 		return MutationResponse{}, err

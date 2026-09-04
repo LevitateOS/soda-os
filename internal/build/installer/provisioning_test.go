@@ -105,9 +105,8 @@ func TestInstallerOnlyExecutablesAreFixedAndParse(t *testing.T) {
 		`["/usr/libexec/soda/forgejo-init"]`,
 		`"POST",`,
 		`"/user/sign_up"`,
-		`"--password-stdin"`,
-		`"--token-name"`,
-		`"soda-os-tea"`,
+		`def _register_forgejo_public_key(username, password, ssh_key):`,
+		`"/api/v1/user/keys"`,
 		`os.replace(temporary, destination)`,
 		`["/usr/bin/systemctl", "--root", str(SYSROOT), "enable", "soda-tailscale-enroll.service"]`,
 	} {
@@ -230,6 +229,7 @@ func TestAcceptanceExposesOnePublicWorkflow(t *testing.T) {
 		`scenario product`,
 		`capture final`,
 		`SODA_ACCEPTANCE_LATER_PRIMARY_PASSWORD_FILE`,
+		`SODA_ACCEPTANCE_PERSON_KEYS_DIR`,
 		`registry_data=$work_dir/registry`,
 		`--user "$(id -u):$(id -g)"`,
 		`--volume "$registry_data:/var/lib/registry"`,
@@ -242,12 +242,13 @@ func TestAcceptanceExposesOnePublicWorkflow(t *testing.T) {
 	require.NotContains(t, runner, "final-pre-capstone")
 	bootRunner := readInstallerFixture(t, root, "tests/acceptance/internal/bootc.sh")
 	for _, expected := range []string{
+		`ensure_person_key`,
 		`forgejo_pam_request alice wrong 401`,
 		`forgejo_pam_request alice correct 200`,
 		`forgejo_pam_request bob correct 200`,
 		`admin_ssh /usr/libexec/soda/soda-projects delete-human`,
-		`forgejo_pam_create_tea_scope_repository "$operations/tea-repository.json"`,
-		`tea api --login soda user | jq -e --arg username "$(id -un)" ".login == \$username" >/dev/null`,
+		`forgejo_pam_request alice correct 200`,
+		`test ! -e "$HOME/.config/tea/config.yml"`,
 		`root:soda-forgejo-shadow:40`,
 		`workspace PAM attempt created a Forgejo user`,
 	} {

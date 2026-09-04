@@ -80,6 +80,16 @@ test("human deletion presentation is wheel-status driven", () => {
   assert.equal(humanDeletionHidden({}), true);
 });
 
+test("human deletion confirmation states Forgejo's native consequences", async () => {
+  const html = await readFile(new URL("./index.html", import.meta.url), "utf8");
+  const dialog = html.match(/<dialog id="delete-human-dialog"[\s\S]*?<\/dialog>/)?.[0] ?? "";
+  assert.match(dialog, /without <code>--purge<\/code>/);
+  assert.match(dialog, /SSH and GPG keys, access tokens, email addresses, settings, and user data/);
+  assert.match(dialog, /issues, pull requests, and comments as deleted-user history/);
+  assert.match(dialog, /owns a repository or package, belongs to an organization, or is its last administrator/);
+  assert.match(dialog, /Linux account remains so an administrator can retry/);
+});
+
 test("add person requires matching password confirmation", () => {
   const messages = [];
   const payload = payloadFor("add-person", new Map([
@@ -101,6 +111,10 @@ test("native synchronous diagnostics and outcomes remain visible", () => {
   );
   assert.equal(
     successMessage("add-person", { username: "bob" }, { ok: true }),
-    "bob was added as an ordinary Soda OS user with a private Forgejo login.",
+    "bob was added with a matching Forgejo account and public SSH key.",
+  );
+  assert.equal(
+    successMessage("delete-human", { username: "bob" }, { ok: true }),
+    "bob, their local Soda workspaces, and their Forgejo account were removed.",
   );
 });

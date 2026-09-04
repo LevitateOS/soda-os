@@ -26,9 +26,8 @@ url=$(lock_value source_url)
 expected=$(lock_value source_sha256)
 commit=$(lock_value commit)
 license_sha256=$(lock_value license_sha256)
-patch_sha256=$(lock_value patch_sha256)
 
-for value in "$archive" "$url" "$expected" "$commit" "$license_sha256" "$patch_sha256"; do
+for value in "$archive" "$url" "$expected" "$commit" "$license_sha256"; do
   if [ -z "$value" ]; then
     echo "Tea source lock is incomplete" >&2
     exit 1
@@ -48,7 +47,6 @@ if ! printf '%s\n' "$commit" | grep -Eq '^[0-9a-f]{40}$'; then
   exit 1
 fi
 validate_digest "$license_sha256"
-validate_digest "$patch_sha256"
 
 case "$archive" in
   *.tar.gz) ;;
@@ -70,13 +68,8 @@ checksum() {
 }
 
 license="$repo_root/packaging/rpm/tea/sources/LICENSE"
-patch="$repo_root/packaging/rpm/tea/sources/0001-secret-safe-deterministic-login.patch"
 if [ "$(checksum "$license")" != "$license_sha256" ]; then
   echo "Tea license checksum differs from the pinned upstream license" >&2
-  exit 1
-fi
-if [ "$(checksum "$patch")" != "$patch_sha256" ]; then
-  echo "Tea login patch checksum differs from the source lock" >&2
   exit 1
 fi
 

@@ -264,11 +264,14 @@ run() {
 	work_dir=$(CDPATH= cd -- "$work_dir" && pwd)
 	chmod 0700 "$work_dir"
 	admin_key=$work_dir/admin
+	person_keys_dir=$work_dir/person-keys
 	password_file=$work_dir/admin-password
 	later_primary_password_file=$work_dir/later-primary-password
 	oemdrv=$work_dir/oemdrv.iso
 	disk=$work_dir/soda-system.qcow2
 	registry_data=$work_dir/registry
+	mkdir -p "$person_keys_dir"
+	chmod 0700 "$person_keys_dir"
 	mkdir -p "$registry_data"
 	registry_port=${SODA_ACCEPTANCE_REGISTRY_PORT:-5001}
 	printf '%s\n' "$registry_port" | LC_ALL=C grep -Eq '^[0-9]{1,5}$' || die "registry port must be numeric"
@@ -522,6 +525,7 @@ PY
 	export SODA_ACCEPTANCE_ARCHITECTURE=$architecture
 	export SODA_ACCEPTANCE_ADMIN=$admin
 	export SODA_ACCEPTANCE_ADMIN_KEY=$admin_key
+	export SODA_ACCEPTANCE_PERSON_KEYS_DIR=$person_keys_dir
 	export SODA_ACCEPTANCE_ADMIN_PASSWORD_FILE=$password_file
 	export SODA_ACCEPTANCE_LATER_PRIMARY_PASSWORD_FILE=$later_primary_password_file
 	export SODA_ACCEPTANCE_HOST=127.0.0.1

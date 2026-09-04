@@ -7,8 +7,7 @@ ExclusiveArch:  x86_64 aarch64
 
 %description
 The architecture-native Tea CLI for user-owned Forgejo operations, shipped as
-immutable Soda OS image content. The pinned upstream source carries a narrow
-secret-safe login-input patch. This package contains no downloader, updater,
+immutable Soda OS image content. This package contains no downloader, updater,
 configuration, service, or persistent runtime state.
 
 %install
@@ -20,8 +19,6 @@ install -m 0644 %{_sourcedir}/tea-LICENSE %{buildroot}%{_licensedir}/%{name}/LIC
 test "$(uname -m)" = "%{_arch}"
 %{buildroot}%{_bindir}/tea --version | grep -F "%{version}"
 %{buildroot}%{_bindir}/tea --help >/dev/null
-%{buildroot}%{_bindir}/tea logins add --help | grep -F -- '--password-stdin'
-%{buildroot}%{_bindir}/tea logins add --help | grep -F -- '--token-name'
 
 %files
 %{_bindir}/tea

@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestStageTeaSourceUsesBuiltPatchedBinary(t *testing.T) {
+func TestStageTeaSourceUsesBuiltUpstreamBinary(t *testing.T) {
 	root := t.TempDir()
 	for _, directory := range []string{
 		filepath.Join(root, "distro", "locks"),
@@ -21,13 +21,10 @@ func TestStageTeaSourceUsesBuiltPatchedBinary(t *testing.T) {
 	}
 	license := []byte("pinned Tea license\n")
 	licenseDigest := sha256.Sum256(license)
-	patch := []byte("pinned Tea patch\n")
-	patchDigest := sha256.Sum256(patch)
 	require.NoError(t, os.WriteFile(filepath.Join(root, "packaging", "rpm", "tea", "sources", "LICENSE"), license, 0o644))
-	require.NoError(t, os.WriteFile(filepath.Join(root, "packaging", "rpm", "tea", "sources", "0001-secret-safe-deterministic-login.patch"), patch, 0o644))
-	binary := []byte("native patched Tea fixture")
+	binary := []byte("native upstream Tea fixture")
 	require.NoError(t, os.WriteFile(filepath.Join(root, ".artifacts", "build", "tea"), binary, 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(root, "distro", "locks", "tea-source.toml"), []byte(testTeaSourceLock(licenseDigest, patchDigest, "")), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(root, "distro", "locks", "tea-source.toml"), []byte(testTeaSourceLock(licenseDigest, "")), 0o644))
 
 	sources := t.TempDir()
 	builder := &Builder{Root: root}
@@ -44,30 +41,29 @@ func TestTeaSourceLockRejectsUnknownFieldsAndSourceChanges(t *testing.T) {
 	root := t.TempDir()
 	lockPath := filepath.Join(root, "tea-source.toml")
 	digest := sha256.Sum256([]byte("fixture"))
-	require.NoError(t, os.WriteFile(lockPath, []byte(testTeaSourceLock(digest, digest, "unexpected = true\n")), 0o644))
+	require.NoError(t, os.WriteFile(lockPath, []byte(testTeaSourceLock(digest, "unexpected = true\n")), 0o644))
 	_, err := readTeaSourceLock(lockPath)
 	require.ErrorContains(t, err, "unknown fields")
 
-	require.NoError(t, os.WriteFile(lockPath, []byte(testTeaSourceLock(digest, digest, "")), 0o644))
+	require.NoError(t, os.WriteFile(lockPath, []byte(testTeaSourceLock(digest, "")), 0o644))
 	lock, err := readTeaSourceLock(lockPath)
 	require.NoError(t, err)
 	require.Equal(t, "tea-src-0.15.1.tar.gz", lock.SourceArchive)
 
-	contents := []byte(testTeaSourceLock(digest, digest, ""))
+	contents := []byte(testTeaSourceLock(digest, ""))
 	contents = []byte(fmt.Sprintf("%s\nsource_sha256 = \"bad\"\n", contents))
 	require.NoError(t, os.WriteFile(lockPath, contents, 0o644))
 	_, err = readTeaSourceLock(lockPath)
 	require.Error(t, err)
 }
 
-func testTeaSourceLock(licenseDigest, patchDigest [sha256.Size]byte, extra string) string {
+func testTeaSourceLock(licenseDigest [sha256.Size]byte, extra string) string {
 	return fmt.Sprintf(`version = "0.15.1"
 commit = "f34697c5ed65928e265d6f48e16928819ce0f332"
 source_archive = "tea-src-0.15.1.tar.gz"
 source_url = "https://example.invalid/tea.tar.gz"
 source_sha256 = "%064x"
-patch_sha256 = "%x"
 license_url = "https://example.invalid/LICENSE"
 license_sha256 = "%x"
-%s`, 1, patchDigest, licenseDigest, extra)
+%s`, 1, licenseDigest, extra)
 }
