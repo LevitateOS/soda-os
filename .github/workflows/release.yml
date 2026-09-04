@@ -1,214 +1,81 @@
-name: Release
+name: Bootstrap x86-64 fallback signature
 
 on:
   push:
     branches:
       - production
 
-permissions:
-  contents: write
-  packages: write
-  id-token: write
+permissions: {}
 
 concurrency:
-  group: soda-release-${{ github.ref_name }}
+  group: soda-fallback-bootstrap-${{ github.ref_name }}
   cancel-in-progress: false
 
 jobs:
-  validate:
-    runs-on: ubuntu-24.04
-    environment: release-build
-    steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          fetch-depth: 2
-      - name: Require the protected production branch
-        run: |
-          version=$(awk -F '"' '$1 ~ /^version[[:space:]]*=/ { print $2; exit }' distro/soda.toml)
-          test -n "$version"
-          test "$GITHUB_REF_NAME" = production
-          git diff --check HEAD^
-
-  prepare:
-    needs: validate
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - architecture: x86_64
-            runner: ubuntu-24.04
-            builder: ${{ vars.SODA_X86_64_RELEASE_BUILDER }}
-          - architecture: aarch64
-            runner: ubuntu-24.04-arm
-            builder: ${{ vars.SODA_AARCH64_RELEASE_BUILDER }}
-    runs-on: ${{ matrix.runner }}
-    environment: release-build
-    steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-      - name: Join the release Tailnet through workload identity federation
-        uses: tailscale/github-action@306e68a486fd2350f2bfc3b19fcd143891a4a2d8 # v4
-        with:
-          oauth-client-id: ${{ vars.SODA_TAILSCALE_CLIENT_ID }}
-          audience: ${{ vars.SODA_TAILSCALE_AUDIENCE }}
-          tags: tag:soda-release-ci
-          use-cache: 'false'
-      - name: Prepare native artifacts
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          printf '%s\n' "$GH_TOKEN" |
-            tailscale ssh "soda-release-ci@${{ matrix.builder }}" soda-release-executor prepare "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" "$GITHUB_SHA" "${{ matrix.architecture }}"
-      - name: Collect the non-secret architecture release record
-        run: |
-          tailscale ssh "soda-release-ci@${{ matrix.builder }}" soda-release-executor emit-record "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" "$GITHUB_SHA" "${{ matrix.architecture }}" > "$RUNNER_TEMP/${{ matrix.architecture }}.release.json"
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: soda-release-record-${{ matrix.architecture }}
-          path: ${{ runner.temp }}/${{ matrix.architecture }}.release.json
-          if-no-files-found: error
-          retention-days: 1
-
-  promote:
-    needs: prepare
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - architecture: x86_64
-            runner: ubuntu-24.04
-            builder: ${{ vars.SODA_X86_64_RELEASE_BUILDER }}
-          - architecture: aarch64
-            runner: ubuntu-24.04-arm
-            builder: ${{ vars.SODA_AARCH64_RELEASE_BUILDER }}
-    runs-on: ${{ matrix.runner }}
-    environment: release-build
-    steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-      - name: Join the release Tailnet through workload identity federation
-        uses: tailscale/github-action@306e68a486fd2350f2bfc3b19fcd143891a4a2d8 # v4
-        with:
-          oauth-client-id: ${{ vars.SODA_TAILSCALE_CLIENT_ID }}
-          audience: ${{ vars.SODA_TAILSCALE_AUDIENCE }}
-          tags: tag:soda-release-ci
-          use-cache: 'false'
-      - name: Sign and promote the accepted matching-native image and record
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          oidc_header="$RUNNER_TEMP/oidc-header"
-          printf 'Authorization: bearer %s\n' "$ACTIONS_ID_TOKEN_REQUEST_TOKEN" > "$oidc_header"
-          sigstore_token=$(curl --fail --silent --show-error --header "@$oidc_header" "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=sigstore" | jq -er '.value')
-          rm -f "$oidc_header"
-          printf '%s\n%s\n' "$GH_TOKEN" "$sigstore_token" | tailscale ssh "soda-release-ci@${{ matrix.builder }}" soda-release-executor promote "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" "$GITHUB_SHA" "${{ matrix.architecture }}"
-          unset sigstore_token
-      - name: Collect the signed release-record bundle
-        id: release-record-bundle
-        run: |
-          version=$(awk -F '"' '$1 ~ /^version[[:space:]]*=/ { print $2; exit }' distro/soda.toml)
-          test -n "$version"
-          bundle="$RUNNER_TEMP/soda-os-$version-${{ matrix.architecture }}.release.json.sigstore.json"
-          tailscale ssh "soda-release-ci@${{ matrix.builder }}" soda-release-executor emit-bundle "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" "$GITHUB_SHA" "${{ matrix.architecture }}" > "$bundle"
-          printf 'path=%s\n' "$bundle" >> "$GITHUB_OUTPUT"
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: soda-release-record-bundle-${{ matrix.architecture }}
-          path: ${{ steps.release-record-bundle.outputs.path }}
-          if-no-files-found: error
-          retention-days: 1
-
-  draft:
-    needs: promote
-    runs-on: ubuntu-24.04
-    environment: release-build
-    steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
-        with:
-          go-version-file: go.mod
-          cache: false
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
-        with:
-          name: soda-release-record-aarch64
-          path: ${{ runner.temp }}/records/aarch64
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
-        with:
-          name: soda-release-record-x86_64
-          path: ${{ runner.temp }}/records/x86_64
-      - name: Create the append-only draft with both exact image digests
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          version=$(awk -F '"' '$1 ~ /^version[[:space:]]*=/ { print $2; exit }' distro/soda.toml)
-          test -n "$version"
-          aarch64_record="$RUNNER_TEMP/records/aarch64/soda-os-$version-aarch64.release.json"
-          x86_record="$RUNNER_TEMP/records/x86_64/soda-os-$version-x86_64.release.json"
-          notes="$RUNNER_TEMP/release-notes.md"
-          printf '# Soda OS %s\n\nExact update images:\n' "$version" > "$notes"
-          jq -r '.soda_image_reference' "$aarch64_record" "$x86_record" >> "$notes"
-          go run ./cmd/soda-release draft --notes-file "$notes" --aarch64-record "$aarch64_record" --x86_64-record "$x86_record"
-
-  upload:
-    needs: draft
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - architecture: x86_64
-            runner: ubuntu-24.04
-            builder: ${{ vars.SODA_X86_64_RELEASE_BUILDER }}
-          - architecture: aarch64
-            runner: ubuntu-24.04-arm
-            builder: ${{ vars.SODA_AARCH64_RELEASE_BUILDER }}
-    runs-on: ${{ matrix.runner }}
-    environment: release-build
-    steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-      - name: Join the release Tailnet through workload identity federation
-        uses: tailscale/github-action@306e68a486fd2350f2bfc3b19fcd143891a4a2d8 # v4
-        with:
-          oauth-client-id: ${{ vars.SODA_TAILSCALE_CLIENT_ID }}
-          audience: ${{ vars.SODA_TAILSCALE_AUDIENCE }}
-          tags: tag:soda-release-ci
-          use-cache: 'false'
-      - name: Upload the accepted matching-native output set
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          printf '%s\n' "$GH_TOKEN" | tailscale ssh "soda-release-ci@${{ matrix.builder }}" soda-release-executor upload "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" "$GITHUB_SHA" "${{ matrix.architecture }}"
-
-  publish:
-    needs: upload
+  bootstrap-fallback-x86_64:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/production' && github.repository == 'LevitateOS/soda-os'
     runs-on: ubuntu-24.04
     environment: production-release
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
-        with:
-          go-version-file: go.mod
-          cache: false
       - uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          name: soda-release-record-aarch64
-          path: ${{ runner.temp }}/records/aarch64
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
-        with:
-          name: soda-release-record-x86_64
-          path: ${{ runner.temp }}/records/x86_64
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
-        with:
-          name: soda-release-record-bundle-aarch64
-          path: ${{ runner.temp }}/records/aarch64
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
-        with:
-          name: soda-release-record-bundle-x86_64
-          path: ${{ runner.temp }}/records/x86_64
-      - name: Verify every output and publish the complete draft
+          cosign-release: v3.0.6
+      - name: Sign and verify the exact x86-64 fallback
         env:
           GH_TOKEN: ${{ github.token }}
+          IMAGE_REFERENCE: ghcr.io/levitateos/soda-os@sha256:d57060e9eb5953043e7ce18b8e002422010f6e17c1408211907d31fd1cfa5edd
+          CERTIFICATE_IDENTITY: https://github.com/LevitateOS/soda-os/.github/workflows/release.yml@refs/heads/production
+          OIDC_ISSUER: https://token.actions.githubusercontent.com
         run: |
-          version=$(awk -F '"' '$1 ~ /^version[[:space:]]*=/ { print $2; exit }' distro/soda.toml)
-          test -n "$version"
-          go run ./cmd/soda-release publish \
-            --aarch64-record "$RUNNER_TEMP/records/aarch64/soda-os-$version-aarch64.release.json" \
-            --x86_64-record "$RUNNER_TEMP/records/x86_64/soda-os-$version-x86_64.release.json"
+          set -eu
+          test "$GITHUB_EVENT_NAME" = push
+          test "$GITHUB_REF" = refs/heads/production
+          test "$GITHUB_REPOSITORY" = LevitateOS/soda-os
+
+          docker pull --quiet --platform linux/amd64 "$IMAGE_REFERENCE"
+          test "$(docker image inspect --format '{{.Os}}/{{.Architecture}}' "$IMAGE_REFERENCE")" = linux/amd64
+
+          docker_config="$RUNNER_TEMP/soda-bootstrap-docker"
+          signature_output="$RUNNER_TEMP/soda-bootstrap-signatures.json"
+          signature_error="$RUNNER_TEMP/soda-bootstrap-signature-error"
+          install -d -m 0700 "$docker_config"
+          export DOCKER_CONFIG="$docker_config"
+          cleanup() {
+            rm -f -- "$docker_config/config.json" "$signature_output" "$signature_error"
+            rmdir -- "$docker_config" 2>/dev/null || true
+          }
+          trap cleanup EXIT
+          printf '%s\n' "$GH_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+
+          verify_exact_signature() {
+            cosign verify \
+              --certificate-identity "$CERTIFICATE_IDENTITY" \
+              --certificate-oidc-issuer "$OIDC_ISSUER" \
+              --certificate-github-workflow-ref refs/heads/production \
+              --certificate-github-workflow-repository LevitateOS/soda-os \
+              --certificate-github-workflow-sha "$GITHUB_SHA" \
+              --certificate-github-workflow-trigger push \
+              "$IMAGE_REFERENCE"
+          }
+
+          if verify_exact_signature; then
+            echo 'the exact x86-64 fallback already has this production-workflow signature'
+            exit 0
+          fi
+
+          if cosign download signature "$IMAGE_REFERENCE" >"$signature_output" 2>"$signature_error"; then
+            echo 'signature material exists but no signature matches the exact production workflow' >&2
+            exit 1
+          fi
+          expected="$IMAGE_REFERENCE: no signatures associated"
+          if test "$(grep -Fc "$expected" "$signature_error")" -ne 2 || test "$(wc -l < "$signature_error")" -ne 2; then
+            echo 'signature state is unknown; refusing to sign' >&2
+            exit 1
+          fi
+
+          cosign sign --yes "$IMAGE_REFERENCE"
+          verify_exact_signature

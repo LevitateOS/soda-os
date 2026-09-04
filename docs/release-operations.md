@@ -22,6 +22,29 @@ Version and product identity derive from `distro/soda.toml`. The protected
 production commit, Git tag, both OCI digests, artifact names, checksums, signed
 records, release notes, and remote assets must agree.
 
+## Temporary serial first-fallback bootstrap
+
+The first ordinary signed release needs one previous signed image per
+architecture, but no signed Soda image predates 0.5.0. The owner selected
+artifacts built from `f212ed9f61eaae22587f484d507adae1f077bfe4` and a
+separate 0.5 release line so that each native architecture can qualify its
+retained artifact without blocking development on the other architecture.
+
+The first reviewed release-line commit contains only the retained x86-64
+digest:
+`ghcr.io/levitateos/soda-os@sha256:d57060e9eb5953043e7ce18b8e002422010f6e17c1408211907d31fd1cfa5edd`.
+Creating protected `production` at that exact commit triggers one x86-64 job.
+The job pulls and checks the committed digest as `linux/amd64`, refuses unknown
+or conflicting signature state, signs it with the production workflow OIDC
+identity, and immediately verifies the exact workflow claims. Re-running the
+same commit is idempotent.
+
+This bootstrap accepts no inputs and contains no normal release jobs. It
+creates no version image tag, Git tag, attestation, draft, release asset, or
+public release. A later reviewed fast-forward commit substitutes the exact
+native AArch64 digest and job. Subsequent 0.5 release work removes the
+bootstrap entirely before constructing or publishing 0.5.0.
+
 ## Evidence before release CI
 
 Expensive product validation runs before the production push on user-controlled

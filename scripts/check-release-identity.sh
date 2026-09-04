@@ -85,7 +85,12 @@ if grep -Eq 'soda-os-[0-9]+\.[0-9]+\.[0-9]+-|Soda OS [0-9]+\.[0-9]+\.[0-9]+' .gi
   echo '.github/workflows/release.yml contains a literal Soda release identity' >&2
   exit 1
 fi
-if [ "$(grep -Fc 'distro/soda.toml' .github/workflows/release.yml)" -lt 4 ]; then
+if grep -Fq 'bootstrap-fallback-x86_64:' .github/workflows/release.yml; then
+  if grep -Fq 'distro/soda.toml' .github/workflows/release.yml; then
+    echo 'the exact fallback bootstrap must not derive or publish a release identity' >&2
+    exit 1
+  fi
+elif [ "$(grep -Fc 'distro/soda.toml' .github/workflows/release.yml)" -lt 4 ]; then
   echo '.github/workflows/release.yml does not derive every release identity from distro/soda.toml' >&2
   exit 1
 fi
