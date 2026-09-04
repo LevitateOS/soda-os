@@ -1,0 +1,93 @@
+name: Native acceptance evidence
+
+on:
+  workflow_dispatch:
+    inputs:
+      x86_summary_b64:
+        description: Base64-encoded credential-free x86-64 summary.json
+        required: true
+        type: string
+      aarch64_summary_b64:
+        description: Base64-encoded credential-free AArch64 summary.json
+        required: true
+        type: string
+      aarch64_release_record_b64:
+        description: Base64-encoded strict AArch64 candidate release record
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: soda-native-acceptance-${{ github.sha }}
+  cancel-in-progress: false
+
+jobs:
+  sign-evidence:
+    if: github.repository == 'LevitateOS/soda-os' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+        with:
+          go-version-file: go.mod
+          cache: true
+      - uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+        with:
+          cosign-release: v3.0.6
+      - name: Decode the bounded credential-free records
+        env:
+          X86_SUMMARY_B64: ${{ inputs.x86_summary_b64 }}
+          AARCH64_SUMMARY_B64: ${{ inputs.aarch64_summary_b64 }}
+          AARCH64_RELEASE_RECORD_B64: ${{ inputs.aarch64_release_record_b64 }}
+        run: |
+          set -eu
+          test "$GITHUB_EVENT_NAME" = workflow_dispatch
+          test "$GITHUB_REF" = refs/heads/main
+          test "$GITHUB_REPOSITORY" = LevitateOS/soda-os
+          umask 077
+          evidence="$RUNNER_TEMP/native-acceptance"
+          mkdir "$evidence"
+          decode_record() {
+            value=$1
+            output=$2
+            case "$value" in
+              ''|*[!A-Za-z0-9+/=]*) echo "invalid base64 evidence input for $output" >&2; exit 1 ;;
+            esac
+            printf '%s' "$value" | base64 --decode --strict >"$evidence/$output"
+            test "$(wc -c < "$evidence/$output")" -le 12288
+          }
+          decode_record "$X86_SUMMARY_B64" x86_64.summary.json
+          decode_record "$AARCH64_SUMMARY_B64" aarch64.summary.json
+          decode_record "$AARCH64_RELEASE_RECORD_B64" aarch64.release.json
+      - name: Validate, combine, sign, and verify exact-main evidence
+        env:
+          CERTIFICATE_IDENTITY: https://github.com/LevitateOS/soda-os/.github/workflows/native-acceptance-evidence.yml@refs/heads/main
+          OIDC_ISSUER: https://token.actions.githubusercontent.com
+        run: |
+          set -eu
+          evidence="$RUNNER_TEMP/native-acceptance"
+          go run ./cmd/soda-acceptance record \
+            --x86-summary "$evidence/x86_64.summary.json" \
+            --aarch64-summary "$evidence/aarch64.summary.json" \
+            --aarch64-release-record "$evidence/aarch64.release.json" \
+            --expected-revision "$GITHUB_SHA" \
+            --output "$evidence/acceptance.json" \
+            --approved-signer "$CERTIFICATE_IDENTITY" \
+            --oidc-issuer "$OIDC_ISSUER"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: soda-native-acceptance-${{ github.sha }}
+          path: |
+            ${{ runner.temp }}/native-acceptance/x86_64.summary.json
+            ${{ runner.temp }}/native-acceptance/aarch64.summary.json
+            ${{ runner.temp }}/native-acceptance/aarch64.release.json
+            ${{ runner.temp }}/native-acceptance/acceptance.json
+            ${{ runner.temp }}/native-acceptance/acceptance.json.sigstore.json
+          if-no-files-found: error
+          retention-days: 1

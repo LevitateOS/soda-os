@@ -10,6 +10,8 @@ import (
 	"sort"
 	"time"
 
+	"github.com/LevitateOS/soda-os/internal/build/release"
+	"github.com/LevitateOS/soda-os/internal/config"
 	"github.com/LevitateOS/soda-os/internal/process"
 )
 
@@ -23,11 +25,14 @@ type AcceptanceRecord struct {
 }
 
 type RecordOptions struct {
-	X86Summary     string
-	ARM64Summary   string
-	Output         string
-	ApprovedSigner string
-	OIDCIssuer     string
+	X86Summary         string
+	ARM64Summary       string
+	ARM64ReleaseRecord string
+	ARM64Spec          config.DistroSpec
+	ExpectedRevision   string
+	Output             string
+	ApprovedSigner     string
+	OIDCIssuer         string
 }
 
 type RecordResult struct {
@@ -36,11 +41,14 @@ type RecordResult struct {
 }
 
 func CreateSignedRecord(ctx context.Context, options RecordOptions, runner process.Runner) (RecordResult, error) {
-	if options.Output == "" || options.ApprovedSigner == "" || options.OIDCIssuer == "" {
-		return RecordResult{}, errors.New("record output, approved signer, and OIDC issuer are required")
+	if err := options.validate(); err != nil {
+		return RecordResult{}, err
 	}
 	runs, err := readSiblingSummaries(options.X86Summary, options.ARM64Summary)
 	if err != nil {
+		return RecordResult{}, err
+	}
+	if err = validateRecordInputs(runs, options); err != nil {
 		return RecordResult{}, err
 	}
 	record := combinedRecord(runs, options.ApprovedSigner)
@@ -55,6 +63,32 @@ func CreateSignedRecord(ctx context.Context, options RecordOptions, runner proce
 		return RecordResult{}, fmt.Errorf("verify acceptance record signature: %w", err)
 	}
 	return RecordResult{RecordPath: options.Output, BundlePath: bundle}, nil
+}
+
+func (options RecordOptions) validate() error {
+	if options.Output == "" || options.ApprovedSigner == "" || options.OIDCIssuer == "" || options.ARM64ReleaseRecord == "" {
+		return errors.New("record output, AArch64 release record, approved signer, and OIDC issuer are required")
+	}
+	if !gitRevision(options.ExpectedRevision) {
+		return errors.New("expected source revision must be a full Git SHA")
+	}
+	return nil
+}
+
+func validateRecordInputs(runs []RunSummary, options RecordOptions) error {
+	for _, run := range runs {
+		if run.SourceRevision != options.ExpectedRevision || run.SuiteRevision != options.ExpectedRevision {
+			return errors.New("sibling source and suite revisions must equal the expected workflow revision")
+		}
+	}
+	armRecord, err := release.ValidateStrictRecord(options.ARM64ReleaseRecord, options.ARM64Spec, options.ExpectedRevision)
+	if err != nil {
+		return fmt.Errorf("validate AArch64 release record: %w", err)
+	}
+	if armRecord.SodaImageReference != release.Repository+"@"+runs[1].CandidateDigest {
+		return errors.New("AArch64 release record image digest differs from the AArch64 run summary")
+	}
+	return nil
 }
 
 func readSiblingSummaries(x86Path, armPath string) ([]RunSummary, error) {

@@ -36,6 +36,8 @@ jobs:
           test -z "$(gofmt -l $(find . -name '*.go' -not -path './.artifacts/*'))"
           ./scripts/check-complexity.sh
           ./scripts/check-release-identity.sh
+          ./scripts/check-release-ci.sh
+          ./scripts/check-acceptance-evidence-ci.sh
       - name: Test source contracts
         run: |
           node --test cockpit/soda-projects/*.test.mjs

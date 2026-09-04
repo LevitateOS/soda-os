@@ -8,6 +8,7 @@ import (
 	"syscall"
 
 	"github.com/LevitateOS/soda-os/internal/acceptance"
+	"github.com/LevitateOS/soda-os/internal/config"
 	"github.com/LevitateOS/soda-os/internal/process"
 	"github.com/spf13/cobra"
 )
@@ -76,11 +77,17 @@ func runCommand() *cobra.Command {
 
 func recordCommand() *cobra.Command {
 	var options acceptance.RecordOptions
+	var specPath string
 	command := &cobra.Command{
 		Use:   "record",
 		Short: "Combine and sign matching x86-64 and AArch64 run summaries",
 		Args:  cobra.NoArgs,
 		RunE: func(command *cobra.Command, _ []string) error {
+			spec, err := config.LoadDistro(specPath, "aarch64")
+			if err != nil {
+				return err
+			}
+			options.ARM64Spec = spec
 			runner := process.OSRunner{Stdout: os.Stdout, Stderr: os.Stderr}
 			result, err := acceptance.CreateSignedRecord(command.Context(), options, runner)
 			if err == nil {
@@ -90,12 +97,15 @@ func recordCommand() *cobra.Command {
 		},
 	}
 	flags := command.Flags()
+	flags.StringVar(&specPath, "spec", "distro/soda.toml", "Soda distribution specification for the AArch64 record")
 	flags.StringVar(&options.X86Summary, "x86-summary", "", "passing x86-64 run summary")
 	flags.StringVar(&options.ARM64Summary, "aarch64-summary", "", "passing AArch64 run summary")
+	flags.StringVar(&options.ARM64ReleaseRecord, "aarch64-release-record", "", "strict AArch64 candidate release record")
+	flags.StringVar(&options.ExpectedRevision, "expected-revision", "", "exact main revision named by both runs")
 	flags.StringVar(&options.Output, "output", "", "new strict JSON acceptance record")
 	flags.StringVar(&options.ApprovedSigner, "approved-signer", "", "expected Sigstore certificate identity")
 	flags.StringVar(&options.OIDCIssuer, "oidc-issuer", "", "expected Sigstore certificate OIDC issuer")
-	for _, name := range []string{"x86-summary", "aarch64-summary", "output", "approved-signer", "oidc-issuer"} {
+	for _, name := range []string{"x86-summary", "aarch64-summary", "aarch64-release-record", "expected-revision", "output", "approved-signer", "oidc-issuer"} {
 		_ = command.MarkFlagRequired(name)
 	}
 	return command

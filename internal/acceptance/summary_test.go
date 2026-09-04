@@ -20,3 +20,14 @@ func TestRunSummaryRequiresEveryPassingScenario(t *testing.T) {
 	delete(summary.Scenarios, "update-and-fallback")
 	require.ErrorContains(t, summary.Validate(), "incomplete scenario set")
 }
+
+func TestRunSummaryRejectsCandidateAsFallback(t *testing.T) {
+	summary := RunSummary{
+		SchemaVersion: 1, Architecture: "aarch64", Platform: "linux/arm64",
+		SourceRevision: strings.Repeat("a", 40), SuiteRevision: strings.Repeat("a", 40),
+		CandidateDigest: "sha256:" + strings.Repeat("b", 64),
+		FallbackDigest:  "sha256:" + strings.Repeat("b", 64),
+		Scenarios:       passedScenarios(), CompletedAt: SummaryTime(time.Unix(1_700_000_000, 0)),
+	}
+	require.ErrorContains(t, summary.Validate(), "must differ")
+}
