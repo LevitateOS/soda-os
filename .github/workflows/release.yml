@@ -108,13 +108,17 @@ jobs:
           printf '%s\n%s\n' "$GH_TOKEN" "$sigstore_token" | tailscale ssh "soda-release-ci@${{ matrix.builder }}" soda-release-executor promote "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" "$GITHUB_SHA" "${{ matrix.architecture }}"
           unset sigstore_token
       - name: Collect the signed release-record bundle
+        id: release-record-bundle
         run: |
-          bundle="$RUNNER_TEMP/soda-os-0.5.0-${{ matrix.architecture }}.release.json.sigstore.json"
+          version=$(awk -F '"' '$1 ~ /^version[[:space:]]*=/ { print $2; exit }' distro/soda.toml)
+          test -n "$version"
+          bundle="$RUNNER_TEMP/soda-os-$version-${{ matrix.architecture }}.release.json.sigstore.json"
           tailscale ssh "soda-release-ci@${{ matrix.builder }}" soda-release-executor emit-bundle "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" "$GITHUB_SHA" "${{ matrix.architecture }}" > "$bundle"
+          printf 'path=%s\n' "$bundle" >> "$GITHUB_OUTPUT"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: soda-release-record-bundle-${{ matrix.architecture }}
-          path: ${{ runner.temp }}/soda-os-0.5.0-${{ matrix.architecture }}.release.json.sigstore.json
+          path: ${{ steps.release-record-bundle.outputs.path }}
           if-no-files-found: error
           retention-days: 1
 
@@ -140,10 +144,12 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          aarch64_record="$RUNNER_TEMP/records/aarch64/soda-os-0.5.0-aarch64.release.json"
-          x86_record="$RUNNER_TEMP/records/x86_64/soda-os-0.5.0-x86_64.release.json"
+          version=$(awk -F '"' '$1 ~ /^version[[:space:]]*=/ { print $2; exit }' distro/soda.toml)
+          test -n "$version"
+          aarch64_record="$RUNNER_TEMP/records/aarch64/soda-os-$version-aarch64.release.json"
+          x86_record="$RUNNER_TEMP/records/x86_64/soda-os-$version-x86_64.release.json"
           notes="$RUNNER_TEMP/release-notes.md"
-          printf '# Soda OS 0.5.0\n\nExact update images:\n' > "$notes"
+          printf '# Soda OS %s\n\nExact update images:\n' "$version" > "$notes"
           jq -r '.soda_image_reference' "$aarch64_record" "$x86_record" >> "$notes"
           go run ./cmd/soda-release draft --notes-file "$notes" --aarch64-record "$aarch64_record" --x86_64-record "$x86_record"
 
@@ -207,6 +213,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          version=$(awk -F '"' '$1 ~ /^version[[:space:]]*=/ { print $2; exit }' distro/soda.toml)
+          test -n "$version"
           go run ./cmd/soda-release publish \
-            --aarch64-record "$RUNNER_TEMP/records/aarch64/soda-os-0.5.0-aarch64.release.json" \
-            --x86_64-record "$RUNNER_TEMP/records/x86_64/soda-os-0.5.0-x86_64.release.json"
+            --aarch64-record "$RUNNER_TEMP/records/aarch64/soda-os-$version-aarch64.release.json" \
+            --x86_64-record "$RUNNER_TEMP/records/x86_64/soda-os-$version-x86_64.release.json"
