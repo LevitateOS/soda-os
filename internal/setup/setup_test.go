@@ -2,11 +2,15 @@ package setup
 
 import (
 	"context"
+	"crypto/ed25519"
+	"crypto/rand"
 	"errors"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/ssh"
 )
 
 type fakeAccounts struct {
@@ -14,6 +18,7 @@ type fakeAccounts struct {
 	prepareErr     error
 	promoteErr     error
 	calls          *[]string
+	prepared       AdministratorRequest
 }
 
 func (accounts *fakeAccounts) Administrators(context.Context) ([]Administrator, error) {
@@ -22,6 +27,7 @@ func (accounts *fakeAccounts) Administrators(context.Context) ([]Administrator, 
 
 func (accounts *fakeAccounts) Prepare(_ context.Context, request AdministratorRequest) error {
 	*accounts.calls = append(*accounts.calls, "accounts.prepare:"+request.Username)
+	accounts.prepared = request
 	return accounts.prepareErr
 }
 
@@ -37,6 +43,7 @@ type fakeForgejo struct {
 	ready      map[string]bool
 	prepareErr error
 	calls      *[]string
+	prepared   AdministratorRequest
 }
 
 func (forgejo *fakeForgejo) Ready(_ context.Context, username string) bool {
@@ -45,6 +52,7 @@ func (forgejo *fakeForgejo) Ready(_ context.Context, username string) bool {
 
 func (forgejo *fakeForgejo) PrepareAdministrator(_ context.Context, request AdministratorRequest) error {
 	*forgejo.calls = append(*forgejo.calls, "forgejo.prepare:"+request.Username)
+	forgejo.prepared = request
 	if forgejo.prepareErr == nil {
 		forgejo.ready[request.Username] = true
 	}
@@ -153,7 +161,7 @@ func TestLANAndTailscaleRemainIndependent(t *testing.T) {
 
 func TestCreateAdministratorUsesNativeBoundariesInOrder(t *testing.T) {
 	service, calls := testService(nil, false, nil, true)
-	request := AdministratorRequest{Username: "ada", Password: "correct horse battery", AuthorizedKey: "ssh-ed25519 AAAA"}
+	request := AdministratorRequest{Username: "ada", Password: "correct horse battery", AuthorizedKey: testAdministratorKey(t)}
 	status, err := service.CreateAdministrator(context.Background(), request)
 	if err != nil {
 		t.Fatal(err)
@@ -171,7 +179,7 @@ func TestCreateAdministratorRetainsAndReportsPartialState(t *testing.T) {
 	service, calls := testService(nil, false, nil, true)
 	forgejo := service.Forgejo.(*fakeForgejo)
 	forgejo.prepareErr = errors.New("Forgejo unavailable")
-	status, err := service.CreateAdministrator(context.Background(), AdministratorRequest{Username: "ada"})
+	status, err := service.CreateAdministrator(context.Background(), AdministratorRequest{Username: "ada", AuthorizedKey: testAdministratorKey(t)})
 	if err == nil || status.Dismissed {
 		t.Fatalf("CreateAdministrator() = (%+v, %v)", status, err)
 	}
@@ -179,4 +187,24 @@ func TestCreateAdministratorRetainsAndReportsPartialState(t *testing.T) {
 	if !reflect.DeepEqual(*calls, wantCalls) {
 		t.Fatalf("calls = %#v, want %#v", *calls, wantCalls)
 	}
+}
+
+func TestCreateAdministratorCanonicalizesSSHKeyBeforeNativeMutation(t *testing.T) {
+	service, _ := testService(nil, false, nil, true)
+	canonical := testAdministratorKey(t)
+	_, err := service.CreateAdministrator(context.Background(), AdministratorRequest{Username: "ada", AuthorizedKey: canonical + " workstation"})
+	require.NoError(t, err)
+	accounts := service.Accounts.(*fakeAccounts)
+	forgejo := service.Forgejo.(*fakeForgejo)
+	require.Equal(t, canonical, accounts.prepared.AuthorizedKey)
+	require.Equal(t, canonical, forgejo.prepared.AuthorizedKey)
+}
+
+func testAdministratorKey(t *testing.T) string {
+	t.Helper()
+	public, _, err := ed25519.GenerateKey(rand.Reader)
+	require.NoError(t, err)
+	key, err := ssh.NewPublicKey(public)
+	require.NoError(t, err)
+	return strings.TrimSpace(string(ssh.MarshalAuthorizedKey(key)))
 }

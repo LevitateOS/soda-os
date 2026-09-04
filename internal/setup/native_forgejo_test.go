@@ -16,13 +16,13 @@ func TestParseForgejoUsers(t *testing.T) {
 	}
 }
 
-func TestForgejoBootstrapConfigurationChangesOnlyRegistration(t *testing.T) {
-	configuration := []byte("[service]\nDISABLE_REGISTRATION = true\nREQUIRE_SIGNIN_VIEW = true\n")
+func TestForgejoBootstrapConfigurationEnablesRegistrationOnLoopback(t *testing.T) {
+	configuration := []byte("[server]\nHTTP_ADDR = 0.0.0.0\n[service]\nDISABLE_REGISTRATION = true\nREQUIRE_SIGNIN_VIEW = true\n")
 	got, err := forgejoBootstrapConfiguration(configuration)
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := "[service]\nDISABLE_REGISTRATION = false\nREQUIRE_SIGNIN_VIEW = true\n"
+	want := "[server]\nHTTP_ADDR = 127.0.0.1\n[service]\nDISABLE_REGISTRATION = false\nREQUIRE_SIGNIN_VIEW = true\n"
 	if string(got) != want {
 		t.Fatalf("configuration = %q, want %q", got, want)
 	}

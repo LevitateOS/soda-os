@@ -163,11 +163,13 @@ func (forgejo NativeForgejo) bootstrap(ctx context.Context, request Administrato
 }
 
 func forgejoBootstrapConfiguration(configuration []byte) ([]byte, error) {
-	setting := []byte("DISABLE_REGISTRATION = true")
-	if bytes.Count(configuration, setting) != 1 {
-		return nil, errors.New("Forgejo registration setting is unavailable for initial administrator setup")
+	registration := []byte("DISABLE_REGISTRATION = true")
+	listener := []byte("HTTP_ADDR = 0.0.0.0")
+	if bytes.Count(configuration, registration) != 1 || bytes.Count(configuration, listener) != 1 {
+		return nil, errors.New("Forgejo bootstrap configuration is unavailable for initial administrator setup")
 	}
-	return bytes.Replace(configuration, setting, []byte("DISABLE_REGISTRATION = false"), 1), nil
+	configuration = bytes.Replace(configuration, registration, []byte("DISABLE_REGISTRATION = false"), 1)
+	return bytes.Replace(configuration, listener, []byte("HTTP_ADDR = 127.0.0.1"), 1), nil
 }
 
 func sealedForgejoConfiguration(configuration []byte) (*os.File, error) {

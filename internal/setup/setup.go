@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"io"
 	"sort"
+
+	"github.com/LevitateOS/soda-os/internal/projects"
 )
 
 const DefaultCompletionPath = "/var/lib/soda/setup-complete"
@@ -149,6 +151,11 @@ func (service Service) CreateAdministrator(ctx context.Context, request Administ
 	if len(status.Administrators) != 0 {
 		return status, errors.New("an ordinary Linux administrator already exists")
 	}
+	key, err := projects.CanonicalAuthorizedKey(request.AuthorizedKey)
+	if err != nil {
+		return status, err
+	}
+	request.AuthorizedKey = key
 	if err = service.Accounts.Prepare(ctx, request); err == nil {
 		err = service.Forgejo.PrepareAdministrator(ctx, request)
 	}
