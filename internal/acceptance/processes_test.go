@@ -15,7 +15,7 @@ func TestProcessStopTerminatesOnlyItsProcessGroup(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("Unix process groups are required")
 	}
-	command := exec.Command("sh", "-c", "sleep 60 & wait")
+	command := exec.Command("sleep", "60")
 	command.SysProcAttr = nil
 	require.NoError(t, command.Start())
 	t.Cleanup(func() { _ = command.Process.Kill() })

@@ -22,13 +22,19 @@ type ProcessSpec struct {
 }
 
 type Process struct {
-	command *exec.Cmd
-	done    chan error
-	once    sync.Once
+	command    *exec.Cmd
+	done       chan struct{}
+	stopOnce   sync.Once
+	mu         sync.Mutex
+	result     error
+	stopResult error
 }
 
 func StartProcess(ctx context.Context, spec ProcessSpec) (*Process, error) {
-	command := exec.CommandContext(ctx, spec.Name, spec.Args...)
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	command := exec.Command(spec.Name, spec.Args...)
 	command.Dir = spec.Dir
 	command.Env = append(command.Environ(), spec.Env...)
 	command.Stdout = spec.Stdout
@@ -37,40 +43,58 @@ func StartProcess(ctx context.Context, spec ProcessSpec) (*Process, error) {
 	if err := command.Start(); err != nil {
 		return nil, fmt.Errorf("start %s: %w", spec.Name, err)
 	}
-	process := &Process{command: command, done: make(chan error, 1)}
-	go func() { process.done <- command.Wait() }()
+	process := &Process{command: command, done: make(chan struct{})}
+	go process.wait()
 	return process, nil
+}
+
+func (process *Process) wait() {
+	result := process.command.Wait()
+	process.mu.Lock()
+	process.result = result
+	process.mu.Unlock()
+	close(process.done)
 }
 
 func (process *Process) Wait(ctx context.Context) error {
 	select {
-	case err := <-process.done:
-		return process.waitError(err)
+	case <-process.done:
+		return process.waitError(process.waitResult())
 	case <-ctx.Done():
 		return ctx.Err()
 	}
 }
 
 func (process *Process) Stop(ctx context.Context) error {
-	var stopErr error
-	process.once.Do(func() { stopErr = process.stop(ctx) })
-	return stopErr
+	process.stopOnce.Do(func() { process.stopResult = process.stop(ctx) })
+	return process.stopResult
 }
 
 func (process *Process) stop(ctx context.Context) error {
 	if process.command.Process == nil {
 		return nil
 	}
+	select {
+	case <-process.done:
+		return process.stopWaitError(process.waitResult())
+	default:
+	}
 	if err := syscall.Kill(-process.command.Process.Pid, syscall.SIGTERM); err != nil && !errors.Is(err, os.ErrProcessDone) {
 		return fmt.Errorf("terminate process group %d: %w", process.command.Process.Pid, err)
 	}
 	select {
-	case err := <-process.done:
-		return process.stopWaitError(err)
+	case <-process.done:
+		return process.stopWaitError(process.waitResult())
 	case <-ctx.Done():
 		_ = syscall.Kill(-process.command.Process.Pid, syscall.SIGKILL)
 		return fmt.Errorf("stop process group %d: %w", process.command.Process.Pid, ctx.Err())
 	}
+}
+
+func (process *Process) waitResult() error {
+	process.mu.Lock()
+	defer process.mu.Unlock()
+	return process.result
 }
 
 func (process *Process) waitError(err error) error {

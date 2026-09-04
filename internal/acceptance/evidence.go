@@ -64,7 +64,7 @@ func (evidence Evidence) path(relative string) (string, error) {
 func (evidence Evidence) Sanitize(secrets []Secret) error {
 	redacted := []string{}
 	err := filepath.WalkDir(evidence.Root, func(path string, entry fs.DirEntry, walkErr error) error {
-		if walkErr != nil || entry.IsDir() || entry.Type()&os.ModeSymlink != 0 || entry.Name() == "secret-absence.txt" {
+		if walkErr != nil || entry.IsDir() || !entry.Type().IsRegular() || entry.Name() == "secret-absence.txt" {
 			return walkErr
 		}
 		matched, err := sanitizeFile(path, secrets)

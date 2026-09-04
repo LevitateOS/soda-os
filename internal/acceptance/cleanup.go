@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"time"
 )
 
 type CleanupAction struct {
@@ -42,7 +43,10 @@ func (cleanup *Cleanup) Run(ctx context.Context) error {
 	cleanup.mu.Unlock()
 	var joined error
 	for index := len(actions) - 1; index >= 0; index-- {
-		if err := actions[index].Run(ctx); err != nil {
+		actionCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+		err := actions[index].Run(actionCtx)
+		cancel()
+		if err != nil {
 			joined = errors.Join(joined, fmt.Errorf("cleanup %s: %w", actions[index].Name, err))
 		}
 	}

@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"time"
 )
 
 type qmpRequest struct {
@@ -37,6 +38,13 @@ func (client QMPClient) Execute(ctx context.Context, command, id string, argumen
 		return fmt.Errorf("connect QMP socket: %w", err)
 	}
 	defer connection.Close()
+	deadline := time.Now().Add(30 * time.Second)
+	if contextDeadline, ok := ctx.Deadline(); ok && contextDeadline.Before(deadline) {
+		deadline = contextDeadline
+	}
+	if err = connection.SetDeadline(deadline); err != nil {
+		return fmt.Errorf("set QMP deadline: %w", err)
+	}
 	decoder := json.NewDecoder(bufio.NewReader(connection))
 	encoder := json.NewEncoder(connection)
 	if err = client.negotiate(decoder, encoder); err != nil {
