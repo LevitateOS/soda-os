@@ -1,6 +1,6 @@
 # Install on premises
 
-Install Soda from the architecture-matched network ISO with graphical Anaconda and then complete common first-boot setup.
+Install Soda from the architecture-matched network ISO with graphical Anaconda and then complete Soda Setup.
 
 ## Prerequisites
 
@@ -76,7 +76,7 @@ not through separate installation media.
 ## Expected result
 
 The machine boots the installed Soda image from its target disk and presents
-the common interactive first-boot setup on the console.
+Soda Setup on the console.
 
 ## If something fails
 

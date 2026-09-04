@@ -28,8 +28,9 @@ state with `ss`, `systemctl`, and `journalctl`.
 ## Current implementation
 
 `firewalld` uses `drop` as the default zone, so unassigned normal-network
-connections do not admit inbound services. The post-install setup path selects
-trusted LAN ingress explicitly with:
+connections do not admit inbound services. Soda Setup's **Allow access from the
+local network** action selects trusted LAN ingress for the current connection
+with:
 
 ```
 sudo soda-local-access CONNECTION on

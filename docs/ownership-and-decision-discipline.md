@@ -177,12 +177,18 @@ bootstrap contract, generalized bundle, multiple transports, first-boot
 operation, retry semantics, runtime verification, documentation set, and
 architecture issue before demonstrating an upstream gap.
 
-That conclusion was later superseded by an explicit product decision. Human
-installation now uses one finished network ISO, graphical Anaconda only for
-installation-owned responsibilities, and a common Fedora-native interactive
-first-boot setup shared by ISO and QCOW2. There is no human-facing OEMDRV,
-cloud-init provisioning path, second credential image, or separate onboarding
-implementation. The reusable lesson remains: required composition does not
+That conclusion was later superseded by an explicit product decision. The
+current release uses one finished network ISO, graphical Anaconda only for
+installation-owned responsibilities, and **Soda Setup** as a temporary
+post-install workaround shared by ISO and QCOW2 through the console and
+Cockpit. There is no human-facing OEMDRV, cloud-init provisioning path, second
+credential image, or duplicate onboarding implementation.
+
+The intended permanent architecture is one complete installation journey with
+no separate Soda-owned post-install setup. That direction does not authorize
+deleting today's working instructions, pretending Soda Setup is already gone,
+moving all its screens into a renamed custom installer, or inventing its
+replacement. The reusable lesson remains: required composition does not
 authorize durable bootstrap state or a general control plane.
 
 ## Project-environment incident

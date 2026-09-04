@@ -77,16 +77,17 @@ development dependencies, and later OS image retrieval.
 
 ## Boot and finish setup
 
-Start the VM and open its console. Soda presents the common interactive
-first-boot setup. Complete it as described in [Make the first
+Start the VM and open its console. **Soda Setup** appears. Complete it as
+described in [Make the first
 connection](30-first-connection.md).
 
 Do not close the console until setup confirms that an administrator is ready
-and Tailscale is connected. Cloud deployments do not select LAN-only access.
+and Tailscale is connected. On a cloud machine, do not select **Allow access
+from the local network** as a substitute for Tailscale.
 
 ## Expected result
 
-The QCOW2 boots from the enlarged disk, first-boot setup is visible on the
+The QCOW2 boots from the enlarged disk, Soda Setup is visible on the
 console, and no Soda service is reachable from the public Internet.
 
 ## If something fails
@@ -97,7 +98,7 @@ console, and no Soda service is reachable from the public Internet.
 - If the filesystem does not reflect the enlarged virtual disk, stop before
   creating project data and retain the console output for diagnosis.
 - If Tailscale cannot connect, correct outbound networking or the auth key from
-  first-boot setup. Do not open public SSH as a workaround.
+  Soda Setup. Do not open public SSH as a workaround.
 
 ## Next step
 

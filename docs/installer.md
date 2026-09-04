@@ -15,6 +15,13 @@ Soda produces equal architecture-specific outputs for x86-64 and AArch64:
 Every architecture-specific input, build, inspection, installation, and
 acceptance claim is produced on matching-native hardware.
 
+The intended permanent architecture is one complete installation journey with
+no separate Soda-owned post-install setup. The current release retains **Soda
+Setup** as a temporary workaround after the installed system boots. This
+document preserves that complete current journey until a proven replacement
+exists; it does not prescribe moving every setup screen into a renamed custom
+installer.
+
 ### Network installer
 
 The public human journey uses one finished ISO:
@@ -23,7 +30,7 @@ The public human journey uses one finished ISO:
 2. Use stock graphical Anaconda for storage, networking, firmware, bootloader,
    and bootc deployment.
 3. Reboot into the installed system.
-4. Complete the common interactive first-boot setup.
+4. Complete Soda Setup after the installed system boots.
 
 The ISO installs an exact architecture-specific GHCR digest and does not embed
 the Soda runtime payload. A network or registry failure is a native installation
@@ -36,24 +43,25 @@ checkout, Go command, xorriso command, or other provisioning medium.
 ### Reusable QCOW2
 
 The reusable QCOW2 is built from the same exact OCI image as the installer.
-After boot it uses the same common first-boot setup as an ISO-installed system.
-The setup appears on the VM or supported cloud console and can be reopened in
-Cockpit after network access exists.
+After boot it uses the same Soda Setup state and operations as an ISO-installed
+system. Soda Setup appears on the VM or supported cloud console and is also
+available in Cockpit after network access exists.
 
 Supported cloud platforms must provide console access. Soda does not consume
 NoCloud or ConfigDrive user data, merge cloud metadata, accept a separate
 `cloud-input`, install provider agents, or expose a public SSH bootstrap.
-Without completed first boot, the machine remains unconfigured.
+Until Soda Setup is complete, the machine remains unconfigured.
 
 The image grows its final partition and filesystem to the supplied virtual
 disk. The raw QCOW2 is a matching-native build artifact; the compressed image,
 checksum, release record, and signing evidence are release outputs.
 
-### Common interactive first boot
+### Current Soda Setup workaround
 
-The Fedora-native setup is machine-wide and shared by ISO and QCOW2. It is
-available on a physical, VM, or supported cloud console and through Cockpit via
-the same bounded underlying operations.
+Soda Setup is machine-wide and shared by ISO and QCOW2. It is available on a
+physical, VM, or supported cloud console and through Cockpit via the same
+bounded underlying operations. Both surfaces use the same state, and Soda
+Setup can always be opened again later.
 
 It remains available at startup until explicitly dismissed. Dismissal is not
 available until:
@@ -62,11 +70,13 @@ available until:
 - its password is set;
 - its public SSH key is installed;
 - the same-named Forgejo site administrator is ready; and
-- Tailscale is connected or LAN-only is explicitly selected.
+- Tailscale is connected or **Allow access from the local network** is
+  explicitly selected for the current connection.
 
-When the owner enters a Tailscale authentication key, the setup passes it once
-to Tailscale and removes it. Selecting LAN-only requires no key and does not
-prevent configuring Tailscale later through native tools.
+When the owner enters a Tailscale authentication key, Soda Setup passes it once
+to Tailscale and removes it. Trusting the current local connection requires no
+key. Tailscale remains a separate choice, can be configured later, and never
+disables trusted local-network access.
 
 The setup leaves no password, Tailscale key, bootstrap account, enabled
 provisioning path, runtime status database, retry record, or background setup
@@ -74,25 +84,26 @@ service. A failure remains visible and is retried explicitly through the same
 setup; Soda adds no recovery engine or reconciliation loop.
 
 Automatic LAN/cloud detection and choosing setup enablement inside Anaconda are
-not part of the approved contract.
+not part of the current release contract. The long-term single-journey goal
+does not select either mechanism.
 
 ## Installed ownership
 
-After setup:
+After Soda Setup:
 
 - Linux owns the administrator, password, `wheel` membership, home, and
   standard authorized key;
 - Forgejo owns the same-named site administrator and registered SSH public key;
 - Tailscale owns its node identity when enrolled;
 - stock Cockpit owns browser administration; and
-- Soda owns only completion of the bounded first-boot composition.
+- Soda owns only completion of the current bounded Soda Setup composition.
 
 Later primary humans are created through the supported administrator workflow,
 receive a corresponding Forgejo account, and have their public key registered
 there. Workspace accounts are Linux-only identities.
 
 Tea and gh are available in workspaces but are never configured during
-installation or first boot. Each workspace login is manual and separate.
+installation or Soda Setup. Each workspace login is manual and separate.
 
 ## Persistent host state
 
@@ -164,7 +175,7 @@ uses:
 Those mechanisms describe the present source only. They are superseded by the
 product contract above and must be deleted with their replacement slices. The
 old matching-native installation and QCOW2 results prove those historical
-artifacts, not the approved common first-boot journey.
+artifacts, not the current Soda Setup journey.
 
-No new first-boot artifact, public ISO, public QCOW2, or final release is
+No new Soda Setup artifact, public ISO, public QCOW2, or final release is
 claimed by this document.

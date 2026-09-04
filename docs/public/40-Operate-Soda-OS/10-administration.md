@@ -46,11 +46,13 @@ Do not expose these ports to the public Internet on a cloud machine.
 
 ## Configure Tailscale later
 
-A machine completed in **LAN-only** mode can join Tailscale later. Open the
-first-boot setup from Cockpit and complete its Tailscale step, or use the native
+A machine configured with **Allow access from the local network** can join
+Tailscale later. Open Soda Setup from Cockpit and complete its Tailscale step,
+or use the native
 Tailscale administration path. Follow Tailscale's [device setup
 guide](https://tailscale.com/docs/features/access-control/device-management/how-to/set-up).
-The auth key is used once and removed.
+The auth key is used once and removed. Tailscale enrollment does not disable
+the trusted local-network connection.
 
 ## Native diagnostics
 
@@ -87,7 +89,7 @@ committed and successfully pushed to a repository that is itself protected.
 ## Expected result
 
 Every administrative fact can be inspected through its native owner, while
-Soda-specific administration stays limited to first boot, Projects, and
+Soda-specific administration stays limited to Soda Setup, Projects, and
 destructive lifecycle actions.
 
 ## If something fails

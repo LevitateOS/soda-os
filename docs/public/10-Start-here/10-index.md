@@ -27,7 +27,7 @@ accounts, services, and ownership boundaries behind these tasks.
    [Install on premises](../20-Deploy/20-install-on-premises.md), then choose
    the artifact for the machine's architecture.
 2. Install with the network ISO or import the reusable QCOW2.
-3. Finish the common first-boot setup from the machine console.
+3. Complete **Soda Setup** from the machine console.
 4. Connect over the LAN or Tailscale with SSH, Cockpit, and Forgejo.
 5. Add one primary account for each person.
 6. Add or create a project in Cockpit's **Projects** page.
@@ -40,7 +40,7 @@ accounts, services, and ownership boundaries behind these tasks.
 - An x86-64 or AArch64 machine or virtual machine.
 - A disk whose contents may be replaced during installation.
 - Network access while using the network installer.
-- Console access for installation and first-boot setup.
+- Console access for installation and Soda Setup.
 - One SSH public key for the first administrator.
 - Either a trusted LAN or a Tailscale network.
 
@@ -55,7 +55,7 @@ ordinary SSH.
 
 ## If something fails
 
-Keep the exact error shown by Anaconda, first-boot setup, Cockpit, Forgejo, or
+Keep the exact error shown by Anaconda, Soda Setup, Cockpit, Forgejo, or
 the command you ran. Soda reports native failures instead of hiding them behind
 a background workflow. Retry only the failed task after correcting its stated
 cause.

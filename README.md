@@ -10,12 +10,12 @@ laptops, editors, terminals, and browsers remain lightweight clients.
 
 Human installation uses one finished network ISO. Stock graphical Anaconda
 handles storage, networking, bootloader, firmware, and bootc deployment. After
-the installed system starts, one common Fedora-native interactive first-boot
-setup creates the first administrator, installs the SSH public key, prepares
-Forgejo, and either connects Tailscale or records an explicit LAN-only choice.
-The same setup serves reusable QCOW2 systems through their console and can be
-reopened in Cockpit. All human onboarding occurs after the installed system
-boots; the ISO is the only installation medium the owner prepares.
+the installed system starts, **Soda Setup** creates the first administrator,
+installs the SSH public key, prepares Forgejo, and either connects Tailscale or
+trusts the current connection through **Allow access from the local network**.
+The same Soda Setup state and operations serve reusable QCOW2 systems through
+their console and Cockpit. The ISO is the only installation medium the owner
+prepares.
 
 On a trusted LAN, OpenSSH, Cockpit, Forgejo, and project development servers are
 directly reachable over the LAN. In cloud environments, OpenSSH, Cockpit, and

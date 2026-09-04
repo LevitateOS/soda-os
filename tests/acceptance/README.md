@@ -29,15 +29,17 @@ pre-release runs, not a claim that release CI's later-built bytes were booted.
 
 ## Required scenarios
 
-### Installation and first boot
+### Installation and Soda Setup
 
 - One architecture-matched network ISO boots stock graphical Anaconda without
   human OEMDRV or other provisioning media.
-- The installed system presents the common interactive first-boot setup.
-- A reusable QCOW2 presents the same setup through its console.
-- The same bounded setup operations are reopenable through Cockpit.
+- The installed system presents Soda Setup.
+- A reusable QCOW2 presents the same Soda Setup state through its console.
+- The same bounded Soda Setup operations are available through Cockpit, and
+  the setup can always be reopened.
 - Dismissal remains unavailable until the Linux/Forgejo administrator,
-  password, SSH public key, and Tailscale-or-explicit-LAN-only outcome exist.
+  password, SSH public key, and either Tailscale or explicit trust of the
+  current connection through **Allow access from the local network** exist.
 - A supplied Tailscale key is used once and removed.
 - No NoCloud, ConfigDrive, cloud-input, public-SSH bootstrap, or alternate
   onboarding path exists.
@@ -131,7 +133,7 @@ Tailscale file contains one ephemeral, one-use guest key. The private key and
 password are disposable test credentials; all three secret files must have
 mode `0600` or stricter. The runner creates no onboarding media. It opens the
 architecture-native QEMU graphical display for the operator to complete stock
-Anaconda and the common Soda Setup. The runner prints only the protected input
+Anaconda and Soda Setup. The runner prints only the protected input
 paths, then resumes through native SSH and Tailscale readiness.
 
 The successful run leaves `summary.json` and normalized credential-free

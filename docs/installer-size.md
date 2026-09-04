@@ -26,9 +26,11 @@ native raw-QEMU graphical boot to the branded Anaconda welcome screen. A full
 network installation is not claimed by this evidence: its exact runtime digest
 was not anonymously available from GHCR.
 
-This report predates the approved common first-boot design. Its package closure
-still includes OEMDRV and installer-only provisioning inputs that are now
-deletion targets. The next size comparison must begin from the one-ISO,
-graphical-Anaconda contract and attribute every retained installer package to
-Anaconda, bootc, firmware, branding, or network installation. Historical byte
-counts remain useful evidence but do not preserve the old onboarding path.
+This report predates the current Soda Setup workaround and the later long-term
+decision for one complete installation journey without separate Soda-owned
+post-install setup. Its package closure still includes OEMDRV and
+installer-only provisioning inputs that are now deletion targets. The next
+size comparison must begin from the one-ISO, graphical-Anaconda contract and
+attribute every retained installer package to Anaconda, bootc, firmware,
+branding, or network installation. Historical byte counts remain useful
+evidence but do not preserve the old onboarding path or select its replacement.

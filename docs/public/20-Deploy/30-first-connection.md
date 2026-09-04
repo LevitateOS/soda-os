@@ -1,10 +1,11 @@
 # Make the first connection
 
-Finish the shared first-boot checklist and connect to Soda through the trusted LAN or Tailscale.
+Complete Soda Setup and connect through the trusted local network, Tailscale, or both.
 
-The same setup appears after an ISO installation and on the first boot of a
-QCOW2. It runs on the physical or virtual console and can be reopened through
-Cockpit after Cockpit becomes reachable.
+**Soda Setup** appears after an ISO installation and on the first boot of a
+QCOW2. It runs on the physical or virtual console and is also available through
+Cockpit. Both surfaces use the same setup state and underlying operations.
+Soda Setup can always be opened again later.
 
 ## Prerequisites
 
@@ -13,19 +14,21 @@ Cockpit after Cockpit becomes reachable.
 - The administrator's SSH public key, such as the contents of
   `~/.ssh/id_ed25519.pub` on their client.
 - For cloud deployment, a Tailscale auth key and working outbound network.
-- For local deployment, either a Tailscale auth key or an explicit decision to
-  use LAN-only access.
+- For local deployment, either a Tailscale auth key or a trusted current local
+  network connection.
 
-## Complete first-boot setup
+## Complete Soda Setup
 
-Setup remains available at startup until the machine-wide checklist is
-complete. Dismissal is enabled only after all five conditions are satisfied:
+Soda Setup remains available at startup until the machine-wide checklist is
+complete and you dismiss it. Dismissal is enabled only after all five
+conditions are satisfied:
 
 1. An administrator account exists.
 2. Its password is set.
 3. Its SSH public key is installed.
 4. The same-named Forgejo administrator is ready.
-5. Tailscale is connected, or **LAN-only** is explicitly selected.
+5. Tailscale is connected, or **Allow access from the local network** is
+   selected for the current connection.
 
 Enter the administrator details and public key exactly as prompted. Soda uses
 Linux for the account and password, OpenSSH for the public key, and Forgejo for
@@ -38,23 +41,27 @@ the repository account.
 Create a suitably scoped auth key by following Tailscale's [auth-key
 guide](https://tailscale.com/docs/features/access-control/auth-keys) and [device
 setup guide](https://tailscale.com/docs/features/access-control/device-management/how-to/set-up).
-Enter the key only in first-boot setup. Soda uses it for enrollment once and
+Enter the key only in Soda Setup. Soda uses it for enrollment once and
 removes it immediately afterward.
 
 Confirm the new node in the Tailscale admin console and record its MagicDNS
 name. Do not paste the key into shell history, chat, issue trackers, or logs.
 
-### LAN-only
+### Local-network access
 
-Select **LAN-only** only for a machine on a trusted local network. This allows
-setup to complete without Tailscale. An administrator can enroll the machine
-later from Cockpit or with native Tailscale administration.
+Select **Allow access from the local network** only when you trust the current
+local network connection. This explicitly allows Soda services over that
+connection and lets Soda Setup complete without Tailscale.
 
-LAN-only is not a supported access mode for cloud deployments.
+Tailscale enrollment is a separate choice. Enabling Tailscale never disables
+local-network access, and an administrator can enroll the machine later by
+reopening Soda Setup in Cockpit or by using native Tailscale administration.
+Cloud deployments use Tailscale rather than trusting a public network
+connection.
 
 ## Find the machine
 
-For a LAN installation, obtain the address from first-boot setup, the console,
+For a LAN installation, obtain the address from Soda Setup, the console,
 or Cockpit's networking page. For Tailscale, use the confirmed MagicDNS name or
 Tailnet address.
 
@@ -85,7 +92,7 @@ warnings. Investigate any unexpected identity change.
 
 ## Expected result
 
-The first-boot checklist is complete, the setup screen can be dismissed, SSH
+The Soda Setup checklist is complete, the setup screen can be dismissed, SSH
 accepts the administrator's public key, Cockpit accepts the Linux login, and
 Forgejo recognizes the administrator.
 
@@ -97,7 +104,7 @@ Forgejo recognizes the administrator.
   path and use the Linux password.
 - **Forgejo:** confirm port 30000 and use the Forgejo administrator credentials
   created by setup.
-- **Tailscale:** correct the key or outbound networking from the setup screen;
+- **Tailscale:** correct the key or outbound networking from Soda Setup;
   a failed key is not retained for background retry.
 
 ## Next step

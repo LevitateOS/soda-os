@@ -49,6 +49,13 @@ Soda does not replace Fedora, Linux administration, OpenSSH, Tailscale, Cockpit,
 Forgejo, Git, Podman, or bootc. Its value is combining them into one coherent,
 installable system with a repeatable workflow.
 
+The intended installation architecture is one complete journey with no
+separate Soda-owned post-install setup. The current release uses **Soda Setup**
+after the installed system boots as a temporary workaround shared by the
+machine console and Cockpit. Preserve that usable release journey until it is
+replaced; the long-term goal does not authorize hiding Soda Setup inside a
+renamed custom installer or inventing another onboarding system.
+
 Linux administrators manage image updates through native bootc operations.
 The supported fallback to an earlier image must preserve current Linux account
 and workspace state. Soda does not add a runtime update service or parallel
@@ -202,7 +209,7 @@ account deletion remains an ordinary non-cascading Linux action.
 
 Soda includes Forgejo as its built-in Git forge.
 
-The first-boot setup creates the initial same-named Linux and Forgejo
+Soda Setup currently creates the initial same-named Linux and Forgejo
 administrator accounts.
 
 Each later primary human receives a corresponding Forgejo account and has their
@@ -244,7 +251,8 @@ for Cockpit.
 Soda owns:
 
 - the branded Fedora bootc image;
-- one-ISO installation and the common interactive first-boot composition;
+- one-ISO installation, with Soda Setup retained as the current temporary
+  post-install workaround until one complete installation journey replaces it;
 - Tailscale and LAN/OpenSSH access composition;
 - package and service configuration;
 - the project catalog;

@@ -16,9 +16,10 @@ trusted team. A powerful Soda machine runs builds, tests, editors, agents,
 databases, development servers, and project processes. Lightweight clients use
 ordinary OpenSSH, Cockpit, Git, and browser links.
 
-Soda owns the installable composition, common first-boot experience, project
-catalog, workspace convention, focused Projects page, and the narrow
-synchronous operations required to make that workflow coherent. Linux,
+Soda owns the installable composition, project catalog, workspace convention,
+focused Projects page, and the narrow synchronous operations required to make
+that workflow coherent. The current release also retains Soda Setup as a
+temporary post-install composition. Linux,
 OpenSSH, Git, Forgejo or an external Git host, Cockpit, Tailscale, `mise`, and
 bootc own the facts and mechanisms native to their domains.
 
@@ -26,7 +27,17 @@ AArch64 and x86-64 are equal sibling product targets. Architecture-specific
 build, artifact, installation, and acceptance claims require matching-native
 evidence.
 
-## Installation and first boot
+## Installation and Soda Setup
+
+The intended permanent architecture is one complete installation journey with
+no separate Soda-owned post-install setup. The exact future division of
+responsibilities must be proven against Fedora's native installation
+boundaries. This direction does not authorize moving every Soda Setup screen
+into a renamed custom installer or inventing another setup system.
+
+For the current release, Soda Setup is the supported temporary workaround. Its
+complete user journey remains required until a proven replacement provides the
+same accepted outcomes.
 
 Human installation uses one completed architecture-matched network ISO:
 
@@ -34,25 +45,28 @@ Human installation uses one completed architecture-matched network ISO:
 2. Use stock graphical Anaconda for storage, networking, bootloader, firmware,
    and bootc deployment responsibilities that cannot safely move.
 3. Boot the installed system.
-4. Complete the common Fedora-native interactive first-boot setup.
+4. Complete Soda Setup after the installed system boots.
 
-The same first-boot setup serves ISO-installed and reusable QCOW2 systems. It
-appears on the physical, VM, or supported cloud console and is reopenable in
-stock Cockpit through the same bounded operations. It is not two onboarding
-implementations.
+The same Soda Setup state and operations serve ISO-installed and reusable
+QCOW2 systems. Soda Setup appears on the physical, VM, or supported cloud
+console and is also available in stock Cockpit. These are two surfaces for one
+setup, not two onboarding implementations, and Soda Setup can always be opened
+again later.
 
-The setup remains available on startup until machine-wide dismissal. Dismissal
-is disabled until all of these are true:
+Soda Setup remains available on startup until machine-wide dismissal.
+Dismissal is disabled until all of these are true:
 
 - a primary Linux administrator exists;
 - its password is set;
 - its SSH public key is installed;
 - the same-named Forgejo administrator is ready; and
-- Tailscale is connected or the owner explicitly selected LAN-only operation.
+- Tailscale is connected or the owner explicitly selected **Allow access from
+  the local network** for the current connection.
 
 A Tailscale authentication key, when used, is entered after installation,
-consumed once, and removed. LAN-only operation requires no Tailscale key, and
-Tailscale can be configured later.
+consumed once, and removed. Trusting the current local connection requires no
+Tailscale key. Tailscale remains a separate choice, can be configured later,
+and never disables trusted local-network access.
 
 There is no human-facing repository checkout, internal Go or xorriso command,
 OEMDRV, second credential image, separate provisioning medium, NoCloud,
@@ -178,8 +192,8 @@ non-cascading Linux operation and triggers no watcher or reconciliation.
 
 Stock Cockpit owns browser authentication, sessions, TLS, account management,
 host overview, metrics, services, logs, terminal, storage, and networking.
-Soda adds branding, the Projects page, and access to the same common first-boot
-operations used on the console.
+Soda adds branding, the Projects page, and access to the same Soda Setup state
+and bounded operations used on the console.
 
 Soda may retain fixed, one-shot privileged operations only for accepted
 first-boot, catalog, workspace, Forgejo public-key registration, tool-scope,
@@ -272,8 +286,8 @@ workflow/job/retry/reconciliation platform.
 
 A narrow integration is allowed only for the Projects UI/catalog, workspace
 accounts, Forgejo public-key registration, `mise` project/workspace scopes,
-upstream caches, optional workspace assistants, common first boot, and fixed
-one-shot privileged actions.
+upstream caches, optional workspace assistants, the current temporary Soda
+Setup composition, and fixed one-shot privileged actions.
 
 ## Current implementation
 
@@ -302,8 +316,10 @@ claimed by this record.
 
 The following remain engineering questions, not product decisions:
 
-1. The smallest Fedora-native console/Cockpit first-boot implementation and
-   bounded privilege split.
+1. The smallest Fedora-native console/Cockpit Soda Setup implementation and
+   bounded privilege split for the current release, plus the future path to one
+   complete installation journey without a separate Soda-owned post-install
+   setup.
 2. Exact LAN and cloud firewall/service binding on Fedora 44.
 3. Forgejo public-key registration through the exact shipped version.
 4. Catalog syntax, path, fields required by approved UI, and concurrency.
@@ -319,14 +335,15 @@ If a native hypothesis fails, return the exact constraint for review. Failure
 does not authorize a daemon, database, broker, alternate onboarding path,
 fallback package manager, retry queue, or reconciliation service.
 
-## Product-level acceptance criteria
+## Current-release product-level acceptance criteria
 
 The reset is complete when both matching-native architectures demonstrate:
 
-1. One network ISO reaches graphical Anaconda and the common first-boot setup
+1. One network ISO reaches graphical Anaconda and Soda Setup
    without separate human provisioning media.
-2. The same setup completes on ISO and QCOW2, from console and Cockpit, and
-   cannot be dismissed before all required outcomes or explicit LAN-only.
+2. The same Soda Setup state completes on ISO and QCOW2 through console or
+   Cockpit, and cannot be dismissed before all required outcomes or explicit
+   trust of the current local connection.
 3. LAN exposes SSH, Cockpit, Forgejo, and normal development-server links;
    cloud exposes them only through Tailscale.
 4. Linux and `wheel` remain authoritative for people and administrators.
@@ -357,7 +374,7 @@ The reset is complete when both matching-native architectures demonstrate:
 
 The current dependency order is:
 
-1. [#40: common interactive first boot](https://github.com/LevitateOS/soda-os/issues/40), [#42: graphical one-ISO proof](https://github.com/LevitateOS/soda-os/issues/42), and [#45: console-onboarded QCOW2](https://github.com/LevitateOS/soda-os/issues/45).
+1. [#40: current Soda Setup composition](https://github.com/LevitateOS/soda-os/issues/40), [#42: graphical one-ISO proof](https://github.com/LevitateOS/soda-os/issues/42), and [#45: console-onboarded QCOW2](https://github.com/LevitateOS/soda-os/issues/45).
 2. [#15: LAN and Tailnet access](https://github.com/LevitateOS/soda-os/issues/15).
 3. [#44: Forgejo SSH keys and manual workspace CLI authentication](https://github.com/LevitateOS/soda-os/issues/44) and [#33: ordered person deletion](https://github.com/LevitateOS/soda-os/issues/33).
 4. [#35: shared projects and private workspaces](https://github.com/LevitateOS/soda-os/issues/35), [#37: native Git-host ownership](https://github.com/LevitateOS/soda-os/issues/37), and [#32: focused Cockpit workflows](https://github.com/LevitateOS/soda-os/issues/32).

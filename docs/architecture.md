@@ -17,7 +17,7 @@ versions.
 Soda owns only:
 
 - the branded image, network ISO, and reusable QCOW2 composition;
-- one common console/Cockpit first-boot setup;
+- the current bounded Soda Setup workaround shared by the console and Cockpit;
 - the shared project catalog;
 - one derived Linux workspace account per selected person-project pair;
 - branding and one focused Cockpit Projects page;
@@ -27,14 +27,21 @@ Soda owns only:
 
 ### Installation and access
 
-One finished network ISO boots stock graphical Anaconda. Anaconda handles
-storage, networking, bootloader, firmware, and bootc deployment. The installed
-system then presents the common interactive first-boot setup. The same setup is
-used by QCOW2 and can be reopened in Cockpit.
+The intended architecture is one complete installation journey with no
+separate Soda-owned post-install setup. It does not require moving every setup
+screen into a renamed custom installer; the final ownership split remains to
+be proven against Fedora's native installation boundaries.
 
-First boot cannot be dismissed until an administrator, password, SSH public
-key, Forgejo administrator, and either Tailscale connection or explicit
-LAN-only choice exist. A Tailscale key is used once and removed. There is no
+For the current release, one finished network ISO boots stock graphical
+Anaconda. Anaconda handles storage, networking, bootloader, firmware, and bootc
+deployment. The installed system then presents **Soda Setup**, the temporary
+post-install workaround also used by QCOW2. Its console and Cockpit surfaces use
+the same state and bounded operations.
+
+Soda Setup cannot be dismissed until an administrator, password, SSH public
+key, Forgejo administrator, and either a Tailscale connection or explicit
+trust of the current connection through **Allow access from the local network**
+exist. A Tailscale key is used once and removed. There is no
 human OEMDRV, cloud-init provisioning path, second input image, or public-SSH
 bootstrap.
 
@@ -90,8 +97,8 @@ implementation debt:
 
 | Current source | Approved replacement |
 | --- | --- |
-| Mandatory OEMDRV and installer-time administrator/Forgejo provisioning | One ISO followed by common interactive first boot |
-| Separate NoCloud, ConfigDrive, and cloud finalizer | The same console first boot for QCOW2 |
+| Mandatory OEMDRV and installer-time administrator/Forgejo provisioning | One ISO followed by the current Soda Setup workaround |
+| Separate NoCloud, ConfigDrive, and cloud finalizer | The same Soda Setup state and operations for QCOW2 |
 | Tailnet-only managed-service firewall | Direct trusted-LAN access plus cloud Tailscale access |
 | Exact three-field catalog | No closed metadata field list |
 | Soda-created Tea PAT/config and workspace copying | Manual Tea and gh login in each workspace |
@@ -116,7 +123,7 @@ owning issues replace the conflicting behavior.
 ## Evidence status
 
 Historical native x86-64 and AArch64 runs prove the implementation that existed
-at their exact commits. They do not prove the newly approved first-boot, LAN,
+at their exact commits. They do not prove the newly approved Soda Setup, LAN,
 Forgejo-key, manual CLI-authentication, mise, person-deletion, or build-once
 release paths.
 
