@@ -54,6 +54,18 @@ func TestKickstartKeepsStockInteractiveFlowAndExactDigest(t *testing.T) {
 	require.NotContains(t, contents, "user --name")
 }
 
+func TestInstallerInitramfsRequiresInteractiveDefaults(t *testing.T) {
+	require.NoError(t, validateInstallerInitramfs("-rw-r--r-- usr/share/anaconda/interactive-defaults.ks"))
+	require.EqualError(t, validateInstallerInitramfs("-rw-r--r-- usr/share/anaconda/other.ks"), "installer initramfs lacks the interactive defaults")
+}
+
+func TestInstallerInitramfsDefaultsRequireExactKickstart(t *testing.T) {
+	builder := NewBuilder("", config.DistroSpec{Identity: config.IdentitySpec{Hostname: "soda"}}, &recordingRunner{})
+	defaults := kickstart(testExactImage, "soda")
+	require.NoError(t, builder.validateInstallerInitramfsDefaults(defaults, testExactImage))
+	require.EqualError(t, builder.validateInstallerInitramfsDefaults(defaults+"\n", testExactImage), "installer initramfs defaults differ from the exact Soda payload contract")
+}
+
 func TestInstallerStorageUsesOnePlainExt4Root(t *testing.T) {
 	root := filepath.Join("..", "..", "..")
 	contents, err := os.ReadFile(filepath.Join(root, "packaging", "installer", "soda-storage.conf"))
@@ -130,6 +142,24 @@ func TestInstallerEnvironmentPinsBIOSHybridBootModule(t *testing.T) {
 		require.NoError(t, readErr)
 		require.Contains(t, string(lock), "grub2-pc-modules-1:2.12-64.fc44.noarch")
 		require.Contains(t, string(lock), "shim-")
+	}
+}
+
+func TestInstallerPackageLocksKeepDirectInstallerRequirements(t *testing.T) {
+	root := filepath.Join("..", "..", "..")
+	for _, architecture := range []string{"aarch64", "x86_64"} {
+		lock, err := os.ReadFile(filepath.Join(root, "distro", "locks", "installer-packages-"+architecture+".toml"))
+		require.NoError(t, err)
+		for _, requirement := range []string{
+			"kernel-7.1.13-200.fc44." + architecture,
+			"kernel-modules-extra-7.1.13-200.fc44." + architecture,
+			"nfs-utils-1:2.8.7-7.fc44." + architecture,
+			"openssh-0:10.2p1-14.fc44." + architecture,
+			"openssl-1:3.5.8-1.fc44." + architecture,
+			"util-linux-0:2.41.5-1.fc44." + architecture,
+		} {
+			require.Contains(t, string(lock), requirement)
+		}
 	}
 }
 
@@ -314,7 +344,7 @@ func TestValidateExtractedPayloadAcceptsNoContainerStorage(t *testing.T) {
 }
 
 func TestISOConfigRequiresExactStage2KernelAndInitrdContract(t *testing.T) {
-	expected := []byte("label: \"SodaOS-Installer\"\ngrub2:\n  default: 0\n  timeout: 10\n  entries:\n    - name: \"Install Soda OS\"\n      linux: \"/images/pxeboot/vmlinuz inst.stage2=hd:LABEL=SodaOS-Installer console=tty0 inst.graphical enforcing=0\"\n      initrd: \"/images/pxeboot/initrd.img\"\n")
+	expected := []byte("label: \"SodaOS-Installer\"\ngrub2:\n  default: 0\n  timeout: 10\n  entries:\n    - name: \"Install Soda OS\"\n      linux: \"/images/pxeboot/vmlinuz inst.stage2=hd:LABEL=SodaOS-Installer inst.ks=file:/usr/share/anaconda/interactive-defaults.ks console=tty0 inst.graphical enforcing=0\"\n      initrd: \"/images/pxeboot/initrd.img\"\n")
 	root := t.TempDir()
 	inspectDir := t.TempDir()
 	expectedDir := filepath.Join(root, "packaging", "installer")

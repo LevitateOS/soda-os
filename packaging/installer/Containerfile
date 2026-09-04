@@ -50,6 +50,10 @@ COPY --chmod=0644 packaging/installer/pipewire-allow-root.conf /etc/systemd/user
 COPY --chmod=0644 packaging/installer/pipewire-allow-root.conf /etc/systemd/user/pipewire.socket.d/allowroot.conf
 COPY --chmod=0644 packaging/installer/var-tmp.mount /usr/lib/systemd/system/var-tmp.mount
 
+# Anaconda reads inst.ks before the ISO's squashfs is mounted. Include the
+# generated interactive defaults in its initramfs while retaining one ISO.
+RUN printf '%s\n' 'install_items+=" /usr/share/anaconda/interactive-defaults.ks "' > /etc/dracut.conf.d/90-soda-interactive-defaults.conf
+
 RUN mkdir -p /etc/systemd/system/anaconda.target.wants \
     && ln -s /usr/lib/systemd/system/var-tmp.mount /etc/systemd/system/anaconda.target.wants/var-tmp.mount
 

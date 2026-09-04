@@ -25,11 +25,15 @@ func TestInstallerEnvironmentUsesOneStockInteractivePath(t *testing.T) {
 	require.Contains(t, profile, "can_copy_input_kickstart = False")
 	require.Contains(t, profile, "can_save_output_kickstart = False")
 	require.Contains(t, profile, "hidden_spokes = UserSpoke PasswordSpoke")
+	require.Contains(t, containerfile, `install_items+=" /usr/share/anaconda/interactive-defaults.ks "`)
 
 	for _, architecture := range []string{"aarch64", "x86_64"} {
 		config := readInstallerFixture(t, root, "packaging/installer/iso-"+architecture+".yaml")
 		require.NotContains(t, config, "OEMDRV")
-		require.NotContains(t, config, "inst.ks=")
+		require.NotContains(t, config, "inst.ks=hd:")
+		require.NotContains(t, config, "inst.ks=cdrom:")
+		require.Contains(t, config, "inst.ks=file:/usr/share/anaconda/interactive-defaults.ks")
+		require.Contains(t, config, "inst.graphical")
 	}
 }
 
