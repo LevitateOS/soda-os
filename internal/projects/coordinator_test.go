@@ -226,7 +226,10 @@ func TestCoordinatorListContract(t *testing.T) {
 	coordinator := testCoordinator(t).coordinator
 	require.NoError(t, coordinator.Catalog.Add(CatalogEntry{
 		ID: "site", DisplayName: "Site", CanonicalURL: "git@git.example.test:site.git",
-		Additional: map[string]json.RawMessage{"team": json.RawMessage(`"web"`)},
+		Additional: map[string]json.RawMessage{
+			"team": json.RawMessage(`"web"`), "catalog_metadata": json.RawMessage(`"catalog-value"`),
+			"workspace_username": json.RawMessage(`"catalog-user"`), "workspace_ready": json.RawMessage(`"catalog-ready"`),
+		},
 	}))
 	response, err := coordinator.Execute(context.Background(), "alice", "list", strings.NewReader(`{}`))
 	require.NoError(t, err)
@@ -237,6 +240,22 @@ func TestCoordinatorListContract(t *testing.T) {
 	require.Len(t, list.Projects, 1)
 	require.NotEmpty(t, list.Projects[0].WorkspaceUsername)
 	require.JSONEq(t, `"web"`, string(list.Projects[0].Additional["team"]))
+	encoded, err := json.Marshal(list)
+	require.NoError(t, err)
+	var wire struct {
+		Projects []struct {
+			CatalogMetadata   map[string]json.RawMessage `json:"catalog_metadata"`
+			WorkspaceUsername string                     `json:"workspace_username"`
+			WorkspaceReady    bool                       `json:"workspace_ready"`
+		} `json:"projects"`
+	}
+	require.NoError(t, json.Unmarshal(encoded, &wire))
+	require.Len(t, wire.Projects, 1)
+	require.JSONEq(t, `"catalog-value"`, string(wire.Projects[0].CatalogMetadata["catalog_metadata"]))
+	require.JSONEq(t, `"catalog-user"`, string(wire.Projects[0].CatalogMetadata["workspace_username"]))
+	require.JSONEq(t, `"catalog-ready"`, string(wire.Projects[0].CatalogMetadata["workspace_ready"]))
+	require.Equal(t, list.Projects[0].WorkspaceUsername, wire.Projects[0].WorkspaceUsername)
+	require.Equal(t, list.Projects[0].WorkspaceReady, wire.Projects[0].WorkspaceReady)
 }
 
 func TestCoordinatorSetupRegistersWorkspacePublicKeyBeforeNativeSSHClone(t *testing.T) {

@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"strings"
 	"unicode/utf8"
 )
 
@@ -25,11 +24,6 @@ func (request *CatalogMutationRequest) UnmarshalJSON(contents []byte) error {
 	if err := json.Unmarshal(contents, &values); err != nil {
 		return err
 	}
-	for field := range values {
-		if catalogCredentialField(field) {
-			return fmt.Errorf("catalog metadata must not contain credential field %q", field)
-		}
-	}
 	entry, err := catalogEntryFromValues(values)
 	if err != nil {
 		return err
@@ -39,15 +33,6 @@ func (request *CatalogMutationRequest) UnmarshalJSON(contents []byte) error {
 	}
 	request.CatalogEntry = entry
 	return nil
-}
-
-func catalogCredentialField(field string) bool {
-	switch strings.ToLower(field) {
-	case "password", "forgejo_password", "git_password", "token", "tea_token", "gh_token", "credential", "credentials", "private_key":
-		return true
-	default:
-		return false
-	}
 }
 
 type AddExistingRequest = CatalogMutationRequest
@@ -94,7 +79,10 @@ type ProjectView struct {
 }
 
 func (view ProjectView) MarshalJSON() ([]byte, error) {
-	object := view.CatalogEntry.jsonObject()
+	object := map[string]json.RawMessage{}
+	object["id"], _ = json.Marshal(view.ID)
+	object["display_name"], _ = json.Marshal(view.DisplayName)
+	object["canonical_url"], _ = json.Marshal(view.CanonicalURL)
 	metadata := view.CatalogEntry.Additional
 	if metadata == nil {
 		metadata = map[string]json.RawMessage{}

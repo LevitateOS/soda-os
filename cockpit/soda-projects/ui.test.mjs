@@ -62,11 +62,12 @@ test("catalog forms accept arbitrary JSON metadata without a closed field list",
     ["id", "site"],
     ["display_name", "Site"],
     ["canonical_url", "git@git.example.test:team/site.git"],
-    ["additional_metadata", '{"team":"web","labels":["public"]}'],
+    ["additional_metadata", '{"team":"web","labels":["public"],"workspace_username":"catalog-value"}'],
   ]), message => messages.push(message));
   assert.deepEqual(payload, {
     team: "web",
     labels: ["public"],
+    workspace_username: "catalog-value",
     id: "site",
     display_name: "Site",
     canonical_url: "git@git.example.test:team/site.git",

@@ -27,8 +27,6 @@ func TestHelperRejectsUnsupportedCommandsAndParameters(t *testing.T) {
 	_, err = helper.Execute(context.Background(), alice, "workspace-publish", strings.NewReader(`{"id":"site","canonical_url":"git@git.example.test:site.git","path":"/etc"}`))
 	require.ErrorContains(t, err, "unknown field")
 
-	_, err = helper.Execute(context.Background(), alice, "catalog-add", strings.NewReader(`{"id":"site","display_name":"Site","canonical_url":"git@git.example.test:site.git","password":"secret"}`))
-	require.ErrorContains(t, err, "must not contain credential field")
 }
 
 func TestHelperPublishesArbitraryCatalogMetadata(t *testing.T) {

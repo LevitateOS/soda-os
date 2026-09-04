@@ -71,6 +71,7 @@ test("mutation responses contain the action-specific result", () => {
     id: "website",
     display_name: "Website",
     canonical_url: "git@example.test:team/website.git",
+    catalog_metadata: {},
   };
   assert.deepEqual(
     decodeResponse("add-existing", JSON.stringify({ ok: true, project })),
