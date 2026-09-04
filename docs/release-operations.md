@@ -83,6 +83,12 @@ Release CI follows this order:
 11. Publish the draft only after all OCI, file, record, signature, provenance,
     source, and production-branch identities agree.
 
+The locked release account allocates each build's native temporary directory
+directly beneath its home and links it from the immutable run directory. This
+keeps QEMU monitor sockets below the host's Unix-socket path limit while the
+source checkout, Go cache, artifacts, and the link identifying that temporary
+directory remain grouped with the exact run.
+
 CI publishes the exact checked files unchanged. It never rebuilds a release
 copy and never builds fallback A.
 

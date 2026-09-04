@@ -27,6 +27,9 @@ test "$(grep -Fc 'soda-release-executor upload' "$workflow")" -eq 1
 test "$(grep -Fc 'soda-release-record-bundle-' "$workflow")" -eq 3
 grep -Fq 'SSH command must invoke soda-release-executor' scripts/soda-release-executor
 grep -Fq 'PATH=/usr/local/bin:/usr/bin:/bin' scripts/soda-release-executor
+grep -Fq 'mktemp -d "$(dirname "$SODA_RELEASE_ROOT")/t.XXXXXX"' scripts/soda-release-executor
+grep -Fq 'ln -s "$temp" "$run/tmp"' scripts/soda-release-executor
+grep -Fq 'export RUNNER_TEMP=$temp TMPDIR=$temp GOCACHE=$run/go-cache' scripts/soda-release-executor
 
 if grep -Eq 'acceptance|guest[_-]key|NoCloud|ConfigDrive|cloud-input|installer-input|OEMDRV' "$workflow" scripts/soda-release-executor; then
     echo 'release CI must verify pre-release evidence, not run matching-native acceptance' >&2
