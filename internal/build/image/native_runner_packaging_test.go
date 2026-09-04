@@ -56,7 +56,7 @@ func TestRunnerPackageOwnsOnlyFocusedLocalComposition(t *testing.T) {
 		require.NotContains(t, strings.ToLower(spec), absent)
 	}
 	dependencies := specRequires(spec)
-	for _, dependency := range []string{"forgejo-runner", "libicu", "policycoreutils", "polkit", "shadow-utils", "systemd"} {
+	for _, dependency := range []string{"forgejo-runner", "krb5-libs", "libicu", "lttng-ust", "openssl-libs", "policycoreutils", "polkit", "shadow-utils", "systemd", "zlib-ng-compat"} {
 		require.Contains(t, dependencies, dependency)
 	}
 }
@@ -113,6 +113,10 @@ func TestSiblingRuntimeLocksContainNativeRunnerInputs(t *testing.T) {
 			}
 			require.Equal(t, "forgejo-runner-0:12.13.2-1.fc44."+architecture, packages["forgejo-runner"].NEVRA)
 			require.Equal(t, "libicu-0:77.1-3.fc44."+architecture, packages["libicu"].NEVRA)
+			require.Equal(t, "krb5-libs-0:1.22.2-4.fc44."+architecture, packages["krb5-libs"].NEVRA)
+			require.Equal(t, "lttng-ust-0:2.14.0-5.fc44."+architecture, packages["lttng-ust"].NEVRA)
+			require.Equal(t, "openssl-libs-1:3.5.8-1.fc44."+architecture, packages["openssl-libs"].NEVRA)
+			require.Equal(t, "zlib-ng-compat-0:2.3.3-3.fc44."+architecture, packages["zlib-ng-compat"].NEVRA)
 			require.Equal(t, "local-rpm", packages["soda-runners"].Source)
 		})
 	}
