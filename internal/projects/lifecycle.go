@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"sort"
 	"strings"
 )
 
@@ -168,6 +169,42 @@ func (lifecycle Lifecycle) deleteNewWorkspace(ctx context.Context, workspace Acc
 	return errors.Join(cause, deleteErr)
 }
 
+func (lifecycle Lifecycle) RemoveWorkspace(ctx context.Context, actorUsername, projectID string) error {
+	lock, err := lifecycle.Platform.WorkspaceOperationExclusiveLock()
+	if err != nil {
+		return fmt.Errorf("lock workspace operations: %w", err)
+	}
+	operationErr := lifecycle.Catalog.Exclusive(func() error {
+		return lifecycle.removeWorkspaceUnlocked(ctx, actorUsername, projectID)
+	})
+	return closeLockWithError(lock, operationErr, "workspace operations")
+}
+
+func (lifecycle Lifecycle) removeWorkspaceUnlocked(ctx context.Context, actorUsername, projectID string) error {
+	primary, uidMin, err := lifecycle.AuthorizePrimary(ctx, actorUsername)
+	if err != nil {
+		return err
+	}
+	if _, err = lifecycle.Catalog.Get(projectID); err != nil {
+		return err
+	}
+	username, _ := DerivedUsername(primary.Username, projectID)
+	workspace, err := lifecycle.Platform.LookupAccount(ctx, username)
+	if errors.Is(err, ErrAccountNotFound) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if err = lifecycle.preflightWorkspaceDeletion(ctx, workspace, primary.Username, projectID, uidMin); err != nil {
+		return fmt.Errorf("no workspace was removed; workspace %s, shared catalog entry, other local workspaces, and canonical repository remain: %w", username, err)
+	}
+	if err = lifecycle.Platform.DeleteAccount(ctx, workspace); err != nil {
+		return fmt.Errorf("no workspace was removed; workspace %s, shared catalog entry, other local workspaces, and canonical repository remain: delete workspace: %w", username, err)
+	}
+	return nil
+}
+
 func (lifecycle Lifecycle) RemoveProject(ctx context.Context, actorUsername, projectID string) error {
 	lock, err := lifecycle.Platform.WorkspaceOperationExclusiveLock()
 	if err != nil {
@@ -180,8 +217,12 @@ func (lifecycle Lifecycle) RemoveProject(ctx context.Context, actorUsername, pro
 }
 
 func (lifecycle Lifecycle) removeProjectUnlocked(ctx context.Context, actorUsername, projectID string) error {
-	if _, _, err := lifecycle.AuthorizePrimary(ctx, actorUsername); err != nil {
+	actor, uidMin, err := lifecycle.AuthorizePrimary(ctx, actorUsername)
+	if err != nil {
 		return err
+	}
+	if !actor.IsAdministrator(uidMin) {
+		return errors.New("administrator status is required")
 	}
 	if _, err := lifecycle.Catalog.Get(projectID); err != nil {
 		return err
@@ -190,20 +231,22 @@ func (lifecycle Lifecycle) removeProjectUnlocked(ctx context.Context, actorUsern
 	if err != nil {
 		return err
 	}
-	uidMin, err := lifecycle.Platform.UIDMin()
-	if err != nil {
-		return err
-	}
 	targets, err := lifecycle.projectDeletionTargets(ctx, accounts, projectID, uidMin)
 	if err != nil {
-		return err
+		return fmt.Errorf("no local workspaces were removed; all local workspaces, shared catalog entry, and canonical repository remain: %w", err)
 	}
-	for _, account := range targets {
+	removed := make([]string, 0, len(targets))
+	for index, account := range targets {
 		if err = lifecycle.Platform.DeleteAccount(ctx, account); err != nil {
-			return err
+			remaining := accountNames(targets[index:])
+			return fmt.Errorf("%s; local workspaces %s, shared catalog entry, and canonical repository remain: delete workspace %s: %w", removedProjectWorkspaceDescription(removed), strings.Join(remaining, ", "), account.Username, err)
 		}
+		removed = append(removed, account.Username)
 	}
-	return lifecycle.Catalog.removeUnlocked(projectID)
+	if err = lifecycle.Catalog.removeUnlocked(projectID); err != nil {
+		return fmt.Errorf("%s; shared catalog entry and canonical repository remain: %w", removedProjectWorkspaceDescription(removed), err)
+	}
+	return nil
 }
 
 func (lifecycle Lifecycle) projectDeletionTargets(ctx context.Context, accounts []Account, projectID string, uidMin int) ([]Account, error) {
@@ -221,7 +264,23 @@ func (lifecycle Lifecycle) projectDeletionTargets(ctx context.Context, accounts 
 		}
 		targets = append(targets, account)
 	}
+	sort.Slice(targets, func(i, j int) bool { return targets[i].Username < targets[j].Username })
 	return targets, nil
+}
+
+func accountNames(accounts []Account) []string {
+	names := make([]string, 0, len(accounts))
+	for _, account := range accounts {
+		names = append(names, account.Username)
+	}
+	return names
+}
+
+func removedProjectWorkspaceDescription(workspaces []string) string {
+	if len(workspaces) == 0 {
+		return "no local workspaces were removed"
+	}
+	return "removed local workspaces " + strings.Join(workspaces, ", ")
 }
 
 func (lifecycle Lifecycle) DeleteHuman(ctx context.Context, actorUsername, targetUsername string) error {

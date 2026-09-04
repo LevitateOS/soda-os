@@ -9,6 +9,7 @@ import {
   formActions,
   humanDeletionHidden,
   payloadFor,
+  projectRemovalHidden,
   successMessage,
 } from "./ui.mjs";
 
@@ -64,9 +65,14 @@ test("destructive actions require exact confirmation", () => {
     ["username", "alice"],
     ["confirmation", "bob"],
   ]), message => messages.push(message)), null);
+	assert.equal(payloadFor("remove-workspace", new Map([
+	  ["id", "site"],
+	  ["confirmation", "wrong"],
+	]), message => messages.push(message)), null);
   assert.deepEqual(messages, [
     "Type site exactly to confirm project removal.",
     "The confirmation username does not match.",
+	"Type site exactly to confirm workspace removal.",
   ]);
 });
 
@@ -74,6 +80,11 @@ test("human deletion presentation is wheel-status driven", () => {
   assert.equal(humanDeletionHidden({ administrator: true }), false);
   assert.equal(humanDeletionHidden({ administrator: false }), true);
   assert.equal(humanDeletionHidden({}), true);
+});
+
+test("whole-project removal presentation is wheel-status driven", () => {
+  assert.equal(projectRemovalHidden({ administrator: true }), false);
+  assert.equal(projectRemovalHidden({ administrator: false }), true);
 });
 
 test("human deletion confirmation states Forgejo's native consequences", async () => {

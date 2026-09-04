@@ -12,7 +12,7 @@ import (
 
 func main() {
 	if len(os.Args) != 2 {
-		fmt.Fprintln(os.Stderr, "usage: soda-projects <list|add-existing|create-forgejo|edit|setup|remove|delete-human|add-person>")
+		fmt.Fprintln(os.Stderr, "usage: soda-projects <list|add-existing|create-forgejo|edit|setup|remove-workspace|remove|delete-human|add-person>")
 		os.Exit(2)
 	}
 	current, err := user.Current()

@@ -101,7 +101,7 @@ func TestProjectRemovalDeletesWorkspacesBeforeCatalog(t *testing.T) {
 	entry := CatalogEntry{ID: "site", DisplayName: "Site", CanonicalURL: "git@git.example.test:site.git"}
 	require.NoError(t, catalog.Add(entry))
 	platform := newFakePlatform()
-	platform.accounts["alice"] = primaryAccount("alice", primaryRoleUser)
+	platform.accounts["alice"] = primaryAccount("alice", primaryRoleAdministrator)
 	for _, primary := range []string{"alice", "bob"} {
 		workspace, err := platform.CreateWorkspace(context.Background(), primaryAccount(primary, primaryRoleUser), "site")
 		require.NoError(t, err)
@@ -123,7 +123,7 @@ func TestProjectRemovalRetainsCatalogWhenWorkspacePasswordIsNotLocked(t *testing
 	entry := CatalogEntry{ID: "site", DisplayName: "Site", CanonicalURL: "git@git.example.test:site.git"}
 	require.NoError(t, catalog.Add(entry))
 	platform := newFakePlatform()
-	platform.accounts["alice"] = primaryAccount("alice", primaryRoleUser)
+	platform.accounts["alice"] = primaryAccount("alice", primaryRoleAdministrator)
 	workspace, err := platform.CreateWorkspace(context.Background(), platform.accounts["alice"], entry.ID)
 	require.NoError(t, err)
 	platform.failures.passwordErr = errors.New("workspace password is not locked")
@@ -135,6 +135,41 @@ func TestProjectRemovalRetainsCatalogWhenWorkspacePasswordIsNotLocked(t *testing
 	require.Empty(t, platform.calls.deleted)
 	_, err = catalog.Get(entry.ID)
 	require.NoError(t, err)
+}
+
+func TestProjectRemovalRequiresAdministratorBeforeMutation(t *testing.T) {
+	catalog := testCatalog(t)
+	entry := CatalogEntry{ID: "site", DisplayName: "Site", CanonicalURL: "git@git.example.test:site.git"}
+	require.NoError(t, catalog.Add(entry))
+	platform := newFakePlatform()
+	platform.accounts["alice"] = primaryAccount("alice", primaryRoleUser)
+	lifecycle := Lifecycle{Catalog: catalog, Platform: platform}
+
+	err := lifecycle.RemoveProject(context.Background(), "alice", entry.ID)
+	require.ErrorContains(t, err, "administrator status is required")
+	_, err = catalog.Get(entry.ID)
+	require.NoError(t, err)
+}
+
+func TestPersonRemovesOnlyTheirOwnWorkspace(t *testing.T) {
+	catalog := testCatalog(t)
+	entry := CatalogEntry{ID: "site", DisplayName: "Site", CanonicalURL: "git@git.example.test:site.git"}
+	require.NoError(t, catalog.Add(entry))
+	platform := newFakePlatform()
+	platform.accounts["alice"] = primaryAccount("alice", primaryRoleUser)
+	platform.accounts["bob"] = primaryAccount("bob", primaryRoleUser)
+	aliceWorkspace, err := platform.CreateWorkspace(context.Background(), platform.accounts["alice"], entry.ID)
+	require.NoError(t, err)
+	bobWorkspace, err := platform.CreateWorkspace(context.Background(), platform.accounts["bob"], entry.ID)
+	require.NoError(t, err)
+	lifecycle := Lifecycle{Catalog: catalog, Platform: platform}
+
+	require.NoError(t, lifecycle.RemoveWorkspace(context.Background(), "alice", entry.ID))
+	require.Equal(t, []string{aliceWorkspace.Username}, platform.calls.deleted)
+	require.Contains(t, platform.accounts, bobWorkspace.Username)
+	_, err = catalog.Get(entry.ID)
+	require.NoError(t, err)
+	require.NoError(t, lifecycle.RemoveWorkspace(context.Background(), "alice", entry.ID), "retry after success is idempotent")
 }
 
 func TestHumanDeletionDeletesDerivedAccountsAndPrimaryLast(t *testing.T) {

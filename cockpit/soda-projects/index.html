@@ -176,6 +176,29 @@
       </form>
     </dialog>
 
+    <dialog id="remove-workspace-project-dialog" aria-labelledby="remove-workspace-project-title">
+      <form method="dialog" data-action-form="remove-workspace">
+        <header class="dialog-header">
+          <div>
+            <h2 id="remove-workspace-project-title">Remove my workspace</h2>
+            <p>This permanently removes your workspace account, home, independent clone, dependencies, processes, project state, and uncommitted work. The shared project, other workspaces, and canonical repository are not deleted.</p>
+          </div>
+          <button class="icon-button" type="button" data-dialog-close aria-label="Close">×</button>
+        </header>
+        <div class="form-body">
+          <input name="id" type="hidden">
+          <label>
+            Type <code data-confirmation-value></code> to confirm
+            <input name="confirmation" required autocomplete="off">
+          </label>
+        </div>
+        <footer class="dialog-actions">
+          <button class="button secondary" type="button" data-dialog-close>Cancel</button>
+          <button class="button danger" value="default">Remove my workspace</button>
+        </footer>
+      </form>
+    </dialog>
+
     <dialog id="remove-project-dialog" aria-labelledby="remove-project-title">
       <form method="dialog" data-action-form="remove">
         <header class="dialog-header">

@@ -3,6 +3,7 @@ export const formActions = Object.freeze([
   "create-forgejo",
   "edit",
   "setup",
+  "remove-workspace",
   "remove",
   "delete-human",
   "add-person",
@@ -42,10 +43,11 @@ export function payloadFor(action, data, reportInvalid) {
       authorized_key: data.get("authorized_key"),
     };
   }
-  if (action === "remove") {
+  if (action === "remove" || action === "remove-workspace") {
     const id = data.get("id");
     if (data.get("confirmation") !== id) {
-      reportInvalid(`Type ${id} exactly to confirm project removal.`);
+      const target = action === "remove" ? "project" : "workspace";
+      reportInvalid(`Type ${id} exactly to confirm ${target} removal.`);
       return null;
     }
     return { id };
@@ -74,6 +76,9 @@ export function successMessage(action, payload, result) {
   if (action === "remove") {
     return `${payload.id} and its local workspaces were removed. The canonical repository was not deleted.`;
   }
+  if (action === "remove-workspace") {
+    return `Your ${payload.id} workspace was removed. The shared project and canonical repository were not deleted.`;
+  }
   if (action === "add-person") {
     return `${payload.username} was added with a matching Forgejo account and public SSH key.`;
   }
@@ -98,6 +103,10 @@ export function clearPayloadSecrets(payload) {
 }
 
 export function humanDeletionHidden(currentUser) {
+  return currentUser.administrator !== true;
+}
+
+export function projectRemovalHidden(currentUser) {
   return currentUser.administrator !== true;
 }
 

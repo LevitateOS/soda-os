@@ -31,6 +31,7 @@ type PrivilegedProjects interface {
 	CatalogAdd(context.Context, HelperCatalogRequest) error
 	CatalogEdit(context.Context, HelperCatalogRequest) error
 	WorkspacePublish(context.Context, HelperWorkspaceRequest) (MutationResponse, error)
+	WorkspaceRemove(context.Context, ProjectRequest) error
 	ProjectRemove(context.Context, ProjectRequest) error
 	HumanDelete(context.Context, HelperHumanRequest) error
 	HumanCreate(context.Context, HelperHumanCreateRequest) error
@@ -54,6 +55,11 @@ func (invoker PKExecInvoker) CatalogEdit(ctx context.Context, request HelperCata
 
 func (invoker PKExecInvoker) WorkspacePublish(ctx context.Context, request HelperWorkspaceRequest) (MutationResponse, error) {
 	return invoker.mutation(ctx, "workspace-publish", request)
+}
+
+func (invoker PKExecInvoker) WorkspaceRemove(ctx context.Context, request ProjectRequest) error {
+	_, err := invoker.mutation(ctx, "workspace-remove", request)
+	return err
 }
 
 func (invoker PKExecInvoker) ProjectRemove(ctx context.Context, request ProjectRequest) error {
@@ -148,6 +154,8 @@ func (coordinator Coordinator) Execute(ctx context.Context, actorUsername, actio
 		return coordinator.executeEdit(ctx, primary, input)
 	case "setup":
 		return coordinator.executeSetup(ctx, primary, input)
+	case "remove-workspace":
+		return coordinator.executeRemoveWorkspace(ctx, input)
 	case "remove":
 		return coordinator.executeRemove(ctx, input)
 	case "delete-human":
@@ -157,6 +165,17 @@ func (coordinator Coordinator) Execute(ctx context.Context, actorUsername, actio
 	default:
 		return nil, fmt.Errorf("unsupported soda-projects action %q", action)
 	}
+}
+
+func (coordinator Coordinator) executeRemoveWorkspace(ctx context.Context, input io.Reader) (any, error) {
+	var request ProjectRequest
+	if err := DecodeRequest(input, &request); err != nil {
+		return nil, err
+	}
+	if err := coordinator.Privileged.WorkspaceRemove(ctx, request); err != nil {
+		return nil, err
+	}
+	return MutationResponse{OK: true}, nil
 }
 
 func (coordinator Coordinator) executeAddPerson(ctx context.Context, actor Account, uidMin int, input io.Reader) (any, error) {

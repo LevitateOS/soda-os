@@ -34,6 +34,8 @@ func (helper Helper) Execute(ctx context.Context, actor PKExecIdentity, action s
 		return helper.catalogEdit(input)
 	case "workspace-publish":
 		return helper.workspacePublish(ctx, actor.Username, input)
+	case "workspace-remove":
+		return helper.workspaceRemove(ctx, actor.Username, input)
 	case "project-remove":
 		return helper.projectRemove(ctx, actor.Username, input)
 	case "human-delete":
@@ -45,6 +47,17 @@ func (helper Helper) Execute(ctx context.Context, actor PKExecIdentity, action s
 	default:
 		return MutationResponse{}, fmt.Errorf("unsupported workspace helper action %q", action)
 	}
+}
+
+func (helper Helper) workspaceRemove(ctx context.Context, actorUsername string, input io.Reader) (MutationResponse, error) {
+	var request ProjectRequest
+	if err := DecodeRequest(input, &request); err != nil {
+		return MutationResponse{}, err
+	}
+	if err := helper.Lifecycle.RemoveWorkspace(ctx, actorUsername, request.ID); err != nil {
+		return MutationResponse{}, err
+	}
+	return MutationResponse{OK: true}, nil
 }
 
 func (helper Helper) humanCreate(ctx context.Context, actor Account, input io.Reader) (MutationResponse, error) {

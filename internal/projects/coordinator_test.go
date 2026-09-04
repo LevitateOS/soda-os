@@ -56,6 +56,10 @@ func (privileged *fakePrivileged) WorkspacePublish(_ context.Context, request He
 	return MutationResponse{OK: err == nil, WorkspaceUsername: username}, err
 }
 
+func (privileged *fakePrivileged) WorkspaceRemove(_ context.Context, request ProjectRequest) error {
+	return privileged.record("workspace-remove", request)
+}
+
 func (privileged *fakePrivileged) ProjectRemove(_ context.Context, request ProjectRequest) error {
 	return privileged.record("project-remove", request)
 }
@@ -318,4 +322,13 @@ func TestCoordinatorRejectsUnknownActionsAndFields(t *testing.T) {
 	require.ErrorContains(t, err, "unsupported")
 	_, err = coordinator.Execute(context.Background(), "alice", "remove", strings.NewReader(`{"id":"site","command":"rm"}`))
 	require.ErrorContains(t, err, "unknown field")
+}
+
+func TestCoordinatorRoutesOwnWorkspaceRemoval(t *testing.T) {
+	fixture := testCoordinator(t)
+	response, err := fixture.coordinator.Execute(context.Background(), "alice", "remove-workspace", strings.NewReader(`{"id":"site"}`))
+	require.NoError(t, err)
+	require.Equal(t, MutationResponse{OK: true}, response)
+	require.Equal(t, "workspace-remove", fixture.privileged.action)
+	require.Equal(t, ProjectRequest{ID: "site"}, fixture.privileged.request)
 }
