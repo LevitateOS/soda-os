@@ -126,6 +126,12 @@ test("human deletion presentation is wheel-status driven", () => {
   assert.equal(humanDeletionHidden({}), true);
 });
 
+test("People leaves listing and administrator promotion to stock Cockpit Accounts", async () => {
+  const html = await readFile(new URL("./index.html", import.meta.url), "utf8");
+  const panel = html.match(/<section class="panel danger-panel" id="human-deletion-panel"[\s\S]*?<\/section>/)?.[0] ?? "";
+  assert.match(panel, /Stock Cockpit Accounts remains authoritative for listing people and changing administrator status/);
+});
+
 test("whole-project removal presentation is wheel-status driven", () => {
   assert.equal(projectRemovalHidden({ administrator: true }), false);
   assert.equal(projectRemovalHidden({ administrator: false }), true);
