@@ -163,7 +163,7 @@ test("native synchronous diagnostics and outcomes remain visible", () => {
   );
   assert.equal(
     successMessage("delete-human", { username: "bob" }, { ok: true }),
-    "bob, their local Soda workspaces, and their Forgejo account were removed.",
+    "bob and their local Soda workspaces were removed. Their Forgejo account was unchanged.",
   );
 });
 

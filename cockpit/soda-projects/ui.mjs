@@ -89,7 +89,7 @@ export function successMessage(action, payload, result) {
   if (action === "remove-workspace") {
     return `Your ${payload.id} workspace was removed. The shared project and canonical repository were not deleted.`;
   }
-  return `${payload.username}, their local Soda workspaces, and their Forgejo account were removed.`;
+  return `${payload.username} and their local Soda workspaces were removed. Their Forgejo account was unchanged.`;
 }
 
 export function humanDeletionHidden(currentUser) {
