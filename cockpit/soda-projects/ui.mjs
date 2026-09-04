@@ -3,6 +3,7 @@ export const formActions = Object.freeze([
   "create-forgejo",
   "edit",
   "setup",
+  "install-tools",
   "remove-workspace",
   "remove",
   "delete-human",
@@ -30,7 +31,19 @@ export function payloadFor(action, data, reportInvalid) {
     };
   }
   if (action === "setup") {
-    return { id: data.get("id") };
+	return {
+	  id: data.get("id"),
+	  forgejo_password: data.get("forgejo_password"),
+	  workspace_tools: toolSelections(data.get("workspace_tools")),
+	  project_tools: toolSelections(data.get("project_tools")),
+	};
+  }
+  if (action === "install-tools") {
+	return {
+	  id: data.get("id"),
+	  scope: data.get("scope"),
+	  tools: toolSelections(data.get("tools")),
+	};
   }
   if (action === "add-person") {
     if (data.get("password_confirmation") !== data.get("password")) {
@@ -73,6 +86,9 @@ export function successMessage(action, payload, result) {
   if (action === "setup") {
     return `Workspace ${result.workspace_username} is ready for ${payload.id}.`;
   }
+  if (action === "install-tools") {
+	return `mise installed and selected tools for ${payload.scope === "project" ? "the project" : "your workspace"}.`;
+  }
   if (action === "remove") {
     return `${payload.id} and its local workspaces were removed. The canonical repository was not deleted.`;
   }
@@ -86,7 +102,7 @@ export function successMessage(action, payload, result) {
 }
 
 export function clearSecrets(form) {
-  for (const name of ["password", "password_confirmation"]) {
+  for (const name of ["password", "password_confirmation", "forgejo_password"]) {
     const input = form.elements.namedItem(name);
     if (input) {
       input.value = "";
@@ -95,7 +111,7 @@ export function clearSecrets(form) {
 }
 
 export function clearPayloadSecrets(payload) {
-  for (const name of ["password"]) {
+  for (const name of ["password", "forgejo_password"]) {
     if (Object.hasOwn(payload, name)) {
       payload[name] = "";
     }
@@ -108,6 +124,13 @@ export function humanDeletionHidden(currentUser) {
 
 export function projectRemovalHidden(currentUser) {
   return currentUser.administrator !== true;
+}
+
+function toolSelections(value) {
+  return String(value ?? "")
+	.split(/\r?\n/)
+	.map(tool => tool.trim())
+	.filter(tool => tool !== "");
 }
 
 export function errorMessage(error) {

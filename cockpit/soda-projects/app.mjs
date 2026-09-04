@@ -125,6 +125,7 @@ function projectRow(project) {
   actionsCell.className = "row-actions";
   actionsCell.append(projectButton("Set up for me", "setup", project.id, "primary"));
   if (project.workspace_ready) {
+	actionsCell.append(projectButton("Add tools", "install-tools", project.id, "secondary"));
     actionsCell.append(projectButton("Remove my workspace", "remove-workspace", project.id, "danger-link"));
   }
   actionsCell.append(projectButton("Edit", "edit", project.id, "secondary"));
@@ -158,6 +159,8 @@ function prepareProjectDialog(action, project) {
     form.elements.canonical_url.value = project.canonical_url;
   } else if (action === "setup") {
     dialog.querySelector("[data-project-name]").textContent = project.display_name;
+  } else if (action === "install-tools") {
+	dialog.querySelector("[data-project-name]").textContent = project.display_name;
   } else if (action === "remove" || action === "remove-workspace") {
     dialog.querySelector("[data-confirmation-value]").textContent = project.id;
   }

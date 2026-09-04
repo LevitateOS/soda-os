@@ -17,7 +17,9 @@ body {
 }
 
 button,
-input {
+input,
+select,
+textarea {
   font: inherit;
 }
 
@@ -278,7 +280,9 @@ dialog::backdrop {
   font-weight: 600;
 }
 
-input {
+input,
+select,
+textarea {
   width: 100%;
   min-height: 2.3rem;
   margin-block-start: 0.35rem;
@@ -349,7 +353,9 @@ input {
   .panel,
   .notice,
   dialog,
-  input {
+  input,
+  select,
+  textarea {
     border-color: #57585a;
     background: #262626;
     color: #f0f0f0;

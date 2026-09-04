@@ -982,7 +982,7 @@ project_password_request() {
 				admin_ssh /usr/libexec/soda/soda-projects create-forgejo
 			;;
 	setup)
-			jq -cn --arg id "$project_id" '{id:$id}' |
+			jq -cn --rawfile password "$credentials" --arg id "$project_id" '{id:$id,forgejo_password:($password|gsub("[\\r\\n]+$";""))}' |
 				admin_ssh /usr/libexec/soda/soda-projects setup
 			;;
 		*) die "unsupported password-bearing project request $action" ;;
@@ -1661,6 +1661,11 @@ primary_project_request() {
 	printf '%s\n' "$username" | LC_ALL=C grep -Eq '^[a-z][a-z0-9-]{0,23}$' || die "invalid primary username $username"
 	person_key=$(ensure_person_key "$username")
 	need_file "$(known_hosts_path)"
+	if [ "$action" = setup ]; then
+		credentials=$(later_primary_password_file)
+		request=$(jq -cn --argjson request "$request" --rawfile password "$credentials" \
+			'$request + {forgejo_password:($password|gsub("[\\r\\n]+$";""))}')
+	fi
 	printf '%s\n' "$request" | ssh -T -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
 		-o "UserKnownHostsFile=$(known_hosts_path)" -i "$person_key" -p "$guest_ssh_port" \
 		"$username@$guest_host" "/usr/libexec/soda/soda-projects '$action'"

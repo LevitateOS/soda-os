@@ -160,18 +160,64 @@
         <header class="dialog-header">
           <div>
             <h2 id="setup-project-title">Set up for me</h2>
-            <p>Clones the repository before creating your derived workspace account.</p>
+            <p>Creates your derived workspace and clones the repository through native SSH.</p>
           </div>
           <button class="icon-button" type="button" data-dialog-close aria-label="Close">×</button>
         </header>
         <div class="form-body">
           <input name="id" type="hidden">
           <p>Project: <strong data-project-name></strong></p>
-          <p class="field-help">Git clones through native SSH authentication. Tea and GitHub CLI authentication remains manual and private to this workspace.</p>
+		  <p class="field-help">Soda creates an SSH keypair only in this workspace, registers its public key with your Forgejo account once, and uses it for this clone. Tea and GitHub CLI authentication remains manual and private to this workspace.</p>
+		  <label>
+			Forgejo password
+			<input name="forgejo_password" type="password" required autocomplete="current-password">
+			<span class="field-help">Used once for Forgejo’s native public-key registration and never retained.</span>
+		  </label>
+          <label>
+            Tools for my workspace <span class="optional">Optional, one mise tool per line</span>
+            <textarea name="workspace_tools" rows="3" placeholder="node@22&#10;python@3.13"></textarea>
+          </label>
+          <label>
+            Tools for this project <span class="optional">Optional, one mise tool per line</span>
+            <textarea name="project_tools" rows="3" placeholder="go@1.25"></textarea>
+          </label>
+          <p class="field-help">Personal selections use <code>mise.local.toml</code> and private installs. Project selections use <code>mise.toml</code> and the project’s shared mise install directory. mise retains ownership of its cache.</p>
         </div>
         <footer class="dialog-actions">
           <button class="button secondary" type="button" data-dialog-close>Cancel</button>
           <button class="button primary" value="default">Set up for me</button>
+        </footer>
+      </form>
+    </dialog>
+
+    <dialog id="install-tools-project-dialog" aria-labelledby="install-tools-project-title">
+      <form method="dialog" data-action-form="install-tools">
+        <header class="dialog-header">
+          <div>
+            <h2 id="install-tools-project-title">Add development tools</h2>
+            <p><code>mise</code> owns discovery, download, installation, versions, configuration, locking, and cache layout.</p>
+          </div>
+          <button class="icon-button" type="button" data-dialog-close aria-label="Close">×</button>
+        </header>
+        <div class="form-body">
+          <input name="id" type="hidden">
+          <p>Project: <strong data-project-name></strong></p>
+          <label>
+            Scope
+            <select name="scope" required>
+              <option value="workspace">My workspace</option>
+              <option value="project">This project</option>
+            </select>
+          </label>
+          <label>
+            Tools <span class="optional">One mise tool per line</span>
+            <textarea name="tools" rows="5" required placeholder="node@22&#10;python@3.13"></textarea>
+          </label>
+          <p class="field-help">Project tools are stored once for the project. Dependencies, mutable state, and credentials remain private to each workspace.</p>
+        </div>
+        <footer class="dialog-actions">
+          <button class="button secondary" type="button" data-dialog-close>Cancel</button>
+          <button class="button primary" value="default">Install with mise</button>
         </footer>
       </form>
     </dialog>

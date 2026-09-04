@@ -30,8 +30,10 @@ func (TailnetEndpoints) Endpoints(ctx context.Context) (string, string, error) {
 type PrivilegedProjects interface {
 	CatalogAdd(context.Context, HelperCatalogRequest) error
 	CatalogEdit(context.Context, HelperCatalogRequest) error
+	WorkspacePrepare(context.Context, HelperWorkspaceRequest) (MutationResponse, error)
 	WorkspacePublish(context.Context, HelperWorkspaceRequest) (MutationResponse, error)
 	WorkspaceRemove(context.Context, ProjectRequest) error
+	ToolsInstall(context.Context, HelperToolRequest) error
 	ProjectRemove(context.Context, ProjectRequest) error
 	HumanDelete(context.Context, HelperHumanRequest) error
 	HumanCreate(context.Context, HelperHumanCreateRequest) error
@@ -57,8 +59,17 @@ func (invoker PKExecInvoker) WorkspacePublish(ctx context.Context, request Helpe
 	return invoker.mutation(ctx, "workspace-publish", request)
 }
 
+func (invoker PKExecInvoker) WorkspacePrepare(ctx context.Context, request HelperWorkspaceRequest) (MutationResponse, error) {
+	return invoker.mutation(ctx, "workspace-prepare", request)
+}
+
 func (invoker PKExecInvoker) WorkspaceRemove(ctx context.Context, request ProjectRequest) error {
 	_, err := invoker.mutation(ctx, "workspace-remove", request)
+	return err
+}
+
+func (invoker PKExecInvoker) ToolsInstall(ctx context.Context, request HelperToolRequest) error {
+	_, err := invoker.mutation(ctx, "tools-install", request)
 	return err
 }
 
@@ -134,7 +145,6 @@ type Coordinator struct {
 	Platform   Platform
 	Privileged PrivilegedProjects
 	Forgejo    ForgejoClient
-	Cloner     Cloner
 	Endpoints  EndpointSource
 }
 
@@ -156,6 +166,8 @@ func (coordinator Coordinator) Execute(ctx context.Context, actorUsername, actio
 		return coordinator.executeSetup(ctx, primary, input)
 	case "remove-workspace":
 		return coordinator.executeRemoveWorkspace(ctx, input)
+	case "install-tools":
+		return coordinator.executeInstallTools(ctx, input)
 	case "remove":
 		return coordinator.executeRemove(ctx, input)
 	case "delete-human":
@@ -165,6 +177,26 @@ func (coordinator Coordinator) Execute(ctx context.Context, actorUsername, actio
 	default:
 		return nil, fmt.Errorf("unsupported soda-projects action %q", action)
 	}
+}
+
+func (coordinator Coordinator) executeInstallTools(ctx context.Context, input io.Reader) (any, error) {
+	var request ToolRequest
+	if err := DecodeRequest(input, &request); err != nil {
+		return nil, err
+	}
+	if request.Scope != "workspace" && request.Scope != "project" {
+		return nil, errors.New("mise tool scope must be workspace or project")
+	}
+	if len(request.Tools) == 0 {
+		return nil, errors.New("at least one mise tool is required")
+	}
+	if err := ValidateToolSelections(request.Tools); err != nil {
+		return nil, err
+	}
+	if err := coordinator.Privileged.ToolsInstall(ctx, HelperToolRequest(request)); err != nil {
+		return nil, err
+	}
+	return MutationResponse{OK: true}, nil
 }
 
 func (coordinator Coordinator) executeRemoveWorkspace(ctx context.Context, input io.Reader) (any, error) {
@@ -328,6 +360,15 @@ func (coordinator Coordinator) setup(ctx context.Context, primary Account, reque
 	if !projectIDPattern.MatchString(request.ID) {
 		return MutationResponse{}, errors.New("project id must match [a-z][a-z0-9-]{0,23}")
 	}
+	if err := ValidateToolSelections(request.WorkspaceTools); err != nil {
+		return MutationResponse{}, err
+	}
+	if err := ValidateToolSelections(request.ProjectTools); err != nil {
+		return MutationResponse{}, err
+	}
+	if err := validateHumanPassword(request.ForgejoPassword); err != nil {
+		return MutationResponse{}, err
+	}
 	setupLock, err := coordinator.Platform.SetupLock(primary, request.ID)
 	if err != nil {
 		return MutationResponse{}, fmt.Errorf("lock project setup: %w", err)
@@ -350,67 +391,34 @@ func (coordinator Coordinator) setupLocked(ctx context.Context, primary Account,
 	if err != nil {
 		return MutationResponse{}, err
 	}
-	response, ready, err := coordinator.existingWorkspace(ctx, primary, entry)
+	prepared, err := coordinator.Privileged.WorkspacePrepare(ctx, HelperWorkspaceRequest{ID: entry.ID, CanonicalURL: entry.CanonicalURL})
 	if err != nil {
 		return MutationResponse{}, err
 	}
-	if ready {
-		return response, nil
+	if !prepared.OK || prepared.WorkspaceUsername == "" || prepared.WorkspacePublicKey == "" {
+		return MutationResponse{}, errors.New("workspace helper returned incomplete outbound Git key evidence")
 	}
-	return coordinator.setupNewWorkspace(ctx, primary, entry, request)
-}
-
-func (coordinator Coordinator) existingWorkspace(ctx context.Context, primary Account, entry CatalogEntry) (MutationResponse, bool, error) {
-	workspaceUsername, exists, err := coordinator.Lifecycle.WorkspaceAssociation(ctx, primary, entry.ID)
-	if err != nil || !exists {
-		return MutationResponse{}, false, err
-	}
-	response, err := coordinator.Privileged.WorkspacePublish(ctx, HelperWorkspaceRequest{ID: entry.ID, CanonicalURL: entry.CanonicalURL})
-	if err != nil {
-		return MutationResponse{}, false, err
-	}
-	if !response.OK || response.WorkspaceUsername != workspaceUsername {
-		return MutationResponse{}, false, errors.New("workspace helper returned an inconsistent existing workspace")
-	}
-	return response, true, nil
-}
-
-func (coordinator Coordinator) setupNewWorkspace(
-	ctx context.Context,
-	primary Account,
-	entry CatalogEntry,
-	request SetupRequest,
-) (response MutationResponse, returnErr error) {
-	if _, err := coordinator.Platform.ReadAuthorizedKeys(primary); err != nil {
-		return MutationResponse{}, fmt.Errorf("setup requires a public key in ~/.ssh/authorized_keys: %w", err)
-	}
-	staging := coordinator.Platform.StagingPath(primary, request.ID)
-	if err := coordinator.Platform.ResetStaging(primary, request.ID); err != nil {
-		return MutationResponse{}, err
-	}
-	defer func() {
-		if cleanupErr := coordinator.Platform.CleanupStaging(primary, request.ID); cleanupErr != nil {
-			returnErr = errors.Join(returnErr, fmt.Errorf("clean clone staging directory: %w", cleanupErr))
-		}
-	}()
-	if err := coordinator.cloneForSetup(ctx, entry, staging, request); err != nil {
-		return MutationResponse{}, err
-	}
-	if err := coordinator.Platform.PrepareStaging(primary, request.ID); err != nil {
-		return MutationResponse{}, err
-	}
-	response, err := coordinator.Privileged.WorkspacePublish(ctx, HelperWorkspaceRequest{ID: entry.ID, CanonicalURL: entry.CanonicalURL})
+	forgejoURL, _, err := coordinator.Endpoints.Endpoints(ctx)
 	if err != nil {
 		return MutationResponse{}, err
 	}
-	if !response.OK || response.WorkspaceUsername == "" {
-		return MutationResponse{}, errors.New("workspace helper returned an incomplete result")
+	if err = coordinator.Forgejo.RegisterPublicKey(ctx, ForgejoKeyRequest{
+		BaseURL: forgejoURL, Username: primary.Username, Password: request.ForgejoPassword, PublicKey: prepared.WorkspacePublicKey,
+		Title: "Soda OS workspace " + prepared.WorkspaceUsername,
+	}); err != nil {
+		return MutationResponse{}, fmt.Errorf("workspace %s and its local outbound Git key were retained; Forgejo key registration can be retried: %w", prepared.WorkspaceUsername, err)
+	}
+	response, err := coordinator.Privileged.WorkspacePublish(ctx, HelperWorkspaceRequest{
+		ID: entry.ID, CanonicalURL: entry.CanonicalURL,
+		WorkspaceTools: request.WorkspaceTools, ProjectTools: request.ProjectTools,
+	})
+	if err != nil {
+		return MutationResponse{}, err
+	}
+	if !response.OK || response.WorkspaceUsername != prepared.WorkspaceUsername {
+		return MutationResponse{}, errors.New("workspace helper returned an incomplete clone result")
 	}
 	return response, nil
-}
-
-func (coordinator Coordinator) cloneForSetup(ctx context.Context, entry CatalogEntry, staging string, request SetupRequest) error {
-	return coordinator.Cloner.Clone(ctx, entry.CanonicalURL, staging)
 }
 
 func (coordinator Coordinator) projectResult(ctx context.Context, primary Account, entry CatalogEntry) (MutationResponse, error) {

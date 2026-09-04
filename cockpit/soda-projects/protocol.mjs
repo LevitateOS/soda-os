@@ -6,6 +6,7 @@ export const actions = Object.freeze([
   "create-forgejo",
   "edit",
   "setup",
+  "install-tools",
   "remove-workspace",
   "remove",
   "delete-human",

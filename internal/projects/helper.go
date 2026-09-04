@@ -34,8 +34,12 @@ func (helper Helper) Execute(ctx context.Context, actor PKExecIdentity, action s
 		return helper.catalogEdit(input)
 	case "workspace-publish":
 		return helper.workspacePublish(ctx, actor.Username, input)
+	case "workspace-prepare":
+		return helper.workspacePrepare(ctx, actor.Username, input)
 	case "workspace-remove":
 		return helper.workspaceRemove(ctx, actor.Username, input)
+	case "tools-install":
+		return helper.toolsInstall(ctx, actor.Username, input)
 	case "project-remove":
 		return helper.projectRemove(ctx, actor.Username, input)
 	case "human-delete":
@@ -47,6 +51,17 @@ func (helper Helper) Execute(ctx context.Context, actor PKExecIdentity, action s
 	default:
 		return MutationResponse{}, fmt.Errorf("unsupported workspace helper action %q", action)
 	}
+}
+
+func (helper Helper) toolsInstall(ctx context.Context, actorUsername string, input io.Reader) (MutationResponse, error) {
+	var request HelperToolRequest
+	if err := DecodeRequest(input, &request); err != nil {
+		return MutationResponse{}, err
+	}
+	if err := helper.Lifecycle.InstallTools(ctx, actorUsername, request); err != nil {
+		return MutationResponse{}, err
+	}
+	return MutationResponse{OK: true}, nil
 }
 
 func (helper Helper) workspaceRemove(ctx context.Context, actorUsername string, input io.Reader) (MutationResponse, error) {
@@ -129,11 +144,23 @@ func (helper Helper) workspacePublish(ctx context.Context, actorUsername string,
 	if err := DecodeRequest(input, &request); err != nil {
 		return MutationResponse{}, err
 	}
-	username, err := helper.Lifecycle.Publish(ctx, actorUsername, request)
+	username, err := helper.Lifecycle.CompleteWorkspace(ctx, actorUsername, request)
 	if err != nil {
 		return MutationResponse{}, err
 	}
 	return MutationResponse{OK: true, WorkspaceUsername: username}, nil
+}
+
+func (helper Helper) workspacePrepare(ctx context.Context, actorUsername string, input io.Reader) (MutationResponse, error) {
+	var request HelperWorkspaceRequest
+	if err := DecodeRequest(input, &request); err != nil {
+		return MutationResponse{}, err
+	}
+	preparation, err := helper.Lifecycle.PrepareWorkspace(ctx, actorUsername, request)
+	if err != nil {
+		return MutationResponse{}, err
+	}
+	return MutationResponse{OK: true, WorkspaceUsername: preparation.Username, WorkspacePublicKey: preparation.PublicKey}, nil
 }
 
 func (helper Helper) projectRemove(ctx context.Context, actorUsername string, input io.Reader) (MutationResponse, error) {

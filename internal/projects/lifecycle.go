@@ -51,42 +51,69 @@ func (lifecycle Lifecycle) WorkspaceAssociation(ctx context.Context, primary Acc
 	return username, true, nil
 }
 
-func (lifecycle Lifecycle) Publish(ctx context.Context, primaryUsername string, request HelperWorkspaceRequest) (string, error) {
-	lock, err := lifecycle.Platform.WorkspaceOperationSharedLock()
-	if err != nil {
-		return "", fmt.Errorf("lock workspace operations: %w", err)
-	}
-	var username string
-	operationErr := lifecycle.Catalog.Exclusive(func() error {
-		var operationErr error
-		username, operationErr = lifecycle.publishUnlocked(ctx, primaryUsername, request)
-		return operationErr
-	})
-	return username, closeLockWithError(lock, operationErr, "workspace operations")
+type WorkspacePreparation struct {
+	Username  string
+	PublicKey string
 }
 
-func (lifecycle Lifecycle) publishUnlocked(ctx context.Context, primaryUsername string, request HelperWorkspaceRequest) (string, error) {
-	target, err := lifecycle.preparePublish(ctx, primaryUsername, request)
+func (lifecycle Lifecycle) PrepareWorkspace(ctx context.Context, primaryUsername string, request HelperWorkspaceRequest) (WorkspacePreparation, error) {
+	lock, err := lifecycle.Platform.WorkspaceOperationSharedLock()
 	if err != nil {
-		return "", err
+		return WorkspacePreparation{}, fmt.Errorf("lock workspace operations: %w", err)
 	}
-	username, found, err := lifecycle.existingWorkspace(ctx, target)
+	var preparation WorkspacePreparation
+	operationErr := lifecycle.Catalog.Exclusive(func() error {
+		var prepareErr error
+		preparation, prepareErr = lifecycle.prepareWorkspaceUnlocked(ctx, primaryUsername, request)
+		return prepareErr
+	})
+	if err = closeLockWithError(lock, operationErr, "workspace operations"); err != nil {
+		return WorkspacePreparation{}, err
+	}
+	return preparation, nil
+}
+
+func (lifecycle Lifecycle) prepareWorkspaceUnlocked(ctx context.Context, primaryUsername string, request HelperWorkspaceRequest) (WorkspacePreparation, error) {
+	target, err := lifecycle.prepareWorkspaceTarget(ctx, primaryUsername, request)
 	if err != nil {
-		return "", err
+		return WorkspacePreparation{}, err
 	}
-	if found {
-		return username, nil
+	workspace, found, err := lifecycle.existingWorkspace(ctx, target)
+	if err != nil {
+		return WorkspacePreparation{}, err
 	}
-	return lifecycle.createAndPublishWorkspace(ctx, target)
+	if !found {
+		keys, keyErr := lifecycle.Platform.ReadAuthorizedKeys(target.primary)
+		if keyErr != nil {
+			return WorkspacePreparation{}, keyErr
+		}
+		workspace, err = lifecycle.Platform.CreateWorkspace(ctx, target.primary, target.entry.ID)
+		if err != nil {
+			return WorkspacePreparation{}, err
+		}
+		if err = lifecycle.validateWorkspace(ctx, workspace, target); err != nil {
+			return WorkspacePreparation{}, fmt.Errorf("new workspace was retained because its Linux state is invalid: %w", err)
+		}
+		if err = lifecycle.Platform.InstallAuthorizedKeys(workspace, keys); err != nil {
+			return WorkspacePreparation{}, fmt.Errorf("workspace %s was retained because inbound SSH keys may be incomplete: %w", workspace.Username, err)
+		}
+	}
+	publicKey, err := lifecycle.Platform.GenerateWorkspaceGitKey(ctx, workspace)
+	if err != nil {
+		return WorkspacePreparation{}, fmt.Errorf("workspace %s and its inbound SSH keys were retained; outbound Git key generation can be retried: %w", workspace.Username, err)
+	}
+	return WorkspacePreparation{Username: workspace.Username, PublicKey: publicKey}, nil
 }
 
 type publishTarget struct {
-	primary Account
-	entry   CatalogEntry
-	uidMin  int
+	primary        Account
+	entry          CatalogEntry
+	uidMin         int
+	workspaceTools []string
+	projectTools   []string
 }
 
-func (lifecycle Lifecycle) preparePublish(ctx context.Context, primaryUsername string, request HelperWorkspaceRequest) (publishTarget, error) {
+func (lifecycle Lifecycle) prepareWorkspaceTarget(ctx context.Context, primaryUsername string, request HelperWorkspaceRequest) (publishTarget, error) {
 	primary, uidMin, err := lifecycle.AuthorizePrimary(ctx, primaryUsername)
 	if err != nil {
 		return publishTarget{}, err
@@ -98,63 +125,67 @@ func (lifecycle Lifecycle) preparePublish(ctx context.Context, primaryUsername s
 	if request.CanonicalURL != entry.CanonicalURL {
 		return publishTarget{}, errors.New("project URL changed after clone; run setup again")
 	}
-	return publishTarget{primary: primary, entry: entry, uidMin: uidMin}, nil
+	if err = ValidateToolSelections(request.WorkspaceTools); err != nil {
+		return publishTarget{}, err
+	}
+	if err = ValidateToolSelections(request.ProjectTools); err != nil {
+		return publishTarget{}, err
+	}
+	return publishTarget{
+		primary: primary, entry: entry, uidMin: uidMin,
+		workspaceTools: request.WorkspaceTools, projectTools: request.ProjectTools,
+	}, nil
 }
 
-func (lifecycle Lifecycle) existingWorkspace(ctx context.Context, target publishTarget) (string, bool, error) {
+func (lifecycle Lifecycle) existingWorkspace(ctx context.Context, target publishTarget) (Account, bool, error) {
 	username, _ := DerivedUsername(target.primary.Username, target.entry.ID)
 	existing, err := lifecycle.Platform.LookupAccount(ctx, username)
 	if errors.Is(err, ErrAccountNotFound) {
-		return "", false, nil
+		return Account{}, false, nil
 	}
 	if err != nil {
-		return "", false, err
+		return Account{}, false, err
 	}
 	if err = lifecycle.validateWorkspace(ctx, existing, target); err != nil {
-		return "", false, err
+		return Account{}, false, err
 	}
-	ready, err := lifecycle.Platform.WorkspaceReady(existing, target.entry.ID)
-	if err != nil {
-		return "", false, err
-	}
-	if !ready {
-		return "", false, errors.New("workspace account exists without a complete clone; explicit operator cleanup is required")
-	}
-	return username, true, nil
+	return existing, true, nil
 }
 
-func (lifecycle Lifecycle) createAndPublishWorkspace(ctx context.Context, target publishTarget) (string, error) {
-	keys, err := lifecycle.Platform.ReadAuthorizedKeys(target.primary)
+func (lifecycle Lifecycle) CompleteWorkspace(ctx context.Context, primaryUsername string, request HelperWorkspaceRequest) (string, error) {
+	lock, err := lifecycle.Platform.WorkspaceOperationSharedLock()
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("lock workspace operations: %w", err)
 	}
-	workspace, err := lifecycle.Platform.CreateWorkspace(ctx, target.primary, target.entry.ID)
-	if err != nil {
-		return "", err
-	}
-	if err = lifecycle.validateWorkspace(ctx, workspace, target); err != nil {
-		return "", fmt.Errorf("new workspace was retained because its Linux state is invalid: %w", err)
-	}
-	if err = lifecycle.Platform.PublishWorkspace(ctx, target.primary, workspace, target.entry.ID); err != nil {
-		if safetyErr := lifecycle.Platform.SafeToRemoveIncomplete(workspace, target.entry.ID); safetyErr != nil {
-			return "", errors.Join(err, fmt.Errorf("incomplete workspace was retained: %w", safetyErr))
+	var username string
+	operationErr := lifecycle.Catalog.Exclusive(func() error {
+		target, completeErr := lifecycle.prepareWorkspaceTarget(ctx, primaryUsername, request)
+		if completeErr != nil {
+			return completeErr
 		}
-		return "", lifecycle.deleteNewWorkspace(ctx, workspace, err)
-	}
-	if err = lifecycle.Platform.InstallAuthorizedKeys(workspace, keys); err != nil {
-		return "", lifecycle.handleKeyInstallFailure(ctx, workspace, target.entry.ID, err)
-	}
-	return workspace.Username, nil
-}
-
-func (lifecycle Lifecycle) handleKeyInstallFailure(ctx context.Context, workspace Account, projectID string, cause error) error {
-	if errors.Is(cause, ErrAuthorizedKeysPublished) {
-		return fmt.Errorf("workspace was retained because SSH keys may be active: %w", cause)
-	}
-	if safetyErr := lifecycle.Platform.SafeToRemoveIncomplete(workspace, projectID); safetyErr != nil {
-		return errors.Join(cause, fmt.Errorf("incomplete workspace was retained: %w", safetyErr))
-	}
-	return lifecycle.deleteNewWorkspace(ctx, workspace, cause)
+		workspace, found, completeErr := lifecycle.existingWorkspace(ctx, target)
+		if completeErr != nil {
+			return completeErr
+		}
+		if !found {
+			return errors.New("workspace preparation is required before cloning")
+		}
+		ready, completeErr := lifecycle.Platform.WorkspaceReady(workspace, target.entry.ID)
+		if completeErr != nil {
+			return completeErr
+		}
+		if !ready {
+			if completeErr = lifecycle.Platform.CloneWorkspace(ctx, workspace, target.entry.ID, target.entry.CanonicalURL); completeErr != nil {
+				return fmt.Errorf("workspace %s, its SSH keys, and outbound Git key were retained; clone can be retried: %w", workspace.Username, completeErr)
+			}
+		}
+		if completeErr = lifecycle.Platform.InstallMiseTools(ctx, workspace, target.entry.ID, target.workspaceTools, target.projectTools); completeErr != nil {
+			return fmt.Errorf("workspace %s and its complete clone were retained; mise setup can be retried: %w", workspace.Username, completeErr)
+		}
+		username = workspace.Username
+		return nil
+	})
+	return username, closeLockWithError(lock, operationErr, "workspace operations")
 }
 
 func (lifecycle Lifecycle) validateWorkspace(ctx context.Context, workspace Account, target publishTarget) error {
@@ -164,9 +195,61 @@ func (lifecycle Lifecycle) validateWorkspace(ctx context.Context, workspace Acco
 	return lifecycle.Platform.ValidatePasswordLocked(ctx, workspace)
 }
 
-func (lifecycle Lifecycle) deleteNewWorkspace(ctx context.Context, workspace Account, cause error) error {
-	deleteErr := lifecycle.Platform.DeleteAccount(context.WithoutCancel(ctx), workspace)
-	return errors.Join(cause, deleteErr)
+func (lifecycle Lifecycle) InstallTools(ctx context.Context, actorUsername string, request HelperToolRequest) error {
+	if request.Scope != "workspace" && request.Scope != "project" {
+		return errors.New("mise tool scope must be workspace or project")
+	}
+	if len(request.Tools) == 0 {
+		return errors.New("at least one mise tool is required")
+	}
+	if err := ValidateToolSelections(request.Tools); err != nil {
+		return err
+	}
+	lock, err := lifecycle.Platform.WorkspaceOperationSharedLock()
+	if err != nil {
+		return fmt.Errorf("lock workspace operations: %w", err)
+	}
+	operationErr := lifecycle.installToolsLocked(ctx, actorUsername, request)
+	return closeLockWithError(lock, operationErr, "workspace operations")
+}
+
+func (lifecycle Lifecycle) installToolsLocked(ctx context.Context, actorUsername string, request HelperToolRequest) error {
+	primary, uidMin, err := lifecycle.AuthorizePrimary(ctx, actorUsername)
+	if err != nil {
+		return err
+	}
+	if _, err = lifecycle.Catalog.Get(request.ID); err != nil {
+		return err
+	}
+	username, _ := DerivedUsername(primary.Username, request.ID)
+	workspace, err := lifecycle.Platform.LookupAccount(ctx, username)
+	if errors.Is(err, ErrAccountNotFound) {
+		return errors.New("set up your workspace before installing tools")
+	}
+	if err != nil {
+		return err
+	}
+	if err = workspace.ValidateWorkspace(primary.Username, request.ID, uidMin); err != nil {
+		return err
+	}
+	if err = lifecycle.Platform.ValidatePasswordLocked(ctx, workspace); err != nil {
+		return err
+	}
+	ready, err := lifecycle.Platform.WorkspaceReady(workspace, request.ID)
+	if err != nil {
+		return err
+	}
+	if !ready {
+		return errors.New("workspace does not contain a complete clone")
+	}
+	workspaceTools, projectTools := request.Tools, []string(nil)
+	if request.Scope == "project" {
+		workspaceTools, projectTools = nil, request.Tools
+	}
+	if err = lifecycle.Platform.InstallMiseTools(ctx, workspace, request.ID, workspaceTools, projectTools); err != nil {
+		return fmt.Errorf("workspace %s was retained; mise installation can be retried: %w", workspace.Username, err)
+	}
+	return nil
 }
 
 func (lifecycle Lifecycle) RemoveWorkspace(ctx context.Context, actorUsername, projectID string) error {
@@ -243,8 +326,11 @@ func (lifecycle Lifecycle) removeProjectUnlocked(ctx context.Context, actorUsern
 		}
 		removed = append(removed, account.Username)
 	}
+	if err = lifecycle.Platform.RemoveMiseProject(projectID); err != nil {
+		return fmt.Errorf("%s; shared mise project storage, shared catalog entry, and canonical repository remain: %w", removedProjectWorkspaceDescription(removed), err)
+	}
 	if err = lifecycle.Catalog.removeUnlocked(projectID); err != nil {
-		return fmt.Errorf("%s; shared catalog entry and canonical repository remain: %w", removedProjectWorkspaceDescription(removed), err)
+		return fmt.Errorf("%s and shared mise project storage; shared catalog entry and canonical repository remain: %w", removedProjectWorkspaceDescription(removed), err)
 	}
 	return nil
 }
@@ -374,6 +460,7 @@ func (lifecycle Lifecycle) humanDeletionTargets(ctx context.Context, accounts []
 		}
 		targets = append(targets, account)
 	}
+	sort.Slice(targets, func(i, j int) bool { return targets[i].Username < targets[j].Username })
 	return targets, nil
 }
 

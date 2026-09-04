@@ -30,6 +30,7 @@ type ForgejoKeyRequest struct {
 	Username  string
 	Password  string
 	PublicKey string
+	Title     string
 }
 
 type forgejoRepositoryResponse struct {
@@ -163,7 +164,7 @@ func createForgejoKey(ctx context.Context, httpClient *http.Client, registration
 	payload, err := json.Marshal(struct {
 		Title string `json:"title"`
 		Key   string `json:"key"`
-	}{Title: "Soda OS", Key: registration.PublicKey})
+	}{Title: forgejoKeyTitle(registration), Key: registration.PublicKey})
 	if err != nil {
 		return err
 	}
@@ -181,6 +182,13 @@ func createForgejoKey(ctx context.Context, httpClient *http.Client, registration
 		return forgejoRejection(response)
 	}
 	return nil
+}
+
+func forgejoKeyTitle(registration ForgejoKeyRequest) string {
+	if registration.Title != "" {
+		return registration.Title
+	}
+	return "Soda OS"
 }
 
 func newForgejoUserRequest(ctx context.Context, method string, registration ForgejoKeyRequest, endpoint string, body io.Reader) (*http.Request, error) {

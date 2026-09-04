@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"path/filepath"
 )
 
 type fakePlatform struct {
@@ -30,6 +29,10 @@ type fakePlatformFailures struct {
 	installErr    error
 	preflightErr  error
 	forgejoErr    error
+	miseErr       error
+	removeMiseErr error
+	gitKeyErr     error
+	cloneErr      error
 }
 
 type fakePlatformCalls struct {
@@ -43,6 +46,10 @@ type fakePlatformCalls struct {
 	createdPrimary []string
 	publishedHuman []string
 	deletionEvents []string
+	miseInstalls   []string
+	miseRemovals   []string
+	gitKeys        []string
+	clones         []string
 }
 
 type fakeSetupLock struct {
@@ -124,25 +131,6 @@ func (lock *fakeSetupLock) Close() error {
 	return lock.platform.failures.unlockErr
 }
 
-func (platform *fakePlatform) StagingPath(account Account, id string) string {
-	return filepath.Join("/run/user", fmt.Sprint(account.UID), "soda-projects", id, "checkout")
-}
-
-func (platform *fakePlatform) ResetStaging(_ Account, id string) error {
-	platform.calls.reset = append(platform.calls.reset, "reset:"+id)
-	return nil
-}
-
-func (platform *fakePlatform) PrepareStaging(_ Account, id string) error {
-	platform.calls.reset = append(platform.calls.reset, "prepare:"+id)
-	return nil
-}
-
-func (platform *fakePlatform) CleanupStaging(_ Account, id string) error {
-	platform.calls.reset = append(platform.calls.reset, "cleanup:"+id)
-	return platform.failures.cleanupErr
-}
-
 func (platform *fakePlatform) WorkspaceReady(account Account, id string) (bool, error) {
 	return platform.ready[account.Username+":"+id], nil
 }
@@ -191,20 +179,34 @@ func (platform *fakePlatform) InstallAuthorizedKeys(workspace Account, keys []by
 	if platform.failures.installErr != nil {
 		return platform.failures.installErr
 	}
-	id, found := platform.published[workspace.Username]
-	if !found {
-		return errors.New("workspace clone was not published")
+	return nil
+}
+
+func (platform *fakePlatform) GenerateWorkspaceGitKey(_ context.Context, workspace Account) (string, error) {
+	platform.calls.gitKeys = append(platform.calls.gitKeys, workspace.Username)
+	if platform.failures.gitKeyErr != nil {
+		return "", platform.failures.gitKeyErr
+	}
+	return "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKJpV7x5Ay34Nh0wiB89JgVG5ZrOxz2SeNUylLBzmrkS soda-workspace=" + workspace.Username, nil
+}
+
+func (platform *fakePlatform) CloneWorkspace(_ context.Context, workspace Account, id, remote string) error {
+	platform.calls.clones = append(platform.calls.clones, workspace.Username+":"+id+":"+remote)
+	if platform.failures.cloneErr != nil {
+		return platform.failures.cloneErr
 	}
 	platform.ready[workspace.Username+":"+id] = true
 	return nil
 }
 
-func (platform *fakePlatform) PublishWorkspace(_ context.Context, _ Account, workspace Account, id string) error {
-	if platform.failures.publishErr != nil {
-		return platform.failures.publishErr
-	}
-	platform.published[workspace.Username] = id
-	return nil
+func (platform *fakePlatform) InstallMiseTools(_ context.Context, account Account, projectID string, workspaceTools, projectTools []string) error {
+	platform.calls.miseInstalls = append(platform.calls.miseInstalls, fmt.Sprintf("%s:%s:workspace=%v:project=%v", account.Username, projectID, workspaceTools, projectTools))
+	return platform.failures.miseErr
+}
+
+func (platform *fakePlatform) RemoveMiseProject(projectID string) error {
+	platform.calls.miseRemovals = append(platform.calls.miseRemovals, projectID)
+	return platform.failures.removeMiseErr
 }
 
 func (platform *fakePlatform) SafeToRemoveIncomplete(Account, string) error {

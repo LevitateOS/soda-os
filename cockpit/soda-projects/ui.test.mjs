@@ -29,8 +29,23 @@ test("form payloads keep secrets only in the synchronous request object", () => 
 
   const setup = payloadFor("setup", new Map([
     ["id", "site"],
+	["forgejo_password", "one-use"],
+	["workspace_tools", "node@22\n\npython@3.13"],
+	["project_tools", "go@1.25"],
   ]), assert.fail);
-  assert.deepEqual(setup, { id: "site" });
+	assert.deepEqual(setup, {
+	  id: "site",
+	  forgejo_password: "one-use",
+	  workspace_tools: ["node@22", "python@3.13"],
+	  project_tools: ["go@1.25"],
+	});
+
+	const tools = payloadFor("install-tools", new Map([
+	  ["id", "site"],
+	  ["scope", "project"],
+	  ["tools", "ripgrep@latest"],
+	]), assert.fail);
+	assert.deepEqual(tools, { id: "site", scope: "project", tools: ["ripgrep@latest"] });
 
   const person = payloadFor("add-person", new Map([
     ["username", "bob"],
@@ -45,14 +60,16 @@ test("secret clearing covers form controls and request objects", () => {
   const controls = {
     password: { value: "forgejo-secret" },
     password_confirmation: { value: "forgejo-secret" },
+	forgejo_password: { value: "forgejo-secret" },
   };
   clearSecrets({ elements: { namedItem: name => controls[name] ?? null } });
   assert.equal(controls.password.value, "");
   assert.equal(controls.password_confirmation.value, "");
+	assert.equal(controls.forgejo_password.value, "");
 
-	const payload = { password: "forgejo-secret", id: "site" };
+	const payload = { password: "forgejo-secret", forgejo_password: "forgejo-secret", id: "site" };
   clearPayloadSecrets(payload);
-	assert.deepEqual(payload, { password: "", id: "site" });
+	assert.deepEqual(payload, { password: "", forgejo_password: "", id: "site" });
 });
 
 test("destructive actions require exact confirmation", () => {

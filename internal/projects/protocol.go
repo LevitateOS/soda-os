@@ -26,7 +26,16 @@ type CreateForgejoRequest struct {
 type EditRequest = AddExistingRequest
 
 type SetupRequest struct {
-	ID string `json:"id"`
+	ID              string   `json:"id"`
+	ForgejoPassword string   `json:"forgejo_password"`
+	WorkspaceTools  []string `json:"workspace_tools"`
+	ProjectTools    []string `json:"project_tools"`
+}
+
+type ToolRequest struct {
+	ID    string   `json:"id"`
+	Scope string   `json:"scope"`
+	Tools []string `json:"tools"`
 }
 
 type ProjectRequest struct {
@@ -69,9 +78,10 @@ type ListResponse struct {
 }
 
 type MutationResponse struct {
-	OK                bool         `json:"ok"`
-	Project           *ProjectView `json:"project,omitempty"`
-	WorkspaceUsername string       `json:"workspace_username,omitempty"`
+	OK                 bool         `json:"ok"`
+	Project            *ProjectView `json:"project,omitempty"`
+	WorkspaceUsername  string       `json:"workspace_username,omitempty"`
+	WorkspacePublicKey string       `json:"workspace_public_key,omitempty"`
 }
 
 type HelperCatalogRequest struct {
@@ -81,9 +91,13 @@ type HelperCatalogRequest struct {
 }
 
 type HelperWorkspaceRequest struct {
-	ID           string `json:"id"`
-	CanonicalURL string `json:"canonical_url"`
+	ID             string   `json:"id"`
+	CanonicalURL   string   `json:"canonical_url"`
+	WorkspaceTools []string `json:"workspace_tools"`
+	ProjectTools   []string `json:"project_tools"`
 }
+
+type HelperToolRequest = ToolRequest
 
 type HelperHumanRequest struct {
 	Username string `json:"username"`

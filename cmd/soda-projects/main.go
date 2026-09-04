@@ -12,7 +12,7 @@ import (
 
 func main() {
 	if len(os.Args) != 2 {
-		fmt.Fprintln(os.Stderr, "usage: soda-projects <list|add-existing|create-forgejo|edit|setup|remove-workspace|remove|delete-human|add-person>")
+		fmt.Fprintln(os.Stderr, "usage: soda-projects <list|add-existing|create-forgejo|edit|setup|install-tools|remove-workspace|remove|delete-human|add-person>")
 		os.Exit(2)
 	}
 	current, err := user.Current()
@@ -26,7 +26,7 @@ func main() {
 	coordinator := projects.Coordinator{
 		Catalog: catalog, Lifecycle: lifecycle, Platform: platform,
 		Privileged: projects.PKExecInvoker{}, Forgejo: projects.ForgejoClient{},
-		Cloner: projects.GitCloner{}, Endpoints: projects.TailnetEndpoints{},
+		Endpoints: projects.TailnetEndpoints{},
 	}
 	response, err := coordinator.Execute(context.Background(), current.Username, os.Args[1], os.Stdin)
 	if err != nil {
