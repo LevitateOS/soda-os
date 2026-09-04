@@ -25,7 +25,7 @@ func main() {
 	authorizer := runners.LinuxAuthorizer{Accounts: accounts}
 	coordinator := runners.Coordinator{
 		Authorizer: authorizer,
-		Local:      runners.NewNative(),
+		Local:      runners.PKExecInvoker{},
 		Privileged: runners.PKExecInvoker{},
 	}
 	actor := linuxhost.PKExecIdentity{Username: current.Username, UID: os.Getuid()}

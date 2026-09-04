@@ -257,6 +257,9 @@ Cockpit provides:
 
 Soda adds branding and one focused Projects page for the project catalog and
 workspace workflow.
+The separate administrator-only Runners page composes local CI clients and
+listeners. Forgejo and GitHub retain registration, workflows, scheduling and
+job history.
 
 Soda does not provide a second web server, authentication system, session
 service, TLS implementation, generic administration dashboard, or replacement
@@ -274,6 +277,7 @@ Soda owns:
 - the project catalog;
 - the primary-human-to-workspace-account convention;
 - the focused Cockpit Projects page;
+- the focused Cockpit Runners page and local client/listener lifecycle;
 - the narrow synchronous operations needed for catalog mutation, workspace
   setup and removal, and supported cascading human deletion;
 - connection guidance for SSH-capable development tools;

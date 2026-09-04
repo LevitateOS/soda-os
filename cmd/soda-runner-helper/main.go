@@ -12,7 +12,7 @@ import (
 
 func main() {
 	if len(os.Args) != 2 {
-		fmt.Fprintln(os.Stderr, "usage: soda-runner-helper <create|start|stop|restart|remove>")
+		fmt.Fprintln(os.Stderr, "usage: soda-runner-helper <list|create|start|stop|restart|remove>")
 		os.Exit(2)
 	}
 	actor, err := linuxhost.PKExecCaller()
@@ -22,7 +22,8 @@ func main() {
 	}
 	accounts := linuxhost.NewNative()
 	authorizer := runners.LinuxAuthorizer{Accounts: accounts}
-	helper := runners.Helper{Authorizer: authorizer, Lifecycle: runners.NewNative()}
+	native := runners.NewNative()
+	helper := runners.Helper{Authorizer: authorizer, Local: native, Lifecycle: native}
 	response, err := helper.Execute(context.Background(), actor, os.Args[1], os.Stdin)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)

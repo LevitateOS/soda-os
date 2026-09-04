@@ -17,10 +17,7 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-const (
-	defaultGitHubSource  = "/usr/lib/soda/github-actions-runner"
-	defaultGitHubVersion = "/usr/share/soda-runners/github-version"
-)
+const defaultGitHubSource = "/usr/lib/soda/github-actions-runner"
 
 type Command struct {
 	Name        string
@@ -59,15 +56,14 @@ func (ExecCommandRunner) Run(ctx context.Context, request Command) (CommandResul
 }
 
 type Native struct {
-	RootPath      string
-	LockPath      string
-	GitHubSource  string
-	GitHubVersion string
-	Runner        CommandRunner
+	RootPath     string
+	LockPath     string
+	GitHubSource string
+	Runner       CommandRunner
 }
 
 func NewNative() *Native {
-	return &Native{RootPath: DefaultRootPath, LockPath: DefaultLockPath, GitHubSource: defaultGitHubSource, GitHubVersion: defaultGitHubVersion, Runner: ExecCommandRunner{}}
+	return &Native{RootPath: DefaultRootPath, LockPath: DefaultLockPath, GitHubSource: defaultGitHubSource, Runner: ExecCommandRunner{}}
 }
 
 func (native *Native) List(ctx context.Context) ([]RunnerView, error) {
@@ -102,7 +98,7 @@ func (native *Native) runnerView(ctx context.Context, id string) (RunnerView, er
 	if err != nil {
 		return RunnerView{}, err
 	}
-	version, err := native.providerVersion(ctx, descriptor.Provider)
+	version, err := native.providerVersion(ctx, descriptor)
 	if err != nil {
 		return RunnerView{}, err
 	}
@@ -219,13 +215,17 @@ func (native *Native) serviceState(ctx context.Context, id string) (ServiceState
 	return ServiceState{Load: values["LoadState"], Active: values["ActiveState"], Sub: values["SubState"], Enabled: values["UnitFileState"]}, nil
 }
 
-func (native *Native) providerVersion(ctx context.Context, provider Provider) (string, error) {
-	if provider == ProviderGitHub {
-		contents, err := os.ReadFile(native.githubVersion())
+func (native *Native) providerVersion(ctx context.Context, descriptor Descriptor) (string, error) {
+	if descriptor.Provider == ProviderGitHub {
+		app := filepath.Join(native.statePath(descriptor.ID), "actions-runner")
+		result, err := native.runner().Run(ctx, Command{
+			Name: "/usr/sbin/runuser", Directory: app,
+			Args: []string{"--user", descriptor.Account, "--", filepath.Join(app, "bin", "Runner.Listener"), "--version"},
+		})
 		if err != nil {
-			return "", fmt.Errorf("read GitHub runner version: %w", err)
+			return "", fmt.Errorf("read GitHub runner %s client version: %w", descriptor.ID, err)
 		}
-		return strings.TrimSpace(string(contents)), nil
+		return strings.TrimSpace(result.Stdout), nil
 	}
 	result, err := native.run(ctx, "forgejo-runner", "--version")
 	if err != nil {
@@ -274,12 +274,6 @@ func (native *Native) githubSource() string {
 		return native.GitHubSource
 	}
 	return defaultGitHubSource
-}
-func (native *Native) githubVersion() string {
-	if native.GitHubVersion != "" {
-		return native.GitHubVersion
-	}
-	return defaultGitHubVersion
 }
 func (native *Native) statePath(id string) string {
 	return filepath.Join(native.rootPath(), id, "state")

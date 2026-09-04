@@ -32,6 +32,10 @@ machinery, or architecture that only its authors can understand.
   generic Cockpit or command-line account deletion is non-cascading. The
   package does not add another web server, authentication layer, daemon,
   database, generic backend, or generic privileged bridge.
+- A separate administrator-only Cockpit Runners package operates local Forgejo
+  and GitHub runner accounts, clients and systemd listeners through the existing
+  narrow helper. Providers own registration, workflows, scheduling and job
+  history; Soda adds no CI control plane.
 - Launch requires bundled Forgejo alongside support for external Git hosts.
   Repository lifecycle, access, and collaboration stay native to the
   authoritative Git host. Soda retains only a minimal appliance-wide project

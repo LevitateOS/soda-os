@@ -16,7 +16,7 @@ Forgejo and GitHub CI runners.
 %install
 mkdir -p %{buildroot}%{_libexecdir}/soda %{buildroot}%{_datadir}/cockpit/soda-runners \
     %{buildroot}%{_datadir}/polkit-1/actions %{buildroot}%{_tmpfilesdir} %{buildroot}%{_sysusersdir} \
-    %{buildroot}%{_unitdir} %{buildroot}%{_prefix}/lib/soda/github-actions-runner %{buildroot}%{_datadir}/soda-runners
+    %{buildroot}%{_unitdir} %{buildroot}%{_prefix}/lib/soda/github-actions-runner
 install -m 0755 %{_sourcedir}/soda-runners %{buildroot}%{_libexecdir}/soda/soda-runners
 install -m 0755 %{_sourcedir}/soda-runner-helper %{buildroot}%{_libexecdir}/soda/soda-runner-helper
 install -m 0755 %{_sourcedir}/soda-runner-launch %{buildroot}%{_libexecdir}/soda/soda-runner-launch
@@ -31,7 +31,6 @@ install -m 0644 %{_sourcedir}/soda-runners.tmpfiles %{buildroot}%{_tmpfilesdir}/
 install -m 0644 %{_sourcedir}/soda-runners.sysusers %{buildroot}%{_sysusersdir}/soda-runners.conf
 install -m 0644 %{_sourcedir}/soda-runner@.service %{buildroot}%{_unitdir}/soda-runner@.service
 tar -xzf %{_sourcedir}/github-actions-runner.tar.gz -C %{buildroot}%{_prefix}/lib/soda/github-actions-runner
-printf '%s\n' '2.337.0' > %{buildroot}%{_datadir}/soda-runners/github-version
 
 %files
 %{_libexecdir}/soda/soda-runners
@@ -43,4 +42,3 @@ printf '%s\n' '2.337.0' > %{buildroot}%{_datadir}/soda-runners/github-version
 %{_sysusersdir}/soda-runners.conf
 %{_unitdir}/soda-runner@.service
 %{_prefix}/lib/soda/github-actions-runner/
-%{_datadir}/soda-runners/github-version

@@ -303,7 +303,9 @@ workflow/job/retry/reconciliation platform.
 
 A narrow integration is allowed only for the Projects UI/catalog, workspace
 accounts, the current temporary Soda Setup composition, and fixed one-shot
-privileged actions.
+privileged actions, plus the separately accepted local Runners composition
+under #47. Runners retains provider-owned registration, workflows, scheduling
+and job history.
 
 ## Current implementation
 

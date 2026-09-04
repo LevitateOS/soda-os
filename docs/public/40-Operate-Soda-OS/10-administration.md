@@ -15,6 +15,8 @@ Open `https://SODA_HOST:9090` and sign in with the primary Linux account.
 Cockpit provides the normal host pages for overview, metrics, services, logs,
 accounts, terminal, storage, and networking. The Soda **Projects** page is the
 focused interface for the shared catalog and workspace lifecycle.
+The administrator-only **Runners** page operates local Forgejo and GitHub
+runner capacity; each provider owns workflows, scheduling, and job history.
 
 Use the [Cockpit guide](https://docs.cockpit-project.org/cockpit-guide/latest/)
 for general Linux administration. Soda does not duplicate Cockpit's host
@@ -31,6 +33,7 @@ status, user listing, service, storage, or networking models.
 | Inspect or enroll Tailscale | Tailscale administration |
 | Inspect SSH service and keys | OpenSSH and systemd |
 | Add projects or manage workspaces | Cockpit **Projects** |
+| Operate local CI runners | Cockpit **Runners** and the provider's native registration settings |
 | Select and deploy OS images | bootc |
 
 ## Service endpoints
@@ -89,8 +92,8 @@ committed and successfully pushed to a repository that is itself protected.
 ## Expected result
 
 Every administrative fact can be inspected through its native owner, while
-Soda-specific administration stays limited to Soda Setup, Projects, and
-destructive lifecycle actions.
+Soda-specific administration stays limited to Soda Setup, Projects, local
+Runners, and their focused lifecycle actions.
 
 ## If something fails
 
