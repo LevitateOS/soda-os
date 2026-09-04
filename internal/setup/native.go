@@ -14,6 +14,7 @@ func NewNativeService() Service {
 		Network: NativeNetwork{
 			Runner: runner, Tailnet: tailnet.New(tailnet.Options{}),
 		},
-		Locker: FileLocker{},
+		Locker:     FileLocker{},
+		Completion: FileCompletion{},
 	}
 }

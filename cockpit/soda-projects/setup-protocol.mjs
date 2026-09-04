@@ -1,7 +1,10 @@
 const actions = new Set([
   "allow-local-network",
   "connect-tailscale",
+  "dismiss",
 ]);
+
+const inputActions = new Set(["allow-local-network", "connect-tailscale"]);
 
 export function setupCommand(action = "status") {
   if (action !== "status" && !actions.has(action)) {
@@ -11,7 +14,7 @@ export function setupCommand(action = "status") {
 }
 
 export function encodeSetupRequest(action, payload) {
-  if (!actions.has(action)) {
+  if (!inputActions.has(action)) {
     throw new TypeError(`unsupported Soda Setup mutation: ${action}`);
   }
   return `${JSON.stringify(payload)}\n`;

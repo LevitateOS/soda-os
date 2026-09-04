@@ -23,6 +23,14 @@ type commandNetwork struct {
 	key         string
 }
 
+type commandCompletion struct{ dismissed bool }
+
+func (completion *commandCompletion) Dismissed() (bool, error) { return completion.dismissed, nil }
+func (completion *commandCompletion) Mark() error {
+	completion.dismissed = true
+	return nil
+}
+
 func (network *commandNetwork) Status(context.Context) ([]setup.Connection, bool, error) {
 	return network.connections, network.tailscale, nil
 }
@@ -41,13 +49,14 @@ func (network *commandNetwork) ConnectTailscale(_ context.Context, key string) e
 	return nil
 }
 
-func commandService() (setup.Service, *commandNetwork) {
+func commandService() (setup.Service, *commandNetwork, *commandCompletion) {
 	network := &commandNetwork{connections: []setup.Connection{{Name: "wired"}}}
-	return setup.Service{Accounts: commandAccounts{administrators: []setup.Administrator{{Username: "ada"}}}, Network: network}, network
+	completion := &commandCompletion{}
+	return setup.Service{Accounts: commandAccounts{administrators: []setup.Administrator{{Username: "ada"}}}, Network: network, Completion: completion}, network, completion
 }
 
 func TestConnectTailscaleReadsSecretFromStdinOnly(t *testing.T) {
-	service, network := commandService()
+	service, network, _ := commandService()
 	var output bytes.Buffer
 	const key = "tskey-auth-one-use-secret"
 	if err := execute(context.Background(), service, []string{"connect-tailscale"}, strings.NewReader(`{"auth_key":"`+key+`"}`), &output); err != nil {
@@ -66,19 +75,42 @@ func TestConnectTailscaleReadsSecretFromStdinOnly(t *testing.T) {
 }
 
 func TestPendingTracksNativeProvisioningWithoutDismissal(t *testing.T) {
-	service, network := commandService()
+	service, network, completion := commandService()
 	if err := execute(context.Background(), service, []string{"pending"}, nil, &bytes.Buffer{}); err != nil {
 		t.Fatal(err)
 	}
 	network.tailscale = true
-	if err := execute(context.Background(), service, []string{"pending"}, nil, &bytes.Buffer{}); !errors.Is(err, errReady) {
+	if err := execute(context.Background(), service, []string{"pending"}, nil, &bytes.Buffer{}); err != nil {
 		t.Fatal(err)
+	}
+	completion.dismissed = true
+	if err := execute(context.Background(), service, []string{"pending"}, nil, &bytes.Buffer{}); !errors.Is(err, errDismissed) {
+		t.Fatal(err)
+	}
+}
+
+func TestDismissIsAnExplicitReadyNetworkAction(t *testing.T) {
+	service, network, completion := commandService()
+	network.tailscale = true
+	var output bytes.Buffer
+	if err := execute(context.Background(), service, []string{"dismiss"}, nil, &output); err != nil {
+		t.Fatal(err)
+	}
+	if !completion.dismissed {
+		t.Fatal("dismissal was not recorded")
+	}
+	var response setup.Response
+	if err := json.Unmarshal(output.Bytes(), &response); err != nil {
+		t.Fatal(err)
+	}
+	if !response.Status.Dismissed || response.Status.CanDismiss {
+		t.Fatalf("response = %+v", response)
 	}
 }
 
 func TestConsoleReopensAndReturnsToShellOnQuitOrEOF(t *testing.T) {
 	for _, input := range []string{"q\n", ""} {
-		service, network := commandService()
+		service, network, _ := commandService()
 		network.tailscale = true
 		var output bytes.Buffer
 		if err := execute(context.Background(), service, []string{"console"}, strings.NewReader(input), &output); err != nil {
@@ -96,7 +128,7 @@ func TestConsoleReopensAndReturnsToShellOnQuitOrEOF(t *testing.T) {
 }
 
 func TestMutationErrorsRemainStructured(t *testing.T) {
-	service, _ := commandService()
+	service, _, _ := commandService()
 	var output bytes.Buffer
 	err := execute(context.Background(), service, []string{"allow-local-network"}, strings.NewReader(`{"connection":"missing"}`), &output)
 	if err != nil {
@@ -116,7 +148,7 @@ func TestRequestDecoderRejectsUnknownAndTrailingInput(t *testing.T) {
 		`{"connection":"wired","automatic":true}`,
 		`{"connection":"wired"} {}`,
 	} {
-		service, _ := commandService()
+		service, _, _ := commandService()
 		if err := execute(context.Background(), service, []string{"allow-local-network"}, strings.NewReader(input), &bytes.Buffer{}); err == nil {
 			t.Fatalf("accepted request %s", input)
 		}

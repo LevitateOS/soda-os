@@ -11,7 +11,7 @@ import {
 
 test("Soda Setup uses one fixed privileged executable", () => {
   assert.deepEqual(setupCommand(), ["/usr/libexec/soda/soda-setup", "status"]);
-  for (const action of ["allow-local-network", "connect-tailscale"]) {
+  for (const action of ["allow-local-network", "connect-tailscale", "dismiss"]) {
     assert.deepEqual(setupCommand(action), ["/usr/libexec/soda/soda-setup", action]);
   }
   assert.throws(() => setupCommand("shell"), /unsupported Soda Setup action/);
@@ -25,6 +25,11 @@ test("setup secrets are serialized only in stdin and then cleared", () => {
   clearSetupSecrets({ elements: { namedItem: name => name === "auth_key" ? control : null } }, payload);
   assert.equal(control.value, "");
   assert.deepEqual(payload, { auth_key: "" });
+});
+
+test("dismissal is a no-input native action", () => {
+  assert.deepEqual(setupCommand("dismiss"), ["/usr/libexec/soda/soda-setup", "dismiss"]);
+  assert.throws(() => encodeSetupRequest("dismiss", {}), /unsupported Soda Setup mutation/);
 });
 
 test("native setup errors remain visible", () => {
@@ -45,8 +50,9 @@ test("Cockpit presents the approved setup and network contract", async () => {
 });
 
 test("Setup has no account or key-entry action", async () => {
- for (const action of ["create-administrator", "dismiss"]) assert.throws(() => setupCommand(action));
+ for (const action of ["create-administrator", "install-key"]) assert.throws(() => setupCommand(action));
  const html = await readFile(new URL("./index.html", import.meta.url), "utf8");
- assert.doesNotMatch(html, /setup-administrator|dismiss-setup/);
+ assert.doesNotMatch(html, /setup-administrator/);
+ assert.match(html, /dismiss-setup/);
  assert.match(html, /Authorized public SSH keys/);
 });

@@ -3,8 +3,9 @@ package setup
 import (
 	"context"
 	"errors"
-	"github.com/stretchr/testify/require"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 type fakeAccounts struct{ administrators []Administrator }
@@ -17,6 +18,14 @@ type fakeNetwork struct {
 	connections []Connection
 	tailscale   bool
 	calls       *[]string
+}
+
+type fakeCompletion struct{ dismissed bool }
+
+func (completion *fakeCompletion) Dismissed() (bool, error) { return completion.dismissed, nil }
+func (completion *fakeCompletion) Mark() error {
+	completion.dismissed = true
+	return nil
 }
 
 func (network *fakeNetwork) Status(context.Context) ([]Connection, bool, error) {
@@ -42,10 +51,25 @@ func (network *fakeNetwork) ConnectTailscale(_ context.Context, authKey string) 
 
 func testService(connections []Connection, tailscale bool) Service {
 	calls := &[]string{}
+	completion := &fakeCompletion{}
 	return Service{
-		Accounts: fakeAccounts{[]Administrator{{Username: "ada"}}},
-		Network:  &fakeNetwork{connections: connections, tailscale: tailscale, calls: calls},
+		Accounts:   fakeAccounts{[]Administrator{{Username: "ada"}}},
+		Network:    &fakeNetwork{connections: connections, tailscale: tailscale, calls: calls},
+		Completion: completion,
 	}
+}
+
+func TestDismissRequiresReadyNetworkAndRecordsExplicitChoice(t *testing.T) {
+	service := testService(nil, false)
+	status, err := service.Dismiss(context.Background())
+	require.ErrorContains(t, err, "configure trusted local access")
+	require.False(t, status.Dismissed)
+
+	service = testService([]Connection{{Name: "wired", LocalNetworkAllowed: true}}, false)
+	status, err = service.Dismiss(context.Background())
+	require.NoError(t, err)
+	require.True(t, status.Dismissed)
+	require.False(t, status.CanDismiss)
 }
 
 func TestReadyUsesNativeNetworkWithoutPasswordKeysOrForgejo(t *testing.T) {

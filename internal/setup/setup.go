@@ -20,6 +20,8 @@ type Connection struct {
 }
 
 type Status struct {
+	Dismissed           bool            `json:"dismissed"`
+	CanDismiss          bool            `json:"can_dismiss"`
 	Ready               bool            `json:"ready"`
 	Administrators      []Administrator `json:"administrators"`
 	TailscaleConnected  bool            `json:"tailscale_connected"`
@@ -54,10 +56,16 @@ type Locker interface {
 	Lock() (io.Closer, error)
 }
 
+type Completion interface {
+	Dismissed() (bool, error)
+	Mark() error
+}
+
 type Service struct {
-	Accounts Accounts
-	Network  Network
-	Locker   Locker
+	Accounts   Accounts
+	Network    Network
+	Locker     Locker
+	Completion Completion
 }
 
 func (service Service) Status(ctx context.Context) (Status, error) {
@@ -70,14 +78,46 @@ func (service Service) Status(ctx context.Context) (Status, error) {
 	if err != nil {
 		return Status{}, fmt.Errorf("inspect network access: %w", err)
 	}
+	dismissed, err := service.completion().Dismissed()
+	if err != nil {
+		return Status{}, fmt.Errorf("inspect Soda Setup dismissal: %w", err)
+	}
 	status := Status{
+		Dismissed:          dismissed,
 		Administrators:     administrators,
 		TailscaleConnected: tailscaleConnected,
 		Connections:        connections,
 	}
 	status.LocalNetworkAllowed = anyLocalNetworkAllowed(connections)
 	status.Ready = status.TailscaleConnected || status.LocalNetworkAllowed
+	status.CanDismiss = status.Ready && !status.Dismissed
 	return status, nil
+}
+
+func (service Service) Dismiss(ctx context.Context) (Status, error) {
+	unlock, err := service.lock()
+	if err != nil {
+		return Status{}, err
+	}
+	defer unlock.Close()
+	status, err := service.Status(ctx)
+	if err != nil {
+		return Status{}, err
+	}
+	if !status.Ready {
+		return status, errors.New("configure trusted local access or Tailscale before dismissing Soda Setup")
+	}
+	if err = service.completion().Mark(); err != nil {
+		return status, fmt.Errorf("record Soda Setup dismissal: %w", err)
+	}
+	return service.Status(ctx)
+}
+
+func (service Service) completion() Completion {
+	if service.Completion != nil {
+		return service.Completion
+	}
+	return FileCompletion{}
 }
 
 func anyLocalNetworkAllowed(connections []Connection) bool {

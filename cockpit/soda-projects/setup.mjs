@@ -12,6 +12,7 @@ export function initializeSetup({ cockpit, showNotice, setBusy }) {
   const connection = document.querySelector("#setup-connection");
   const localNetworkForm = document.querySelector("#allow-local-network-form");
   const tailscaleForm = document.querySelector("#connect-tailscale-form");
+  const dismiss = document.querySelector("#dismiss-setup");
 
   document.querySelector("#refresh-setup").addEventListener("click", load);
   localNetworkForm.addEventListener("submit", event => mutateFromForm(event, "allow-local-network", form => ({
@@ -20,6 +21,7 @@ export function initializeSetup({ cockpit, showNotice, setBusy }) {
   tailscaleForm.addEventListener("submit", event => mutateFromForm(event, "connect-tailscale", form => ({
     auth_key: form.elements.auth_key.value,
   })));
+  dismiss.addEventListener("click", () => mutate("dismiss", null, null));
 
   load();
 
@@ -71,7 +73,9 @@ export function initializeSetup({ cockpit, showNotice, setBusy }) {
 
   function render(status) {
     summary.textContent = status.ready
-      ? "Network access is configured. Native account and Forgejo administration remain separate."
+      ? status.dismissed
+        ? "Automatic console Setup is disabled. You can still configure networking here."
+        : "Network access is configured. Choose Don't show Setup automatically to stop its console prompt."
       : "Choose a trusted local network or connect Tailscale.";
     facts.replaceChildren(
       fact("Administrator", administratorFact(status.administrators)),
@@ -85,6 +89,8 @@ export function initializeSetup({ cockpit, showNotice, setBusy }) {
       return option;
     }));
     setDisabled(localNetworkForm.querySelector("button"), status.connections.length === 0);
+    dismiss.hidden = status.dismissed;
+    setDisabled(dismiss, !status.can_dismiss);
     body.hidden = false;
   }
 }
@@ -118,5 +124,6 @@ function yesNo(value) {
 function setupSuccessMessage(action) {
   if (action === "allow-local-network") return "Access from the local network is allowed on the selected connection.";
   if (action === "connect-tailscale") return "Tailscale is connected. Any selected local-network access remains enabled.";
+  if (action === "dismiss") return "Soda Setup will no longer open automatically on console login.";
   return "Network configuration updated.";
 }

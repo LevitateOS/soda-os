@@ -69,6 +69,9 @@ func (session consoleSession) executeAction(choice string, connections []setup.C
 		return session.allowLocalNetwork(connections)
 	case "2":
 		return session.connectTailscale()
+	case "3":
+		_, err := session.service.Dismiss(session.ctx)
+		return err
 	default:
 		return errors.New("choose one of the displayed actions")
 	}
@@ -85,10 +88,15 @@ func printStatus(output io.Writer, status setup.Status) {
 	fmt.Fprintf(output, "  Tailscale connected: %s\n", answer[status.TailscaleConnected])
 	fmt.Fprintf(output, "  Access from the local network: %s\n", answer[status.LocalNetworkAllowed])
 	fmt.Fprintf(output, "  Network configured: %s\n", answer[status.Ready])
+	fmt.Fprintf(output, "  Automatic Setup disabled: %s\n", answer[status.Dismissed])
 }
 
-func consoleMenu(_ setup.Status) string {
-	return "\n1. Allow access from the local network\n2. Connect Tailscale\nq. Return to the shell\nChoose: "
+func consoleMenu(status setup.Status) string {
+	menu := "\n1. Allow access from the local network\n2. Connect Tailscale\n"
+	if status.CanDismiss {
+		menu += "3. Don't show Setup automatically\n"
+	}
+	return menu + "q. Return to the shell\nChoose: "
 }
 
 func (session consoleSession) allowLocalNetwork(connections []setup.Connection) error {

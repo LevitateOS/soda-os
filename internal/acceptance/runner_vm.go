@@ -243,7 +243,7 @@ func (state *runnerState) exerciseReusableQCOW2(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	fmt.Fprintf(state.output, "Cloud-init is provisioning reusable QCOW2 administrator %q using the protected password at %s and public key at %s. The disposable test LAN is explicitly trusted; interactive Setup must be skipped.\n", state.options.Administrator.Username, state.paths.password, state.paths.adminPublicKey)
+	fmt.Fprintf(state.output, "Cloud-init is provisioning reusable QCOW2 administrator %q using the protected password at %s and public key at %s. The disposable test LAN is explicitly trusted; console Setup remains available until explicitly dismissed.\n", state.options.Administrator.Username, state.paths.password, state.paths.adminPublicKey)
 	knownHosts := filepath.Join(state.paths.work, "qcow-known-hosts")
 	remote := Remote{
 		Username: state.options.Administrator.Username, Host: "127.0.0.1", Port: state.options.Ports.SSH,
