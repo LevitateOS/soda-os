@@ -56,6 +56,32 @@ test("form payloads keep secrets only in the synchronous request object", () => 
   assert.deepEqual(person, { username: "bob", password: "initial secret", authorized_key: "ssh-ed25519 AAAA" });
 });
 
+test("catalog forms accept arbitrary JSON metadata without a closed field list", () => {
+  const messages = [];
+  const payload = payloadFor("add-existing", new Map([
+    ["id", "site"],
+    ["display_name", "Site"],
+    ["canonical_url", "git@git.example.test:team/site.git"],
+    ["additional_metadata", '{"team":"web","labels":["public"]}'],
+  ]), message => messages.push(message));
+  assert.deepEqual(payload, {
+    team: "web",
+    labels: ["public"],
+    id: "site",
+    display_name: "Site",
+    canonical_url: "git@git.example.test:team/site.git",
+  });
+  assert.deepEqual(messages, []);
+
+  assert.equal(payloadFor("edit", new Map([
+    ["id", "site"],
+    ["display_name", "Site"],
+    ["canonical_url", "git@git.example.test:team/site.git"],
+    ["additional_metadata", '{"id":"other"}'],
+  ]), message => messages.push(message)), null);
+  assert.deepEqual(messages, ["Additional metadata must not redefine id."]);
+});
+
 test("secret clearing covers form controls and request objects", () => {
   const controls = {
     password: { value: "forgejo-secret" },

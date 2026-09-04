@@ -49,9 +49,10 @@ func TestRemoteSSHHostIdentifiesBundledForgejoWithoutOwningExternalHosts(t *test
 		"git@SODA.example.test:alice/site.git":       true,
 		"ssh://git@soda.example.test/alice/site.git": true,
 		"git@soda.example.test.:alice/site.git":      true,
+		"git@localhost:alice/site.git":               true,
 		"git@external.example.test:alice/site.git":   false,
 	} {
-		matched, err := remoteUsesSSHHost(remote, "soda.example.test")
+		matched, err := remoteUsesBundledForgejo(remote, "soda.example.test")
 		require.NoError(t, err)
 		require.Equal(t, expected, matched, remote)
 	}

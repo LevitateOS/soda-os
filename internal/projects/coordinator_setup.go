@@ -42,7 +42,7 @@ func (coordinator Coordinator) setupLocked(ctx context.Context, primary Account,
 	if err != nil {
 		return MutationResponse{}, err
 	}
-	bundledForgejo, err := remoteUsesSSHHost(entry.CanonicalURL, sshHost)
+	bundledForgejo, err := remoteUsesBundledForgejo(entry.CanonicalURL, sshHost)
 	if err != nil {
 		return MutationResponse{}, fmt.Errorf("identify repository SSH host: %w", err)
 	}

@@ -117,8 +117,7 @@ func (helper Helper) catalogAdd(input io.Reader) (MutationResponse, error) {
 	if err := DecodeRequest(input, &request); err != nil {
 		return MutationResponse{}, err
 	}
-	entry := CatalogEntry{ID: request.ID, DisplayName: request.DisplayName, CanonicalURL: request.CanonicalURL}
-	if err := helper.Lifecycle.Catalog.Add(entry); err != nil {
+	if err := helper.Lifecycle.Catalog.Add(request.CatalogEntry); err != nil {
 		return MutationResponse{}, err
 	}
 	return MutationResponse{OK: true}, nil
@@ -129,8 +128,7 @@ func (helper Helper) catalogEdit(input io.Reader) (MutationResponse, error) {
 	if err := DecodeRequest(input, &request); err != nil {
 		return MutationResponse{}, err
 	}
-	entry := CatalogEntry{ID: request.ID, DisplayName: request.DisplayName, CanonicalURL: request.CanonicalURL}
-	if err := helper.Lifecycle.Catalog.Edit(entry); err != nil {
+	if err := helper.Lifecycle.Catalog.Edit(request.CatalogEntry); err != nil {
 		return MutationResponse{}, err
 	}
 	return MutationResponse{OK: true}, nil

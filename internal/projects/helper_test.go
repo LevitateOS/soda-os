@@ -28,7 +28,31 @@ func TestHelperRejectsUnsupportedCommandsAndParameters(t *testing.T) {
 	require.ErrorContains(t, err, "unknown field")
 
 	_, err = helper.Execute(context.Background(), alice, "catalog-add", strings.NewReader(`{"id":"site","display_name":"Site","canonical_url":"git@git.example.test:site.git","password":"secret"}`))
-	require.ErrorContains(t, err, "unknown field")
+	require.ErrorContains(t, err, "must not contain credential field")
+}
+
+func TestHelperPublishesArbitraryCatalogMetadata(t *testing.T) {
+	helper, platform := testHelper(t)
+	identity := PKExecIdentity{Username: "alice", UID: platform.accounts["alice"].UID}
+	response, err := helper.Execute(context.Background(), identity, "catalog-add", strings.NewReader(
+		`{"id":"site","display_name":"Site","canonical_url":"git@git.example.test:site.git","team":"web","labels":["public"]}`,
+	))
+	require.NoError(t, err)
+	require.True(t, response.OK)
+	entry, err := helper.Lifecycle.Catalog.Get("site")
+	require.NoError(t, err)
+	require.JSONEq(t, `"web"`, string(entry.Additional["team"]))
+	require.JSONEq(t, `["public"]`, string(entry.Additional["labels"]))
+
+	response, err = helper.Execute(context.Background(), identity, "catalog-edit", strings.NewReader(
+		`{"id":"site","display_name":"Renamed","canonical_url":"git@git.example.test:site.git"}`,
+	))
+	require.NoError(t, err)
+	require.True(t, response.OK)
+	entry, err = helper.Lifecycle.Catalog.Get("site")
+	require.NoError(t, err)
+	require.Equal(t, "Renamed", entry.DisplayName)
+	require.Empty(t, entry.Additional)
 }
 
 func TestHelperRejectsWorkspaceAndSystemCallers(t *testing.T) {

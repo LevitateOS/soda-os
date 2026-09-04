@@ -231,11 +231,11 @@ func (coordinator Coordinator) executeAddExisting(ctx context.Context, primary A
 	if err := DecodeRequest(input, &request); err != nil {
 		return nil, err
 	}
-	entry := CatalogEntry{ID: request.ID, DisplayName: request.DisplayName, CanonicalURL: request.CanonicalURL}
+	entry := request.CatalogEntry
 	if err := entry.Validate(); err != nil {
 		return nil, err
 	}
-	if err := coordinator.Privileged.CatalogAdd(ctx, HelperCatalogRequest(request)); err != nil {
+	if err := coordinator.Privileged.CatalogAdd(ctx, request); err != nil {
 		return nil, err
 	}
 	return coordinator.projectResult(ctx, primary, entry)
@@ -254,11 +254,11 @@ func (coordinator Coordinator) executeEdit(ctx context.Context, primary Account,
 	if err := DecodeRequest(input, &request); err != nil {
 		return nil, err
 	}
-	entry := CatalogEntry{ID: request.ID, DisplayName: request.DisplayName, CanonicalURL: request.CanonicalURL}
+	entry := request.CatalogEntry
 	if err := entry.Validate(); err != nil {
 		return nil, err
 	}
-	if err := coordinator.Privileged.CatalogEdit(ctx, HelperCatalogRequest(request)); err != nil {
+	if err := coordinator.Privileged.CatalogEdit(ctx, request); err != nil {
 		return nil, err
 	}
 	return coordinator.projectResult(ctx, primary, entry)
@@ -347,7 +347,7 @@ func (coordinator Coordinator) createForgejo(ctx context.Context, primary Accoun
 		return MutationResponse{}, err
 	}
 	entry := CatalogEntry{ID: request.ID, DisplayName: request.DisplayName, CanonicalURL: created.CanonicalURL}
-	if err = coordinator.Privileged.CatalogAdd(ctx, HelperCatalogRequest{ID: entry.ID, DisplayName: entry.DisplayName, CanonicalURL: entry.CanonicalURL}); err != nil {
+	if err = coordinator.Privileged.CatalogAdd(ctx, HelperCatalogRequest{CatalogEntry: entry}); err != nil {
 		return MutationResponse{}, fmt.Errorf("repository was created at %s but catalog publication failed: %w", created.CanonicalURL, err)
 	}
 	return coordinator.projectResult(ctx, primary, entry)

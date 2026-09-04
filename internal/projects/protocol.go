@@ -6,16 +6,51 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strings"
 	"unicode/utf8"
 )
 
 type EmptyRequest struct{}
 
-type AddExistingRequest struct {
-	ID           string `json:"id"`
-	DisplayName  string `json:"display_name"`
-	CanonicalURL string `json:"canonical_url"`
+type CatalogMutationRequest struct {
+	CatalogEntry
 }
+
+func (request CatalogMutationRequest) MarshalJSON() ([]byte, error) {
+	return json.Marshal(request.CatalogEntry.jsonObject())
+}
+
+func (request *CatalogMutationRequest) UnmarshalJSON(contents []byte) error {
+	var values map[string]json.RawMessage
+	if err := json.Unmarshal(contents, &values); err != nil {
+		return err
+	}
+	for field := range values {
+		if catalogCredentialField(field) {
+			return fmt.Errorf("catalog metadata must not contain credential field %q", field)
+		}
+	}
+	entry, err := catalogEntryFromValues(values)
+	if err != nil {
+		return err
+	}
+	if entry.Additional == nil {
+		entry.Additional = map[string]json.RawMessage{}
+	}
+	request.CatalogEntry = entry
+	return nil
+}
+
+func catalogCredentialField(field string) bool {
+	switch strings.ToLower(field) {
+	case "password", "forgejo_password", "git_password", "token", "tea_token", "gh_token", "credential", "credentials", "private_key":
+		return true
+	default:
+		return false
+	}
+}
+
+type AddExistingRequest = CatalogMutationRequest
 
 type CreateForgejoRequest struct {
 	ID          string `json:"id"`
@@ -60,6 +95,11 @@ type ProjectView struct {
 
 func (view ProjectView) MarshalJSON() ([]byte, error) {
 	object := view.CatalogEntry.jsonObject()
+	metadata := view.CatalogEntry.Additional
+	if metadata == nil {
+		metadata = map[string]json.RawMessage{}
+	}
+	object["catalog_metadata"], _ = json.Marshal(metadata)
 	object["workspace_username"], _ = json.Marshal(view.WorkspaceUsername)
 	object["workspace_ready"], _ = json.Marshal(view.WorkspaceReady)
 	return json.Marshal(object)
@@ -84,11 +124,7 @@ type MutationResponse struct {
 	WorkspacePublicKey string       `json:"workspace_public_key,omitempty"`
 }
 
-type HelperCatalogRequest struct {
-	ID           string `json:"id"`
-	DisplayName  string `json:"display_name"`
-	CanonicalURL string `json:"canonical_url"`
-}
+type HelperCatalogRequest = CatalogMutationRequest
 
 type HelperWorkspaceRequest struct {
 	ID             string   `json:"id"`

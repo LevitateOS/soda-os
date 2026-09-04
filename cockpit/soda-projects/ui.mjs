@@ -17,11 +17,7 @@ export function payloadFor(action, data, reportInvalid) {
     throw new TypeError(`unsupported form action: ${action}`);
   }
   if (action === "add-existing" || action === "edit") {
-    return {
-      id: data.get("id"),
-      display_name: data.get("display_name"),
-      canonical_url: data.get("canonical_url"),
-    };
+    return catalogPayload(data, reportInvalid);
   }
   if (action === "create-forgejo") {
     return {
@@ -71,6 +67,33 @@ export function payloadFor(action, data, reportInvalid) {
     return null;
   }
   return { username };
+}
+
+function catalogPayload(data, reportInvalid) {
+  const text = String(data.get("additional_metadata") ?? "").trim();
+  let metadata = {};
+  try {
+    metadata = text === "" ? {} : JSON.parse(text);
+  } catch {
+    reportInvalid("Additional metadata must be a valid JSON object.");
+    return null;
+  }
+  if (metadata === null || Array.isArray(metadata) || typeof metadata !== "object") {
+    reportInvalid("Additional metadata must be a valid JSON object.");
+    return null;
+  }
+  for (const field of ["id", "display_name", "canonical_url"]) {
+    if (Object.hasOwn(metadata, field)) {
+      reportInvalid(`Additional metadata must not redefine ${field}.`);
+      return null;
+    }
+  }
+  return {
+    ...metadata,
+    id: data.get("id"),
+    display_name: data.get("display_name"),
+    canonical_url: data.get("canonical_url"),
+  };
 }
 
 export function successMessage(action, payload, result) {

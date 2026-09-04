@@ -207,9 +207,27 @@ func configureForgejo(t *testing.T, coordinator *Coordinator, calls *int, passwo
 	return server
 }
 
+func TestCoordinatorPublishesArbitraryCatalogMetadataAtPrivilegedBoundary(t *testing.T) {
+	fixture := testCoordinator(t)
+	response, err := fixture.coordinator.Execute(context.Background(), "alice", "add-existing", strings.NewReader(
+		`{"id":"site","display_name":"Site","canonical_url":"git@git.example.test:site.git","team":"web","labels":["public"]}`,
+	))
+	require.NoError(t, err)
+	require.Equal(t, "catalog-add", fixture.privileged.action)
+	request := fixture.privileged.request.(CatalogMutationRequest)
+	require.JSONEq(t, `"web"`, string(request.Additional["team"]))
+	require.JSONEq(t, `["public"]`, string(request.Additional["labels"]))
+	project := response.(MutationResponse).Project
+	require.NotNil(t, project)
+	require.JSONEq(t, `"web"`, string(project.Additional["team"]))
+}
+
 func TestCoordinatorListContract(t *testing.T) {
 	coordinator := testCoordinator(t).coordinator
-	require.NoError(t, coordinator.Catalog.Add(CatalogEntry{ID: "site", DisplayName: "Site", CanonicalURL: "git@git.example.test:site.git"}))
+	require.NoError(t, coordinator.Catalog.Add(CatalogEntry{
+		ID: "site", DisplayName: "Site", CanonicalURL: "git@git.example.test:site.git",
+		Additional: map[string]json.RawMessage{"team": json.RawMessage(`"web"`)},
+	}))
 	response, err := coordinator.Execute(context.Background(), "alice", "list", strings.NewReader(`{}`))
 	require.NoError(t, err)
 	list := response.(ListResponse)
@@ -218,13 +236,13 @@ func TestCoordinatorListContract(t *testing.T) {
 	require.Equal(t, "soda.example.ts.net", list.SSHHost)
 	require.Len(t, list.Projects, 1)
 	require.NotEmpty(t, list.Projects[0].WorkspaceUsername)
-	require.NotEmpty(t, list.Projects[0].WorkspaceUsername)
+	require.JSONEq(t, `"web"`, string(list.Projects[0].Additional["team"]))
 }
 
 func TestCoordinatorSetupRegistersWorkspacePublicKeyBeforeNativeSSHClone(t *testing.T) {
 	fixture := testCoordinator(t)
 	coordinator, privileged := fixture.coordinator, fixture.privileged
-	entry := CatalogEntry{ID: "site", DisplayName: "Site", CanonicalURL: "git@soda.example.ts.net:team/site.git"}
+	entry := CatalogEntry{ID: "site", DisplayName: "Site", CanonicalURL: "git@localhost:team/site.git"}
 	require.NoError(t, coordinator.Catalog.Add(entry))
 	var registered, title string
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {

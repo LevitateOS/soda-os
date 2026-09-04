@@ -157,6 +157,7 @@ function prepareProjectDialog(action, project) {
     dialog.querySelector("[data-project-id]").textContent = project.id;
     form.elements.display_name.value = project.display_name;
     form.elements.canonical_url.value = project.canonical_url;
+    form.elements.additional_metadata.value = JSON.stringify(project.catalog_metadata, null, 2);
   } else if (action === "setup") {
     dialog.querySelector("[data-project-name]").textContent = project.display_name;
   } else if (action === "install-tools") {

@@ -51,6 +51,7 @@ test("list response requires native user and service context", () => {
       id: "website",
       display_name: "Website",
       canonical_url: "git@example.test:team/website.git",
+      catalog_metadata: { team: "web" },
       workspace_username: "soda-w-0123456789abcdef01234567",
       workspace_ready: true,
     }],

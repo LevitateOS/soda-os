@@ -2,6 +2,7 @@ package projects
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -72,15 +73,27 @@ func TestCatalogRejectsDuplicateAndMissingFields(t *testing.T) {
 	}
 }
 
-func TestDecodeRequestRejectsUnknownAndDuplicateFields(t *testing.T) {
+func TestDecodeCatalogMutationRejectsDuplicateAndAlternateWireShapes(t *testing.T) {
 	for _, input := range []string{
 		`{"id":"site","id":"other","display_name":"Site","canonical_url":"https://git.test/site"}`,
-		`{"id":"site","display_name":"Site","canonical_url":"https://git.test/site","owner":"alice"}`,
 		`[]`,
 	} {
 		var request AddExistingRequest
 		require.Error(t, DecodeRequest(strings.NewReader(input), &request))
 	}
+}
+
+func TestDecodeCatalogMutationPreservesAdditionalFields(t *testing.T) {
+	var request AddExistingRequest
+	require.NoError(t, DecodeRequest(strings.NewReader(
+		`{"id":"site","display_name":"Site","canonical_url":"git@git.test:site.git","owner":"alice","labels":["web"]}`,
+	), &request))
+	require.JSONEq(t, `"alice"`, string(request.Additional["owner"]))
+	require.JSONEq(t, `["web"]`, string(request.Additional["labels"]))
+
+	encoded, err := json.Marshal(request)
+	require.NoError(t, err)
+	require.JSONEq(t, `{"id":"site","display_name":"Site","canonical_url":"git@git.test:site.git","owner":"alice","labels":["web"]}`, string(encoded))
 }
 
 func TestCatalogAndRequestRejectInvalidUTF8Bytes(t *testing.T) {
