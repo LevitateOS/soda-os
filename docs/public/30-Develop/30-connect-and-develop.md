@@ -1,0 +1,135 @@
+# Connect and develop
+
+Enter your workspace through ordinary OpenSSH and use native Git-host, editor, assistant, port, and container workflows.
+
+## Prerequisites
+
+- Create a workspace through Cockpit **Projects**.
+- Record its derived username and the Soda host address.
+- Keep the matching private SSH key on your client device.
+- Obtain access to the project's authoritative Git repository.
+
+## Connect with OpenSSH
+
+Start an interactive shell:
+
+```sh
+ssh WORKSPACE_USER@SODA_HOST
+```
+
+Run one command without an interactive shell:
+
+```sh
+ssh WORKSPACE_USER@SODA_HOST 'cd "$HOME/Projects/REPOSITORY" && git status'
+```
+
+Copy files with SCP or open an SFTP session:
+
+```sh
+scp ./local-file WORKSPACE_USER@SODA_HOST:~/Projects/REPOSITORY/
+sftp WORKSPACE_USER@SODA_HOST
+```
+
+These are normal OpenSSH operations. Consult the upstream manuals for
+[SSH](https://man.openbsd.org/ssh.1), [SCP](https://man.openbsd.org/scp.1), and
+[SFTP](https://man.openbsd.org/sftp.1).
+
+SSH-capable editors connect with the same host, derived username, and key. Do
+not connect an editor as the primary account for development.
+
+## Work with Git over SSH
+
+The repository is under:
+
+```text
+$HOME/Projects/REPOSITORY
+```
+
+Check its credential-free SSH remote before working:
+
+```sh
+cd "$HOME/Projects/REPOSITORY"
+git remote -v
+git status
+```
+
+Use the Git host's native access controls and ordinary Git commands. See
+[Git clone and SSH URL documentation](https://git-scm.com/docs/git-clone) and
+the [Forgejo user guide](https://forgejo.org/docs/latest/user/).
+
+## Sign in to Forgejo and GitHub CLIs
+
+Authentication is private to this workspace. Soda does not copy a login from
+the primary account or another workspace.
+
+For bundled Forgejo, start Tea's interactive login and then verify it:
+
+```sh
+tea logins add
+tea whoami
+```
+
+Use the Soda Forgejo URL and your personal Forgejo account when prompted. See
+[Codeberg's Tea and Forgejo CLI guidance](https://docs.codeberg.org/git/clone-commit-via-cli/).
+
+For GitHub CLI:
+
+```sh
+gh auth login --git-protocol ssh
+gh auth status
+```
+
+Follow the interactive device flow documented by [GitHub CLI
+authentication](https://cli.github.com/manual/gh_auth_login).
+
+Repeat these logins separately in every workspace that needs them. Never copy
+another account's CLI configuration or token.
+
+## Use a coding assistant
+
+Choose assistants during workspace creation or install them later with the
+workspace's tool workflow. Sign in separately inside this workspace. Assistant
+configuration and credentials remain personal to that workspace.
+
+## Share a development server
+
+Choose a project port that does not conflict with another service, then bind
+the development server so it accepts connections from the trusted network. For
+example, follow the framework's documented host-binding option instead of
+assuming its default loopback binding is reachable.
+
+Send a teammate the normal development URL using the Soda LAN or Tailscale host
+name and the selected port. WebSockets and hot reload use that same route. Soda
+does not require a Share action or track project ports and processes.
+
+Cloud development URLs are reachable through Tailscale only. LAN installations
+may use either the LAN or Tailscale address.
+
+## Use rootless Podman when needed
+
+Run Podman as the workspace user so its containers and storage remain owned by
+that Linux identity:
+
+```sh
+podman info
+podman run --rm docker.io/library/alpine:latest echo ok
+```
+
+See the [Podman documentation](https://docs.podman.io/en/stable/markdown/podman.1.html).
+Containers are optional development tools, not Soda's workspace isolation
+mechanism.
+
+## Expected result
+
+Commands, files, Git activity, dependencies, assistants, processes, and
+containers run as the derived workspace UID in its private home.
+
+## If something fails
+
+Diagnose the native owner: OpenSSH for login or transfer errors, the Git host
+for repository authorization, `mise` for tool installation, the framework for
+development-server binding, and Podman for rootless-container errors.
+
+## Next step
+
+Read [Development tools](40-development-tools.md).
