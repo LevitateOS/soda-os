@@ -48,13 +48,10 @@ if ! printf '%s\n' "$commit" | grep -Eq '^[0-9a-f]{40}$'; then
 fi
 validate_digest "$license_sha256"
 
-case "$archive" in
-  *.tar.gz) ;;
-  *) echo "Tea source lock contains an invalid archive name" >&2; exit 1 ;;
-esac
-case "$archive" in
-  */*) echo "Tea source lock contains an invalid archive name" >&2; exit 1 ;;
-esac
+if ! printf '%s\n' "$archive" | grep -Eq '^[A-Za-z0-9][A-Za-z0-9._-]*\.gz$'; then
+  echo "Tea source lock contains an invalid archive name" >&2
+  exit 1
+fi
 
 checksum() {
   if command -v sha256sum >/dev/null 2>&1; then
