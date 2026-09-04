@@ -81,8 +81,8 @@ contains internal/build/release/github.go 'version:          aarch64.Identity.Ve
 exact internal/build/release/github.go 'func (p *Publication) tag() string { return "v" + p.version }'
 contains internal/build/release/github.go '"--title", "Soda OS "+p.version'
 contains internal/build/release/github.go 'release notes omit the %s exact GHCR digest'
-if grep -Fq "$version" .github/workflows/release.yml; then
-  echo '.github/workflows/release.yml must derive Soda version from distro/soda.toml' >&2
+if grep -Eq 'soda-os-[0-9]+\.[0-9]+\.[0-9]+-|Soda OS [0-9]+\.[0-9]+\.[0-9]+' .github/workflows/release.yml; then
+  echo '.github/workflows/release.yml contains a literal Soda release identity' >&2
   exit 1
 fi
 if [ "$(grep -Fc 'distro/soda.toml' .github/workflows/release.yml)" -lt 4 ]; then
