@@ -29,11 +29,15 @@ accounts, services, and ownership boundaries behind these tasks.
 2. Install with the network ISO or import the reusable QCOW2.
 3. Complete **Soda Setup** from the machine console.
 4. Connect over the LAN or Tailscale with SSH, Cockpit, and Forgejo.
-5. Add one primary account for each person.
-6. Add or create a project in Cockpit's **Projects** page.
-7. Select **Set up for me** to create your isolated workspace.
+5. Add each later primary account through stock Cockpit or native Linux, then
+   let that person sign in to Forgejo normally and manage repository keys there.
+6. Create the repository in its native Git host, then add it to Cockpit's
+   **Projects** page.
+7. Select **Set up for me**, register the reported workspace key with the Git
+   host if asked, and retry to complete your isolated workspace.
 8. Connect directly to that workspace with OpenSSH.
-9. Use `mise` to install the tools required by you or the project.
+9. Use `mise` directly in the workspace to install the tools required by you or
+   the project.
 
 ## Prerequisites
 

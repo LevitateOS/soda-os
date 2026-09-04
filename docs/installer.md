@@ -99,8 +99,12 @@ After Soda Setup:
 - Soda owns only completion of the current bounded Soda Setup composition.
 
 Later primary humans are created through the supported administrator workflow,
-receive a corresponding Forgejo account, and have their public key registered
-there. Workspace accounts are Linux-only identities.
+which is stock Cockpit or ordinary Linux account management. Their first normal
+Forgejo sign-in creates the corresponding profile through PAM, and they manage
+public keys through Forgejo's native interface. Soda Setup does not create or
+pre-provision later people. Workspace accounts are Linux-only identities, and
+their outbound Git public keys are registered manually with the authoritative
+Git host rather than through Projects.
 
 Tea and gh are available in workspaces but are never configured during
 installation or Soda Setup. Each workspace login is manual and separate.
@@ -122,14 +126,13 @@ daemon, API, bootstrap state, or updater state.
 ## Development tools
 
 `mise` owns development-tool installation, versions, and project configuration.
-Project and workspace creation may offer multiple convenience selections, but
-the list is open. Later installation targets either one workspace or the
-project's shared tool scope.
-
-Shared project tools are stored once and use upstream-native shared download
-caches. Soda does not own cache format, downloads, version resolution, or
-toolchain state. Installed dependencies and other mutable development state
-remain workspace-private. Coding assistants are selected and authenticated per
+People invoke and configure it directly inside their workspaces. Project
+configuration is shared through the project's native repository workflow, and
+upstream tools own their cache behavior. Projects exposes no tool selector,
+installer action, shared tool storage, status, retry, or cleanup lifecycle.
+Soda does not own cache format, downloads, version resolution, or toolchain
+state. Installed dependencies and other mutable development state remain
+workspace-private. Coding assistants are selected and authenticated per
 workspace.
 
 Tea and GitHub CLI remain normal workspace commands with manual, separate

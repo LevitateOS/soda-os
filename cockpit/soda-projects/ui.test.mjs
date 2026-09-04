@@ -3,8 +3,6 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 import {
-  clearPayloadSecrets,
-  clearSecrets,
   errorMessage,
   formActions,
   humanDeletionHidden,
@@ -14,20 +12,24 @@ import {
 } from "./ui.mjs";
 
 test("every destructive and mutating form is wired to one supported action", async () => {
+  assert.deepEqual(formActions, [
+    "add-existing",
+    "edit",
+    "setup",
+    "remove-workspace",
+    "remove",
+    "delete-human",
+  ]);
   const html = await readFile(new URL("./index.html", import.meta.url), "utf8");
   const wired = [...html.matchAll(/data-action-form="([^"]+)"/g)].map(match => match[1]);
   assert.deepEqual(wired, formActions);
 });
 
-test("setup keeps the Forgejo password only in the synchronous request object", () => {
+test("setup sends only the selected project id", () => {
   const setup = payloadFor("setup", new Map([
-	["id", "site"],
-	["forgejo_password", "one-use"],
+    ["id", "site"],
   ]), assert.fail);
-	assert.deepEqual(setup, {
-	  id: "site",
-	  forgejo_password: "one-use",
-	});
+  assert.deepEqual(setup, { id: "site" });
 });
 
 test("catalog forms accept arbitrary JSON metadata without a closed field list", () => {
@@ -55,22 +57,6 @@ test("catalog forms accept arbitrary JSON metadata without a closed field list",
     ["additional_metadata", '{"id":"other"}'],
   ]), message => messages.push(message)), null);
   assert.deepEqual(messages, ["Additional metadata must not redefine id."]);
-});
-
-test("secret clearing covers form controls and request objects", () => {
-  const controls = {
-    password: { value: "forgejo-secret" },
-    password_confirmation: { value: "forgejo-secret" },
-	forgejo_password: { value: "forgejo-secret" },
-  };
-  clearSecrets({ elements: { namedItem: name => controls[name] ?? null } });
-  assert.equal(controls.password.value, "");
-  assert.equal(controls.password_confirmation.value, "");
-	assert.equal(controls.forgejo_password.value, "");
-
-	const payload = { password: "forgejo-secret", forgejo_password: "forgejo-secret", id: "site" };
-  clearPayloadSecrets(payload);
-	assert.deepEqual(payload, { password: "", forgejo_password: "", id: "site" });
 });
 
 test("destructive actions require exact confirmation", () => {
@@ -121,13 +107,13 @@ test("human deletion confirmation states Forgejo's native consequences", async (
   assert.match(dialog, /Linux account remains so an administrator can retry/);
 });
 
-test("workspace setup distinguishes bundled and external SSH-key ownership", async () => {
+test("workspace setup leaves SSH-key registration to every authoritative host", async () => {
   const html = await readFile(new URL("./index.html", import.meta.url), "utf8");
   const dialog = html.match(/<dialog id="setup-project-dialog"[\s\S]*?<\/dialog>/)?.[0] ?? "";
-  assert.match(dialog, /bundled Forgejo repository/);
-  assert.match(dialog, /external host, that host owns access/);
-  assert.match(dialog, /reports the public key for you to register there before retrying/);
-  assert.match(dialog, /Required only for bundled Forgejo/);
+  assert.match(dialog, /authoritative Git host owns access/);
+  assert.match(dialog, /reports the public key for you to register with that host before retrying/);
+  assert.doesNotMatch(dialog, /Forgejo password/);
+  assert.doesNotMatch(dialog, /bundled.*register/i);
 });
 
 test("native synchronous diagnostics and outcomes remain visible", () => {

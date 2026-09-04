@@ -21,8 +21,6 @@ Soda owns only:
 - the shared project catalog;
 - one derived Linux workspace account per selected person-project pair;
 - branding and one focused Cockpit Projects page;
-- Forgejo public-key registration;
-- `mise`-backed workspace and shared-project tool scope; and
 - fixed synchronous operations for setup and destructive local lifecycle.
 
 ### Installation and access
@@ -51,8 +49,12 @@ use Tailscale and never expose SSH, Cockpit, or Forgejo to the public Internet.
 ### Accounts, Forgejo, and workspaces
 
 Each person has one ordinary primary Linux account. Development happens only in
-derived workspace accounts. Every supported person also has a corresponding
-Forgejo account and registered public SSH key. Git uses SSH.
+derived workspace accounts. Soda Setup creates the initial same-named Linux and
+Forgejo administrator, installs that administrator's public SSH key in Linux,
+and registers it with Forgejo. Later primary accounts are created through stock
+Cockpit or Linux, and the person's first normal Forgejo sign-in creates the
+matching profile through PAM. People manage their Forgejo keys through Forgejo's
+native interface. Git uses SSH.
 
 Workspace setup copies only current public authorized keys. Tea and gh are
 present in every workspace and authenticated manually and separately there.
@@ -60,12 +62,18 @@ Soda copies no private key, CLI configuration, or token.
 
 Each workspace owns a private home and complete clone below `$HOME/Projects`.
 Its UID owns its files, dependencies, caches, processes, and local state.
+The workspace's outbound Git key remains private there. If the authoritative
+Git host has not authorized its public key, Projects reports the key and the
+person registers it natively before retrying setup. Projects accepts no Forgejo
+password and registers no workspace key.
 
 ### Catalog and deletion
 
 Every primary human can view and edit the shared project catalog. The catalog
 has no approved closed metadata field list and stores no membership,
 credentials, workspace state, processes, ports, containers, or jobs.
+Repositories are created in Forgejo or the external authoritative Git host and
+then added to the catalog with their SSH clone URL; Projects creates none.
 
 A person removes only their own workspace. An administrator may remove an
 entire project, permanently deleting the shared entry and all local workspaces,
@@ -77,10 +85,12 @@ the partial result, and allow explicit retry without rollback or hidden state.
 
 ### Development tools and lifecycle
 
-`mise` installs and selects tools for one workspace or for the project. Shared
-project tools are stored once, using upstream-native shared download caches.
-Installed dependencies remain workspace-private. Soda owns no tool downloader,
-cache, package manager, profile system, or version state.
+People invoke and configure `mise` directly inside their workspaces. Native
+project configuration is shared through the repository, and upstream tools own
+their cache behavior. Installed dependencies remain workspace-private. Projects
+has no tool selections, installer action, shared tool storage, status, retry, or
+cleanup lifecycle. Soda owns no tool downloader, cache, package manager, profile
+system, or version state.
 
 Administrators use native bootc operations for manual update and supported
 fallback. Automatic updates remain disabled. Soda has no updater or recovery

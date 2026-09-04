@@ -15,12 +15,26 @@ On a trusted LAN, OpenSSH, Cockpit, and Forgejo are directly reachable. Cloud
 deployments use Tailscale and never expose those services to the public
 Internet.
 
+Soda Setup composes the first Linux and Forgejo administrator and installs that
+administrator's public SSH key in Linux and registers it with Forgejo. Later
+people are created through stock Cockpit or Linux, and their first normal
+Forgejo sign-in creates the matching profile through PAM. They manage Forgejo
+keys through Forgejo's native interface.
+
+Repositories are created through the authoritative Git host and added to
+Projects with an SSH clone URL. Each workspace keeps its outbound private Git
+key locally; the person registers its public key with the authoritative host
+before retrying setup. Projects accepts no Forgejo password and creates no
+repository or Git-host key record.
+
 ## Development tools
 
 `mise` owns development-tool installation, versions, and project configuration.
-Tools may be installed for one workspace or shared once by a project. Upstream
-tool managers own their shared download caches; Soda has no cache service,
-downloader, profile system, or toolchain database.
+People invoke and configure it directly inside their workspaces, and project
+configuration is shared through the native repository workflow. Upstream tool
+managers own their cache behavior. Projects has no tool selections, installer,
+shared tool storage, or lifecycle; Soda has no cache service, downloader,
+profile system, or toolchain database.
 
 Tea and GitHub CLI are available in every workspace. Authenticate each one
 manually and separately inside that workspace. Soda does not create or copy

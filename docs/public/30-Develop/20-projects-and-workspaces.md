@@ -7,10 +7,9 @@ Maintain the shared project list and create one isolated Linux workspace for eac
 - Sign in to Cockpit with a primary account.
 - Make sure the primary account has at least one valid public key in its
   standard `~/.ssh/authorized_keys` file.
-- Make sure the person's public key is registered with the authoritative Git
-  host.
 - Obtain repository access from Forgejo or the external Git host before
-  setting up a private repository.
+  setting up a private repository, and be able to add an SSH public key to your
+  account there.
 
 ## Use the shared project list
 
@@ -26,39 +25,45 @@ To add an existing repository:
 3. Use the credential-free SSH clone URL from the authoritative Git host.
 4. Save the project and confirm it appears in the shared list.
 
-To create a repository in bundled Forgejo:
+To create a repository in bundled Forgejo or an external Git host:
 
-1. Select **Create Forgejo project**.
-2. Enter the requested project information.
-3. Submit the operation as your Forgejo identity.
-4. Confirm that Forgejo contains the new empty repository and Projects displays
-   it.
+1. Sign in to the authoritative Git host and create the repository through its
+   native interface.
+2. Copy its credential-free SSH clone URL.
+3. Return to **Projects** and select **Add existing project**.
+4. Enter the project information and clone URL, then save it.
+5. Confirm that the native Git host contains the repository and **Projects**
+   displays it.
 
-The canonical repository remains Forgejo-owned. For external hosts, follow that
-host's native repository and access controls.
+The canonical repository remains owned by its Git host. Repository creation,
+access, and collaboration use that host's native interfaces.
 
 ## Set up your workspace
 
 1. Select a project.
-2. Choose any initial toolchain conveniences you need. Multiple choices are
-   allowed and are a starting point, not a restriction.
-3. Select **Set up for me**.
-4. Wait for the synchronous result.
-5. Record the derived workspace username and connection guidance.
+2. Select **Set up for me** and wait for the synchronous result.
+3. If setup reports that it retained the workspace and shows its outbound Git
+   public key, add that key to your account through the Git host's native user
+   interface.
+4. Retry **Set up for me** to complete the clone.
+5. Record the derived workspace username and connection guidance from the
+   successful result.
 
 The result is a distinct Linux account with a private home and a complete clone
 under `$HOME/Projects/REPOSITORY`. Its UID, files, dependencies, caches, and
 processes are separate from every other person's workspace.
 
 Workspace setup copies current public SSH keys once into standard
-`authorized_keys`. It does not copy private keys or Tea, GitHub CLI, coding
-assistant, or other credentials.
+`authorized_keys` for inbound login. The outbound Git private key stays only in
+the workspace, while its public half is registered manually with the Git host.
+Setup does not copy private keys or Tea, GitHub CLI, coding assistant, or other
+credentials from the primary account.
 
 ## Add tools later
 
-Use `mise` after connecting. Choose **my workspace** for a personal tool or
-**this project** for a shared project tool. See [Connect and
-develop](30-connect-and-develop.md#manage-development-tools).
+Use `mise` directly after connecting to the workspace. Personal choices belong
+to that user; shared choices belong in repository configuration. See [Connect
+and develop](30-connect-and-develop.md#manage-development-tools).
 
 ## Remove your workspace
 
@@ -80,7 +85,8 @@ and removal](../40-Operate-Soda-OS/30-data-safety-and-removal.md) first.
 ## If something fails
 
 - A Git authorization error is owned by the authoritative Git host; correct
-  the account, key, or repository access there.
+  the account, reported workspace key, or repository access there, then retry
+  setup.
 - A missing-key error occurs before workspace mutation; add a valid public key
   to the primary account and retry.
 - An ambiguous existing account, directory, or ownership state stops setup for

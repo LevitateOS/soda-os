@@ -95,8 +95,7 @@ func (state *runnerState) seedPreservationState(ctx context.Context, scenario *s
 	if err != nil {
 		return err
 	}
-	setup := map[string]any{"id": "kept", "forgejo_password": string(bytes.TrimSpace(scenario.password))}
-	response, err = state.projectCall(ctx, scenario.remote, "setup", setup, "seed/admin-setup")
+	response, err = state.setupWorkspace(ctx, scenario.remote, scenario.password, "kept", "seed/admin-setup")
 	if err != nil {
 		return err
 	}
@@ -106,7 +105,7 @@ func (state *runnerState) seedPreservationState(ctx context.Context, scenario *s
 			return err
 		}
 		person := scenario.remote.As(username, state.personKeyPath(username))
-		response, err = state.projectCall(ctx, person, "setup", map[string]any{"id": "kept", "forgejo_password": string(bytes.TrimSpace(scenario.password))}, "seed/"+username+"-setup")
+		response, err = state.setupWorkspace(ctx, person, scenario.password, "kept", "seed/"+username+"-setup")
 		if err != nil {
 			return err
 		}
@@ -239,6 +238,32 @@ func (state *runnerState) projectCall(ctx context.Context, remote Remote, action
 		return projectResponse{}, fmt.Errorf("%s did not report success", action)
 	}
 	return response, nil
+}
+
+func (state *runnerState) setupWorkspace(ctx context.Context, remote Remote, password []byte, projectID, evidence string) (projectResponse, error) {
+	payload := map[string]any{"id": projectID}
+	if _, err := state.projectCall(ctx, remote, "setup", payload, evidence+"-key-required"); err == nil {
+		return projectResponse{}, errors.New("workspace setup completed before its outbound Git key was registered")
+	}
+	diagnosticPath, err := remote.Evidence.path(evidence + "-key-required.stderr")
+	if err != nil {
+		return projectResponse{}, err
+	}
+	diagnostic, err := os.ReadFile(diagnosticPath)
+	if err != nil {
+		return projectResponse{}, fmt.Errorf("read retained workspace-key diagnostic: %w", err)
+	}
+	if !bytes.Contains(diagnostic, []byte("retained")) || !bytes.Contains(diagnostic, []byte("retry")) {
+		return projectResponse{}, errors.New("workspace setup failure did not report retained state and retry guidance")
+	}
+	publicKey, err := workspacePublicKeyFromDiagnostic(diagnostic)
+	if err != nil {
+		return projectResponse{}, err
+	}
+	if err = state.registerForgejoKey(ctx, remote, password, publicKey, evidence+"-register-key"); err != nil {
+		return projectResponse{}, err
+	}
+	return state.projectCall(ctx, remote, "setup", payload, evidence+"-retry")
 }
 
 func (state *runnerState) addNativePerson(ctx context.Context, remote Remote, username string, password []byte, evidence string) error {

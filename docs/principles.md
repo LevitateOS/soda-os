@@ -62,9 +62,11 @@ and workspace state. Soda does not add a runtime update service or parallel
 deployment model merely to provide that outcome.
 
 Development-tool installation, versions, and project toolchain configuration
-belong to `mise`. Soda may provide convenient initial selections, shared
-project scope, and workspace scope, but it does not build a competing package
-manager, downloader, cache, profile system, or version database.
+belong to `mise`. Soda ships it for people to invoke and configure directly in
+their workspaces. Project configuration is shared through the repository's
+native workflow. Soda does not add tool selections, an installation wrapper,
+shared tool storage, lifecycle state, or a competing package manager,
+downloader, cache, profile system, or version database.
 
 ## Human and workspace accounts
 
@@ -146,7 +148,6 @@ Every primary human account can discover the catalogued projects.
 Through the Soda Projects page, a person can:
 
 - add an existing Git repository URL;
-- create a new project without supplying a repository URL;
 - select **Set up for me**;
 - edit a catalog entry;
 - remove their own workspace.
@@ -155,12 +156,16 @@ Only an administrator removes an entire project from Soda. The catalog does
 not have an assumed closed metadata field list; new user-visible project facts
 remain explicit product decisions.
 
-When no repository URL is supplied, the new repository is created in the
-initiating human's native Forgejo namespace.
+Repositories are created through Forgejo or the external authoritative Git host
+and then added to Projects with their SSH clone URL. Projects does not create
+repositories.
 
-Selecting **Set up for me** creates that person's derived workspace account and
-leaves it with a complete checkout at `$HOME/Projects/<repository>` that can be
-opened directly through SSH.
+Selecting **Set up for me** prepares that person's derived workspace account and
+workspace-private outbound Git key. If the authoritative Git host has not
+authorized the public key, Projects reports it for the person to register
+natively before retrying. Successful setup leaves a complete checkout at
+`$HOME/Projects/<repository>` that can be opened directly through SSH. Projects
+accepts no Forgejo password and registers no workspace key.
 
 The catalog records only the minimum Soda-specific association needed to offer
 the project through this appliance. It does not become a database of:
@@ -210,10 +215,13 @@ account deletion remains an ordinary non-cascading Linux action.
 Soda includes Forgejo as its built-in Git forge.
 
 Soda Setup currently creates the initial same-named Linux and Forgejo
-administrator accounts.
+administrator accounts, installs that administrator's public SSH key in Linux,
+and registers it with Forgejo.
 
-Each later primary human receives a corresponding Forgejo account and has their
-public SSH key registered there. Git uses SSH.
+Later primary accounts are created through stock Cockpit or Linux. A person's
+first normal Forgejo sign-in creates the corresponding profile through PAM, and
+the person manages public keys through Forgejo's native interface. Soda does not
+pre-provision later Forgejo accounts or keys. Git uses SSH.
 
 Derived workspace accounts are Linux development identities only. They are not
 Forgejo users.
@@ -261,7 +269,6 @@ Soda owns:
 - the narrow synchronous operations needed for catalog mutation, workspace
   setup and removal, and supported cascading human deletion;
 - connection guidance for SSH-capable development tools;
-- `mise`-backed workspace and shared-project tool scope; and
 - product-level installation and acceptance tests.
 
 These are the parts that turn a collection of existing Linux tools into a

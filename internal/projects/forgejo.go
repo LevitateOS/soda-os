@@ -19,7 +19,6 @@ type ForgejoKeyRequest struct {
 	Username  string
 	Password  string
 	PublicKey string
-	Title     string
 }
 
 type forgejoUserResponse struct {
@@ -30,13 +29,14 @@ type forgejoKeyResponse struct {
 	Key string `json:"key"`
 }
 
-// ForgejoClient uses Forgejo's initiating-user endpoint. It has no Soda-global
-// token and does not retain the supplied password.
+// ForgejoClient is the one-shot Soda Setup adapter for the initial
+// administrator. It has no Soda-global token and does not retain the supplied
+// password. Projects does not use it.
 type ForgejoClient struct{}
 
-// RegisterPublicKey authenticates the person once through Forgejo's native PAM
-// boundary. Forgejo owns the resulting account and public-key record; Soda
-// retains neither a token nor an identity mirror.
+// RegisterPublicKey authenticates the initial administrator once through
+// Forgejo's native PAM boundary. Forgejo owns the resulting account and
+// public-key record; Soda retains neither a token nor an identity mirror.
 func (ForgejoClient) RegisterPublicKey(ctx context.Context, registration ForgejoKeyRequest) error {
 	if err := validateForgejoKeyRegistration(registration); err != nil {
 		return err
@@ -121,7 +121,7 @@ func createForgejoKey(ctx context.Context, httpClient *http.Client, registration
 	payload, err := json.Marshal(struct {
 		Title string `json:"title"`
 		Key   string `json:"key"`
-	}{Title: forgejoKeyTitle(registration), Key: registration.PublicKey})
+	}{Title: "Soda OS", Key: registration.PublicKey})
 	if err != nil {
 		return err
 	}
@@ -139,13 +139,6 @@ func createForgejoKey(ctx context.Context, httpClient *http.Client, registration
 		return forgejoRejection(response)
 	}
 	return nil
-}
-
-func forgejoKeyTitle(registration ForgejoKeyRequest) string {
-	if registration.Title != "" {
-		return registration.Title
-	}
-	return "Soda OS"
 }
 
 func newForgejoUserRequest(ctx context.Context, method string, registration ForgejoKeyRequest, endpoint string, body io.Reader) (*http.Request, error) {

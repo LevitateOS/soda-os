@@ -59,12 +59,18 @@ pre-release runs, not a claim that release CI's later-built bytes were booted.
 - Linux owns one primary account per person; `wheel` alone owns administrator
   status.
 - Development occurs only in derived workspace accounts.
-- Initial setup composes the first Linux and Forgejo administrator. Later
+- Soda Setup composes the first Linux and Forgejo administrator. Later
   people are created through stock Linux/Cockpit account management, and
   Forgejo creates their matching profile through PAM on first sign-in.
+- Soda Setup installs the initial administrator's Forgejo public key. A later
+  user's first PAM login creates only their Forgejo profile; Projects does not
+  automatically register that primary account's Linux SSH key.
 - Git uses SSH.
 - Workspace accounts never become Forgejo users.
 - Workspace creation copies only current public authorized keys once.
+- Every workspace keeps its outbound private Git key locally. Its public key is
+  registered manually through the authoritative Git host's native user
+  interface, after which retrying setup completes the clone.
 - Tea and gh are available and require manual, separate authentication in each
   workspace.
 - No Tea token/configuration, gh configuration, private key, or credential is
@@ -74,6 +80,8 @@ pre-release runs, not a claim that release CI's later-built bytes were booted.
 
 - Everyone can view and edit the shared project list without a closed metadata
   field contract or membership model.
+- Repositories are created through native Forgejo behavior and then added to
+  Projects with `add-existing`; Projects exposes no repository-creation action.
 - Each person-project pair receives an independent UID, home, full clone,
   dependencies, processes, and mutable state.
 - A person can remove only their own workspace.

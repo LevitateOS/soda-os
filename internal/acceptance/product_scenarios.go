@@ -211,12 +211,12 @@ func (state *runnerState) verifyProjectRemoval(ctx context.Context, scenario *sc
 	if _, err := state.createCatalogedForgejoProject(ctx, scenario.remote, scenario.password, forgejoProject{"removable", "Removal fixture", "product/removable-create"}); err != nil {
 		return err
 	}
-	adminSetup, err := state.projectCall(ctx, scenario.remote, "setup", map[string]any{"id": "removable", "forgejo_password": string(bytes.TrimSpace(scenario.password))}, "product/removable-admin-setup")
+	adminSetup, err := state.setupWorkspace(ctx, scenario.remote, scenario.password, "removable", "product/removable-admin-setup")
 	if err != nil {
 		return err
 	}
 	bob := scenario.remote.As("bob", state.personKeyPath("bob"))
-	bobSetup, err := state.projectCall(ctx, bob, "setup", map[string]any{"id": "removable", "forgejo_password": string(bytes.TrimSpace(scenario.password))}, "product/removable-bob-setup")
+	bobSetup, err := state.setupWorkspace(ctx, bob, scenario.password, "removable", "product/removable-bob-setup")
 	if err != nil {
 		return err
 	}
@@ -233,7 +233,7 @@ func (state *runnerState) verifyPartialPersonDeletion(ctx context.Context, scena
 		return err
 	}
 	obsolete := scenario.remote.As("obsolete", state.personKeyPath("obsolete"))
-	if _, err := state.projectCall(ctx, obsolete, "setup", map[string]any{"id": "kept", "forgejo_password": string(bytes.TrimSpace(scenario.password))}, "product/obsolete-setup"); err != nil {
+	if _, err := state.setupWorkspace(ctx, obsolete, scenario.password, "kept", "product/obsolete-setup"); err != nil {
 		return err
 	}
 	if _, err := state.createNativeForgejoRepository(ctx, obsolete, scenario.password, "owned", "product/owned-create"); err != nil {

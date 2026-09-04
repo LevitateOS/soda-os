@@ -16,7 +16,7 @@ var RequiredScenarios = []string{
 	"lan-and-tailscale-access",
 	"public-ingress-rejection",
 	"ssh-cockpit-projects-forgejo",
-	"mise-tool-scope",
+	"native-mise-ownership",
 	"identity-and-deletion",
 	"update-and-fallback",
 	"forbidden-state-absence",

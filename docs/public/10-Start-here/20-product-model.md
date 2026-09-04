@@ -22,14 +22,16 @@ also the first administrator.
 ### Administrator
 
 An administrator is a primary Linux account in the `wheel` group.
-Administrators can add people, promote primary accounts through Cockpit,
-remove people, and remove entire projects with all local workspaces.
+Administrators can create primary Linux accounts through stock Cockpit or
+native Linux tools, promote primary accounts through Cockpit, remove people,
+and remove entire projects with all local workspaces.
 
 ### Developer
 
 A developer has one primary account but performs development inside derived
-workspace accounts. A developer may create or edit shared project entries,
-create their own workspace, and remove only their own workspace.
+workspace accounts. A developer may create repositories through their native
+Git host, create or edit shared project entries, create their own workspace,
+and remove only their own workspace.
 
 ## Account types
 
@@ -71,7 +73,10 @@ may read or write a repository.
 Selecting **Set up for me** creates a separate Linux account and complete clone
 for that person-project pair. The person's current public SSH keys are copied
 once to the workspace. Private keys and command-line credentials are never
-copied.
+copied. The workspace keeps its outbound Git private key locally. If the Git
+host does not yet know its public key, setup reports the key and retains the
+workspace so the person can register it through the host's native interface
+and retry.
 
 ## Access model
 

@@ -17,10 +17,7 @@ export function payloadFor(action, data, reportInvalid) {
     return catalogPayload(data, reportInvalid);
   }
   if (action === "setup") {
-	return {
-	  id: data.get("id"),
-	  forgejo_password: data.get("forgejo_password"),
-	};
+    return { id: data.get("id") };
   }
   if (action === "remove" || action === "remove-workspace") {
     const id = data.get("id");
@@ -83,23 +80,6 @@ export function successMessage(action, payload, result) {
     return `Your ${payload.id} workspace was removed. The shared project and canonical repository were not deleted.`;
   }
   return `${payload.username}, their local Soda workspaces, and their Forgejo account were removed.`;
-}
-
-export function clearSecrets(form) {
-  for (const name of ["password", "password_confirmation", "forgejo_password"]) {
-    const input = form.elements.namedItem(name);
-    if (input) {
-      input.value = "";
-    }
-  }
-}
-
-export function clearPayloadSecrets(payload) {
-  for (const name of ["password", "forgejo_password"]) {
-    if (Object.hasOwn(payload, name)) {
-      payload[name] = "";
-    }
-  }
 }
 
 export function humanDeletionHidden(currentUser) {

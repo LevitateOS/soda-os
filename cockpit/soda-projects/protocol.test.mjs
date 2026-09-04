@@ -24,6 +24,15 @@ test("manifest exposes exactly one stock Cockpit Projects page", async () => {
 });
 
 test("coordinator command contains only the executable and allow-listed action", () => {
+  assert.deepEqual(actions, [
+    "list",
+    "add-existing",
+    "edit",
+    "setup",
+    "remove-workspace",
+    "remove",
+    "delete-human",
+  ]);
   for (const action of actions) {
     assert.deepEqual(coordinatorCommand(action), [coordinatorPath, action]);
   }

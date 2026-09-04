@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestForgejoRegistersPublicKeyThroughThePersonAccount(t *testing.T) {
+func TestForgejoRegistersInitialAdministratorPublicKey(t *testing.T) {
 	key := strings.TrimSpace(string(testAuthorizedKey(t)))
 	var paths []string
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {

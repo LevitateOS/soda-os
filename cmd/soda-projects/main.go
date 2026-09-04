@@ -25,8 +25,7 @@ func main() {
 	lifecycle := projects.Lifecycle{Catalog: catalog, Platform: platform}
 	coordinator := projects.Coordinator{
 		Catalog: catalog, Lifecycle: lifecycle, Platform: platform,
-		Privileged: projects.PKExecInvoker{}, Forgejo: projects.ForgejoClient{},
-		Endpoints: projects.TailnetEndpoints{},
+		Privileged: projects.PKExecInvoker{}, Endpoints: projects.TailnetEndpoints{},
 	}
 	response, err := coordinator.Execute(context.Background(), current.Username, os.Args[1], os.Stdin)
 	if err != nil {

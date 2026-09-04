@@ -95,17 +95,6 @@ Before adding a tool, change to the repository, decide whether the choice is
 personal or shared by the project, and review existing project configuration
 before trusting or executing it.
 
-When Projects offers initial tool choices, select as many as the work requires.
-Those choices are conveniences, not a closed list.
-
-- Choose **my workspace** for a personal tool or version that should affect
-  only your derived account.
-- Choose **this project** for a tool and version the team should share across
-  workspaces for this project.
-
-Any project user may add shared project tools. Soda does not add a separate
-approval or membership system around `mise`.
-
 Inspect the active configuration from the repository:
 
 ```sh
@@ -137,25 +126,23 @@ mise install
 Follow [mise getting started](https://mise.jdx.dev/getting-started.html) for
 supported tool names, versions, configuration, activation, and trust behavior.
 
-For a personal tool, use the personal scope offered by Projects or a
-`mise.local.toml` ignored by Git. Check the affected files before committing so
-a personal choice does not accidentally become project policy.
+For a personal tool, use `mise`'s native user or local configuration. Check the
+affected files before committing so a personal choice does not accidentally
+become project policy.
 
-For a shared project tool, Soda gives `mise` one project-scoped storage
-location that every workspace for the project can use. The selected tool is
-stored once, while `mise` and the relevant package ecosystem own its layout,
-download cache, locking, and concurrency. Project dependencies, virtual
-environments, build output, and other mutable development state remain private
-to each workspace. Soda does not define a cache format or run a cache service
-or dependency downloader.
+For a shared project tool, commit the normal repository-owned `mise`
+configuration so each teammate can install it in their own workspace. `mise`
+and each language ecosystem own their normal installations, caches, locking,
+and configuration. Soda does not add shared tool storage, a cache format, a
+tool lifecycle, or a dependency downloader.
 
 ## Use a coding assistant
 
-Choose assistants during workspace creation or install them later with the
-workspace's tool workflow. Sign in separately inside this workspace. Assistant
-configuration and credentials remain personal to that workspace. Do not store
-assistant credentials in shared project configuration or copy them between
-workspace homes.
+Install and configure assistants directly inside the workspace with their
+native or `mise` instructions. Sign in separately inside this workspace.
+Assistant configuration and credentials remain personal to that workspace. Do
+not store assistant credentials in shared project configuration or copy them
+between workspace homes.
 
 ## Share a development server
 

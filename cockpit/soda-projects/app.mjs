@@ -4,8 +4,6 @@ import {
   encodeRequest,
 } from "./protocol.mjs";
 import {
-  clearPayloadSecrets,
-  clearSecrets,
   errorMessage,
   humanDeletionHidden,
   payloadFor,
@@ -35,9 +33,6 @@ document.querySelector("#open-delete-human").addEventListener("click", () => ope
 document.querySelectorAll("[data-action-form]").forEach(form => form.addEventListener("submit", submitAction));
 document.querySelectorAll("[data-dialog-close]").forEach(button => button.addEventListener("click", () => {
   button.closest("dialog").close();
-}));
-document.querySelectorAll("dialog").forEach(dialog => dialog.addEventListener("close", () => {
-  clearSecrets(dialog.querySelector("form"));
 }));
 
 elements.rows.addEventListener("click", event => {
@@ -191,15 +186,12 @@ async function submitAction(event) {
   setBusy(true);
   try {
     const operation = invoke(action, payload);
-    clearSecrets(form);
-    clearPayloadSecrets(payload);
     const result = await operation;
     form.closest("dialog").close();
     const message = successMessage(action, payload, result);
     await loadProjects();
     showNotice(message, "success");
   } catch (error) {
-    clearSecrets(form);
     showNotice(errorMessage(error), "error");
   } finally {
     setBusy(false);

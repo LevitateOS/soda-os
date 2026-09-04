@@ -40,8 +40,7 @@ type AddExistingRequest = CatalogMutationRequest
 type EditRequest = AddExistingRequest
 
 type SetupRequest struct {
-	ID              string `json:"id"`
-	ForgejoPassword string `json:"forgejo_password"`
+	ID string `json:"id"`
 }
 
 type ProjectRequest struct {

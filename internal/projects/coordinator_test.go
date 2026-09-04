@@ -4,8 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"net/http"
-	"net/http/httptest"
 	"strings"
 	"testing"
 
@@ -106,7 +104,7 @@ func testCoordinator(t *testing.T) coordinatorFixture {
 	privileged := &fakePrivileged{workspacePublicKey: strings.TrimSpace(string(testAuthorizedKey(t)))}
 	lifecycle := Lifecycle{Catalog: catalog, Platform: platform}
 	return coordinatorFixture{
-		coordinator: Coordinator{Catalog: catalog, Lifecycle: lifecycle, Platform: platform, Privileged: privileged, Forgejo: ForgejoClient{}, Endpoints: fakeEndpoints{}},
+		coordinator: Coordinator{Catalog: catalog, Lifecycle: lifecycle, Platform: platform, Privileged: privileged, Endpoints: fakeEndpoints{}},
 		platform:    platform,
 		privileged:  privileged,
 	}
@@ -163,92 +161,50 @@ func TestCoordinatorListContract(t *testing.T) {
 	require.Equal(t, list.Projects[0].WorkspaceReady, wire.Projects[0].WorkspaceReady)
 }
 
-func TestCoordinatorSetupRegistersWorkspacePublicKeyBeforeNativeSSHClone(t *testing.T) {
+func TestCoordinatorSetupAttemptsNativeSSHCloneWithoutCredentials(t *testing.T) {
 	fixture := testCoordinator(t)
 	coordinator, privileged := fixture.coordinator, fixture.privileged
 	entry := CatalogEntry{ID: "site", DisplayName: "Site", CanonicalURL: "git@localhost:team/site.git"}
 	require.NoError(t, coordinator.Catalog.Add(entry))
-	var registered, title string
-	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		username, password, ok := request.BasicAuth()
-		require.True(t, ok)
-		require.Equal(t, "alice", username)
-		require.Equal(t, "one-use", password)
-		switch request.URL.Path {
-		case "/api/v1/user":
-			_, _ = writer.Write([]byte(`{"login":"alice"}`))
-		case "/api/v1/user/keys":
-			if request.Method == http.MethodGet {
-				_, _ = writer.Write([]byte(`[]`))
-				return
-			}
-			var body struct {
-				Key   string `json:"key"`
-				Title string `json:"title"`
-			}
-			require.NoError(t, json.NewDecoder(request.Body).Decode(&body))
-			registered = body.Key
-			title = body.Title
-			writer.WriteHeader(http.StatusCreated)
-		default:
-			t.Fatalf("unexpected Forgejo request %s %s", request.Method, request.URL.Path)
-		}
-	}))
-	defer server.Close()
-	coordinator.Endpoints = fakeEndpoints{forgejoURL: server.URL}
-	response, err := coordinator.Execute(context.Background(), "alice", "setup", strings.NewReader(`{"id":"site","forgejo_password":"one-use"}`))
+	response, err := coordinator.Execute(context.Background(), "alice", "setup", strings.NewReader(`{"id":"site"}`))
 	require.NoError(t, err)
 	require.Equal(t, MutationResponse{OK: true, WorkspaceUsername: "soda-w-example"}, response)
 	require.Equal(t, []string{"workspace-prepare", "workspace-publish"}, privileged.actions)
-	require.Equal(t, privileged.workspacePublicKey, registered)
-	require.Equal(t, "Soda OS workspace soda-w-example", title)
 	encoded, err := json.Marshal(privileged.request)
 	require.NoError(t, err)
-	require.NotContains(t, string(encoded), "one-use")
+	require.JSONEq(t, `{"id":"site","canonical_url":"git@localhost:team/site.git"}`, string(encoded))
 }
 
-func TestCoordinatorSetupRetainsWorkspaceKeyWhenForgejoRegistrationFails(t *testing.T) {
-	fixture := testCoordinator(t)
-	coordinator := fixture.coordinator
-	require.NoError(t, coordinator.Catalog.Add(CatalogEntry{ID: "site", DisplayName: "Site", CanonicalURL: "git@soda.example.ts.net:site.git"}))
-	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		writer.WriteHeader(http.StatusUnauthorized)
-		_, _ = writer.Write([]byte(`{"message":"wrong password"}`))
-	}))
-	defer server.Close()
-	coordinator.Endpoints = fakeEndpoints{forgejoURL: server.URL}
+func TestCoordinatorSetupLeavesKeyRegistrationToEveryAuthoritativeGitHost(t *testing.T) {
+	for _, remote := range []string{
+		"git@soda.example.ts.net:site.git",
+		"ssh://git@git.example.test/team/site.git",
+	} {
+		t.Run(remote, func(t *testing.T) {
+			fixture := testCoordinator(t)
+			require.NoError(t, fixture.coordinator.Catalog.Add(CatalogEntry{
+				ID: "site", DisplayName: "Site", CanonicalURL: remote,
+			}))
+			fixture.privileged.publishErr = errors.New("native SSH authentication failed")
 
-	_, err := coordinator.Execute(context.Background(), "alice", "setup", strings.NewReader(`{"id":"site","forgejo_password":"one-use"}`))
-	require.ErrorContains(t, err, "local outbound Git key were retained; Forgejo key registration can be retried")
-	require.Equal(t, []string{"workspace-prepare"}, fixture.privileged.actions)
+			_, err := fixture.coordinator.Execute(context.Background(), "alice", "setup", strings.NewReader(`{"id":"site"}`))
+
+			require.ErrorContains(t, err, "If repository authorization caused the clone failure")
+			require.ErrorContains(t, err, "authoritative Git host")
+			require.ErrorContains(t, err, fixture.privileged.workspacePublicKey)
+			require.ErrorContains(t, err, "register that key")
+			require.ErrorContains(t, err, "retry setup")
+			require.ErrorContains(t, err, "native SSH authentication failed")
+			require.Equal(t, []string{"workspace-prepare", "workspace-publish"}, fixture.privileged.actions)
+		})
+	}
 }
 
-func TestCoordinatorSetupRequiresBundledForgejoPasswordBeforeMutation(t *testing.T) {
+func TestCoordinatorSetupRejectsLegacyForgejoPassword(t *testing.T) {
 	fixture := testCoordinator(t)
-	require.NoError(t, fixture.coordinator.Catalog.Add(CatalogEntry{
-		ID: "site", DisplayName: "Site", CanonicalURL: "git@soda.example.ts.net:site.git",
-	}))
-
-	_, err := fixture.coordinator.Execute(context.Background(), "alice", "setup", strings.NewReader(`{"id":"site"}`))
-
-	require.ErrorContains(t, err, "password must contain between 1 and 4096 bytes")
+	_, err := fixture.coordinator.Execute(context.Background(), "alice", "setup", strings.NewReader(`{"id":"site","forgejo_password":"secret"}`))
+	require.ErrorContains(t, err, "unknown field")
 	require.Empty(t, fixture.privileged.actions)
-}
-
-func TestCoordinatorSetupLeavesExternalKeyRegistrationToNativeHost(t *testing.T) {
-	fixture := testCoordinator(t)
-	require.NoError(t, fixture.coordinator.Catalog.Add(CatalogEntry{
-		ID: "site", DisplayName: "Site", CanonicalURL: "ssh://git@git.example.test/team/site.git",
-	}))
-	fixture.privileged.publishErr = errors.New("native SSH authentication failed")
-
-	_, err := fixture.coordinator.Execute(context.Background(), "alice", "setup", strings.NewReader(`{"id":"site"}`))
-
-	require.ErrorContains(t, err, "external Git host owns access")
-	require.ErrorContains(t, err, fixture.privileged.workspacePublicKey)
-	require.ErrorContains(t, err, "register public key")
-	require.ErrorContains(t, err, "retry setup")
-	require.Equal(t, []string{"workspace-prepare", "workspace-publish"}, fixture.privileged.actions)
 }
 
 func TestCoordinatorRejectsUnknownActionsAndFields(t *testing.T) {

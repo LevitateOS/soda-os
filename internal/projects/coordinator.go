@@ -125,7 +125,6 @@ type Coordinator struct {
 	Lifecycle  Lifecycle
 	Platform   Platform
 	Privileged PrivilegedProjects
-	Forgejo    ForgejoClient
 	Endpoints  EndpointSource
 }
 
