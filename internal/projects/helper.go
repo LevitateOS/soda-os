@@ -27,24 +27,49 @@ func (helper Helper) Execute(ctx context.Context, actor PKExecIdentity, action s
 	if account.UID != actor.UID {
 		return MutationResponse{}, errors.New("PKEXEC_UID no longer matches the authorized Linux account")
 	}
-	switch action {
-	case "catalog-add":
-		return helper.catalogAdd(input)
-	case "catalog-edit":
-		return helper.catalogEdit(input)
-	case "workspace-publish":
-		return helper.workspacePublish(ctx, actor.Username, input)
-	case "project-remove":
-		return helper.projectRemove(ctx, actor.Username, input)
-	case "human-delete":
-		return helper.humanDelete(ctx, actor.Username, input)
-	case "human-create":
-		return helper.humanCreate(ctx, account, input)
-	case "human-publish":
-		return helper.humanPublish(ctx, account, input)
-	default:
+	return helper.dispatch(ctx, account, action, input)
+}
+
+func (helper Helper) dispatch(ctx context.Context, account Account, action string, input io.Reader) (MutationResponse, error) {
+	handlers := map[string]func() (MutationResponse, error){
+		"catalog-add":       func() (MutationResponse, error) { return helper.catalogAdd(input) },
+		"catalog-edit":      func() (MutationResponse, error) { return helper.catalogEdit(input) },
+		"workspace-publish": func() (MutationResponse, error) { return helper.workspacePublish(ctx, account.Username, input) },
+		"workspace-prepare": func() (MutationResponse, error) { return helper.workspacePrepare(ctx, account.Username, input) },
+		"workspace-remove":  func() (MutationResponse, error) { return helper.workspaceRemove(ctx, account.Username, input) },
+		"tools-install":     func() (MutationResponse, error) { return helper.toolsInstall(ctx, account.Username, input) },
+		"project-remove":    func() (MutationResponse, error) { return helper.projectRemove(ctx, account.Username, input) },
+		"human-delete":      func() (MutationResponse, error) { return helper.humanDelete(ctx, account.Username, input) },
+		"human-create":      func() (MutationResponse, error) { return helper.humanCreate(ctx, account, input) },
+		"human-publish":     func() (MutationResponse, error) { return helper.humanPublish(ctx, account, input) },
+	}
+	handler, found := handlers[action]
+	if !found {
 		return MutationResponse{}, fmt.Errorf("unsupported workspace helper action %q", action)
 	}
+	return handler()
+}
+
+func (helper Helper) toolsInstall(ctx context.Context, actorUsername string, input io.Reader) (MutationResponse, error) {
+	var request HelperToolRequest
+	if err := DecodeRequest(input, &request); err != nil {
+		return MutationResponse{}, err
+	}
+	if err := helper.Lifecycle.InstallTools(ctx, actorUsername, request); err != nil {
+		return MutationResponse{}, err
+	}
+	return MutationResponse{OK: true}, nil
+}
+
+func (helper Helper) workspaceRemove(ctx context.Context, actorUsername string, input io.Reader) (MutationResponse, error) {
+	var request ProjectRequest
+	if err := DecodeRequest(input, &request); err != nil {
+		return MutationResponse{}, err
+	}
+	if err := helper.Lifecycle.RemoveWorkspace(ctx, actorUsername, request.ID); err != nil {
+		return MutationResponse{}, err
+	}
+	return MutationResponse{OK: true}, nil
 }
 
 func (helper Helper) humanCreate(ctx context.Context, actor Account, input io.Reader) (MutationResponse, error) {
@@ -92,7 +117,7 @@ func (helper Helper) catalogAdd(input io.Reader) (MutationResponse, error) {
 	if err := DecodeRequest(input, &request); err != nil {
 		return MutationResponse{}, err
 	}
-	if err := helper.Lifecycle.Catalog.Add(CatalogEntry(request)); err != nil {
+	if err := helper.Lifecycle.Catalog.Add(request.CatalogEntry); err != nil {
 		return MutationResponse{}, err
 	}
 	return MutationResponse{OK: true}, nil
@@ -103,7 +128,7 @@ func (helper Helper) catalogEdit(input io.Reader) (MutationResponse, error) {
 	if err := DecodeRequest(input, &request); err != nil {
 		return MutationResponse{}, err
 	}
-	if err := helper.Lifecycle.Catalog.Edit(CatalogEntry(request)); err != nil {
+	if err := helper.Lifecycle.Catalog.Edit(request.CatalogEntry); err != nil {
 		return MutationResponse{}, err
 	}
 	return MutationResponse{OK: true}, nil
@@ -114,11 +139,23 @@ func (helper Helper) workspacePublish(ctx context.Context, actorUsername string,
 	if err := DecodeRequest(input, &request); err != nil {
 		return MutationResponse{}, err
 	}
-	username, err := helper.Lifecycle.Publish(ctx, actorUsername, request)
+	username, err := helper.Lifecycle.CompleteWorkspace(ctx, actorUsername, request)
 	if err != nil {
 		return MutationResponse{}, err
 	}
 	return MutationResponse{OK: true, WorkspaceUsername: username}, nil
+}
+
+func (helper Helper) workspacePrepare(ctx context.Context, actorUsername string, input io.Reader) (MutationResponse, error) {
+	var request HelperWorkspaceRequest
+	if err := DecodeRequest(input, &request); err != nil {
+		return MutationResponse{}, err
+	}
+	preparation, err := helper.Lifecycle.PrepareWorkspace(ctx, actorUsername, request)
+	if err != nil {
+		return MutationResponse{}, err
+	}
+	return MutationResponse{OK: true, WorkspaceUsername: preparation.Username, WorkspacePublicKey: preparation.PublicKey}, nil
 }
 
 func (helper Helper) projectRemove(ctx context.Context, actorUsername string, input io.Reader) (MutationResponse, error) {

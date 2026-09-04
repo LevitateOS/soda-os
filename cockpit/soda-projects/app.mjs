@@ -9,6 +9,7 @@ import {
   errorMessage,
   humanDeletionHidden,
   payloadFor,
+  projectRemovalHidden,
   successMessage,
 } from "./ui.mjs";
 
@@ -112,7 +113,7 @@ function projectRow(project) {
   const workspace = document.createElement("td");
   const guidance = document.createElement("span");
   guidance.className = "status";
-  guidance.textContent = "After setup";
+  guidance.textContent = project.workspace_ready ? "Ready" : "After setup";
   const command = document.createElement("code");
   command.className = "ssh-command";
   command.textContent = state.data.ssh_host
@@ -123,10 +124,14 @@ function projectRow(project) {
   const actionsCell = document.createElement("td");
   actionsCell.className = "row-actions";
   actionsCell.append(projectButton("Set up for me", "setup", project.id, "primary"));
-  actionsCell.append(
-    projectButton("Edit", "edit", project.id, "secondary"),
-    projectButton("Remove", "remove", project.id, "danger-link"),
-  );
+  if (project.workspace_ready) {
+	actionsCell.append(projectButton("Add tools", "install-tools", project.id, "secondary"));
+    actionsCell.append(projectButton("Remove my workspace", "remove-workspace", project.id, "danger-link"));
+  }
+  actionsCell.append(projectButton("Edit", "edit", project.id, "secondary"));
+  if (!projectRemovalHidden(state.data.current_user)) {
+    actionsCell.append(projectButton("Remove project", "remove", project.id, "danger-link"));
+  }
 
   row.append(identity, repository, workspace, actionsCell);
   return row;
@@ -152,9 +157,12 @@ function prepareProjectDialog(action, project) {
     dialog.querySelector("[data-project-id]").textContent = project.id;
     form.elements.display_name.value = project.display_name;
     form.elements.canonical_url.value = project.canonical_url;
+    form.elements.additional_metadata.value = JSON.stringify(project.catalog_metadata, null, 2);
   } else if (action === "setup") {
     dialog.querySelector("[data-project-name]").textContent = project.display_name;
-  } else if (action === "remove") {
+  } else if (action === "install-tools") {
+	dialog.querySelector("[data-project-name]").textContent = project.display_name;
+  } else if (action === "remove" || action === "remove-workspace") {
     dialog.querySelector("[data-confirmation-value]").textContent = project.id;
   }
   dialog.showModal();

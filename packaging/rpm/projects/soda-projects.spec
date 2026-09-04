@@ -3,7 +3,7 @@ Version:        %{soda_version}
 Release:        2%{?dist}
 Summary:        Soda OS Projects package for stock Cockpit
 License:        MIT OR Apache-2.0
-Requires:       cockpit-system, cockpit-ws, coreutils, git-core, glibc-common, openssh-clients, pam, policycoreutils, polkit, procps-ng, shadow-utils, soda-tea, systemd, tailscale, util-linux
+Requires:       cockpit-system, cockpit-ws, coreutils, git-core, glibc-common, mise, openssh-clients, pam, policycoreutils, polkit, procps-ng, shadow-utils, soda-tea, systemd, tailscale, util-linux
 
 %description
 Soda OS branding, the focused stock-Cockpit Projects page, and its bounded

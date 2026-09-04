@@ -13,7 +13,6 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/sys/unix"
 )
 
 func testAuthorizedKey(t *testing.T) []byte {
@@ -110,85 +109,6 @@ func TestWorkspaceHomeOperationsUseManagedSymlinkRoot(t *testing.T) {
 	projects, err := platform.openWorkspaceProjectsForPublication(account)
 	require.NoError(t, err)
 	require.NoError(t, projects.Close())
-}
-
-func TestPrepareStagingValidatesOwnershipAndAddsOnlyReadTraversal(t *testing.T) {
-	root := t.TempDir()
-	account := Account{Username: "alice", UID: os.Getuid(), GID: os.Getgid()}
-	platform := &NativePlatform{RuntimeRoot: filepath.Join(root, "run")}
-	checkout := platform.StagingPath(account, "site")
-	require.NoError(t, os.MkdirAll(filepath.Join(checkout, ".git", "objects"), 0o700))
-	file := filepath.Join(checkout, ".git", "config")
-	require.NoError(t, os.WriteFile(file, []byte("config"), 0o600))
-	require.NoError(t, os.Symlink("config", filepath.Join(checkout, ".git", "config-link")))
-
-	require.NoError(t, platform.PrepareStaging(account, "site"))
-	checkoutInfo, err := os.Stat(checkout)
-	require.NoError(t, err)
-	require.Equal(t, os.FileMode(0o005), checkoutInfo.Mode().Perm()&0o005)
-	fileInfo, err := os.Stat(file)
-	require.NoError(t, err)
-	require.Equal(t, os.FileMode(0o004), fileInfo.Mode().Perm()&0o004)
-	linkInfo, err := os.Lstat(filepath.Join(checkout, ".git", "config-link"))
-	require.NoError(t, err)
-	require.True(t, linkInfo.Mode()&os.ModeSymlink != 0)
-}
-
-func TestPrepareStagingRejectsSymlinkedCheckoutAndSpecialFiles(t *testing.T) {
-	root := t.TempDir()
-	account := Account{Username: "alice", UID: os.Getuid(), GID: os.Getgid()}
-	platform := &NativePlatform{RuntimeRoot: filepath.Join(root, "run")}
-	checkout := platform.StagingPath(account, "site")
-	require.NoError(t, os.MkdirAll(filepath.Dir(checkout), 0o700))
-	target := filepath.Join(root, "target")
-	require.NoError(t, os.Mkdir(target, 0o700))
-	require.NoError(t, os.Symlink(target, checkout))
-	require.Error(t, platform.PrepareStaging(account, "site"))
-
-	require.NoError(t, os.Remove(checkout))
-	require.NoError(t, os.Mkdir(checkout, 0o700))
-	require.NoError(t, unix.Mkfifo(filepath.Join(checkout, "pipe"), 0o600))
-	require.ErrorContains(t, platform.PrepareStaging(account, "site"), "unsupported file type")
-}
-
-func TestStagingMutationRejectsSymlinkedAncestor(t *testing.T) {
-	root := t.TempDir()
-	account := Account{Username: "alice", UID: os.Getuid(), GID: os.Getgid()}
-	platform := &NativePlatform{RuntimeRoot: filepath.Join(root, "run")}
-	userRuntime := filepath.Join(platform.RuntimeRoot, fmt.Sprint(account.UID))
-	require.NoError(t, os.MkdirAll(userRuntime, 0o700))
-	target := filepath.Join(root, "target")
-	require.NoError(t, os.MkdirAll(filepath.Join(target, "site"), 0o700))
-	sentinel := filepath.Join(target, "site", "keep")
-	require.NoError(t, os.WriteFile(sentinel, []byte("keep"), 0o600))
-	require.NoError(t, os.Symlink(target, filepath.Join(userRuntime, "soda-projects")))
-
-	require.Error(t, platform.ResetStaging(account, "site"))
-	require.Error(t, platform.CleanupStaging(account, "site"))
-	require.FileExists(t, sentinel)
-}
-
-func TestStagingDescriptorRemainsConfinedAfterAncestorReplacement(t *testing.T) {
-	root := t.TempDir()
-	account := Account{Username: "alice", UID: os.Getuid(), GID: os.Getgid()}
-	platform := &NativePlatform{RuntimeRoot: filepath.Join(root, "run")}
-	userRuntime := filepath.Join(platform.RuntimeRoot, fmt.Sprint(account.UID))
-	require.NoError(t, os.MkdirAll(userRuntime, 0o700))
-	stagingRoot, err := platform.ensureStagingRoot(account)
-	require.NoError(t, err)
-	defer stagingRoot.Close()
-
-	detached := filepath.Join(userRuntime, "detached")
-	require.NoError(t, os.Rename(filepath.Join(userRuntime, "soda-projects"), detached))
-	target := filepath.Join(root, "target")
-	require.NoError(t, os.MkdirAll(target, 0o700))
-	sentinel := filepath.Join(target, "keep")
-	require.NoError(t, os.WriteFile(sentinel, []byte("keep"), 0o600))
-	require.NoError(t, os.Symlink(target, filepath.Join(userRuntime, "soda-projects")))
-
-	require.NoError(t, resetStagingAt(stagingRoot, account, "site"))
-	require.DirExists(t, filepath.Join(detached, "site"))
-	require.FileExists(t, sentinel)
 }
 
 func TestSetupLockSerializesOnePrimaryProject(t *testing.T) {

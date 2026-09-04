@@ -15,6 +15,7 @@ import (
 
 type fakeEndpoints struct {
 	forgejoURL string
+	sshHost    string
 }
 
 func (endpoints fakeEndpoints) Endpoints(context.Context) (string, string, error) {
@@ -22,15 +23,23 @@ func (endpoints fakeEndpoints) Endpoints(context.Context) (string, string, error
 	if forgejoURL == "" {
 		forgejoURL = "http://soda.example.ts.net:30000"
 	}
-	return forgejoURL, "soda.example.ts.net", nil
+	sshHost := endpoints.sshHost
+	if sshHost == "" {
+		sshHost = "soda.example.ts.net"
+	}
+	return forgejoURL, sshHost, nil
 }
 
 type fakePrivileged struct {
-	action            string
-	actions           []string
-	request           any
-	err               error
-	workspaceUsername string
+	action             string
+	actions            []string
+	request            any
+	err                error
+	publishErr         error
+	workspaceUsername  string
+	workspacePublicKey string
+	publishStarted     chan struct{}
+	publishRelease     <-chan struct{}
 }
 
 func (privileged *fakePrivileged) record(action string, request any) error {
@@ -49,11 +58,35 @@ func (privileged *fakePrivileged) CatalogEdit(_ context.Context, request HelperC
 
 func (privileged *fakePrivileged) WorkspacePublish(_ context.Context, request HelperWorkspaceRequest) (MutationResponse, error) {
 	err := privileged.record("workspace-publish", request)
+	if err == nil {
+		err = privileged.publishErr
+	}
+	if privileged.publishStarted != nil {
+		close(privileged.publishStarted)
+		<-privileged.publishRelease
+	}
 	username := privileged.workspaceUsername
 	if username == "" {
 		username = "soda-w-example"
 	}
 	return MutationResponse{OK: err == nil, WorkspaceUsername: username}, err
+}
+
+func (privileged *fakePrivileged) WorkspacePrepare(_ context.Context, request HelperWorkspaceRequest) (MutationResponse, error) {
+	err := privileged.record("workspace-prepare", request)
+	username := privileged.workspaceUsername
+	if username == "" {
+		username = "soda-w-example"
+	}
+	return MutationResponse{OK: err == nil, WorkspaceUsername: username, WorkspacePublicKey: privileged.workspacePublicKey}, err
+}
+
+func (privileged *fakePrivileged) WorkspaceRemove(_ context.Context, request ProjectRequest) error {
+	return privileged.record("workspace-remove", request)
+}
+
+func (privileged *fakePrivileged) ToolsInstall(_ context.Context, request HelperToolRequest) error {
+	return privileged.record("tools-install", request)
 }
 
 func (privileged *fakePrivileged) ProjectRemove(_ context.Context, request ProjectRequest) error {
@@ -72,21 +105,10 @@ func (privileged *fakePrivileged) HumanPublish(_ context.Context, request Helper
 	return privileged.record("human-publish", request)
 }
 
-type fakeCloner struct {
-	remote      string
-	credentials CloneCredentials
-}
-
-func (cloner *fakeCloner) Clone(_ context.Context, remote, _ string, credentials CloneCredentials) error {
-	cloner.remote, cloner.credentials = remote, credentials
-	return nil
-}
-
 type coordinatorFixture struct {
 	coordinator Coordinator
 	platform    *fakePlatform
 	privileged  *fakePrivileged
-	cloner      *fakeCloner
 }
 
 func testCoordinator(t *testing.T) coordinatorFixture {
@@ -94,14 +116,12 @@ func testCoordinator(t *testing.T) coordinatorFixture {
 	catalog := testCatalog(t)
 	platform := newFakePlatform()
 	platform.accounts["alice"] = primaryAccount("alice", primaryRoleAdministrator)
-	privileged := &fakePrivileged{}
-	cloner := &fakeCloner{}
+	privileged := &fakePrivileged{workspacePublicKey: strings.TrimSpace(string(testAuthorizedKey(t)))}
 	lifecycle := Lifecycle{Catalog: catalog, Platform: platform}
 	return coordinatorFixture{
-		coordinator: Coordinator{Catalog: catalog, Lifecycle: lifecycle, Platform: platform, Privileged: privileged, Forgejo: ForgejoClient{}, Cloner: cloner, Endpoints: fakeEndpoints{}},
+		coordinator: Coordinator{Catalog: catalog, Lifecycle: lifecycle, Platform: platform, Privileged: privileged, Forgejo: ForgejoClient{}, Endpoints: fakeEndpoints{}},
 		platform:    platform,
 		privileged:  privileged,
-		cloner:      cloner,
 	}
 }
 
@@ -180,16 +200,37 @@ func configureForgejo(t *testing.T, coordinator *Coordinator, calls *int, passwo
 		_, receivedPassword, _ := request.BasicAuth()
 		*password = receivedPassword
 		writer.WriteHeader(http.StatusCreated)
-		_, _ = writer.Write([]byte(`{"name":"site","clone_url":"https://forgejo.example.test/alice/site.git","empty":true,"owner":{"login":"alice"}}`))
+		_, _ = writer.Write([]byte(`{"name":"site","ssh_url":"git@forgejo.example.test:alice/site.git","empty":true,"owner":{"login":"alice"}}`))
 	}))
 	coordinator.Endpoints = fakeEndpoints{forgejoURL: server.URL}
 	coordinator.Forgejo = ForgejoClient{}
 	return server
 }
 
+func TestCoordinatorPublishesArbitraryCatalogMetadataAtPrivilegedBoundary(t *testing.T) {
+	fixture := testCoordinator(t)
+	response, err := fixture.coordinator.Execute(context.Background(), "alice", "add-existing", strings.NewReader(
+		`{"id":"site","display_name":"Site","canonical_url":"git@git.example.test:site.git","team":"web","labels":["public"]}`,
+	))
+	require.NoError(t, err)
+	require.Equal(t, "catalog-add", fixture.privileged.action)
+	request := fixture.privileged.request.(CatalogMutationRequest)
+	require.JSONEq(t, `"web"`, string(request.Additional["team"]))
+	require.JSONEq(t, `["public"]`, string(request.Additional["labels"]))
+	project := response.(MutationResponse).Project
+	require.NotNil(t, project)
+	require.JSONEq(t, `"web"`, string(project.Additional["team"]))
+}
+
 func TestCoordinatorListContract(t *testing.T) {
 	coordinator := testCoordinator(t).coordinator
-	require.NoError(t, coordinator.Catalog.Add(CatalogEntry{ID: "site", DisplayName: "Site", CanonicalURL: "https://git.example.test/site.git"}))
+	require.NoError(t, coordinator.Catalog.Add(CatalogEntry{
+		ID: "site", DisplayName: "Site", CanonicalURL: "git@git.example.test:site.git",
+		Additional: map[string]json.RawMessage{
+			"team": json.RawMessage(`"web"`), "catalog_metadata": json.RawMessage(`"catalog-value"`),
+			"workspace_username": json.RawMessage(`"catalog-user"`), "workspace_ready": json.RawMessage(`"catalog-ready"`),
+		},
+	}))
 	response, err := coordinator.Execute(context.Background(), "alice", "list", strings.NewReader(`{}`))
 	require.NoError(t, err)
 	list := response.(ListResponse)
@@ -198,51 +239,111 @@ func TestCoordinatorListContract(t *testing.T) {
 	require.Equal(t, "soda.example.ts.net", list.SSHHost)
 	require.Len(t, list.Projects, 1)
 	require.NotEmpty(t, list.Projects[0].WorkspaceUsername)
-	require.NotEmpty(t, list.Projects[0].WorkspaceUsername)
+	require.JSONEq(t, `"web"`, string(list.Projects[0].Additional["team"]))
+	encoded, err := json.Marshal(list)
+	require.NoError(t, err)
+	var wire struct {
+		Projects []struct {
+			CatalogMetadata   map[string]json.RawMessage `json:"catalog_metadata"`
+			WorkspaceUsername string                     `json:"workspace_username"`
+			WorkspaceReady    bool                       `json:"workspace_ready"`
+		} `json:"projects"`
+	}
+	require.NoError(t, json.Unmarshal(encoded, &wire))
+	require.Len(t, wire.Projects, 1)
+	require.JSONEq(t, `"catalog-value"`, string(wire.Projects[0].CatalogMetadata["catalog_metadata"]))
+	require.JSONEq(t, `"catalog-user"`, string(wire.Projects[0].CatalogMetadata["workspace_username"]))
+	require.JSONEq(t, `"catalog-ready"`, string(wire.Projects[0].CatalogMetadata["workspace_ready"]))
+	require.Equal(t, list.Projects[0].WorkspaceUsername, wire.Projects[0].WorkspaceUsername)
+	require.Equal(t, list.Projects[0].WorkspaceReady, wire.Projects[0].WorkspaceReady)
 }
 
-func TestCoordinatorSetupKeepsCredentialsOutOfPrivilegedRequest(t *testing.T) {
+func TestCoordinatorSetupRegistersWorkspacePublicKeyBeforeNativeSSHClone(t *testing.T) {
 	fixture := testCoordinator(t)
-	coordinator, platform := fixture.coordinator, fixture.platform
-	privileged, cloner := fixture.privileged, fixture.cloner
-	entry := CatalogEntry{ID: "site", DisplayName: "Site", CanonicalURL: "https://git.example.test/site.git"}
+	coordinator, privileged := fixture.coordinator, fixture.privileged
+	entry := CatalogEntry{ID: "site", DisplayName: "Site", CanonicalURL: "git@localhost:team/site.git"}
 	require.NoError(t, coordinator.Catalog.Add(entry))
-	response, err := coordinator.Execute(context.Background(), "alice", "setup", strings.NewReader(`{"id":"site","git_username":"alice","git_password":"secret"}`))
+	var registered, title string
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		username, password, ok := request.BasicAuth()
+		require.True(t, ok)
+		require.Equal(t, "alice", username)
+		require.Equal(t, "one-use", password)
+		switch request.URL.Path {
+		case "/api/v1/user":
+			_, _ = writer.Write([]byte(`{"login":"alice"}`))
+		case "/api/v1/user/keys":
+			if request.Method == http.MethodGet {
+				_, _ = writer.Write([]byte(`[]`))
+				return
+			}
+			var body struct {
+				Key   string `json:"key"`
+				Title string `json:"title"`
+			}
+			require.NoError(t, json.NewDecoder(request.Body).Decode(&body))
+			registered = body.Key
+			title = body.Title
+			writer.WriteHeader(http.StatusCreated)
+		default:
+			t.Fatalf("unexpected Forgejo request %s %s", request.Method, request.URL.Path)
+		}
+	}))
+	defer server.Close()
+	coordinator.Endpoints = fakeEndpoints{forgejoURL: server.URL}
+	response, err := coordinator.Execute(context.Background(), "alice", "setup", strings.NewReader(`{"id":"site","forgejo_password":"one-use"}`))
 	require.NoError(t, err)
 	require.Equal(t, MutationResponse{OK: true, WorkspaceUsername: "soda-w-example"}, response)
-	require.Equal(t, CloneCredentials{Username: "alice", Password: "secret"}, cloner.credentials)
-	require.Equal(t, "workspace-publish", privileged.action)
+	require.Equal(t, []string{"workspace-prepare", "workspace-publish"}, privileged.actions)
+	require.Equal(t, privileged.workspacePublicKey, registered)
+	require.Equal(t, "Soda OS workspace soda-w-example", title)
 	encoded, err := json.Marshal(privileged.request)
 	require.NoError(t, err)
-	require.NotContains(t, string(encoded), "secret")
-	require.NotContains(t, string(encoded), "git_username")
-	require.Equal(t, []string{"reset:site", "prepare:site", "cleanup:site"}, platform.calls.reset)
+	require.NotContains(t, string(encoded), "one-use")
 }
 
-func TestCoordinatorSetupSurfacesCleanupFailureAfterPublication(t *testing.T) {
+func TestCoordinatorSetupRetainsWorkspaceKeyWhenForgejoRegistrationFails(t *testing.T) {
 	fixture := testCoordinator(t)
-	coordinator, platform := fixture.coordinator, fixture.platform
-	require.NoError(t, coordinator.Catalog.Add(CatalogEntry{ID: "site", DisplayName: "Site", CanonicalURL: "https://git.example.test/site.git"}))
-	platform.failures.cleanupErr = fmt.Errorf("staging remained")
+	coordinator := fixture.coordinator
+	require.NoError(t, coordinator.Catalog.Add(CatalogEntry{ID: "site", DisplayName: "Site", CanonicalURL: "git@soda.example.ts.net:site.git"}))
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		writer.WriteHeader(http.StatusUnauthorized)
+		_, _ = writer.Write([]byte(`{"message":"wrong password"}`))
+	}))
+	defer server.Close()
+	coordinator.Endpoints = fakeEndpoints{forgejoURL: server.URL}
 
-	_, err := coordinator.Execute(context.Background(), "alice", "setup", strings.NewReader(`{"id":"site","git_username":"alice","git_password":"secret"}`))
-	require.ErrorContains(t, err, "clean clone staging directory")
-	require.Equal(t, []string{"reset:site", "prepare:site", "cleanup:site"}, platform.calls.reset)
+	_, err := coordinator.Execute(context.Background(), "alice", "setup", strings.NewReader(`{"id":"site","forgejo_password":"one-use"}`))
+	require.ErrorContains(t, err, "local outbound Git key were retained; Forgejo key registration can be retried")
+	require.Equal(t, []string{"workspace-prepare"}, fixture.privileged.actions)
 }
 
-func TestCoordinatorMissingKeyFailsBeforeCloneOrPrivilegedMutation(t *testing.T) {
+func TestCoordinatorSetupRequiresBundledForgejoPasswordBeforeMutation(t *testing.T) {
 	fixture := testCoordinator(t)
-	coordinator, platform := fixture.coordinator, fixture.platform
-	privileged, cloner := fixture.privileged, fixture.cloner
-	entry := CatalogEntry{ID: "site", DisplayName: "Site", CanonicalURL: "https://git.example.test/site.git"}
-	require.NoError(t, coordinator.Catalog.Add(entry))
-	platform.keys = nil
+	require.NoError(t, fixture.coordinator.Catalog.Add(CatalogEntry{
+		ID: "site", DisplayName: "Site", CanonicalURL: "git@soda.example.ts.net:site.git",
+	}))
 
-	_, err := coordinator.Execute(context.Background(), "alice", "setup", strings.NewReader(`{"id":"site","git_username":"alice","git_password":"secret"}`))
-	require.ErrorContains(t, err, "requires a public key")
-	require.Empty(t, cloner.remote)
-	require.Empty(t, privileged.action)
-	require.Empty(t, platform.calls.reset)
+	_, err := fixture.coordinator.Execute(context.Background(), "alice", "setup", strings.NewReader(`{"id":"site"}`))
+
+	require.ErrorContains(t, err, "password must contain between 1 and 4096 bytes")
+	require.Empty(t, fixture.privileged.actions)
+}
+
+func TestCoordinatorSetupLeavesExternalKeyRegistrationToNativeHost(t *testing.T) {
+	fixture := testCoordinator(t)
+	require.NoError(t, fixture.coordinator.Catalog.Add(CatalogEntry{
+		ID: "site", DisplayName: "Site", CanonicalURL: "ssh://git@git.example.test/team/site.git",
+	}))
+	fixture.privileged.publishErr = errors.New("native SSH authentication failed")
+
+	_, err := fixture.coordinator.Execute(context.Background(), "alice", "setup", strings.NewReader(`{"id":"site"}`))
+
+	require.ErrorContains(t, err, "external Git host owns access")
+	require.ErrorContains(t, err, fixture.privileged.workspacePublicKey)
+	require.ErrorContains(t, err, "register public key")
+	require.ErrorContains(t, err, "retry setup")
+	require.Equal(t, []string{"workspace-prepare", "workspace-publish"}, fixture.privileged.actions)
 }
 
 func TestCoordinatorCreateForgejoPreservesPasswordAtUnprivilegedBoundary(t *testing.T) {
@@ -269,7 +370,7 @@ func TestCoordinatorCreateForgejoPreflightsCatalogBeforeRepositoryMutation(t *te
 	var password string
 	server := configureForgejo(t, &coordinator, &calls, &password)
 	defer server.Close()
-	require.NoError(t, coordinator.Catalog.Add(CatalogEntry{ID: "site", DisplayName: "Site", CanonicalURL: "https://git.example.test/alice/site.git"}))
+	require.NoError(t, coordinator.Catalog.Add(CatalogEntry{ID: "site", DisplayName: "Site", CanonicalURL: "git@git.example.test:alice/site.git"}))
 	_, err := coordinator.Execute(context.Background(), "alice", "create-forgejo", strings.NewReader(`{"id":"site","display_name":"Site","password":"secret"}`))
 	require.ErrorContains(t, err, "already exists")
 	require.Zero(t, calls, "Forgejo must not be called when the catalog ID already exists")
@@ -288,30 +389,9 @@ func TestCoordinatorReportsCreatedRepositoryWhenCatalogPublicationFails(t *testi
 
 	_, err := coordinator.Execute(context.Background(), "alice", "create-forgejo", strings.NewReader(`{"id":"site","display_name":"Site","password":"secret"}`))
 	require.ErrorIs(t, err, privilegedError)
-	require.ErrorContains(t, err, "repository was created at https://forgejo.example.test/alice/site.git")
+	require.ErrorContains(t, err, "repository was created at git@forgejo.example.test:alice/site.git")
 	require.Equal(t, 1, calls)
 	require.Equal(t, "secret", password)
-}
-
-func TestCoordinatorSetupReturnsCompleteWorkspaceWithoutCloneOrKeyPreflight(t *testing.T) {
-	fixture := testCoordinator(t)
-	coordinator, platform := fixture.coordinator, fixture.platform
-	privileged, cloner := fixture.privileged, fixture.cloner
-	entry := CatalogEntry{ID: "site", DisplayName: "Site", CanonicalURL: "https://git.example.test/site.git"}
-	require.NoError(t, coordinator.Catalog.Add(entry))
-	workspace, err := platform.CreateWorkspace(context.Background(), platform.accounts["alice"], entry.ID)
-	require.NoError(t, err)
-	platform.ready[workspace.Username+":"+entry.ID] = true
-	platform.keys = nil
-	privileged.workspaceUsername = workspace.Username
-
-	response, err := coordinator.Execute(context.Background(), "alice", "setup", strings.NewReader(`{"id":"site","git_username":"","git_password":""}`))
-	require.NoError(t, err)
-	require.Equal(t, MutationResponse{OK: true, WorkspaceUsername: workspace.Username}, response)
-	require.Empty(t, cloner.remote)
-	require.Equal(t, "workspace-publish", privileged.action)
-	require.Equal(t, HelperWorkspaceRequest{ID: entry.ID, CanonicalURL: entry.CanonicalURL}, privileged.request)
-	require.Empty(t, platform.calls.reset)
 }
 
 func TestCoordinatorRejectsUnknownActionsAndFields(t *testing.T) {
@@ -320,4 +400,24 @@ func TestCoordinatorRejectsUnknownActionsAndFields(t *testing.T) {
 	require.ErrorContains(t, err, "unsupported")
 	_, err = coordinator.Execute(context.Background(), "alice", "remove", strings.NewReader(`{"id":"site","command":"rm"}`))
 	require.ErrorContains(t, err, "unknown field")
+}
+
+func TestCoordinatorRoutesOwnWorkspaceRemoval(t *testing.T) {
+	fixture := testCoordinator(t)
+	response, err := fixture.coordinator.Execute(context.Background(), "alice", "remove-workspace", strings.NewReader(`{"id":"site"}`))
+	require.NoError(t, err)
+	require.Equal(t, MutationResponse{OK: true}, response)
+	require.Equal(t, "workspace-remove", fixture.privileged.action)
+	require.Equal(t, ProjectRequest{ID: "site"}, fixture.privileged.request)
+}
+
+func TestCoordinatorRoutesArbitraryMiseSelectionsByEstablishedScope(t *testing.T) {
+	fixture := testCoordinator(t)
+	response, err := fixture.coordinator.Execute(context.Background(), "alice", "install-tools", strings.NewReader(
+		`{"id":"site","scope":"project","tools":["aqua:BurntSushi/ripgrep@latest","python@3.13"]}`,
+	))
+	require.NoError(t, err)
+	require.Equal(t, MutationResponse{OK: true}, response)
+	require.Equal(t, "tools-install", fixture.privileged.action)
+	require.Equal(t, HelperToolRequest{ID: "site", Scope: "project", Tools: []string{"aqua:BurntSushi/ripgrep@latest", "python@3.13"}}, fixture.privileged.request)
 }

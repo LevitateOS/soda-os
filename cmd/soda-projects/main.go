@@ -11,19 +11,8 @@ import (
 )
 
 func main() {
-	if projects.IsCredentialHelperInvocation() {
-		if len(os.Args) != 2 {
-			fmt.Fprintln(os.Stderr, "Git credential operation is required")
-			os.Exit(1)
-		}
-		if err := projects.RunCredentialHelper(os.Args[1], os.Stdin, os.Stdout); err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			os.Exit(1)
-		}
-		return
-	}
 	if len(os.Args) != 2 {
-		fmt.Fprintln(os.Stderr, "usage: soda-projects <list|add-existing|create-forgejo|edit|setup|remove|delete-human|add-person>")
+		fmt.Fprintln(os.Stderr, "usage: soda-projects <list|add-existing|create-forgejo|edit|setup|install-tools|remove-workspace|remove|delete-human|add-person>")
 		os.Exit(2)
 	}
 	current, err := user.Current()
@@ -37,7 +26,7 @@ func main() {
 	coordinator := projects.Coordinator{
 		Catalog: catalog, Lifecycle: lifecycle, Platform: platform,
 		Privileged: projects.PKExecInvoker{}, Forgejo: projects.ForgejoClient{},
-		Cloner: projects.GitCloner{}, Endpoints: projects.TailnetEndpoints{},
+		Endpoints: projects.TailnetEndpoints{},
 	}
 	response, err := coordinator.Execute(context.Background(), current.Username, os.Args[1], os.Stdin)
 	if err != nil {

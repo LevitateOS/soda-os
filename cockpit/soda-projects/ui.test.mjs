@@ -9,6 +9,7 @@ import {
   formActions,
   humanDeletionHidden,
   payloadFor,
+  projectRemovalHidden,
   successMessage,
 } from "./ui.mjs";
 
@@ -28,10 +29,23 @@ test("form payloads keep secrets only in the synchronous request object", () => 
 
   const setup = payloadFor("setup", new Map([
     ["id", "site"],
-    ["git_username", "alice"],
-    ["git_password", "one-use"],
+	["forgejo_password", "one-use"],
+	["workspace_tools", "node@22\n\npython@3.13"],
+	["project_tools", "go@1.25"],
   ]), assert.fail);
-  assert.deepEqual(setup, { id: "site", git_username: "alice", git_password: "one-use" });
+	assert.deepEqual(setup, {
+	  id: "site",
+	  forgejo_password: "one-use",
+	  workspace_tools: ["node@22", "python@3.13"],
+	  project_tools: ["go@1.25"],
+	});
+
+	const tools = payloadFor("install-tools", new Map([
+	  ["id", "site"],
+	  ["scope", "project"],
+	  ["tools", "ripgrep@latest"],
+	]), assert.fail);
+	assert.deepEqual(tools, { id: "site", scope: "project", tools: ["ripgrep@latest"] });
 
   const person = payloadFor("add-person", new Map([
     ["username", "bob"],
@@ -42,20 +56,47 @@ test("form payloads keep secrets only in the synchronous request object", () => 
   assert.deepEqual(person, { username: "bob", password: "initial secret", authorized_key: "ssh-ed25519 AAAA" });
 });
 
+test("catalog forms accept arbitrary JSON metadata without a closed field list", () => {
+  const messages = [];
+  const payload = payloadFor("add-existing", new Map([
+    ["id", "site"],
+    ["display_name", "Site"],
+    ["canonical_url", "git@git.example.test:team/site.git"],
+    ["additional_metadata", '{"team":"web","labels":["public"],"workspace_username":"catalog-value"}'],
+  ]), message => messages.push(message));
+  assert.deepEqual(payload, {
+    team: "web",
+    labels: ["public"],
+    workspace_username: "catalog-value",
+    id: "site",
+    display_name: "Site",
+    canonical_url: "git@git.example.test:team/site.git",
+  });
+  assert.deepEqual(messages, []);
+
+  assert.equal(payloadFor("edit", new Map([
+    ["id", "site"],
+    ["display_name", "Site"],
+    ["canonical_url", "git@git.example.test:team/site.git"],
+    ["additional_metadata", '{"id":"other"}'],
+  ]), message => messages.push(message)), null);
+  assert.deepEqual(messages, ["Additional metadata must not redefine id."]);
+});
+
 test("secret clearing covers form controls and request objects", () => {
   const controls = {
     password: { value: "forgejo-secret" },
     password_confirmation: { value: "forgejo-secret" },
-    git_password: { value: "git-secret" },
+	forgejo_password: { value: "forgejo-secret" },
   };
   clearSecrets({ elements: { namedItem: name => controls[name] ?? null } });
   assert.equal(controls.password.value, "");
   assert.equal(controls.password_confirmation.value, "");
-  assert.equal(controls.git_password.value, "");
+	assert.equal(controls.forgejo_password.value, "");
 
-  const payload = { password: "forgejo-secret", git_password: "git-secret", id: "site" };
+	const payload = { password: "forgejo-secret", forgejo_password: "forgejo-secret", id: "site" };
   clearPayloadSecrets(payload);
-  assert.deepEqual(payload, { password: "", git_password: "", id: "site" });
+	assert.deepEqual(payload, { password: "", forgejo_password: "", id: "site" });
 });
 
 test("destructive actions require exact confirmation", () => {
@@ -68,9 +109,14 @@ test("destructive actions require exact confirmation", () => {
     ["username", "alice"],
     ["confirmation", "bob"],
   ]), message => messages.push(message)), null);
+	assert.equal(payloadFor("remove-workspace", new Map([
+	  ["id", "site"],
+	  ["confirmation", "wrong"],
+	]), message => messages.push(message)), null);
   assert.deepEqual(messages, [
     "Type site exactly to confirm project removal.",
     "The confirmation username does not match.",
+	"Type site exactly to confirm workspace removal.",
   ]);
 });
 
@@ -78,6 +124,11 @@ test("human deletion presentation is wheel-status driven", () => {
   assert.equal(humanDeletionHidden({ administrator: true }), false);
   assert.equal(humanDeletionHidden({ administrator: false }), true);
   assert.equal(humanDeletionHidden({}), true);
+});
+
+test("whole-project removal presentation is wheel-status driven", () => {
+  assert.equal(projectRemovalHidden({ administrator: true }), false);
+  assert.equal(projectRemovalHidden({ administrator: false }), true);
 });
 
 test("human deletion confirmation states Forgejo's native consequences", async () => {
@@ -88,6 +139,15 @@ test("human deletion confirmation states Forgejo's native consequences", async (
   assert.match(dialog, /issues, pull requests, and comments as deleted-user history/);
   assert.match(dialog, /owns a repository or package, belongs to an organization, or is its last administrator/);
   assert.match(dialog, /Linux account remains so an administrator can retry/);
+});
+
+test("workspace setup distinguishes bundled and external SSH-key ownership", async () => {
+  const html = await readFile(new URL("./index.html", import.meta.url), "utf8");
+  const dialog = html.match(/<dialog id="setup-project-dialog"[\s\S]*?<\/dialog>/)?.[0] ?? "";
+  assert.match(dialog, /bundled Forgejo repository/);
+  assert.match(dialog, /external host, that host owns access/);
+  assert.match(dialog, /reports the public key for you to register there before retrying/);
+  assert.match(dialog, /Required only for bundled Forgejo/);
 });
 
 test("add person requires matching password confirmation", () => {

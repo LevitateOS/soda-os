@@ -5,6 +5,7 @@ package projects
 
 import (
 	"crypto/sha256"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/url"
@@ -34,12 +35,20 @@ func ValidatePrimaryUsername(username string) error {
 
 // CatalogEntry is the complete durable Soda project representation.
 type CatalogEntry struct {
-	ID           string `json:"id"`
-	DisplayName  string `json:"display_name"`
-	CanonicalURL string `json:"canonical_url"`
+	ID           string                     `json:"id"`
+	DisplayName  string                     `json:"display_name"`
+	CanonicalURL string                     `json:"canonical_url"`
+	Additional   map[string]json.RawMessage `json:"-"`
 }
 
 func (entry CatalogEntry) Validate() error {
+	if err := validateCatalogRequiredFields(entry); err != nil {
+		return err
+	}
+	return validateCatalogAdditionalFields(entry.Additional)
+}
+
+func validateCatalogRequiredFields(entry CatalogEntry) error {
 	if !projectIDPattern.MatchString(entry.ID) {
 		return errors.New("project id must match [a-z][a-z0-9-]{0,23}")
 	}
@@ -55,6 +64,32 @@ func (entry CatalogEntry) Validate() error {
 	return nil
 }
 
+func validateCatalogAdditionalFields(additional map[string]json.RawMessage) error {
+	for field, value := range additional {
+		if field == "" || !utf8.ValidString(field) {
+			return errors.New("additional catalog field names must be non-empty UTF-8")
+		}
+		if field == "id" || field == "display_name" || field == "canonical_url" {
+			return fmt.Errorf("additional catalog field %q conflicts with a required field", field)
+		}
+		if !json.Valid(value) {
+			return fmt.Errorf("additional catalog field %q must contain valid JSON", field)
+		}
+	}
+	return nil
+}
+
+func (entry CatalogEntry) jsonObject() map[string]json.RawMessage {
+	object := make(map[string]json.RawMessage, len(entry.Additional)+3)
+	for field, value := range entry.Additional {
+		object[field] = append(json.RawMessage(nil), value...)
+	}
+	object["id"], _ = json.Marshal(entry.ID)
+	object["display_name"], _ = json.Marshal(entry.DisplayName)
+	object["canonical_url"], _ = json.Marshal(entry.CanonicalURL)
+	return object
+}
+
 func ValidateCanonicalURL(remote string) error {
 	if err := validateRemoteText(remote); err != nil {
 		return err
@@ -67,6 +102,55 @@ func ValidateCanonicalURL(remote string) error {
 		return fmt.Errorf("parse: %w", err)
 	}
 	return validateStructuredRemote(parsed)
+}
+
+func remoteUsesBundledForgejo(remote, advertisedHost string) (bool, error) {
+	host, err := sshRemoteHost(remote)
+	if err != nil {
+		return false, err
+	}
+	normalize := func(value string) string {
+		return strings.TrimSuffix(strings.ToLower(value), ".")
+	}
+	host = normalize(host)
+	return host == normalize(advertisedHost) || host == "localhost", nil
+}
+
+func sshRemoteHost(remote string) (string, error) {
+	if err := ValidateCanonicalURL(remote); err != nil {
+		return "", err
+	}
+	if validSCPLikeRemote(remote) {
+		_, hostPath, found := strings.Cut(remote, "@")
+		if !found {
+			hostPath = remote
+		}
+		if strings.HasPrefix(hostPath, "[") {
+			closing := strings.IndexByte(hostPath, ']')
+			return hostPath[1:closing], nil
+		}
+		host, _, _ := strings.Cut(hostPath, ":")
+		return host, nil
+	}
+	parsed, err := url.Parse(remote)
+	if err != nil {
+		return "", fmt.Errorf("parse: %w", err)
+	}
+	return parsed.Hostname(), nil
+}
+
+func ValidateToolSelections(tools []string) error {
+	seen := map[string]bool{}
+	for _, tool := range tools {
+		if tool == "" || strings.HasPrefix(tool, "-") || !utf8.ValidString(tool) || strings.IndexFunc(tool, unicode.IsSpace) >= 0 || strings.IndexFunc(tool, unicode.IsControl) >= 0 {
+			return fmt.Errorf("invalid mise tool selection %q", tool)
+		}
+		if seen[tool] {
+			return fmt.Errorf("duplicate mise tool selection %q", tool)
+		}
+		seen[tool] = true
+	}
+	return nil
 }
 
 func validateRemoteText(remote string) error {
@@ -101,20 +185,11 @@ func validateStructuredRemote(parsed *url.URL) error {
 		return errors.New("must include a host and repository path")
 	}
 	switch strings.ToLower(parsed.Scheme) {
-	case "http", "https":
-		return validateHTTPRemote(parsed)
 	case "ssh":
 		return validateSSHRemote(parsed)
 	default:
-		return errors.New("must use HTTP, HTTPS, SSH, or SCP syntax")
+		return errors.New("must use SSH or SCP syntax")
 	}
-}
-
-func validateHTTPRemote(parsed *url.URL) error {
-	if parsed.User != nil {
-		return errors.New("must not contain user information")
-	}
-	return nil
 }
 
 func validateSSHRemote(parsed *url.URL) error {

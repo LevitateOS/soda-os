@@ -31,14 +31,10 @@ test("coordinator command contains only the executable and allow-listed action",
 });
 
 test("credentials are serialized only into stdin payload", () => {
-  const payload = {
-    id: "website",
-    git_username: "alice",
-    git_password: "one-use-secret",
-  };
+  const payload = { id: "website" };
   assert.equal(
     encodeRequest("setup", payload),
-    '{"id":"website","git_username":"alice","git_password":"one-use-secret"}\n',
+    '{"id":"website"}\n',
   );
   assert.deepEqual(coordinatorCommand("setup"), [coordinatorPath, "setup"]);
 });
@@ -55,7 +51,9 @@ test("list response requires native user and service context", () => {
       id: "website",
       display_name: "Website",
       canonical_url: "git@example.test:team/website.git",
+      catalog_metadata: { team: "web" },
       workspace_username: "soda-w-0123456789abcdef01234567",
+      workspace_ready: true,
     }],
     current_user: { username: "alice", administrator: true },
     forgejo_url: "https://soda.tail.example/forgejo",
@@ -73,6 +71,7 @@ test("mutation responses contain the action-specific result", () => {
     id: "website",
     display_name: "Website",
     canonical_url: "git@example.test:team/website.git",
+    catalog_metadata: {},
   };
   assert.deepEqual(
     decodeResponse("add-existing", JSON.stringify({ ok: true, project })),

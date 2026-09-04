@@ -10,9 +10,9 @@ import (
 
 func TestLifecycleMutationHoldsTheSingleProjectsLock(t *testing.T) {
 	catalog := testCatalog(t)
-	require.NoError(t, catalog.Add(CatalogEntry{ID: "site", DisplayName: "Site", CanonicalURL: "https://git.example.test/site.git"}))
+	require.NoError(t, catalog.Add(CatalogEntry{ID: "site", DisplayName: "Site", CanonicalURL: "git@git.example.test:site.git"}))
 	platform := newFakePlatform()
-	platform.accounts["alice"] = primaryAccount("alice", primaryRoleUser)
+	platform.accounts["alice"] = primaryAccount("alice", primaryRoleAdministrator)
 	_, err := platform.CreateWorkspace(context.Background(), platform.accounts["alice"], "site")
 	require.NoError(t, err)
 	entered, release := make(chan struct{}), make(chan struct{})
@@ -26,7 +26,7 @@ func TestLifecycleMutationHoldsTheSingleProjectsLock(t *testing.T) {
 	<-entered
 	addResult := make(chan error, 1)
 	go func() {
-		addResult <- catalog.Add(CatalogEntry{ID: "other", DisplayName: "Other", CanonicalURL: "https://git.example.test/other.git"})
+		addResult <- catalog.Add(CatalogEntry{ID: "other", DisplayName: "Other", CanonicalURL: "git@git.example.test:other.git"})
 	}()
 	select {
 	case err := <-addResult:

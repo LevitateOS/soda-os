@@ -3,6 +3,8 @@ package projects
 import (
 	"context"
 	"io"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"sync"
 	"testing"
@@ -48,15 +50,20 @@ func (lock synchronizedOperationLock) Close() error {
 	return lock.Closer.Close()
 }
 
-type blockingSetupCloner struct {
-	started chan struct{}
-	release <-chan struct{}
-}
-
-func (cloner blockingSetupCloner) Clone(context.Context, string, string, CloneCredentials) error {
-	close(cloner.started)
-	<-cloner.release
-	return nil
+func newWorkspaceForgejoServer(t *testing.T) *httptest.Server {
+	t.Helper()
+	return httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		switch request.URL.Path {
+		case "/api/v1/user":
+			_, _ = writer.Write([]byte(`{"login":"alice"}`))
+		case "/api/v1/user/keys":
+			if request.Method == http.MethodGet {
+				_, _ = writer.Write([]byte(`[]`))
+				return
+			}
+			writer.WriteHeader(http.StatusCreated)
+		}
+	}))
 }
 
 func TestSetupOperationLockBlocksProjectAndHumanRemoval(t *testing.T) {
@@ -64,7 +71,7 @@ func TestSetupOperationLockBlocksProjectAndHumanRemoval(t *testing.T) {
 	require.NoError(t, catalog.Add(CatalogEntry{
 		ID:           "site",
 		DisplayName:  "Site",
-		CanonicalURL: "https://git.example.test/site.git",
+		CanonicalURL: "git@git.example.test:site.git",
 	}))
 
 	basePlatform := newFakePlatform()
@@ -77,29 +84,35 @@ func TestSetupOperationLockBlocksProjectAndHumanRemoval(t *testing.T) {
 	}
 	lifecycle := Lifecycle{Catalog: catalog, Platform: platform}
 
-	cloneStarted := make(chan struct{})
-	releaseClone := make(chan struct{})
+	publishStarted := make(chan struct{})
+	releasePublish := make(chan struct{})
 	released := false
 	t.Cleanup(func() {
 		if !released {
-			close(releaseClone)
+			close(releasePublish)
 		}
 	})
+	privileged := &fakePrivileged{
+		workspacePublicKey: strings.TrimSpace(string(testAuthorizedKey(t))),
+		publishStarted:     publishStarted, publishRelease: releasePublish,
+	}
+	forgejo := newWorkspaceForgejoServer(t)
+	defer forgejo.Close()
 	coordinator := Coordinator{
 		Catalog:    catalog,
 		Lifecycle:  lifecycle,
 		Platform:   platform,
-		Privileged: &fakePrivileged{},
-		Cloner:     blockingSetupCloner{started: cloneStarted, release: releaseClone},
-		Endpoints:  fakeEndpoints{},
+		Privileged: privileged,
+		Forgejo:    ForgejoClient{},
+		Endpoints:  fakeEndpoints{forgejoURL: forgejo.URL},
 	}
 
 	setupResult := make(chan error, 1)
 	go func() {
-		_, err := coordinator.Execute(context.Background(), "alice", "setup", strings.NewReader(`{"id":"site","git_username":"","git_password":""}`))
+		_, err := coordinator.Execute(context.Background(), "alice", "setup", strings.NewReader(`{"id":"site","forgejo_password":"one-use"}`))
 		setupResult <- err
 	}()
-	requireSignal(t, cloneStarted, "setup did not reach the clone while holding the shared operation lock")
+	requireSignal(t, publishStarted, "setup did not reach clone publication while holding the shared operation lock")
 
 	removeProjectResult := make(chan error, 1)
 	go func() {
@@ -114,7 +127,7 @@ func TestSetupOperationLockBlocksProjectAndHumanRemoval(t *testing.T) {
 	requireOperationBlocked(t, removeProjectResult, "project removal returned while setup held the shared operation lock")
 	requireOperationBlocked(t, deleteHumanResult, "human deletion returned while setup held the shared operation lock")
 
-	close(releaseClone)
+	close(releasePublish)
 	released = true
 	requireOperationResult(t, setupResult)
 	requireOperationResult(t, removeProjectResult)

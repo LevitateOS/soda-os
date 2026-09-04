@@ -982,9 +982,8 @@ project_password_request() {
 				'{id:$id,display_name:$display_name,password:($password|gsub("[\\r\\n]+$";""))}' |
 				admin_ssh /usr/libexec/soda/soda-projects create-forgejo
 			;;
-		setup)
-			jq -cn --rawfile password "$credentials" --arg id "$project_id" --arg username "$admin" \
-				'{id:$id,git_username:$username,git_password:($password|gsub("[\\r\\n]+$";""))}' |
+	setup)
+			jq -cn --rawfile password "$credentials" --arg id "$project_id" '{id:$id,forgejo_password:($password|gsub("[\\r\\n]+$";""))}' |
 				admin_ssh /usr/libexec/soda/soda-projects setup
 			;;
 		*) die "unsupported password-bearing project request $action" ;;
@@ -1600,9 +1599,9 @@ fallback_capture() {
 	admin_ssh 'cat /var/lib/soda/catalog/projects.json' >"$checkpoint/catalog.json"
 	jq -e '
 		type == "array" and
-		all(.[]; type == "object" and keys == ["canonical_url","display_name","id"]) and
+		all(.[]; type == "object" and has("canonical_url") and has("display_name") and has("id")) and
 		([.[].id] == ([.[].id] | sort))
-	' "$checkpoint/catalog.json" >/dev/null || die "installed catalog is not the exact sorted three-field representation"
+	' "$checkpoint/catalog.json" >/dev/null || die "installed catalog is missing required fields or sorted order"
 	run_privileged_script emit_fallback_state >"$checkpoint/system.json"
 	capture_forgejo_state >"$checkpoint/forgejo.json"
 	jq -e '[.users[] | select(.present) | .login] == ["alice","bob","soda-test"] and all(.workspace_users[]; .present == false)' \
@@ -1663,6 +1662,11 @@ primary_project_request() {
 	printf '%s\n' "$username" | LC_ALL=C grep -Eq '^[a-z][a-z0-9-]{0,23}$' || die "invalid primary username $username"
 	person_key=$(ensure_person_key "$username")
 	need_file "$(known_hosts_path)"
+	if [ "$action" = setup ]; then
+		credentials=$(later_primary_password_file)
+		request=$(jq -cn --argjson request "$request" --rawfile password "$credentials" \
+			'$request + {forgejo_password:($password|gsub("[\\r\\n]+$";""))}')
+	fi
 	printf '%s\n' "$request" | ssh -T -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
 		-o "UserKnownHostsFile=$(known_hosts_path)" -i "$person_key" -p "$guest_ssh_port" \
 		"$username@$guest_host" "/usr/libexec/soda/soda-projects '$action'"
@@ -1777,9 +1781,9 @@ scenario_product() {
 	forgejo_pam_request "$kept_workspace" wrong 401 "$operations/workspace-forgejo-login.json"
 	[ "$(forgejo_user_status "$kept_workspace")" = 404 ] || die "workspace PAM attempt created a Forgejo user"
 
-	# The installed catalog is the exact sorted three-field product fact.
+	# The installed catalog has the required fields without closing future metadata.
 	admin_ssh 'cat /var/lib/soda/catalog/projects.json' >"$operations/catalog-before.json"
-	jq -e 'type == "array" and all(.[]; keys == ["canonical_url","display_name","id"]) and ([.[].id] == ([.[].id] | sort))' \
+	jq -e 'type == "array" and all(.[]; has("canonical_url") and has("display_name") and has("id")) and ([.[].id] == ([.[].id] | sort))' \
 		"$operations/catalog-before.json" >/dev/null
 
 	# Exercise stock Cockpit authentication without placing passwords in argv.
@@ -1803,7 +1807,7 @@ scenario_product() {
 	done
 	run_privileged_script emit_remove_keyless_fixture_key >"$operations/nokey-remove-key.txt"
 	# Missing standard keys must fail before creating a derived account.
-	if missing_key_project_request '{"id":"kept","git_username":"","git_password":""}' \
+	if missing_key_project_request '{"id":"kept"}' \
 		>"$operations/missing-key.stdout" 2>"$operations/missing-key.stderr"; then
 		die "workspace setup unexpectedly accepted a primary account without keys"
 	fi
@@ -1812,7 +1816,7 @@ scenario_product() {
 
 	# Two humans set up the same native repository as independent Linux users.
 	for username in alice bob; do
-		primary_project_request "$username" setup '{"id":"kept","git_username":"","git_password":""}' \
+		primary_project_request "$username" setup '{"id":"kept"}' \
 			>"$operations/$username-setup.json"
 	done
 	alice_workspace=$(jq -er '.workspace_username' "$operations/alice-setup.json")
@@ -1874,7 +1878,7 @@ scenario_product() {
 		die "catalog edit reconciled an existing checkout"
 
 	# Soda-aware human deletion is cascading and deletes the primary last.
-	primary_project_request charlie setup '{"id":"kept","git_username":"","git_password":""}' >"$operations/charlie-setup.json"
+	primary_project_request charlie setup '{"id":"kept"}' >"$operations/charlie-setup.json"
 	charlie_workspace=$(jq -er '.workspace_username' "$operations/charlie-setup.json")
 	capture_forgejo_state >"$operations/forgejo-before-human-delete.json"
 	jq -cn '{username:"charlie"}' | admin_ssh /usr/libexec/soda/soda-projects delete-human >"$operations/charlie-delete.json"
@@ -1885,7 +1889,7 @@ scenario_product() {
 
 	# Generic Linux deletion is deliberately non-cascading.
 	project_password_request create-forgejo generic 'Generic deletion fixture' >"$operations/generic-create.json"
-	primary_project_request dana setup '{"id":"generic","git_username":"","git_password":""}' >"$operations/dana-setup.json"
+	primary_project_request dana setup '{"id":"generic"}' >"$operations/dana-setup.json"
 	dana_workspace=$(jq -er '.workspace_username' "$operations/dana-setup.json")
 	printf '%s\n' "$dana_workspace" | LC_ALL=C grep -Eq '^soda-w-[0-9a-f]{24}$' || die "invalid Dana workspace username"
 	run_privileged_script emit_generic_delete >"$operations/dana-generic-delete.txt"
@@ -1896,7 +1900,7 @@ scenario_product() {
 	# Project removal terminates every derived account and preserves Forgejo.
 	project_password_request create-forgejo removable 'Removal fixture' >"$operations/removable-create.json"
 	project_password_request setup removable '' >"$operations/removable-admin-setup.json"
-	primary_project_request alice setup '{"id":"removable","git_username":"","git_password":""}' >"$operations/removable-alice-setup.json"
+	primary_project_request alice setup '{"id":"removable"}' >"$operations/removable-alice-setup.json"
 	removable_admin=$(jq -er '.workspace_username' "$operations/removable-admin-setup.json")
 	removable_alice=$(jq -er '.workspace_username' "$operations/removable-alice-setup.json")
 	fallback_workspace_ssh alice "$removable_alice" 'nohup sleep 300 </dev/null >/dev/null 2>&1 &'

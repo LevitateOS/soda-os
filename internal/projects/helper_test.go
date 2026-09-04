@@ -24,11 +24,33 @@ func TestHelperRejectsUnsupportedCommandsAndParameters(t *testing.T) {
 	_, err := helper.Execute(context.Background(), alice, "run", strings.NewReader(`{}`))
 	require.ErrorContains(t, err, "unsupported")
 
-	_, err = helper.Execute(context.Background(), alice, "workspace-publish", strings.NewReader(`{"id":"site","canonical_url":"https://git.example.test/site.git","path":"/etc"}`))
+	_, err = helper.Execute(context.Background(), alice, "workspace-publish", strings.NewReader(`{"id":"site","canonical_url":"git@git.example.test:site.git","path":"/etc"}`))
 	require.ErrorContains(t, err, "unknown field")
 
-	_, err = helper.Execute(context.Background(), alice, "catalog-add", strings.NewReader(`{"id":"site","display_name":"Site","canonical_url":"https://git.example.test/site.git","password":"secret"}`))
-	require.ErrorContains(t, err, "unknown field")
+}
+
+func TestHelperPublishesArbitraryCatalogMetadata(t *testing.T) {
+	helper, platform := testHelper(t)
+	identity := PKExecIdentity{Username: "alice", UID: platform.accounts["alice"].UID}
+	response, err := helper.Execute(context.Background(), identity, "catalog-add", strings.NewReader(
+		`{"id":"site","display_name":"Site","canonical_url":"git@git.example.test:site.git","team":"web","labels":["public"]}`,
+	))
+	require.NoError(t, err)
+	require.True(t, response.OK)
+	entry, err := helper.Lifecycle.Catalog.Get("site")
+	require.NoError(t, err)
+	require.JSONEq(t, `"web"`, string(entry.Additional["team"]))
+	require.JSONEq(t, `["public"]`, string(entry.Additional["labels"]))
+
+	response, err = helper.Execute(context.Background(), identity, "catalog-edit", strings.NewReader(
+		`{"id":"site","display_name":"Renamed","canonical_url":"git@git.example.test:site.git"}`,
+	))
+	require.NoError(t, err)
+	require.True(t, response.OK)
+	entry, err = helper.Lifecycle.Catalog.Get("site")
+	require.NoError(t, err)
+	require.Equal(t, "Renamed", entry.DisplayName)
+	require.Empty(t, entry.Additional)
 }
 
 func TestHelperRejectsWorkspaceAndSystemCallers(t *testing.T) {
@@ -40,7 +62,7 @@ func TestHelperRejectsWorkspaceAndSystemCallers(t *testing.T) {
 	for _, caller := range []string{workspace.Username, "sshd"} {
 		account := platform.accounts[caller]
 		identity := PKExecIdentity{Username: caller, UID: account.UID}
-		_, err = helper.Execute(context.Background(), identity, "catalog-add", strings.NewReader(`{"id":"site","display_name":"Site","canonical_url":"https://git.example.test/site.git"}`))
+		_, err = helper.Execute(context.Background(), identity, "catalog-add", strings.NewReader(`{"id":"site","display_name":"Site","canonical_url":"git@git.example.test:site.git"}`))
 		require.ErrorContains(t, err, "not a supported primary")
 	}
 }
@@ -48,7 +70,7 @@ func TestHelperRejectsWorkspaceAndSystemCallers(t *testing.T) {
 func TestHelperRejectsPKExecUIDAccountMismatch(t *testing.T) {
 	helper, _ := testHelper(t)
 	identity := PKExecIdentity{Username: "alice", UID: 2000}
-	_, err := helper.Execute(context.Background(), identity, "catalog-add", strings.NewReader(`{"id":"site","display_name":"Site","canonical_url":"https://git.example.test/site.git"}`))
+	_, err := helper.Execute(context.Background(), identity, "catalog-add", strings.NewReader(`{"id":"site","display_name":"Site","canonical_url":"git@git.example.test:site.git"}`))
 	require.ErrorContains(t, err, "no longer matches")
 }
 

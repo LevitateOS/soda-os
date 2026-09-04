@@ -24,13 +24,13 @@ func TestForgejoCreatesEmptyRepositoryAsInitiatingUser(t *testing.T) {
 		require.Equal(t, "secret", password)
 		require.NoError(t, json.NewDecoder(request.Body).Decode(&payload))
 		writer.WriteHeader(http.StatusCreated)
-		_, _ = writer.Write([]byte(`{"name":"site","clone_url":"https://forgejo.example.test/alice/site.git","empty":true,"owner":{"login":"alice"}}`))
+		_, _ = writer.Write([]byte(`{"name":"site","ssh_url":"git@forgejo.example.test:alice/site.git","empty":true,"owner":{"login":"alice"}}`))
 	}))
 	defer server.Close()
 
 	repository, err := createForgejoTestRepository(server.URL)
 	require.NoError(t, err)
-	require.Equal(t, "https://forgejo.example.test/alice/site.git", repository.CanonicalURL)
+	require.Equal(t, "git@forgejo.example.test:alice/site.git", repository.CanonicalURL)
 	require.Equal(t, false, payload["auto_init"])
 	require.NotContains(t, payload, "private", "Forgejo's native default owns visibility")
 	require.NotContains(t, payload, "description", "catalog presentation is not copied into Forgejo")
@@ -38,8 +38,8 @@ func TestForgejoCreatesEmptyRepositoryAsInitiatingUser(t *testing.T) {
 
 func TestForgejoRejectsUnexpectedOwnershipOrNonEmptyRepository(t *testing.T) {
 	for name, response := range map[string]string{
-		"owner":   `{"name":"site","clone_url":"https://forgejo.test/bob/site.git","empty":true,"owner":{"login":"bob"}}`,
-		"content": `{"name":"site","clone_url":"https://forgejo.test/alice/site.git","empty":false,"owner":{"login":"alice"}}`,
+		"owner":   `{"name":"site","ssh_url":"git@forgejo.test:bob/site.git","empty":true,"owner":{"login":"bob"}}`,
+		"content": `{"name":"site","ssh_url":"git@forgejo.test:alice/site.git","empty":false,"owner":{"login":"alice"}}`,
 	} {
 		t.Run(name, func(t *testing.T) {
 			server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
@@ -75,7 +75,7 @@ func TestForgejoUsesADirectNonRedirectingTransport(t *testing.T) {
 
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
 		writer.WriteHeader(http.StatusCreated)
-		_, _ = writer.Write([]byte(`{"name":"site","clone_url":"https://forgejo.test/alice/site.git","empty":true,"owner":{"login":"alice"}}`))
+		_, _ = writer.Write([]byte(`{"name":"site","ssh_url":"git@forgejo.test:alice/site.git","empty":true,"owner":{"login":"alice"}}`))
 	}))
 	defer server.Close()
 
