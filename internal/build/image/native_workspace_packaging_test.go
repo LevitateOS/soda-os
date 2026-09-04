@@ -85,7 +85,7 @@ func TestNativeWorkspaceSourcesAreStagedForRPMBuild(t *testing.T) {
 	build := t.TempDir()
 	sources := t.TempDir()
 	for _, name := range []string{
-		"soda-projects", "soda-workspace-helper", "soda-tailnet", "soda-forgejo-tailnet", "forgejo",
+		"soda-projects", "soda-workspace-helper", "soda-runners", "soda-runner-helper", "soda-runner-launch", "soda-tailnet", "soda-forgejo-tailnet", "forgejo",
 	} {
 		require.NoError(t, os.WriteFile(filepath.Join(build, name), []byte(name), 0o755))
 	}
@@ -96,6 +96,9 @@ func TestNativeWorkspaceSourcesAreStagedForRPMBuild(t *testing.T) {
 		"soda-projects-index.html", "soda-projects-app.mjs", "soda-projects-protocol.mjs",
 		"soda-projects-ui.mjs", "soda-projects-app.css", "soda-projects-branding.css", "soda-projects-symbol.svg",
 		"org.sodaos.projects.policy", "soda-projects.tmpfiles", "soda-projects.sysusers", "cockpit-stock.pam",
+		"soda-runners", "soda-runner-helper", "soda-runner-launch", "soda-runners-manifest.json",
+		"soda-runners-index.html", "soda-runners-app.mjs", "soda-runners-protocol.mjs", "soda-runners-ui.mjs",
+		"soda-runners-app.css", "org.sodaos.runners.policy", "soda-runners.tmpfiles", "soda-runners.sysusers", "soda-runner@.service",
 	} {
 		info, statErr := os.Stat(filepath.Join(sources, name))
 		require.NoError(t, statErr, name)

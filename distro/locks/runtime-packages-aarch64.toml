@@ -122,6 +122,11 @@ nevra = "fd-find-0:10.4.2-4.fc44.aarch64"
 source = "fedora"
 
 [[package]]
+name = "forgejo-runner"
+nevra = "forgejo-runner-0:12.13.2-1.fc44.aarch64"
+source = "fedora"
+
+[[package]]
 name = "fzf"
 nevra = "fzf-0:0.74.3-1.fc44.aarch64"
 source = "fedora"
@@ -234,6 +239,11 @@ source = "fedora"
 [[package]]
 name = "libgit2"
 nevra = "libgit2-0:1.9.7-1.fc44.aarch64"
+source = "fedora"
+
+[[package]]
+name = "libicu"
+nevra = "libicu-0:77.1-3.fc44.aarch64"
 source = "fedora"
 
 [[package]]
@@ -544,6 +554,12 @@ name = "soda-projects"
 nevra = "soda-projects-0:0.5.0-2.fc44.aarch64"
 source = "local-rpm"
 file = "soda-projects-0.5.0-2.fc44.aarch64.rpm"
+
+[[package]]
+name = "soda-runners"
+nevra = "soda-runners-0:0.5.0-1.fc44.aarch64"
+source = "local-rpm"
+file = "soda-runners-0.5.0-1.fc44.aarch64.rpm"
 
 [[package]]
 name = "soda-forgejo"

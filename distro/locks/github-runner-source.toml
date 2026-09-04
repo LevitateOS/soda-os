@@ -1,0 +1,14 @@
+version = "2.337.0"
+release_url = "https://github.com/actions/runner/releases/tag/v2.337.0"
+
+[[asset]]
+architecture = "aarch64"
+archive = "actions-runner-linux-arm64-2.337.0.tar.gz"
+url = "https://github.com/actions/runner/releases/download/v2.337.0/actions-runner-linux-arm64-2.337.0.tar.gz"
+sha256 = "9b1dc70626422526e3c94767cf024896beb15da5342a3f4819bf2feac13e0393"
+
+[[asset]]
+architecture = "x86_64"
+archive = "actions-runner-linux-x64-2.337.0.tar.gz"
+url = "https://github.com/actions/runner/releases/download/v2.337.0/actions-runner-linux-x64-2.337.0.tar.gz"
+sha256 = "70920811a4f8ad4328818682bca5c6469c1c942fab52448868071d0063816613"
