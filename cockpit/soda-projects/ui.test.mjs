@@ -19,41 +19,15 @@ test("every destructive and mutating form is wired to one supported action", asy
   assert.deepEqual(wired, formActions);
 });
 
-test("form payloads keep secrets only in the synchronous request object", () => {
-  const forgejo = payloadFor("create-forgejo", new Map([
-    ["id", "site"],
-    ["display_name", "Site"],
-    ["password", "one-use"],
-  ]), assert.fail);
-  assert.deepEqual(forgejo, { id: "site", display_name: "Site", password: "one-use" });
-
+test("setup keeps the Forgejo password only in the synchronous request object", () => {
   const setup = payloadFor("setup", new Map([
-    ["id", "site"],
+	["id", "site"],
 	["forgejo_password", "one-use"],
-	["workspace_tools", "node@22\n\npython@3.13"],
-	["project_tools", "go@1.25"],
   ]), assert.fail);
 	assert.deepEqual(setup, {
 	  id: "site",
 	  forgejo_password: "one-use",
-	  workspace_tools: ["node@22", "python@3.13"],
-	  project_tools: ["go@1.25"],
 	});
-
-	const tools = payloadFor("install-tools", new Map([
-	  ["id", "site"],
-	  ["scope", "project"],
-	  ["tools", "ripgrep@latest"],
-	]), assert.fail);
-	assert.deepEqual(tools, { id: "site", scope: "project", tools: ["ripgrep@latest"] });
-
-  const person = payloadFor("add-person", new Map([
-    ["username", "bob"],
-    ["password", "initial secret"],
-    ["password_confirmation", "initial secret"],
-    ["authorized_key", "ssh-ed25519 AAAA"],
-  ]), assert.fail);
-  assert.deepEqual(person, { username: "bob", password: "initial secret", authorized_key: "ssh-ed25519 AAAA" });
 });
 
 test("catalog forms accept arbitrary JSON metadata without a closed field list", () => {
@@ -126,10 +100,10 @@ test("human deletion presentation is wheel-status driven", () => {
   assert.equal(humanDeletionHidden({}), true);
 });
 
-test("People leaves listing and administrator promotion to stock Cockpit Accounts", async () => {
+test("People leaves creation, listing, and administrator promotion to stock Cockpit Accounts", async () => {
   const html = await readFile(new URL("./index.html", import.meta.url), "utf8");
   const panel = html.match(/<section class="panel danger-panel" id="human-deletion-panel"[\s\S]*?<\/section>/)?.[0] ?? "";
-  assert.match(panel, /Stock Cockpit Accounts remains authoritative for listing people and changing administrator status/);
+  assert.match(panel, /Stock Cockpit Accounts creates and lists primary Linux users and owns administrator status/);
 });
 
 test("whole-project removal presentation is wheel-status driven", () => {
@@ -156,28 +130,12 @@ test("workspace setup distinguishes bundled and external SSH-key ownership", asy
   assert.match(dialog, /Required only for bundled Forgejo/);
 });
 
-test("add person requires matching password confirmation", () => {
-  const messages = [];
-  const payload = payloadFor("add-person", new Map([
-    ["username", "bob"],
-    ["password", "one"],
-    ["password_confirmation", "two"],
-    ["authorized_key", "ssh-ed25519 AAAA"],
-  ]), message => messages.push(message));
-  assert.equal(payload, null);
-  assert.deepEqual(messages, ["The password confirmation does not match."]);
-});
-
 test("native synchronous diagnostics and outcomes remain visible", () => {
   assert.equal(errorMessage(new Error("native Git authentication failed")), "native Git authentication failed");
   assert.equal(errorMessage({}), "The operation failed without a diagnostic message.");
   assert.equal(
     successMessage("remove", { id: "site" }, { ok: true }),
     "site and its local workspaces were removed. The canonical repository was not deleted.",
-  );
-  assert.equal(
-    successMessage("add-person", { username: "bob" }, { ok: true }),
-    "bob was added with a matching Forgejo account and public SSH key.",
   );
   assert.equal(
     successMessage("delete-human", { username: "bob" }, { ok: true }),

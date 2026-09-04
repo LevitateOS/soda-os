@@ -139,20 +139,6 @@ func sshRemoteHost(remote string) (string, error) {
 	return parsed.Hostname(), nil
 }
 
-func ValidateToolSelections(tools []string) error {
-	seen := map[string]bool{}
-	for _, tool := range tools {
-		if tool == "" || strings.HasPrefix(tool, "-") || !utf8.ValidString(tool) || strings.IndexFunc(tool, unicode.IsSpace) >= 0 || strings.IndexFunc(tool, unicode.IsControl) >= 0 {
-			return fmt.Errorf("invalid mise tool selection %q", tool)
-		}
-		if seen[tool] {
-			return fmt.Errorf("duplicate mise tool selection %q", tool)
-		}
-		seen[tool] = true
-	}
-	return nil
-}
-
 func validateRemoteText(remote string) error {
 	switch {
 	case remote == "":

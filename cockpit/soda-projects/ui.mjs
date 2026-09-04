@@ -1,13 +1,10 @@
 export const formActions = Object.freeze([
   "add-existing",
-  "create-forgejo",
   "edit",
   "setup",
-  "install-tools",
   "remove-workspace",
   "remove",
   "delete-human",
-  "add-person",
 ]);
 
 const formActionSet = new Set(formActions);
@@ -19,38 +16,11 @@ export function payloadFor(action, data, reportInvalid) {
   if (action === "add-existing" || action === "edit") {
     return catalogPayload(data, reportInvalid);
   }
-  if (action === "create-forgejo") {
-    return {
-      id: data.get("id"),
-      display_name: data.get("display_name"),
-      password: data.get("password"),
-    };
-  }
   if (action === "setup") {
 	return {
 	  id: data.get("id"),
 	  forgejo_password: data.get("forgejo_password"),
-	  workspace_tools: toolSelections(data.get("workspace_tools")),
-	  project_tools: toolSelections(data.get("project_tools")),
 	};
-  }
-  if (action === "install-tools") {
-	return {
-	  id: data.get("id"),
-	  scope: data.get("scope"),
-	  tools: toolSelections(data.get("tools")),
-	};
-  }
-  if (action === "add-person") {
-    if (data.get("password_confirmation") !== data.get("password")) {
-      reportInvalid("The password confirmation does not match.");
-      return null;
-    }
-    return {
-      username: data.get("username"),
-      password: data.get("password"),
-      authorized_key: data.get("authorized_key"),
-    };
   }
   if (action === "remove" || action === "remove-workspace") {
     const id = data.get("id");
@@ -100,26 +70,17 @@ export function successMessage(action, payload, result) {
   if (action === "add-existing") {
     return `${result.project.display_name} was added to the catalog.`;
   }
-  if (action === "create-forgejo") {
-    return `${result.project.display_name} was created in Forgejo and added to the catalog.`;
-  }
   if (action === "edit") {
     return `${result.project.display_name} was updated. Existing workspaces were not changed.`;
   }
   if (action === "setup") {
     return `Workspace ${result.workspace_username} is ready for ${payload.id}.`;
   }
-  if (action === "install-tools") {
-	return `mise installed and selected tools for ${payload.scope === "project" ? "the project" : "your workspace"}.`;
-  }
   if (action === "remove") {
     return `${payload.id} and its local workspaces were removed. The canonical repository was not deleted.`;
   }
   if (action === "remove-workspace") {
     return `Your ${payload.id} workspace was removed. The shared project and canonical repository were not deleted.`;
-  }
-  if (action === "add-person") {
-    return `${payload.username} was added with a matching Forgejo account and public SSH key.`;
   }
   return `${payload.username}, their local Soda workspaces, and their Forgejo account were removed.`;
 }
@@ -147,13 +108,6 @@ export function humanDeletionHidden(currentUser) {
 
 export function projectRemovalHidden(currentUser) {
   return currentUser.administrator !== true;
-}
-
-function toolSelections(value) {
-  return String(value ?? "")
-	.split(/\r?\n/)
-	.map(tool => tool.trim())
-	.filter(tool => tool !== "");
 }
 
 export function errorMessage(error) {

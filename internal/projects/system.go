@@ -67,16 +67,12 @@ type Platform interface {
 	WorkspaceReady(Account, string) (bool, error)
 	ValidatePasswordLocked(context.Context, Account) error
 	CreateWorkspace(context.Context, Account, string) (Account, error)
-	CreatePrimary(context.Context, string, string) (Account, error)
-	PublishHuman(context.Context, string, []byte) error
 	InstallAuthorizedKeys(Account, []byte) error
 	GenerateWorkspaceGitKey(context.Context, Account) (string, error)
 	CloneWorkspace(context.Context, Account, string, string) error
-	InstallMiseTools(context.Context, Account, string, []string, []string) error
 	PreflightDeleteAccount(context.Context, Account) error
 	DeleteForgejoUser(context.Context, string) error
 	DeleteAccount(context.Context, Account) error
-	RemoveMiseProject(string) error
 }
 
 type NativePlatform struct {
@@ -86,7 +82,6 @@ type NativePlatform struct {
 	RuntimeRoot           string
 	OperationLockPath     string
 	OperationLockOwnerUID int
-	MiseRoot              string
 }
 
 func NewNativePlatform() *NativePlatform {
@@ -96,7 +91,6 @@ func NewNativePlatform() *NativePlatform {
 		HomeRoot:          "/home",
 		RuntimeRoot:       "/run/user",
 		OperationLockPath: DefaultWorkspaceOperationLockPath,
-		MiseRoot:          "/var/lib/soda/mise",
 	}
 }
 

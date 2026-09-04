@@ -18,8 +18,7 @@
         </div>
         <div class="header-actions">
           <button class="button secondary" id="refresh-projects" type="button">Refresh</button>
-          <button class="button secondary" id="open-add-existing" type="button">Add repository</button>
-          <button class="button primary" id="open-create-forgejo" type="button">New Forgejo project</button>
+          <button class="button primary" id="open-add-existing" type="button">Add repository</button>
         </div>
       </header>
 
@@ -79,17 +78,16 @@
 
         <div class="empty-state" id="empty-projects" hidden>
           <h3>No projects yet</h3>
-          <p>Add an existing Git repository or create an empty repository in your Forgejo namespace.</p>
+          <p>Create a repository in Forgejo or another Git host, then add its SSH clone URL here.</p>
         </div>
       </section>
 
       <section class="panel danger-panel" id="human-deletion-panel" aria-labelledby="human-deletion-title" hidden>
         <div>
           <h2 id="human-deletion-title">People</h2>
-          <p>Administrators can add an ordinary primary Linux user or remove one. Removal deletes Soda workspaces, then the native Forgejo account, then the Linux account. Stock Cockpit Accounts remains authoritative for listing people and changing administrator status.</p>
+          <p>Stock Cockpit Accounts creates and lists primary Linux users and owns administrator status. Administrators can use this Soda-aware action to remove one: it deletes Soda workspaces, then the native Forgejo account, then the Linux account.</p>
         </div>
         <div class="header-actions">
-          <button class="button primary" id="open-add-person" type="button">Add person…</button>
           <button class="button danger" id="open-delete-human" type="button">Remove person…</button>
         </div>
       </section>
@@ -165,37 +163,6 @@
       </form>
     </dialog>
 
-    <dialog id="create-forgejo-dialog" aria-labelledby="create-forgejo-title">
-      <form method="dialog" data-action-form="create-forgejo">
-        <header class="dialog-header">
-          <div>
-            <h2 id="create-forgejo-title">Create a Forgejo project</h2>
-            <p id="forgejo-description">Creates an empty repository in your native Forgejo namespace.</p>
-          </div>
-          <button class="icon-button" type="button" data-dialog-close aria-label="Close">×</button>
-        </header>
-        <div class="form-body">
-          <label>
-            Project ID
-            <input name="id" required pattern="[a-z][a-z0-9-]{0,23}" maxlength="24" autocomplete="off">
-          </label>
-          <label>
-            Display name
-            <input name="display_name" required autocomplete="off">
-          </label>
-          <label>
-            Forgejo password
-            <input name="password" required type="password" autocomplete="off">
-          </label>
-          <p class="field-help">Used only for this request. Soda does not retain it.</p>
-        </div>
-        <footer class="dialog-actions">
-          <button class="button secondary" type="button" data-dialog-close>Cancel</button>
-          <button class="button primary" value="default">Create project</button>
-        </footer>
-      </form>
-    </dialog>
-
     <dialog id="edit-project-dialog" aria-labelledby="edit-project-title">
       <form method="dialog" data-action-form="edit">
         <header class="dialog-header">
@@ -240,57 +207,16 @@
         <div class="form-body">
           <input name="id" type="hidden">
           <p>Project: <strong data-project-name></strong></p>
-		  <p class="field-help">Soda creates an SSH keypair only in this workspace and uses it for this clone. For a bundled Forgejo repository, Soda registers the public key with your Forgejo account. For an external host, that host owns access; if clone authentication fails, Soda reports the public key for you to register there before retrying. Tea and GitHub CLI authentication remains manual and private to this workspace.</p>
+		  <p class="field-help">Soda creates an SSH keypair only in this workspace and uses it for this clone. For a bundled Forgejo repository, Soda registers the public key with your Forgejo account. For an external host, that host owns access; if clone authentication fails, Soda reports the public key for you to register there before retrying. Configure tools with <code>mise</code> and authenticate Tea and GitHub CLI directly inside the workspace.</p>
 		  <label>
 			Forgejo password
 			<input name="forgejo_password" type="password" autocomplete="current-password">
 			<span class="field-help">Required only for bundled Forgejo. Used once for native public-key registration and never retained.</span>
 		  </label>
-          <label>
-            Tools for my workspace <span class="optional">Optional, one mise tool per line</span>
-            <textarea name="workspace_tools" rows="3" placeholder="node@22&#10;python@3.13"></textarea>
-          </label>
-          <label>
-            Tools for this project <span class="optional">Optional, one mise tool per line</span>
-            <textarea name="project_tools" rows="3" placeholder="go@1.25"></textarea>
-          </label>
-          <p class="field-help">Personal selections use <code>mise.local.toml</code> and private installs. Project selections use <code>mise.toml</code> and the project’s shared mise install directory. mise retains ownership of its cache.</p>
         </div>
         <footer class="dialog-actions">
           <button class="button secondary" type="button" data-dialog-close>Cancel</button>
           <button class="button primary" value="default">Set up for me</button>
-        </footer>
-      </form>
-    </dialog>
-
-    <dialog id="install-tools-project-dialog" aria-labelledby="install-tools-project-title">
-      <form method="dialog" data-action-form="install-tools">
-        <header class="dialog-header">
-          <div>
-            <h2 id="install-tools-project-title">Add development tools</h2>
-            <p><code>mise</code> owns discovery, download, installation, versions, configuration, locking, and cache layout.</p>
-          </div>
-          <button class="icon-button" type="button" data-dialog-close aria-label="Close">×</button>
-        </header>
-        <div class="form-body">
-          <input name="id" type="hidden">
-          <p>Project: <strong data-project-name></strong></p>
-          <label>
-            Scope
-            <select name="scope" required>
-              <option value="workspace">My workspace</option>
-              <option value="project">This project</option>
-            </select>
-          </label>
-          <label>
-            Tools <span class="optional">One mise tool per line</span>
-            <textarea name="tools" rows="5" required placeholder="node@22&#10;python@3.13"></textarea>
-          </label>
-          <p class="field-help">Project tools are stored once for the project. Dependencies, mutable state, and credentials remain private to each workspace.</p>
-        </div>
-        <footer class="dialog-actions">
-          <button class="button secondary" type="button" data-dialog-close>Cancel</button>
-          <button class="button primary" value="default">Install with mise</button>
         </footer>
       </form>
     </dialog>
@@ -367,39 +293,5 @@
       </form>
     </dialog>
 
-    <dialog id="add-person-dialog" aria-labelledby="add-person-title">
-      <form method="dialog" data-action-form="add-person">
-        <header class="dialog-header">
-          <div>
-            <h2 id="add-person-title">Add person to Soda OS</h2>
-            <p>Creates an ordinary Linux account, a matching native Forgejo account, and registers this public SSH key for Git over SSH. Tea and gh sign-in stay manual in every workspace. Administrator access can be granted later through stock Cockpit.</p>
-          </div>
-          <button class="icon-button" type="button" data-dialog-close aria-label="Close">×</button>
-        </header>
-        <div class="form-body">
-          <label>
-            Username
-            <input name="username" required pattern="[a-z][a-z0-9-]{0,23}" maxlength="24" autocomplete="off">
-          </label>
-          <label>
-            Initial password
-            <input name="password" required type="password" autocomplete="new-password">
-          </label>
-          <label>
-            Confirm password
-            <input name="password_confirmation" required type="password" autocomplete="new-password">
-          </label>
-          <label>
-            SSH public key
-            <textarea name="authorized_key" required rows="4" spellcheck="false" autocomplete="off"></textarea>
-          </label>
-          <p class="field-help">The password is used transiently for Linux and native Forgejo authentication. Soda does not retain it.</p>
-        </div>
-        <footer class="dialog-actions">
-          <button class="button secondary" type="button" data-dialog-close>Cancel</button>
-          <button class="button primary" value="default">Add person</button>
-        </footer>
-      </form>
-    </dialog>
   </body>
 </html>

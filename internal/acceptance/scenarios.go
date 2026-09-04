@@ -3,6 +3,7 @@ package acceptance
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -90,18 +91,18 @@ func (state *runnerState) runQCOW2Checks(ctx context.Context, remote Remote) err
 }
 
 func (state *runnerState) seedPreservationState(ctx context.Context, scenario *scenarioState) error {
-	response, err := state.createForgejoProject(ctx, scenario.remote, scenario.password, forgejoProject{"kept", "Kept project", "seed/kept-create"})
+	response, err := state.createCatalogedForgejoProject(ctx, scenario.remote, scenario.password, forgejoProject{"kept", "Kept project", "seed/kept-create"})
 	if err != nil {
 		return err
 	}
-	setup := map[string]any{"id": "kept", "forgejo_password": string(bytes.TrimSpace(scenario.password)), "workspace_tools": []string{"python@3.13", "node@24"}, "project_tools": []string{"python@3.13"}}
+	setup := map[string]any{"id": "kept", "forgejo_password": string(bytes.TrimSpace(scenario.password))}
 	response, err = state.projectCall(ctx, scenario.remote, "setup", setup, "seed/admin-setup")
 	if err != nil {
 		return err
 	}
 	scenario.adminSpace = response.WorkspaceUsername
 	for _, username := range []string{"alice", "bob"} {
-		if err = state.addPerson(ctx, scenario.remote, username, scenario.password, "seed/"+username+"-add"); err != nil {
+		if err = state.addNativePerson(ctx, scenario.remote, username, scenario.password, "seed/"+username+"-add"); err != nil {
 			return err
 		}
 		person := scenario.remote.As(username, state.personKeyPath(username))
@@ -185,9 +186,39 @@ func (state *runnerState) seedWorkspaceFiles(ctx context.Context, scenario *scen
 	return scenario.remote.Sudo(ctx, scenario.password, workspaceCheckScript(state.options.Administrator.Username, "kept", scenario.adminSpace), "seed/workspace-boundary")
 }
 
-func (state *runnerState) createForgejoProject(ctx context.Context, remote Remote, password []byte, project forgejoProject) (projectResponse, error) {
-	payload := map[string]any{"id": project.ID, "display_name": project.Name, "password": string(bytes.TrimSpace(password))}
-	return state.projectCall(ctx, remote, "create-forgejo", payload, project.Evidence)
+func (state *runnerState) createCatalogedForgejoProject(ctx context.Context, remote Remote, password []byte, project forgejoProject) (projectResponse, error) {
+	canonicalURL, err := state.createNativeForgejoRepository(ctx, remote, password, project.ID, project.Evidence+"-forgejo")
+	if err != nil {
+		return projectResponse{}, err
+	}
+	payload := map[string]any{"id": project.ID, "display_name": project.Name, "canonical_url": canonicalURL}
+	return state.projectCall(ctx, remote, "add-existing", payload, project.Evidence+"-catalog")
+}
+
+func (state *runnerState) createNativeForgejoRepository(ctx context.Context, remote Remote, password []byte, id, evidence string) (string, error) {
+	endpoint, err := forgejoEndpoint(ctx, remote)
+	if err != nil {
+		return "", err
+	}
+	config := fmt.Sprintf("user = %s\nsilent\nshow-error\nfail-with-body\nurl = %s\n", curlConfigQuote(remote.Username+":"+string(bytes.TrimSpace(password))), curlConfigQuote(endpoint+"/api/v1/user/repos"))
+	payload, err := json.Marshal(map[string]any{"name": id, "auto_init": false})
+	if err != nil {
+		return "", err
+	}
+	output, err := remote.Exchange(ctx, evidence, []byte(config), "curl", "--config", "-", "--json", string(payload))
+	if err != nil {
+		return "", err
+	}
+	var repository struct {
+		SSHURL string `json:"ssh_url"`
+	}
+	if err = json.Unmarshal(output, &repository); err != nil {
+		return "", fmt.Errorf("decode native Forgejo repository: %w", err)
+	}
+	if repository.SSHURL == "" {
+		return "", errors.New("native Forgejo repository response has no SSH clone URL")
+	}
+	return repository.SSHURL, nil
 }
 
 func (state *runnerState) projectCall(ctx context.Context, remote Remote, action string, payload any, evidence string) (projectResponse, error) {
@@ -210,14 +241,34 @@ func (state *runnerState) projectCall(ctx context.Context, remote Remote, action
 	return response, nil
 }
 
-func (state *runnerState) addPerson(ctx context.Context, remote Remote, username string, password []byte, evidence string) error {
+func (state *runnerState) addNativePerson(ctx context.Context, remote Remote, username string, password []byte, evidence string) error {
 	publicKey, err := state.ensurePersonKey(ctx, username)
 	if err != nil {
 		return err
 	}
-	payload := map[string]any{"username": username, "password": string(bytes.TrimSpace(password)), "authorized_key": string(bytes.TrimSpace(publicKey))}
-	_, err = state.projectCall(ctx, remote, "add-person", payload, evidence)
-	return err
+	password64 := base64.StdEncoding.EncodeToString(bytes.TrimSpace(password))
+	key64 := base64.StdEncoding.EncodeToString(bytes.TrimSpace(publicKey))
+	script := fmt.Sprintf(`username=%q
+/usr/sbin/useradd --create-home --user-group --shell /bin/bash --home-dir "/home/$username" -- "$username"
+printf '%%s' %q | base64 --decode | /usr/bin/passwd --stdin -- "$username"
+/usr/bin/install -d -m 0700 -o "$username" -g "$username" "/home/$username/.ssh"
+printf '%%s' %q | base64 --decode >"/home/$username/.ssh/authorized_keys"
+/usr/bin/chown "$username:$username" "/home/$username/.ssh/authorized_keys"
+/usr/bin/chmod 0600 "/home/$username/.ssh/authorized_keys"
+/usr/sbin/restorecon -RF "/home/$username/.ssh"
+`, username, password64, key64)
+	if err = remote.Sudo(ctx, password, script, evidence+"-linux"); err != nil {
+		return err
+	}
+	person := remote.As(username, state.personKeyPath(username))
+	user, err := forgejoAuthenticatedUser(ctx, person, username, password)
+	if err != nil {
+		return err
+	}
+	if user.Login != username || user.IsAdmin {
+		return fmt.Errorf("native Forgejo PAM created unexpected person %q", user.Login)
+	}
+	return nil
 }
 
 func (state *runnerState) ensurePersonKey(ctx context.Context, username string) ([]byte, error) {

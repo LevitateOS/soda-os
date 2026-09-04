@@ -17,7 +17,7 @@ func (state *runnerState) exerciseProductScenarios(ctx context.Context, scenario
 		state.verifyWorkspaceBoundaries,
 		state.verifySSHTransports,
 		state.verifyDevelopmentServer,
-		state.verifyToolScopes,
+		state.verifyMiseOwnership,
 		state.verifyWorkspaceRemoval,
 		state.verifyCockpitAndRoles,
 		state.verifyProjectRemoval,
@@ -179,13 +179,13 @@ func (state *runnerState) waitForDevelopmentServer(ctx context.Context, port int
 	return errors.New("project development server did not expose the expected hot-reload content")
 }
 
-func (state *runnerState) verifyToolScopes(ctx context.Context, scenario *scenarioState) error {
+func (state *runnerState) verifyMiseOwnership(ctx context.Context, scenario *scenarioState) error {
 	admin := scenario.remote.As(scenario.adminSpace, state.paths.adminKey)
-	script := "set -euo pipefail; cd \"$HOME/Projects/kept\"; test -f mise.local.toml; test -f mise.toml; mise exec -- python --version; mise exec -- node --version; test -d \"$HOME/.local/share/mise/installs/node\"; test -d /var/lib/soda/mise/kept/installs/python; test ! -e \"$HOME/.config/tea/config.yml\"; test ! -e \"$HOME/.config/gh/hosts.yml\""
-	if err := admin.Capture(ctx, "product/mise-scopes", []byte(script), "/bin/bash", "-s"); err != nil {
+	script := "set -euo pipefail; cd \"$HOME/Projects/kept\"; command -v mise; mise --version; test ! -e mise.local.toml; test ! -e mise.toml; test ! -e /var/lib/soda/mise; test ! -e \"$HOME/.config/tea/config.yml\"; test ! -e \"$HOME/.config/gh/hosts.yml\""
+	if err := admin.Capture(ctx, "product/mise-native-ownership", []byte(script), "/bin/bash", "-s"); err != nil {
 		return err
 	}
-	boundary := "bob_home=$(getent passwd " + scenario.bobSpace + " | cut -d: -f6); test ! -e \"$bob_home/.local/share/mise/installs/node\"; test -z \"$(find /var/lib/soda/mise/kept/installs \\( -name '*token*' -o -name '*credential*' \\) -print -quit)\"\n"
+	boundary := "bob_home=$(getent passwd " + scenario.bobSpace + " | cut -d: -f6); test ! -e \"$bob_home/.config/mise\"; test ! -e /var/lib/soda/mise\n"
 	return scenario.remote.Sudo(ctx, scenario.password, boundary, "product/mise-private-dependencies")
 }
 
@@ -208,7 +208,7 @@ func (state *runnerState) verifyWorkspaceRemoval(ctx context.Context, scenario *
 }
 
 func (state *runnerState) verifyProjectRemoval(ctx context.Context, scenario *scenarioState) error {
-	if _, err := state.createForgejoProject(ctx, scenario.remote, scenario.password, forgejoProject{"removable", "Removal fixture", "product/removable-create"}); err != nil {
+	if _, err := state.createCatalogedForgejoProject(ctx, scenario.remote, scenario.password, forgejoProject{"removable", "Removal fixture", "product/removable-create"}); err != nil {
 		return err
 	}
 	adminSetup, err := state.projectCall(ctx, scenario.remote, "setup", map[string]any{"id": "removable", "forgejo_password": string(bytes.TrimSpace(scenario.password))}, "product/removable-admin-setup")
@@ -229,14 +229,14 @@ func (state *runnerState) verifyProjectRemoval(ctx context.Context, scenario *sc
 }
 
 func (state *runnerState) verifyPartialPersonDeletion(ctx context.Context, scenario *scenarioState) error {
-	if err := state.addPerson(ctx, scenario.remote, "obsolete", scenario.password, "product/obsolete-add"); err != nil {
+	if err := state.addNativePerson(ctx, scenario.remote, "obsolete", scenario.password, "product/obsolete-add"); err != nil {
 		return err
 	}
 	obsolete := scenario.remote.As("obsolete", state.personKeyPath("obsolete"))
 	if _, err := state.projectCall(ctx, obsolete, "setup", map[string]any{"id": "kept", "forgejo_password": string(bytes.TrimSpace(scenario.password))}, "product/obsolete-setup"); err != nil {
 		return err
 	}
-	if _, err := state.createForgejoProject(ctx, obsolete, scenario.password, forgejoProject{"owned", "Owned blocker", "product/owned-create"}); err != nil {
+	if _, err := state.createNativeForgejoRepository(ctx, obsolete, scenario.password, "owned", "product/owned-create"); err != nil {
 		return err
 	}
 	payload, _ := json.Marshal(map[string]any{"username": "obsolete"})

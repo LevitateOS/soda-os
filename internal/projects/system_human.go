@@ -32,6 +32,16 @@ func (platform *NativePlatform) CreatePrimary(ctx context.Context, username, pas
 	return platform.verifiedPrimary(ctx, username, uidMin)
 }
 
+func validateHumanPassword(password string) error {
+	if password == "" || len(password) > 4096 {
+		return errors.New("password must contain between 1 and 4096 bytes")
+	}
+	if strings.ContainsAny(password, "\x00\r\n") {
+		return errors.New("password must not contain NUL, CR, or LF")
+	}
+	return nil
+}
+
 func (platform *NativePlatform) existingPrimary(ctx context.Context, username string, uidMin int) (Account, bool, error) {
 	account, err := platform.LookupAccount(ctx, username)
 	if errors.Is(err, ErrAccountNotFound) {

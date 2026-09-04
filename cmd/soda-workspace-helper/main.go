@@ -11,7 +11,7 @@ import (
 
 func main() {
 	if len(os.Args) != 2 {
-		fmt.Fprintln(os.Stderr, "usage: soda-workspace-helper <catalog-add|catalog-edit|workspace-prepare|workspace-publish|tools-install|workspace-remove|project-remove|human-delete|human-create|human-publish>")
+		fmt.Fprintln(os.Stderr, "usage: soda-workspace-helper <catalog-add|catalog-edit|workspace-prepare|workspace-publish|workspace-remove|project-remove|human-delete>")
 		os.Exit(2)
 	}
 	actor, err := projects.PKExecCaller()

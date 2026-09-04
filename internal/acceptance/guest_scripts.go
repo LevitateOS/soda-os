@@ -41,9 +41,10 @@ for path in \
   /usr/libexec/soda/soda-installer-finalize \
   /usr/libexec/soda/soda-cloud-finalize \
   /etc/cloud/cloud.cfg.d/99-soda-datasources.cfg \
-  /var/lib/soda-install \
-  /opt/soda/toolchains \
-  /var/lib/soda/toolchains; do
+	/var/lib/soda-install \
+	/opt/soda/toolchains \
+	/var/lib/soda/toolchains \
+	/var/lib/soda/mise; do
   test ! -e "$path"
 done
 printf 'core-product-boundaries=pass\n'
@@ -113,11 +114,10 @@ forgejo_users=$(sqlite3 /var/lib/forgejo/data/forgejo.db 'select lower_name || "
 tailscale=$(tailscale status --json | jq -c '.Self | {id:.ID,dns_name:.DNSName,addresses:(.TailscaleIPs|sort)}')
 network=$(nmcli --terse --fields NAME,TYPE,ZONE connection show --active | LC_ALL=C sort | jq -Rsc 'split("\n") | map(select(length > 0))')
 host_keys=$(sha256sum /etc/ssh/ssh_host_*_key.pub | LC_ALL=C sort | jq -Rsc 'split("\n") | map(select(length > 0))')
-mise_state=$(find /var/lib/soda/mise -type f -printf '%P\n' 2>/dev/null | LC_ALL=C sort | jq -Rsc 'split("\n") | map(select(length > 0))')
 jq -cn --argjson accounts "$accounts" --argjson groups "$groups" --argjson homes "$homes" \
   --argjson workspaces "$workspaces" --argjson catalog "$catalog" --argjson forgejo_users "$forgejo_users" \
-  --argjson tailscale "$tailscale" --argjson network "$network" --argjson host_keys "$host_keys" --argjson mise_state "$mise_state" \
-  '{accounts:$accounts,groups:$groups,homes:$homes,workspaces:$workspaces,catalog:$catalog,forgejo_users:$forgejo_users,tailscale:$tailscale,network:$network,ssh_host_keys:$host_keys,mise_state:$mise_state}'
+  --argjson tailscale "$tailscale" --argjson network "$network" --argjson host_keys "$host_keys" \
+  '{accounts:$accounts,groups:$groups,homes:$homes,workspaces:$workspaces,catalog:$catalog,forgejo_users:$forgejo_users,tailscale:$tailscale,network:$network,ssh_host_keys:$host_keys}'
 `
 
 const localAccessCheck = `set -euo pipefail

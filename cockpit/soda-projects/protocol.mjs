@@ -3,14 +3,11 @@ export const coordinatorPath = "/usr/libexec/soda/soda-projects";
 export const actions = Object.freeze([
   "list",
   "add-existing",
-  "create-forgejo",
   "edit",
   "setup",
-  "install-tools",
   "remove-workspace",
   "remove",
   "delete-human",
-  "add-person",
 ]);
 
 const actionSet = new Set(actions);
@@ -45,7 +42,7 @@ export function decodeResponse(action, output) {
   if (response.ok !== true) {
     throw new TypeError("coordinator mutation did not report success");
   }
-  if (["add-existing", "create-forgejo", "edit"].includes(action)) {
+  if (["add-existing", "edit"].includes(action)) {
     assertCatalogEntry(response.project);
   }
   if (action === "setup" && typeof response.workspace_username !== "string") {

@@ -10,12 +10,6 @@ func (coordinator Coordinator) setup(ctx context.Context, primary Account, reque
 	if !projectIDPattern.MatchString(request.ID) {
 		return MutationResponse{}, errors.New("project id must match [a-z][a-z0-9-]{0,23}")
 	}
-	if err := ValidateToolSelections(request.WorkspaceTools); err != nil {
-		return MutationResponse{}, err
-	}
-	if err := ValidateToolSelections(request.ProjectTools); err != nil {
-		return MutationResponse{}, err
-	}
 	setupLock, err := coordinator.Platform.SetupLock(primary, request.ID)
 	if err != nil {
 		return MutationResponse{}, fmt.Errorf("lock project setup: %w", err)
@@ -108,10 +102,7 @@ func completeWorkspaceSetup(response, prepared MutationResponse) (MutationRespon
 }
 
 func (coordinator Coordinator) publishWorkspace(ctx context.Context, entry CatalogEntry, request SetupRequest) (MutationResponse, error) {
-	return coordinator.Privileged.WorkspacePublish(ctx, HelperWorkspaceRequest{
-		ID: entry.ID, CanonicalURL: entry.CanonicalURL,
-		WorkspaceTools: request.WorkspaceTools, ProjectTools: request.ProjectTools,
-	})
+	return coordinator.Privileged.WorkspacePublish(ctx, HelperWorkspaceRequest{ID: entry.ID, CanonicalURL: entry.CanonicalURL})
 }
 
 func (coordinator Coordinator) publishExternalWorkspace(ctx context.Context, entry CatalogEntry, request SetupRequest, prepared MutationResponse) (MutationResponse, error) {

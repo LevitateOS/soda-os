@@ -37,11 +37,8 @@ func (helper Helper) dispatch(ctx context.Context, account Account, action strin
 		"workspace-publish": func() (MutationResponse, error) { return helper.workspacePublish(ctx, account.Username, input) },
 		"workspace-prepare": func() (MutationResponse, error) { return helper.workspacePrepare(ctx, account.Username, input) },
 		"workspace-remove":  func() (MutationResponse, error) { return helper.workspaceRemove(ctx, account.Username, input) },
-		"tools-install":     func() (MutationResponse, error) { return helper.toolsInstall(ctx, account.Username, input) },
 		"project-remove":    func() (MutationResponse, error) { return helper.projectRemove(ctx, account.Username, input) },
 		"human-delete":      func() (MutationResponse, error) { return helper.humanDelete(ctx, account.Username, input) },
-		"human-create":      func() (MutationResponse, error) { return helper.humanCreate(ctx, account, input) },
-		"human-publish":     func() (MutationResponse, error) { return helper.humanPublish(ctx, account, input) },
 	}
 	handler, found := handlers[action]
 	if !found {
@@ -50,63 +47,12 @@ func (helper Helper) dispatch(ctx context.Context, account Account, action strin
 	return handler()
 }
 
-func (helper Helper) toolsInstall(ctx context.Context, actorUsername string, input io.Reader) (MutationResponse, error) {
-	var request HelperToolRequest
-	if err := DecodeRequest(input, &request); err != nil {
-		return MutationResponse{}, err
-	}
-	if err := helper.Lifecycle.InstallTools(ctx, actorUsername, request); err != nil {
-		return MutationResponse{}, err
-	}
-	return MutationResponse{OK: true}, nil
-}
-
 func (helper Helper) workspaceRemove(ctx context.Context, actorUsername string, input io.Reader) (MutationResponse, error) {
 	var request ProjectRequest
 	if err := DecodeRequest(input, &request); err != nil {
 		return MutationResponse{}, err
 	}
 	if err := helper.Lifecycle.RemoveWorkspace(ctx, actorUsername, request.ID); err != nil {
-		return MutationResponse{}, err
-	}
-	return MutationResponse{OK: true}, nil
-}
-
-func (helper Helper) humanCreate(ctx context.Context, actor Account, input io.Reader) (MutationResponse, error) {
-	uidMin, err := helper.Lifecycle.Platform.UIDMin()
-	if err != nil {
-		return MutationResponse{}, err
-	}
-	if !actor.IsAdministrator(uidMin) {
-		return MutationResponse{}, errors.New("administrator status is required")
-	}
-	var request HelperHumanCreateRequest
-	if err = DecodeRequest(input, &request); err != nil {
-		return MutationResponse{}, err
-	}
-	if _, err = helper.Lifecycle.Platform.CreatePrimary(ctx, request.Username, request.Password); err != nil {
-		return MutationResponse{}, err
-	}
-	return MutationResponse{OK: true}, nil
-}
-
-func (helper Helper) humanPublish(ctx context.Context, actor Account, input io.Reader) (MutationResponse, error) {
-	uidMin, err := helper.Lifecycle.Platform.UIDMin()
-	if err != nil {
-		return MutationResponse{}, err
-	}
-	if !actor.IsAdministrator(uidMin) {
-		return MutationResponse{}, errors.New("administrator status is required")
-	}
-	var request HelperHumanPublishRequest
-	if err = DecodeRequest(input, &request); err != nil {
-		return MutationResponse{}, err
-	}
-	key, err := CanonicalAuthorizedKey(request.AuthorizedKey)
-	if err != nil {
-		return MutationResponse{}, err
-	}
-	if err = helper.Lifecycle.Platform.PublishHuman(ctx, request.Username, []byte(key)); err != nil {
 		return MutationResponse{}, err
 	}
 	return MutationResponse{OK: true}, nil

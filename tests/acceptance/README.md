@@ -59,8 +59,9 @@ pre-release runs, not a claim that release CI's later-built bytes were booted.
 - Linux owns one primary account per person; `wheel` alone owns administrator
   status.
 - Development occurs only in derived workspace accounts.
-- Each supported person receives a matching Forgejo account and registered SSH
-  public key.
+- Initial setup composes the first Linux and Forgejo administrator. Later
+  people are created through stock Linux/Cockpit account management, and
+  Forgejo creates their matching profile through PAM on first sign-in.
 - Git uses SSH.
 - Workspace accounts never become Forgejo users.
 - Workspace creation copies only current public authorized keys once.
@@ -83,11 +84,10 @@ pre-release runs, not a claim that release CI's later-built bytes were booted.
   Linux account in that order.
 - Injected failures expose exactly what succeeded and remains; an explicit
   retry continues without rollback or hidden workflow state.
-- `mise` provides workspace and shared-project tool scopes, shared upstream
-  caches, and isolated installed dependencies on Fedora 44 with enforcing
-  SELinux.
-- Multiple tool choices and optional workspace-specific coding assistants work
-  without a closed list or copied credentials.
+- `mise` is available for people to invoke directly in each workspace; project
+  configuration, tool installation, caches, and lifecycle remain upstream-owned.
+- Soda exposes no tool picker, install action, parallel tool state, shared mise
+  storage, status translation, or cleanup path.
 
 ### Updates and absence
 

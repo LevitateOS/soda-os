@@ -20,6 +20,14 @@ const stagedAuthorizedKeysName = ".soda-authorized-keys.tmp"
 
 var ErrAuthorizedKeysPublished = errors.New("authorized_keys is published or has ambiguous provenance")
 
+func CanonicalAuthorizedKey(input string) (string, error) {
+	publicKey, _, options, rest, err := ssh.ParseAuthorizedKey([]byte(input))
+	if err != nil || len(options) != 0 || len(bytes.TrimSpace(rest)) != 0 {
+		return "", errors.New("authorized key must contain exactly one valid OpenSSH public key")
+	}
+	return strings.TrimSpace(string(ssh.MarshalAuthorizedKey(publicKey))), nil
+}
+
 func (platform *NativePlatform) ReadAuthorizedKeys(account Account) ([]byte, error) {
 	path := filepath.Join(account.Home, ".ssh", "authorized_keys")
 	keyFile, err := platform.openAuthorizedKeys(account, path)
