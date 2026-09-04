@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/LevitateOS/soda-os/internal/config"
@@ -93,4 +94,14 @@ sha256 = "b582905a0d2673127b3771d22304ce7da8148336b96fb8e10b7aca20dbaacadf"
 	require.NoError(t, os.WriteFile(path, []byte(contents), 0o644))
 	_, err := readMiseSourceLock(path)
 	require.ErrorContains(t, err, "invalid")
+
+	mirrored := strings.ReplaceAll(contents, "unexpected = true\n", "")
+	mirrored = strings.ReplaceAll(mirrored, "mise-2026.9.1-1.fc44.aarch64.rpm", "mise-reviewed-aarch64.rpm")
+	mirrored = strings.ReplaceAll(mirrored, "mise-2026.9.1-1.fc44.x86_64.rpm", "mise-reviewed-x86_64.rpm")
+	mirrored = strings.ReplaceAll(mirrored, "https://example.invalid/fedora-44-aarch64/mise-reviewed-aarch64.rpm", "https://mirror.example/mise-reviewed-aarch64.rpm")
+	mirrored = strings.ReplaceAll(mirrored, "https://example.invalid/fedora-44-x86_64/mise-reviewed-x86_64.rpm", "https://mirror.example/mise-reviewed-x86_64.rpm")
+	require.NoError(t, os.WriteFile(path, []byte(mirrored), 0o644))
+	lock, err := readMiseSourceLock(path)
+	require.NoError(t, err)
+	require.Equal(t, "mise-reviewed-x86_64.rpm", lock.Asset["x86_64"].File)
 }

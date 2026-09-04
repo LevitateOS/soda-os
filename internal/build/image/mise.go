@@ -66,12 +66,8 @@ func (lock miseSourceLock) validate() error {
 }
 
 func (asset miseSourceAsset) valid(version, architecture string) bool {
-	expectedFile := strings.Replace(asset.NEVRA, "-0:", "-", 1) + ".rpm"
-	_, releaseAndArchitecture, found := strings.Cut(asset.NEVRA, ".fc")
-	release, _, hasArchitecture := strings.Cut(releaseAndArchitecture, ".")
 	return strings.HasPrefix(asset.NEVRA, "mise-0:"+version+"-") && strings.HasSuffix(asset.NEVRA, "."+architecture) &&
-		asset.File == expectedFile && filepath.Base(asset.File) == asset.File && strings.HasSuffix(asset.URL, "/"+asset.File) &&
-		found && hasArchitecture && release != "" && strings.Contains(asset.URL, "fedora-"+release+"-"+architecture+"/") && validSHA256(asset.SHA256)
+		validInputFilename(asset.File) && strings.HasSuffix(asset.File, ".rpm") && asset.URL != "" && validSHA256(asset.SHA256)
 }
 
 func (lock miseSourceLock) runtimePackage(architecture string) (lockedPackage, error) {

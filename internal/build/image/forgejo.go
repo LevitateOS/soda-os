@@ -45,5 +45,9 @@ func (lock forgejoSourceLock) validate() error {
 }
 
 func validSourceArchive(value string) bool {
-	return sourceArchivePattern.MatchString(value) && strings.HasSuffix(value, ".tar.gz")
+	return validInputFilename(value) && strings.HasSuffix(value, ".tar.gz")
+}
+
+func validInputFilename(value string) bool {
+	return sourceArchivePattern.MatchString(value)
 }
