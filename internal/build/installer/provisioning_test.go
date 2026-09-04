@@ -36,8 +36,8 @@ func TestInstallerEnvironmentUsesProtectedKickstartComposition(t *testing.T) {
 
 	for _, architecture := range []string{"aarch64", "x86_64"} {
 		config := readInstallerFixture(t, root, "packaging/installer/iso-"+architecture+".yaml")
-		require.Contains(t, config, "inst.ks=hd:LABEL=OEMDRV:/ks.cfg")
-		require.Contains(t, config, "inst.nosave=all_ks")
+		require.NotContains(t, config, "inst.ks=")
+		require.NotContains(t, config, "OEMDRV")
 	}
 
 	for _, obsolete := range []string{
