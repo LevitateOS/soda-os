@@ -2,11 +2,14 @@ package image
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
+	"os"
 )
 
-type imageBuildInputs struct{ revision, baseTag string }
+type imageBuildInputs struct{ revision, baseTag, runtimeLockSHA256 string }
 
 func (b *Builder) prepareImageBuildInputs(ctx context.Context) (imageBuildInputs, error) {
 	if err := b.requireNativeHost(); err != nil {
@@ -22,11 +25,24 @@ func (b *Builder) prepareImageBuildInputs(ctx context.Context) (imageBuildInputs
 	if err := b.verifyFetchedBuildInputs(); err != nil {
 		return imageBuildInputs{}, err
 	}
+	runtimeLock, err := runtimeLockSHA256(b.path(b.Spec.Platform.Base.RuntimePackageLock))
+	if err != nil {
+		return imageBuildInputs{}, fmt.Errorf("checksum selected runtime package lock: %w", err)
+	}
 	baseTag, err := PrepareLocalBootcBase(ctx, b.Root, b.runner, b.Spec.Platform)
 	if err != nil {
 		return imageBuildInputs{}, err
 	}
-	return imageBuildInputs{revision: revision, baseTag: baseTag}, nil
+	return imageBuildInputs{revision: revision, baseTag: baseTag, runtimeLockSHA256: runtimeLock}, nil
+}
+
+func runtimeLockSHA256(path string) (string, error) {
+	contents, err := os.ReadFile(path)
+	if err != nil {
+		return "", err
+	}
+	digest := sha256.Sum256(contents)
+	return hex.EncodeToString(digest[:]), nil
 }
 
 // verifyFetchedBuildInputs checks every downloaded input before Docker creates

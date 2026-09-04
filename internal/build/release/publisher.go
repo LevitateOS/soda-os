@@ -95,8 +95,10 @@ func (p *Publisher) CreateRecord(ctx context.Context, options RecordOptions) (Re
 	if err != nil {
 		return Result{}, err
 	}
+	if record.RuntimeLockSHA256 != lockSHA256 {
+		return Result{}, errors.New("selected runtime package lock differs from the image build input")
+	}
 	record.RuntimePackageLock = lockPath
-	record.RuntimeLockSHA256 = lockSHA256
 	checksums.RPMInventorySHA256 = record.RPMInventorySHA256
 	record.ArtifactChecksums = checksums
 	recordPath, err := writeRecord(record, options.OutputDir)

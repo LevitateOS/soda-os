@@ -73,6 +73,19 @@ func TestCreateRecordAcceptsConfiguredAbsoluteRuntimeLock(t *testing.T) {
 	require.Equal(t, sha256Hex([]byte("runtime lock\n")), record.RuntimeLockSHA256)
 }
 
+func TestCreateRecordRejectsRuntimeLockChangedSinceImageBuild(t *testing.T) {
+	archive := writeOCIArchive(t, matchingTestImage(t))
+	iso := filepath.Join(t.TempDir(), "SodaOS.iso")
+	require.NoError(t, os.WriteFile(iso, []byte("installer bytes"), 0o644))
+	qcow2, qcow2ZST := writeQCOW2Artifacts(t)
+	root := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(root, "runtime.lock"), []byte("changed runtime lock\n"), 0o644))
+	publisher := &Publisher{root: root, spec: testSpec(), hostArchitecture: "arm64", isoValidator: &fakeISOValidator{}}
+
+	_, err := publisher.CreateRecord(context.Background(), RecordOptions{ArchivePath: archive, ISOPath: iso, QCOW2Path: qcow2, QCOW2ZSTPath: qcow2ZST, OutputDir: t.TempDir()})
+	require.EqualError(t, err, "selected runtime package lock differs from the image build input")
+}
+
 func TestCreateRecordBindsInspectedISO(t *testing.T) {
 	iso := filepath.Join(t.TempDir(), "SodaOS.iso")
 	require.NoError(t, os.WriteFile(iso, []byte("installer bytes"), 0o644))
