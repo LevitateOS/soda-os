@@ -140,6 +140,7 @@ function prepareProjectDialog(action, project) {
   const dialog = document.querySelector(`#${action}-project-dialog`);
   const form = dialog.querySelector("form");
   form.reset();
+  clearFormNotice(form);
   form.elements.id.value = project.id;
 
   if (action === "edit") {
@@ -191,10 +192,33 @@ async function submitAction(event) {
     await loadProjects();
     showNotice(message, "success");
   } catch (error) {
-    showNotice(errorMessage(error), "error");
+    const message = errorMessage(error);
+    if (action === "setup") {
+      await loadProjects();
+    }
+    showFormNotice(form, message);
+    showNotice(message, "error");
   } finally {
     setBusy(false);
   }
+}
+
+function clearFormNotice(form) {
+  const notice = form.querySelector("[data-form-notice]");
+  if (!notice) {
+    return;
+  }
+  notice.textContent = "";
+  notice.hidden = true;
+}
+
+function showFormNotice(form, message) {
+  const notice = form.querySelector("[data-form-notice]");
+  if (!notice) {
+    return;
+  }
+  notice.textContent = message;
+  notice.hidden = false;
 }
 
 function setBusy(busy) {

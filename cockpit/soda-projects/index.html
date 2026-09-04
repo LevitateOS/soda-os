@@ -43,7 +43,7 @@
               <button class="button secondary" type="submit">Allow access from the local network.</button>
             </form>
             <form id="connect-tailscale-form">
-              <label for="setup-auth-key">One-use Tailscale auth key</label>
+              <label for="setup-auth-key">Reusable ephemeral Tailscale auth key</label>
               <input id="setup-auth-key" name="auth_key" type="password" required autocomplete="off">
               <p class="field-help">Requested only after installation, used once through Tailscale, and not retained by Soda.</p>
               <button class="button secondary" type="submit">Connect Tailscale</button>
@@ -209,6 +209,7 @@
           <input name="id" type="hidden">
           <p>Project: <strong data-project-name></strong></p>
           <p class="field-help">Soda creates an SSH keypair only in this workspace and uses it for this clone. The authoritative Git host owns access. If clone authentication fails, Soda reports the public key for you to register with that host before retrying. Configure tools with <code>mise</code> and authenticate Tea and GitHub CLI directly inside the workspace.</p>
+          <p class="notice error" data-form-notice role="alert" hidden></p>
         </div>
         <footer class="dialog-actions">
           <button class="button secondary" type="button" data-dialog-close>Cancel</button>

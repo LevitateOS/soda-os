@@ -112,7 +112,7 @@ func (network NativeNetwork) ConnectTailscale(ctx context.Context, authKey strin
 	}
 	secret, err := sealedSecret([]byte(authKey))
 	if err != nil {
-		return fmt.Errorf("prepare one-use Tailscale key: %w", err)
+		return fmt.Errorf("prepare ephemeral Tailscale key: %w", err)
 	}
 	defer secret.Close()
 	runner, client := network.dependencies()
@@ -140,7 +140,7 @@ func enrollTailscale(ctx context.Context, runner linuxhost.CommandRunner, secret
 		return errors.New("Tailscale enrollment could not be started")
 	}
 	if result.ExitCode != 0 {
-		return errors.New("Tailscale rejected the one-use auth key")
+		return errors.New("Tailscale rejected the auth key")
 	}
 	return nil
 }

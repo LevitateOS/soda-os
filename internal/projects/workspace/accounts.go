@@ -104,6 +104,8 @@ func (accounts Accounts) Prepare(ctx context.Context, repository OutboundKeyGene
 		if err != nil {
 			return Preparation{}, err
 		}
+	} else if _, err = accounts.keys.ReadAuthorizedKeys(workspace); err != nil {
+		return Preparation{}, fmt.Errorf("workspace %s exists without usable inbound SSH keys; restore its authorized_keys file or remove the workspace and retry setup: %w", workspace.Username, err)
 	}
 	publicKey, err := repository.GenerateOutboundKey(ctx, workspace)
 	if err != nil {

@@ -145,16 +145,25 @@ func (state *runnerState) verifyDevelopmentServer(ctx context.Context, scenario 
 	if err := startDevelopmentServer(ctx, bob, 18081, "bob", "product/bob-development-server"); err != nil {
 		return err
 	}
-	if err := state.waitForDevelopmentServer(ctx, 18080, "first\n"); err != nil {
+	if err := state.waitForDevelopmentServer(ctx, "127.0.0.1", 18080, "first\n", "product/alice-development-server-lan-first"); err != nil {
 		return err
 	}
-	if err := state.waitForDevelopmentServer(ctx, 18081, "bob\n"); err != nil {
+	if err := state.waitForDevelopmentServer(ctx, scenario.tailnetHost, 18080, "first\n", "product/alice-development-server-tailnet-first"); err != nil {
+		return err
+	}
+	if err := state.waitForDevelopmentServer(ctx, "127.0.0.1", 18081, "bob\n", "product/bob-development-server-lan"); err != nil {
+		return err
+	}
+	if err := state.waitForDevelopmentServer(ctx, scenario.tailnetHost, 18081, "bob\n", "product/bob-development-server-tailnet"); err != nil {
 		return err
 	}
 	if err := alice.Capture(ctx, "product/hot-reload-write", []byte("printf 'second\\n' >\"$HOME/Projects/kept/hot-reload.txt\"\n"), "/bin/bash", "-s"); err != nil {
 		return err
 	}
-	return state.waitForDevelopmentServer(ctx, 18080, "second\n")
+	if err := state.waitForDevelopmentServer(ctx, "127.0.0.1", 18080, "second\n", "product/alice-hot-reload-lan"); err != nil {
+		return err
+	}
+	return state.waitForDevelopmentServer(ctx, scenario.tailnetHost, 18080, "second\n", "product/alice-hot-reload-tailnet")
 }
 
 func startDevelopmentServer(ctx context.Context, remote Remote, port int, value, evidence string) error {
@@ -162,12 +171,15 @@ func startDevelopmentServer(ctx context.Context, remote Remote, port int, value,
 	return remote.Capture(ctx, evidence, []byte(script), "/bin/bash", "-s")
 }
 
-func (state *runnerState) waitForDevelopmentServer(ctx context.Context, port int, expected string) error {
-	url := "http://127.0.0.1:" + strconv.Itoa(port) + "/hot-reload.txt"
+func (state *runnerState) waitForDevelopmentServer(ctx context.Context, host string, port int, expected, evidence string) error {
+	if host == "" {
+		return errors.New("development-server endpoint host is unavailable")
+	}
+	url := "http://" + urlHost(host) + ":" + strconv.Itoa(port) + "/hot-reload.txt"
 	for attempt := 0; attempt < 20; attempt++ {
 		output, err := CommandOutput(ctx, CommandSpec{Name: "curl", Args: []string{"--fail", "--silent", "--show-error", url}})
 		if err == nil && string(output) == expected {
-			return nil
+			return state.evidence.Write(evidence+".txt", output)
 		}
 		if err = waitBriefly(ctx); err != nil {
 			return err
@@ -177,13 +189,52 @@ func (state *runnerState) waitForDevelopmentServer(ctx context.Context, port int
 }
 
 func (state *runnerState) verifyMiseOwnership(ctx context.Context, scenario *scenarioState) error {
-	admin := scenario.remote.As(scenario.adminSpace, state.paths.adminKey)
-	script := "set -euo pipefail; cd \"$HOME/Projects/kept\"; command -v mise; mise --version; test ! -e mise.local.toml; test ! -e mise.toml; test ! -e /var/lib/soda/mise; test ! -e \"$HOME/.config/tea/config.yml\"; test ! -e \"$HOME/.config/gh/hosts.yml\""
-	if err := admin.Capture(ctx, "product/mise-native-ownership", []byte(script), "/bin/bash", "-s"); err != nil {
+	workspaces := []struct {
+		label  string
+		remote Remote
+	}{
+		{label: "admin", remote: scenario.remote.As(scenario.adminSpace, state.paths.adminKey)},
+		{label: "bob", remote: scenario.remote.As(scenario.bobSpace, state.personKeyPath("bob"))},
+	}
+	script := `set -euo pipefail
+cd "$HOME/Projects/kept"
+cat >mise.toml <<'EOF'
+[tools]
+node = "22.14.0"
+EOF
+mise trust mise.toml
+mise install --include-lazy
+test "$(mise exec -- node --version)" = v22.14.0
+test -d "$HOME/.local/share/mise/installs/node/22.14.0"
+test -d "$HOME/.cache/mise"
+test ! -e /var/lib/soda/mise
+test ! -e "$HOME/.config/tea/config.yml"
+test ! -e "$HOME/.config/gh/hosts.yml"
+printf 'workspace=%s\n' "$(id -un)"
+printf 'mise_data=%s\n' "$HOME/.local/share/mise"
+printf 'mise_cache=%s\n' "$HOME/.cache/mise"
+`
+	errorsByWorkspace := make(chan error, len(workspaces))
+	for _, workspace := range workspaces {
+		workspace := workspace
+		go func() {
+			errorsByWorkspace <- workspace.remote.Capture(ctx, "product/mise-native-"+workspace.label, []byte(script), "/bin/bash", "-s")
+		}()
+	}
+	var result error
+	for range workspaces {
+		result = errors.Join(result, <-errorsByWorkspace)
+	}
+	if result != nil {
+		return fmt.Errorf("concurrent native mise use: %w", result)
+	}
+	alice := scenario.remote.As(scenario.aliceSpace, state.personKeyPath("alice"))
+	privacy := "set -euo pipefail\ntest ! -r /home/" + scenario.bobSpace + "/Projects/kept/mise.toml\ntest ! -r /home/" + scenario.bobSpace + "/.local/share/mise/installs/node/22.14.0/bin/node\n"
+	if err := alice.Capture(ctx, "product/mise-workspace-privacy", []byte(privacy), "/bin/bash", "-s"); err != nil {
 		return err
 	}
-	boundary := "bob_home=$(getent passwd " + scenario.bobSpace + " | cut -d: -f6); test ! -e \"$bob_home/.config/mise\"; test ! -e /var/lib/soda/mise\n"
-	return scenario.remote.Sudo(ctx, scenario.password, boundary, "product/mise-private-dependencies")
+	boundary := "set -euo pipefail; test ! -e /var/lib/soda/mise; test ! -e /opt/soda/toolchains; command -v tea; command -v gh\n"
+	return scenario.remote.Sudo(ctx, scenario.password, boundary, "product/cli-ownership-boundaries")
 }
 
 func (state *runnerState) verifyWorkspaceRemoval(ctx context.Context, scenario *scenarioState) error {

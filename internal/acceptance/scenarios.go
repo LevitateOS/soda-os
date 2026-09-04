@@ -12,30 +12,30 @@ import (
 )
 
 type scenarioState struct {
-	remote     Remote
-	password   []byte
-	adminSpace string
-	aliceSpace string
-	bobSpace   string
+	remote      Remote
+	tailnetHost string
+	password    []byte
+	adminSpace  string
+	aliceSpace  string
+	bobSpace    string
 }
 
-func (state *runnerState) exerciseInstalledSystem(ctx context.Context, remote *Remote, vm **VM) error {
+func (state *runnerState) exerciseInstalledSystem(ctx context.Context, scenario *scenarioState, vm **VM) error {
 	password, err := os.ReadFile(state.paths.password)
 	if err != nil {
 		return err
 	}
-	scenario := scenarioState{remote: *remote, password: password}
+	scenario.password = password
 	if err = state.captureCore(ctx, scenario.remote, "iso"); err != nil {
 		return fmt.Errorf("installed product boundaries: %w", err)
 	}
-	if err = state.seedPreservationState(ctx, &scenario); err != nil {
+	if err = state.seedPreservationState(ctx, scenario); err != nil {
 		return fmt.Errorf("seed update and fallback state: %w", err)
 	}
-	if err = state.exerciseFallback(ctx, &scenario, vm); err != nil {
+	if err = state.exerciseFallback(ctx, scenario, vm); err != nil {
 		return fmt.Errorf("manual update and fallback: %w", err)
 	}
-	*remote = scenario.remote
-	if err = state.exerciseProductScenarios(ctx, &scenario); err != nil {
+	if err = state.exerciseProductScenarios(ctx, scenario); err != nil {
 		return fmt.Errorf("product scenarios: %w", err)
 	}
 	if err = state.captureCore(ctx, scenario.remote, "final"); err != nil {
@@ -64,13 +64,17 @@ func (state *runnerState) captureCore(ctx context.Context, remote Remote, prefix
 	return remote.Sudo(ctx, password, stableManifestScript, prefix+"/system-manifest")
 }
 
-func (state *runnerState) runQCOW2Checks(ctx context.Context, remote Remote) error {
+func (state *runnerState) runQCOW2Checks(ctx context.Context, remote Remote, originalVirtualSize int64) error {
 	if err := remote.Capture(ctx, "qcow2/core", []byte(coreGuestChecks), "/bin/bash", "-s"); err != nil {
 		return err
 	}
 	password := state.secret("administrator-password")
 	if err := remote.Sudo(ctx, password, qcow2GuestChecks, "qcow2/setup"); err != nil {
 		return err
+	}
+	growthCheck := fmt.Sprintf("set -euo pipefail\nroot_bytes=$(df -B1 --output=size / | tail -n 1 | tr -d ' ')\ntest \"$root_bytes\" -gt %d\nprintf 'original_virtual_size=%%s\\nusable_root_size=%%s\\n' %d \"$root_bytes\"\n", originalVirtualSize, originalVirtualSize)
+	if err := remote.Sudo(ctx, password, growthCheck, "qcow2/volume-growth"); err != nil {
+		return fmt.Errorf("verify reusable QCOW2 guest volume growth: %w", err)
 	}
 	if err := state.verifyLocalProjectsWithoutTailscale(ctx, remote); err != nil {
 		return err

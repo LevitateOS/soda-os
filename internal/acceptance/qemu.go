@@ -2,6 +2,7 @@ package acceptance
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -22,12 +23,14 @@ type VMConfig struct {
 	Host         string
 	SSHPort      int
 	CockpitPort  int
+	ForgejoPort  int
 }
 
 type VM struct {
 	Config  VMConfig
 	Process *Process
 	QMP     QMPClient
+	qmpPath string
 	outputs []io.Closer
 }
 
@@ -66,13 +69,13 @@ func LaunchVM(ctx context.Context, config VMConfig) (*VM, error) {
 		defer cancel()
 		return nil, errors.Join(err, process.Stop(stopCtx), stdout.Close(), stderr.Close())
 	}
-	vm := &VM{Config: config, Process: process, QMP: QMPClient{Socket: qmpSocket(config)}, outputs: []io.Closer{stdout, stderr}}
+	vm := &VM{Config: config, Process: process, QMP: QMPClient{Socket: qmpSocket(config)}, qmpPath: qmpSocket(config), outputs: []io.Closer{stdout, stderr}}
 	waitCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 	if err = WaitForSocket(waitCtx, qmpSocket(config)); err != nil {
 		stopCtx, cancel := StopDeadline()
 		defer cancel()
-		return nil, errors.Join(err, process.Stop(stopCtx), vm.closeOutputs())
+		return nil, errors.Join(err, process.Stop(stopCtx), vm.closeIO())
 	}
 	return vm, nil
 }
@@ -109,11 +112,15 @@ func (vm *VM) PowerDown(ctx context.Context) error {
 }
 
 func (vm *VM) Stop(ctx context.Context) error {
-	return errors.Join(vm.Process.Stop(ctx), vm.closeOutputs())
+	return errors.Join(vm.Process.Stop(ctx), vm.closeIO())
 }
 
 func (vm *VM) closeIO() error {
-	return vm.closeOutputs()
+	removeErr := os.Remove(vm.qmpPath)
+	if errors.Is(removeErr, os.ErrNotExist) {
+		removeErr = nil
+	}
+	return errors.Join(vm.closeOutputs(), removeErr)
 }
 
 func (vm *VM) closeOutputs() error {
@@ -136,7 +143,15 @@ func qemuCommand(config VMConfig) ([]string, string, error) {
 	}
 }
 
-func qmpSocket(config VMConfig) string { return filepath.Join(config.Directory, "qmp.sock") }
+func qmpSocket(config VMConfig) string { return qmpSocketFor(config, runtime.GOOS) }
+
+func qmpSocketFor(config VMConfig, goos string) string {
+	if goos != "darwin" {
+		return filepath.Join(config.Directory, "qmp.sock")
+	}
+	digest := sha256.Sum256([]byte(config.Directory))
+	return filepath.Join("/tmp", fmt.Sprintf("soda-qmp-%x.sock", digest[:12]))
+}
 
 func WaitForSocket(ctx context.Context, path string) error {
 	ticker := time.NewTicker(250 * time.Millisecond)
@@ -198,17 +213,21 @@ func qemuCommonArgs(config VMConfig) []string {
 	} else {
 		args = append(args, "-boot", "order=c")
 	}
-	network := fmt.Sprintf("user,id=net0,hostfwd=tcp:%s:%d-:22,hostfwd=tcp:%s:%d-:9090,hostfwd=tcp:%s:18080-:18080,hostfwd=tcp:%s:18081-:18081", config.Host, config.SSHPort, config.Host, config.CockpitPort, config.Host, config.Host)
+	network := fmt.Sprintf("user,id=net0,hostfwd=tcp:%s:%d-:22,hostfwd=tcp:%s:%d-:9090,hostfwd=tcp:%s:%d-:3000,hostfwd=tcp:%s:18080-:18080,hostfwd=tcp:%s:18081-:18081", config.Host, config.SSHPort, config.Host, config.CockpitPort, config.Host, config.ForgejoPort, config.Host, config.Host)
 	args = append(args, "-netdev", network, "-device", "virtio-net-pci,netdev=net0")
 	args = append(args, "-serial", "file:"+filepath.Join(config.Directory, "serial.log"), "-monitor", "none", "-qmp", "unix:"+qmpSocket(config)+",server=on,wait=off")
 	return append(args, qemuDisplayArgs(config)...)
 }
 
 func qemuDisplayArgs(config VMConfig) []string {
+	return qemuDisplayArgsFor(config, runtime.GOOS)
+}
+
+func qemuDisplayArgsFor(config VMConfig, goos string) []string {
 	if config.Mode == "installed" {
 		return []string{"-display", "none"}
 	}
-	if runtime.GOOS == "darwin" {
+	if goos == "darwin" {
 		return []string{"-device", "virtio-gpu-pci", "-display", "cocoa", "-device", "qemu-xhci", "-device", "usb-kbd", "-device", "usb-tablet"}
 	}
 	if config.Architecture == "aarch64" {

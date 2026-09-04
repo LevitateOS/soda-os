@@ -73,16 +73,22 @@ func (host *fakeAccountHost) PasswordStatus(_ context.Context, account linuxhost
 	return linuxhost.PasswordLocked, nil
 }
 
-func (host *fakeAccountHost) ReadAuthorizedKeys(linuxhost.Account) ([]byte, error) {
+func (host *fakeAccountHost) ReadAuthorizedKeys(account linuxhost.Account) ([]byte, error) {
 	host.calls.keyReads++
-	if host.keys == nil {
+	keys := host.keys
+	if account.Username != "alice" {
+		keys = host.installedKeys[account.Username]
+	}
+	if keys == nil {
 		return nil, errors.New("authorized_keys does not contain a public key")
 	}
-	return append([]byte(nil), host.keys...), nil
+	return append([]byte(nil), keys...), nil
 }
 
 func (host *fakeAccountHost) InstallAuthorizedKeys(account linuxhost.Account, keys []byte) error {
-	host.installedKeys[account.Username] = append([]byte(nil), keys...)
+	if host.failures.install == nil {
+		host.installedKeys[account.Username] = append([]byte(nil), keys...)
+	}
 	return host.failures.install
 }
 
@@ -173,7 +179,7 @@ func TestAccountsPrepareCreatesRepresentableLinuxStateAndCopiesKeysOnce(t *testi
 	require.NoError(t, err)
 	require.Equal(t, prepared.Username, again.Username)
 	require.Len(t, calls, 1)
-	require.Equal(t, 1, host.calls.keyReads, "an existing workspace must retain its copied inbound keys")
+	require.Equal(t, 2, host.calls.keyReads, "retry must validate the retained inbound keys without recopying them")
 }
 
 func TestAssociationReportsOnlyTheDerivedLinuxAccount(t *testing.T) {
@@ -210,6 +216,13 @@ func TestAccountsRetainsCreatedWorkspaceWhenInboundKeyPublicationIsAmbiguous(t *
 	require.ErrorContains(t, err, "was retained because inbound SSH keys may be incomplete")
 	username, _ := DerivedUsername(primary.Username, entry.ID)
 	require.Contains(t, host.accounts, username)
+
+	host.failures.install = nil
+	retryRepository := newFakeRepository()
+	_, err = NewAccounts(host, host, host, runner).Prepare(context.Background(), retryRepository, primary, entry)
+	require.ErrorContains(t, err, "exists without usable inbound SSH keys")
+	require.ErrorContains(t, err, "remove the workspace and retry setup")
+	require.Empty(t, retryRepository.keyCalls, "incomplete inbound access must stop setup before outbound key generation")
 }
 
 func TestAccountsRejectsAnUnlockedExistingWorkspace(t *testing.T) {
