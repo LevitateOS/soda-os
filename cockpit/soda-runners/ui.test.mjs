@@ -23,4 +23,5 @@ test("local status never claims provider availability or idle capacity", () => {
   assert.equal(statusText({ active: "active", sub: "running" }), "Listening");
   assert.equal(statusText({ active: "failed", sub: "failed" }), "Failed");
   assert.match(successMessage("remove", "one"), /provider/);
+  assert.equal(successMessage("stop", "one"), "one was stopped.");
 });

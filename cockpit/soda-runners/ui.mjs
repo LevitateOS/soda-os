@@ -47,7 +47,8 @@ export function providerName(provider) {
 export function successMessage(action, id) {
   if (action === "create") return `${id} was registered and its local listener started.`;
   if (action === "remove") return `${id} and its local account and state were removed. Remove its offline record in the provider.`;
-  return `${id} was ${action === "restart" ? "restarted" : `${action}ed`}.`;
+  const pastTense = { start: "started", stop: "stopped", restart: "restarted" };
+  return `${id} was ${pastTense[action]}.`;
 }
 
 export function errorMessage(error) {
