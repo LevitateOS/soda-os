@@ -9,6 +9,11 @@ export const formActions = Object.freeze([
 
 const formActionSet = new Set(formActions);
 
+export function sshCommand(username, hostname) {
+  const host = hostname.includes(":") && !hostname.startsWith("[") ? `[${hostname}]` : hostname;
+  return `ssh ${username}@${host}`;
+}
+
 export function payloadFor(action, data, reportInvalid) {
   if (!formActionSet.has(action)) {
     throw new TypeError(`unsupported form action: ${action}`);

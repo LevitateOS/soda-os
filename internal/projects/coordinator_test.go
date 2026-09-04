@@ -12,21 +12,21 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type fakeEndpoints struct {
-	forgejoURL string
-	sshHost    string
+type fakeTailnetIdentity struct {
+	identity string
+	err      error
+	calls    int
 }
 
-func (endpoints fakeEndpoints) Endpoints(context.Context) (string, string, error) {
-	forgejoURL := endpoints.forgejoURL
-	if forgejoURL == "" {
-		forgejoURL = "http://soda.example.ts.net:30000"
+func (source *fakeTailnetIdentity) Identity(context.Context) (string, error) {
+	source.calls++
+	if source.err != nil {
+		return "", source.err
 	}
-	sshHost := endpoints.sshHost
-	if sshHost == "" {
-		sshHost = "soda.example.ts.net"
+	if source.identity == "" {
+		return "soda.example.ts.net", nil
 	}
-	return forgejoURL, sshHost, nil
+	return source.identity, nil
 }
 
 type fakePrivileged struct {
@@ -96,6 +96,7 @@ type coordinatorFixture struct {
 	coordinator Coordinator
 	platform    *fakePlatform
 	privileged  *fakePrivileged
+	tailnet     *fakeTailnetIdentity
 }
 
 func testCoordinator(t *testing.T) coordinatorFixture {
@@ -104,11 +105,13 @@ func testCoordinator(t *testing.T) coordinatorFixture {
 	platform := newFakePlatform()
 	platform.accounts["alice"] = primaryAccount("alice", primaryRoleAdministrator)
 	privileged := &fakePrivileged{workspacePublicKey: strings.TrimSpace(string(testAuthorizedKey(t)))}
+	tailnet := &fakeTailnetIdentity{}
 	lifecycle := Lifecycle{Catalog: catalog, Platform: platform}
 	return coordinatorFixture{
-		coordinator: Coordinator{Catalog: catalog, Lifecycle: lifecycle, Platform: platform, Privileged: privileged, Forgejo: ForgejoClient{}, Endpoints: fakeEndpoints{}},
+		coordinator: Coordinator{Catalog: catalog, Lifecycle: lifecycle, Platform: platform, Privileged: privileged, Forgejo: ForgejoClient{}, Tailnet: tailnet, Hostname: "soda", ForgejoAPIURL: BundledForgejoAPIURL},
 		platform:    platform,
 		privileged:  privileged,
+		tailnet:     tailnet,
 	}
 }
 
@@ -128,7 +131,9 @@ func TestCoordinatorPublishesArbitraryCatalogMetadataAtPrivilegedBoundary(t *tes
 }
 
 func TestCoordinatorListContract(t *testing.T) {
-	coordinator := testCoordinator(t).coordinator
+	fixture := testCoordinator(t)
+	fixture.tailnet.err = errors.New("Tailscale is not enrolled")
+	coordinator := fixture.coordinator
 	require.NoError(t, coordinator.Catalog.Add(CatalogEntry{
 		ID: "site", DisplayName: "Site", CanonicalURL: "git@git.example.test:site.git",
 		Additional: map[string]json.RawMessage{
@@ -140,8 +145,7 @@ func TestCoordinatorListContract(t *testing.T) {
 	require.NoError(t, err)
 	list := response.(ListResponse)
 	require.Equal(t, CurrentUserView{Username: "alice", Administrator: true}, list.CurrentUser)
-	require.Equal(t, "http://soda.example.ts.net:30000", list.ForgejoURL)
-	require.Equal(t, "soda.example.ts.net", list.SSHHost)
+	require.Zero(t, fixture.tailnet.calls)
 	require.Len(t, list.Projects, 1)
 	require.NotEmpty(t, list.Projects[0].WorkspaceUsername)
 	require.JSONEq(t, `"web"`, string(list.Projects[0].Additional["team"]))
@@ -166,7 +170,7 @@ func TestCoordinatorListContract(t *testing.T) {
 func TestCoordinatorSetupRegistersWorkspacePublicKeyBeforeNativeSSHClone(t *testing.T) {
 	fixture := testCoordinator(t)
 	coordinator, privileged := fixture.coordinator, fixture.privileged
-	entry := CatalogEntry{ID: "site", DisplayName: "Site", CanonicalURL: "git@localhost:team/site.git"}
+	entry := CatalogEntry{ID: "site", DisplayName: "Site", CanonicalURL: "git@soda:team/site.git"}
 	require.NoError(t, coordinator.Catalog.Add(entry))
 	var registered, title string
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
@@ -195,13 +199,14 @@ func TestCoordinatorSetupRegistersWorkspacePublicKeyBeforeNativeSSHClone(t *test
 		}
 	}))
 	defer server.Close()
-	coordinator.Endpoints = fakeEndpoints{forgejoURL: server.URL}
+	coordinator.ForgejoAPIURL = server.URL
 	response, err := coordinator.Execute(context.Background(), "alice", "setup", strings.NewReader(`{"id":"site","forgejo_password":"one-use"}`))
 	require.NoError(t, err)
 	require.Equal(t, MutationResponse{OK: true, WorkspaceUsername: "soda-w-example"}, response)
 	require.Equal(t, []string{"workspace-prepare", "workspace-publish"}, privileged.actions)
 	require.Equal(t, privileged.workspacePublicKey, registered)
 	require.Equal(t, "Soda OS workspace soda-w-example", title)
+	require.Zero(t, fixture.tailnet.calls)
 	encoded, err := json.Marshal(privileged.request)
 	require.NoError(t, err)
 	require.NotContains(t, string(encoded), "one-use")
@@ -216,11 +221,12 @@ func TestCoordinatorSetupRetainsWorkspaceKeyWhenForgejoRegistrationFails(t *test
 		_, _ = writer.Write([]byte(`{"message":"wrong password"}`))
 	}))
 	defer server.Close()
-	coordinator.Endpoints = fakeEndpoints{forgejoURL: server.URL}
+	coordinator.ForgejoAPIURL = server.URL
 
 	_, err := coordinator.Execute(context.Background(), "alice", "setup", strings.NewReader(`{"id":"site","forgejo_password":"one-use"}`))
 	require.ErrorContains(t, err, "local outbound Git key were retained; Forgejo key registration can be retried")
 	require.Equal(t, []string{"workspace-prepare"}, fixture.privileged.actions)
+	require.Equal(t, 1, fixture.tailnet.calls)
 }
 
 func TestCoordinatorSetupRequiresBundledForgejoPasswordBeforeMutation(t *testing.T) {
@@ -233,6 +239,7 @@ func TestCoordinatorSetupRequiresBundledForgejoPasswordBeforeMutation(t *testing
 
 	require.ErrorContains(t, err, "password must contain between 1 and 4096 bytes")
 	require.Empty(t, fixture.privileged.actions)
+	require.Equal(t, 1, fixture.tailnet.calls)
 }
 
 func TestCoordinatorSetupLeavesExternalKeyRegistrationToNativeHost(t *testing.T) {
@@ -249,6 +256,7 @@ func TestCoordinatorSetupLeavesExternalKeyRegistrationToNativeHost(t *testing.T)
 	require.ErrorContains(t, err, "register public key")
 	require.ErrorContains(t, err, "retry setup")
 	require.Equal(t, []string{"workspace-prepare", "workspace-publish"}, fixture.privileged.actions)
+	require.Zero(t, fixture.tailnet.calls)
 }
 
 func TestCoordinatorRejectsUnknownActionsAndFields(t *testing.T) {

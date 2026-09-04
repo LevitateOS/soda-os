@@ -99,20 +99,7 @@ func forgejoKeys(ctx context.Context, remote Remote, username string, password [
 }
 
 func forgejoEndpoint(ctx context.Context, remote Remote) (string, error) {
-	list, err := remote.Output(ctx, []byte("{}\n"), "/usr/libexec/soda/soda-projects", "list")
-	if err != nil {
-		return "", err
-	}
-	var endpoint struct {
-		ForgejoURL string `json:"forgejo_url"`
-	}
-	if err = json.Unmarshal(list, &endpoint); err != nil {
-		return "", err
-	}
-	if endpoint.ForgejoURL == "" {
-		return "", errors.New("Projects did not report a Forgejo endpoint")
-	}
-	return endpoint.ForgejoURL, nil
+	return "http://127.0.0.1:30000", nil
 }
 
 func canonicalPublicKey(contents []byte) (string, error) {

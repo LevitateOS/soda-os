@@ -99,12 +99,14 @@ func TestSetupOperationLockBlocksProjectAndHumanRemoval(t *testing.T) {
 	forgejo := newWorkspaceForgejoServer(t)
 	defer forgejo.Close()
 	coordinator := Coordinator{
-		Catalog:    catalog,
-		Lifecycle:  lifecycle,
-		Platform:   platform,
-		Privileged: privileged,
-		Forgejo:    ForgejoClient{},
-		Endpoints:  fakeEndpoints{forgejoURL: forgejo.URL},
+		Catalog:       catalog,
+		Lifecycle:     lifecycle,
+		Platform:      platform,
+		Privileged:    privileged,
+		Forgejo:       ForgejoClient{},
+		Tailnet:       &fakeTailnetIdentity{},
+		Hostname:      "soda",
+		ForgejoAPIURL: forgejo.URL,
 	}
 
 	setupResult := make(chan error, 1)

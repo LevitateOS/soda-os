@@ -9,8 +9,9 @@ import {
   errorMessage,
   humanDeletionHidden,
   payloadFor,
-  projectRemovalHidden,
-  successMessage,
+	projectRemovalHidden,
+	sshCommand,
+	successMessage,
 } from "./ui.mjs";
 import { initializeSetup } from "./setup.mjs";
 
@@ -112,9 +113,7 @@ function projectRow(project) {
   guidance.textContent = project.workspace_ready ? "Ready" : "After setup";
   const command = document.createElement("code");
   command.className = "ssh-command";
-  command.textContent = state.data.ssh_host
-    ? `ssh ${project.workspace_username}@${state.data.ssh_host}`
-    : project.workspace_username;
+  command.textContent = sshCommand(project.workspace_username, window.location.hostname);
   workspace.append(guidance, command);
 
   const actionsCell = document.createElement("td");

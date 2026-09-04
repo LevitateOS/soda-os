@@ -9,9 +9,15 @@ import {
   formActions,
   humanDeletionHidden,
   payloadFor,
-  projectRemovalHidden,
-  successMessage,
+	projectRemovalHidden,
+	sshCommand,
+	successMessage,
 } from "./ui.mjs";
+
+test("SSH guidance uses the browser connection host", () => {
+  assert.equal(sshCommand("soda-w-example", "192.0.2.10"), "ssh soda-w-example@192.0.2.10");
+  assert.equal(sshCommand("soda-w-example", "2001:db8::10"), "ssh soda-w-example@[2001:db8::10]");
+});
 
 test("every destructive and mutating form is wired to one supported action", async () => {
   const html = await readFile(new URL("./index.html", import.meta.url), "utf8");

@@ -4,7 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 )
+
+const BundledForgejoAPIURL = "http://127.0.0.1:30000"
 
 func (coordinator Coordinator) setup(ctx context.Context, primary Account, request SetupRequest) (MutationResponse, error) {
 	if !projectIDPattern.MatchString(request.ID) {
@@ -32,16 +35,17 @@ func (coordinator Coordinator) setupLocked(ctx context.Context, primary Account,
 	if err != nil {
 		return MutationResponse{}, err
 	}
-	forgejoURL, sshHost, err := coordinator.Endpoints.Endpoints(ctx)
-	if err != nil {
-		return MutationResponse{}, err
-	}
-	bundledForgejo, err := remoteUsesBundledForgejo(entry.CanonicalURL, sshHost)
+	remoteHost, err := sshRemoteHost(entry.CanonicalURL)
 	if err != nil {
 		return MutationResponse{}, fmt.Errorf("identify repository SSH host: %w", err)
 	}
+	bundledForgejo := sameHost(remoteHost, "localhost") || sameHost(remoteHost, coordinator.Hostname)
+	if !bundledForgejo && strings.HasSuffix(normalizeHost(remoteHost), ".ts.net") {
+		identity, identityErr := coordinator.Tailnet.Identity(ctx)
+		bundledForgejo = identityErr == nil && sameHost(remoteHost, identity)
+	}
 	if bundledForgejo {
-		return coordinator.setupBundledForgejoWorkspace(ctx, primary, entry, request, forgejoURL)
+		return coordinator.setupBundledForgejoWorkspace(ctx, primary, entry, request, coordinator.ForgejoAPIURL)
 	}
 	return coordinator.setupExternalWorkspace(ctx, entry, request)
 }

@@ -20,13 +20,19 @@ func main() {
 		fmt.Fprintln(os.Stderr, "resolve current Linux account:", err)
 		os.Exit(1)
 	}
+	hostname, err := os.Hostname()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "resolve local hostname:", err)
+		os.Exit(1)
+	}
 	catalog := projects.NewCatalog()
 	platform := projects.NewNativePlatform()
 	lifecycle := projects.Lifecycle{Catalog: catalog, Platform: platform}
 	coordinator := projects.Coordinator{
 		Catalog: catalog, Lifecycle: lifecycle, Platform: platform,
 		Privileged: projects.PKExecInvoker{}, Forgejo: projects.ForgejoClient{},
-		Endpoints: projects.TailnetEndpoints{},
+		Tailnet: projects.NativeTailnetIdentity{}, Hostname: hostname,
+		ForgejoAPIURL: projects.BundledForgejoAPIURL,
 	}
 	response, err := coordinator.Execute(context.Background(), current.Username, os.Args[1], os.Stdin)
 	if err != nil {

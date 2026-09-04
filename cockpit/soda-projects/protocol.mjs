@@ -68,9 +68,6 @@ function assertListResponse(response) {
       typeof response.current_user.administrator !== "boolean") {
     throw new TypeError("list response has an invalid current_user");
   }
-  if (typeof response.forgejo_url !== "string" || typeof response.ssh_host !== "string") {
-    throw new TypeError("list response is missing native service locations");
-  }
 }
 
 function assertProjectView(project) {
