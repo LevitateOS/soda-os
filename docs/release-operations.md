@@ -96,6 +96,25 @@ Release CI runs no QEMU, graphical installation, first-boot provisioning,
 product acceptance, update/fallback suite, NoCloud, ConfigDrive, or
 acceptance-only Tailscale enrollment. It receives no guest Tailscale keys.
 
+## Host-local Cockpit ISO candidate
+
+On a native x86-64 build host, an operator can prepare one manually installable
+Cockpit-selectable candidate ISO from the current exact `origin/main` revision:
+
+```sh
+scripts/prepare-x86_64-cockpit-iso-candidate.sh
+```
+
+The command refuses a non-x86-64 host, a dirty checkout, a `HEAD` that differs
+from `origin/main`, an existing immutable GHCR candidate tag, or an existing
+`/home/libvirt/images/SodaOS-<version>-x86_64.iso`. It runs the established
+checks, builds the x86-64 RPM inputs and OCI archive through `just`, publishes
+one source-revision candidate with `soda-release image-stage`, verifies the
+anonymous GHCR digest, builds the matching network ISO, validates the installer
+source and runtime identity, copies the ISO into `/home/libvirt/images`, and
+checks libvirt/QEMU readability. It does not create VMs, QCOW2s, release
+records, signatures, version tags, GitHub Releases, or source changes.
+
 ## Publication boundaries
 
 Soda release tooling remains a fixed wrapper around Git, Skopeo, Cosign, and
