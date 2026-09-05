@@ -57,8 +57,7 @@ signature is reported as a successful update check. Development candidates and
 same-version/different-digest images are not replaced automatically.
 
 Existing installations without this package continue using the native commands
-below. See the [engineering notes](../../cockpit-updates.md) for implementation
-and current validation evidence.
+below.
 
 ## Inspect and stage an update with native commands
 
