@@ -294,6 +294,28 @@ QEMU open. It neither builds nor publishes nor repairs permissions or labels.
 A failure after copying starts may leave a partial or complete destination; the
 command reports it and does not remove or overwrite it automatically.
 
+### Native OCI dependency fixes
+
+The first real AArch64 OCI attempt at `bf4ea45` loaded the exact retained Fedora
+base and built the Soda RPMs on this MacBook, then stopped at DNF resolution.
+The AArch64 runtime lock paired OpenSSL 3.5.7 with its 3.5.8 libraries; native
+repository queries confirmed the matching 3.5.8 CLI is available. Only that
+AArch64 Fedora input is revised; the pinned bootc base is unchanged.
+
+Soda Updates also required `/usr/bin/cosign` without a packaged provider.
+`just cosign-source` now fetches the checksum-locked upstream Cosign 3.1.3
+source commit. The existing native Linux builder produces `soda-cosign`, checks
+its upstream version/commit and verification commands, and includes its Apache
+license. There is no new runtime downloader or signing credential. Both
+architectures declare the same source-built RPM; this is not x86-64 dependency
+resolution or artifact validation. Native x86-64 construction and runtime checks
+remain required on matching hardware.
+
+Initial failure evidence is retained under `.artifacts/native-oci.iGvZss/`.
+The clean rebased source at `bf4ea45` had passed the unchanged Linux `just check`
+gate in `.artifacts/rebased-native-check.XXXXXX.log`; those source checks did
+not prove that an image dependency transaction would succeed.
+
 ### Installation evidence remains separate
 
 This Apple Silicon MacBook is both the planned AArch64 build and installation

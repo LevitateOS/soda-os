@@ -612,3 +612,9 @@ name = "soda-tea"
 nevra = "soda-tea-0:0.15.1-2.fc44.x86_64"
 source = "local-rpm"
 file = "soda-tea-0.15.1-2.fc44.x86_64.rpm"
+
+[[package]]
+name = "soda-cosign"
+nevra = "soda-cosign-0:3.1.3-1.fc44.x86_64"
+source = "local-rpm"
+file = "soda-cosign-3.1.3-1.fc44.x86_64.rpm"

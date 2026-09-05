@@ -102,7 +102,10 @@ func (b *Builder) buildProductBinaries(ctx context.Context, revision string) err
 	if err := b.buildForgejo(ctx); err != nil {
 		return err
 	}
-	return b.buildTea(ctx)
+	if err := b.buildTea(ctx); err != nil {
+		return err
+	}
+	return b.buildCosign(ctx)
 }
 
 func (b *Builder) buildForgejo(ctx context.Context) error {
@@ -224,6 +227,8 @@ func (b *Builder) stageProductRPMSources(build, sources string) error {
 		return err
 	}
 	files := [][2]string{
+		{filepath.Join(build, "cosign"), filepath.Join(sources, "cosign")},
+		{filepath.Join(build, "cosign-LICENSE"), filepath.Join(sources, "cosign-LICENSE")},
 		{filepath.Join(build, "soda-projects"), filepath.Join(sources, "soda-projects")},
 		{filepath.Join(build, "soda-workspace-helper"), filepath.Join(sources, "soda-workspace-helper")},
 		{filepath.Join(build, "soda-runners"), filepath.Join(sources, "soda-runners")},

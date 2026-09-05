@@ -85,14 +85,14 @@ func TestNativeWorkspaceSourcesAreStagedForRPMBuild(t *testing.T) {
 	build := t.TempDir()
 	sources := t.TempDir()
 	for _, name := range []string{
-		"soda-projects", "soda-workspace-helper", "soda-runners", "soda-runner-helper", "soda-runner-launch", "soda-tailnet", "soda-updates", "soda-forgejo-tailnet", "forgejo",
+		"soda-projects", "soda-workspace-helper", "soda-runners", "soda-runner-helper", "soda-runner-launch", "soda-tailnet", "soda-updates", "soda-forgejo-tailnet", "forgejo", "cosign", "cosign-LICENSE",
 	} {
 		require.NoError(t, os.WriteFile(filepath.Join(build, name), []byte(name), 0o755))
 	}
 
 	require.NoError(t, (&Builder{Root: root}).stageProductRPMSources(build, sources))
 	for _, name := range []string{
-		"soda-projects", "soda-workspace-helper",
+		"soda-projects", "soda-workspace-helper", "cosign", "cosign-LICENSE",
 		"soda-projects-branding.css", "soda-projects-symbol.svg",
 		"org.sodaos.projects.policy", "soda-projects.tmpfiles", "soda-projects.sysusers", "cockpit-stock.pam",
 		"soda-runners", "soda-runner-helper", "soda-runner-launch",

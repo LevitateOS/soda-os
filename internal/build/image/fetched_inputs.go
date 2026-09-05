@@ -37,6 +37,7 @@ func (b *Builder) verifyFetchedBuildInputs() error {
 		b.verifyTeaInput(),
 		b.verifyGitHubRunnerInput(),
 		b.verifyMiseInput(),
+		b.verifyCosignInput(),
 	)
 }
 

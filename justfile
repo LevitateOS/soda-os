@@ -26,7 +26,7 @@ check:
     go run ./cmd/soda-image --architecture aarch64 check
     go run ./cmd/soda-image --architecture x86_64 check
 
-rpm architecture: forgejo-source (github-runner architecture) mise-rpm tea-source
+rpm architecture: forgejo-source (github-runner architecture) mise-rpm tea-source cosign-source
     go run ./cmd/soda-image --architecture {{quote(architecture)}} rpm
 
 forgejo-source:
@@ -38,10 +38,13 @@ mise-rpm:
 tea-source:
     ./scripts/fetch-tea-source.sh
 
+cosign-source:
+    ./scripts/fetch-cosign-source.sh
+
 github-runner architecture:
     ./scripts/fetch-github-runner.sh {{quote(architecture)}}
 
-oci architecture: forgejo-source (github-runner architecture) mise-rpm tea-source
+oci architecture: forgejo-source (github-runner architecture) mise-rpm tea-source cosign-source
     go run ./cmd/soda-image --architecture {{quote(architecture)}} oci
 
 iso architecture archive:

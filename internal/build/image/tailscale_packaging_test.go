@@ -13,7 +13,7 @@ func TestTailscalePageShipsThroughRuntimeWithoutSetup(t *testing.T) {
 	root, err := filepath.Abs(filepath.Join("..", "..", ".."))
 	require.NoError(t, err)
 	build, sources := t.TempDir(), t.TempDir()
-	for _, name := range []string{"soda-projects", "soda-workspace-helper", "soda-runners", "soda-runner-helper", "soda-runner-launch", "soda-tailnet", "soda-updates", "soda-forgejo-tailnet", "forgejo"} {
+	for _, name := range []string{"soda-projects", "soda-workspace-helper", "soda-runners", "soda-runner-helper", "soda-runner-launch", "soda-tailnet", "soda-updates", "soda-forgejo-tailnet", "forgejo", "cosign", "cosign-LICENSE"} {
 		require.NoError(t, os.WriteFile(filepath.Join(build, name), []byte(name), 0o755))
 	}
 	require.NoError(t, (&Builder{Root: root}).stageProductRPMSources(build, sources))
