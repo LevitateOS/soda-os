@@ -23,7 +23,7 @@ func TestQEMUInstallUsesOnlyCandidateISOAndTargetDisk(t *testing.T) {
 }
 
 func TestGuestChecksDoNotRestoreRejectedOrchestration(t *testing.T) {
-	checks := coreGuestChecks + setupCompleteChecks + qcow2GuestChecks + workspaceBoundaryChecks + stableManifestScript
+	checks := coreGuestChecks + qcow2GuestChecks + workspaceBoundaryChecks + stableManifestScript
 	require.NotContains(t, checks, "toolset-commands")
 	require.NotContains(t, checks, "tea-token")
 	require.NotContains(t, checks, "configdrive")
@@ -33,9 +33,11 @@ func TestGuestChecksDoNotRestoreRejectedOrchestration(t *testing.T) {
 	require.Contains(t, checks, ".config/gh/hosts.yml")
 }
 
-func TestOrdinaryCoreChecksDoNotInvokeRootOnlySetupCommand(t *testing.T) {
-	require.NotContains(t, coreGuestChecks, "/usr/libexec/soda/soda-setup")
-	require.Contains(t, setupCompleteChecks, "/usr/libexec/soda/soda-setup status")
+func TestInstalledChecksUseNativeTailscaleState(t *testing.T) {
+	require.Contains(t, tailscaleAccessCheck, "tailscale status --json")
+	require.NotContains(t, tailscaleAccessCheck, "soda-setup")
+	require.NotContains(t, qcow2GuestChecks, "soda-setup")
+	require.NotContains(t, localAccessCheck, "connection.zone")
 }
 
 func TestReusableQCOW2KeepsTheInteractiveConsoleVisible(t *testing.T) {

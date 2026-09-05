@@ -36,9 +36,9 @@ After separately authorized builds, run on both matching architectures:
 1. Complete graphical Anaconda account creation, reboot, and verify normal login,
    home ownership, administrator privilege, and cloud-init-disabled ISO startup.
 2. Provision QCOW2 through VM tooling; check key/password behavior, network
-   protection, persistence, and explicit automatic-Setup dismissal after
+   access, persistence, and mandatory stateless welcome after
    administrator console login.
-3. Start Forgejo before cloud-init finishes Tailscale enrollment. Verify the
+3. Start Forgejo before enrollment through the Cockpit Tailscale page. Verify the
    conditional refresh reruns native initialization and advertises the intended
    reachable Tailnet address. After native signup and workspace Git-key
    registration, clone using Forgejo's displayed SSH URL from the intended client.
@@ -201,7 +201,7 @@ record, and retains only the five small record files for one day. It does not
 run QEMU, receive a guest Tailscale credential, publish an image, or create a
 release.
 
-The runner QCOW2 fixture covers cloud-init with an explicitly trusted disposable
+The runner QCOW2 fixture covers cloud-init with an ordinary trusted disposable
 LAN. The late-enrollment Tailnet, native Cockpit key UI, first-signup, registration
 policy, and reboot matrix above still requires separately recorded installed
 acceptance; a runner summary alone does not prove those interactive checks.
@@ -212,3 +212,8 @@ ISO. It inspects the actual Fedora and Forgejo units and boot journal.
 The runner generates a separate protected Forgejo owner password and pauses for
 native first-owner signup before creating teammate fixtures. It verifies the
 owner role and that the Linux password does not authenticate that local account.
+
+The native welcome and separate Cockpit Tailscale page require the installed
+checks in [native installation acceptance](../../docs/native-onboarding.md#installed-acceptance).
+Browser-authentication and exit-node evidence must exercise the real native
+flow; auth-key fixtures and command-unit tests do not substitute for it.

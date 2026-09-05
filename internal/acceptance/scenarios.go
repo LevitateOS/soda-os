@@ -55,9 +55,6 @@ func (state *runnerState) exerciseInstalledSystem(ctx context.Context, scenario 
 
 func (state *runnerState) captureCore(ctx context.Context, remote Remote, prefix string) error {
 	password := state.secret("administrator-password")
-	if err := remote.Sudo(ctx, password, setupCompleteChecks, prefix+"/setup"); err != nil {
-		return err
-	}
 	if err := remote.Capture(ctx, prefix+"/core", []byte(coreGuestChecks), "/bin/bash", "-s"); err != nil {
 		return err
 	}
@@ -72,7 +69,7 @@ func (state *runnerState) runQCOW2Checks(ctx context.Context, remote Remote, ori
 		return err
 	}
 	password := state.secret("administrator-password")
-	if err := remote.Sudo(ctx, password, qcow2GuestChecks, "qcow2/setup"); err != nil {
+	if err := remote.Sudo(ctx, password, qcow2GuestChecks, "qcow2/cloud-init"); err != nil {
 		return err
 	}
 	growthCheck := fmt.Sprintf("set -euo pipefail\nroot_bytes=$(df -B1 --output=size / | tail -n 1 | tr -d ' ')\ntest \"$root_bytes\" -gt %d\nprintf 'original_virtual_size=%%s\\nusable_root_size=%%s\\n' %d \"$root_bytes\"\n", originalVirtualSize, originalVirtualSize)
@@ -106,8 +103,7 @@ func (state *runnerState) verifyLocalProjectsWithoutTailscale(ctx context.Contex
 		return errors.New("local-only workspace setup returned no workspace username")
 	}
 	return remote.Sudo(ctx, state.secret("administrator-password"), `set -euo pipefail
-status=$(/usr/libexec/soda/soda-setup status)
-jq -e '(.tailscale_connected | not)' <<<"$status" >/dev/null
+tailscale status --json | jq -e '.BackendState != "Running"' >/dev/null
 `, "qcow2/projects-setup-without-tailscale")
 }
 

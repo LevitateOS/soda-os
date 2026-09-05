@@ -10,7 +10,7 @@ for unit in sshd cockpit.socket forgejo tailscaled; do
   test "$(systemctl is-active "$unit")" = active
 done
 rpm -q cockpit-ws cockpit-system cockpit-storaged cockpit-networkmanager soda-release soda-runtime soda-projects soda-forgejo soda-tea mise
-for path in /usr/share/cockpit/storaged/manifest.json /usr/share/cockpit/networkmanager/manifest.json /usr/share/cockpit/soda-projects/manifest.json /usr/share/cockpit/soda-projects/setup.mjs /usr/share/cockpit/soda-projects/setup-protocol.mjs /usr/share/cockpit/branding/sodaos/branding.css; do
+for path in /usr/share/cockpit/storaged/manifest.json /usr/share/cockpit/networkmanager/manifest.json /usr/share/cockpit/soda-projects/manifest.json /usr/share/cockpit/soda-tailscale/manifest.json /usr/share/cockpit/soda-tailscale/app.mjs /usr/share/cockpit/branding/sodaos/branding.css; do
   test -s "$path"
 done
 command -v git
@@ -20,11 +20,16 @@ command -v mise
 test ! -e "$HOME/.config/tea/config.yml"
 test ! -e "$HOME/.config/gh/hosts.yml"
 test "$(systemctl is-enabled bootc-fetch-apply-updates.timer 2>/dev/null || true)" = masked
-test "$(firewall-cmd --get-default-zone)" = drop
+test "$(systemctl is-enabled firewalld.service)" = disabled
+test "$(systemctl is-active firewalld.service || true)" = inactive
 for unit in soda-authd.service soda-cockpit.service sodad.service avahi-daemon.service var-srv-soda-projects.mount soda-tailscale-enroll.service soda-setup.service; do
   ! systemctl cat "$unit" >/dev/null 2>&1
 done
 for path in \
+  /usr/libexec/soda/soda-setup \
+  /usr/bin/soda-local-access \
+  /var/lib/soda/setup-complete \
+  /run/lock/soda/setup.lock \
   /var/lib/soda/soda.db \
   /var/lib/soda/built-in-git-token \
   /var/lib/soda/projects \
@@ -48,16 +53,8 @@ done
 printf 'core-product-boundaries=pass\n'
 `
 
-const setupCompleteChecks = `set -euo pipefail
-status=$(/usr/libexec/soda/soda-setup status)
-jq -e '.ready and (.administrators | length >= 1)' <<<"$status" >/dev/null
-printf 'setup-complete=pass\n'
-`
-
 const qcow2GuestChecks = `set -euo pipefail
-status=$(/usr/libexec/soda/soda-setup status)
-jq -e '.ready and .local_network_allowed and (.tailscale_connected | not)' <<<"$status" >/dev/null
-test ! -e /var/lib/soda/setup-complete
+tailscale status --json | jq -e '.BackendState != "Running"' >/dev/null
 test -e /var/lib/cloud/instance
 cloud-init status --wait
 test ! -e /run/soda-installer
@@ -126,15 +123,13 @@ jq -cn --argjson accounts "$accounts" --argjson groups "$groups" --argjson homes
 `
 
 const localAccessCheck = `set -euo pipefail
-status=$(/usr/libexec/soda/soda-setup status)
-jq -e '.local_network_allowed and .ready' <<<"$status" >/dev/null
-firewall-cmd --get-active-zones
-printf 'local-network-access=pass\n'
+test "$(systemctl is-active sshd)" = active
+test "$(systemctl is-active cockpit.socket)" = active
+test "$(systemctl is-active forgejo)" = active
+printf 'local-network-services=pass\n'
 `
 
 const tailscaleAccessCheck = `set -euo pipefail
-status=$(/usr/libexec/soda/soda-setup status)
-jq -e '.tailscale_connected and .ready' <<<"$status" >/dev/null
-firewall-cmd --zone=soda-tailnet --list-interfaces | tr ' ' '\n' | grep -Fx tailscale0 >/dev/null
+tailscale status --json | jq -e '.BackendState == "Running" and (.Self.Expired != true)' >/dev/null
 printf 'tailscale-access=pass\n'
 `

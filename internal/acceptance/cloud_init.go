@@ -11,7 +11,6 @@ import (
 )
 
 // The LAN-only fixture uses VM tooling to deliver ordinary cloud-init input.
-// Its explicit trust applies only to this disposable QEMU test network.
 func (state *runnerState) prepareQCOW2UserData(ctx context.Context) (string, error) {
 	publicKey, err := os.ReadFile(state.paths.adminPublicKey)
 	if err != nil {
@@ -28,12 +27,6 @@ func (state *runnerState) prepareQCOW2UserData(ctx context.Context) (string, err
 			"lock_passwd":         false, "hashed_passwd": strings.TrimSpace(string(hash)),
 		}},
 		"disable_root": true,
-		"runcmd": []string{`set -eu
-device=$(ip -o -4 route show default | awk 'NR == 1 {print $5}')
-connection=$(nmcli -g GENERAL.CONNECTION device show "$device")
-nmcli connection modify "$connection" connection.zone trusted
-nmcli connection up "$connection"
-`},
 	}
 	body, err := json.Marshal(config)
 	if err != nil {

@@ -32,7 +32,15 @@ func (state *runnerState) completeISOFlow(ctx context.Context, before tailnetSta
 	if err != nil {
 		return scenarioState{}, nil, err
 	}
-	fmt.Fprintf(state.output, "Create Linux administrator %q through graphical Anaconda, reboot, and log in normally. Complete only missing network configuration in Setup. Add the personal public key through Cockpit Accounts before continuing. Protected input paths:\n  password: %s\n  SSH public key: %s\n  reusable ephemeral Tailscale key: %s\n", state.options.Administrator.Username, state.paths.password, state.paths.adminPublicKey, state.options.TailscaleKey)
+	fmt.Fprintf(state.output, "Create Linux administrator %q through graphical Anaconda, reboot, and log in normally. Add the personal public key through Cockpit Accounts before continuing. Protected input paths:\n  password: %s\n  SSH public key: %s\n\n", state.options.Administrator.Username, state.paths.password, state.paths.adminPublicKey)
+	password, err := os.ReadFile(state.paths.password)
+	if err != nil {
+		return scenarioState{}, vm, err
+	}
+	if err = state.verifyInitialLAN(ctx, password); err != nil {
+		return scenarioState{}, vm, err
+	}
+	fmt.Fprintln(state.output, "LAN access is verified. Open Cockpit → Tailscale and sign in through its native browser authentication URL.")
 	host, raw, err := state.resolveGuest(ctx, before)
 	if err != nil {
 		return scenarioState{}, vm, err
@@ -44,10 +52,6 @@ func (state *runnerState) completeISOFlow(ctx context.Context, before tailnetSta
 		return scenarioState{}, vm, err
 	}
 	remote := state.tailnetRemote(host)
-	password, err := os.ReadFile(state.paths.password)
-	if err != nil {
-		return scenarioState{}, vm, err
-	}
 	if err = state.registerTailnetCleanup(&remote, password); err != nil {
 		return scenarioState{}, vm, err
 	}
@@ -61,13 +65,7 @@ func (state *runnerState) completeISOFlow(ctx context.Context, before tailnetSta
 }
 
 func (state *runnerState) completeInstalledAccess(ctx context.Context, remote Remote, vm *VM, password []byte) (Remote, *VM, error) {
-	if err := state.verifyForwardedIngressRejected(ctx); err != nil {
-		return Remote{}, vm, err
-	}
-	if err := remote.Sudo(ctx, password, "/usr/libexec/soda/soda-setup status\n", "iso/setup-status"); err != nil {
-		return Remote{}, vm, err
-	}
-	local, err := state.enableAndVerifyLAN(ctx, remote, password)
+	local, err := state.verifyLAN(ctx, remote, password)
 	if err != nil {
 		return Remote{}, vm, err
 	}
@@ -91,49 +89,8 @@ func (state *runnerState) registerTailnetCleanup(remote *Remote, password []byte
 	return nil
 }
 
-func (state *runnerState) verifyForwardedIngressRejected(ctx context.Context) error {
-	sshCtx, cancelSSH := context.WithTimeout(ctx, 6*time.Second)
-	sshOutput, sshErr := CommandOutput(sshCtx, CommandSpec{Name: "ssh-keyscan", Args: []string{
-		"-T", "5", "-t", "ed25519", "-p", fmt.Sprint(state.options.Ports.SSH), "127.0.0.1",
-	}})
-	cancelSSH()
-	if sshErr == nil && len(sshOutput) != 0 {
-		return fmt.Errorf("default-drop guest exposed SSH through the host-forwarded interface")
-	}
-	cockpitCtx, cancelCockpit := context.WithTimeout(ctx, 6*time.Second)
-	defer cancelCockpit()
-	err := RunCommand(cockpitCtx, CommandSpec{Name: "curl", Args: []string{
-		"--fail", "--silent", "--show-error", "--insecure", "--max-time", "5",
-		"https://127.0.0.1:" + fmt.Sprint(state.options.Ports.Cockpit) + "/ping",
-	}})
-	if err == nil {
-		return errors.New("default-drop guest exposed Cockpit through the host-forwarded interface")
-	}
-	forgejoCtx, cancelForgejo := context.WithTimeout(ctx, 6*time.Second)
-	defer cancelForgejo()
-	err = RunCommand(forgejoCtx, CommandSpec{Name: "curl", Args: []string{
-		"--fail", "--silent", "--show-error", "--max-time", "5",
-		"http://127.0.0.1:" + fmt.Sprint(state.options.Ports.Forgejo) + "/api/healthz",
-	}})
-	if err == nil {
-		return errors.New("default-drop guest exposed Forgejo through the host-forwarded interface")
-	}
-	return state.evidence.Write("iso/public-ingress-rejection.txt", []byte("deployment=qemu-user-forwarded-interface\nssh=rejected\ncockpit=rejected\nforgejo=rejected\n"))
-}
-
-func (state *runnerState) enableAndVerifyLAN(ctx context.Context, tailnet Remote, password []byte) (Remote, error) {
-	script := `status=$(/usr/libexec/soda/soda-setup status)
-connection=$(jq -er 'first(.connections[] | select(.name != "tailscale0") | .name)' <<<"$status")
-jq -nc --arg connection "$connection" '{connection:$connection}' | /usr/libexec/soda/soda-setup allow-local-network
-`
-	if err := tailnet.Sudo(ctx, password, script, "iso/enable-lan-after-tailscale"); err != nil {
-		return Remote{}, err
-	}
-	local := Remote{
-		Username: state.options.Administrator.Username, Host: "127.0.0.1", Port: state.options.Ports.SSH,
-		CockpitPort: state.options.Ports.Cockpit, Key: state.paths.adminKey,
-		KnownHosts: filepath.Join(state.paths.work, "iso-lan-known-hosts"), Evidence: state.evidence,
-	}
+func (state *runnerState) verifyLAN(ctx context.Context, tailnet Remote, password []byte) (Remote, error) {
+	local := state.localRemote()
 	waitCtx, cancel := context.WithTimeout(ctx, 5*time.Minute)
 	defer cancel()
 	if err := local.WaitReady(waitCtx); err != nil {
@@ -243,7 +200,7 @@ func (state *runnerState) exerciseReusableQCOW2(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	fmt.Fprintf(state.output, "Cloud-init is provisioning reusable QCOW2 administrator %q using the protected password at %s and public key at %s. The disposable test LAN is explicitly trusted; console Setup remains available until explicitly dismissed.\n", state.options.Administrator.Username, state.paths.password, state.paths.adminPublicKey)
+	fmt.Fprintf(state.output, "Cloud-init is provisioning reusable QCOW2 administrator %q using the protected password at %s and public key at %s. The disposable guest uses ordinary LAN access with firewalld disabled by default.\n", state.options.Administrator.Username, state.paths.password, state.paths.adminPublicKey)
 	knownHosts := filepath.Join(state.paths.work, "qcow-known-hosts")
 	remote := Remote{
 		Username: state.options.Administrator.Username, Host: "127.0.0.1", Port: state.options.Ports.SSH,
