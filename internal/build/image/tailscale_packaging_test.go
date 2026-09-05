@@ -43,9 +43,10 @@ func TestNativeFirewallRemainsAvailableWithoutDefaultEnablement(t *testing.T) {
 			require.NotContains(t, line, "firewalld")
 		}
 	}
-	preset, err := os.ReadFile(filepath.Join(root, "packaging/rpm/runtime/sources/systemd/90-soda.preset"))
+	preset, err := os.ReadFile(filepath.Join(root, "packaging/rpm/runtime/sources/systemd/89-soda.preset"))
 	require.NoError(t, err)
 	require.Contains(t, string(preset), "disable firewalld.service")
+	require.Less(t, "89-soda.preset", "90-default.preset")
 	forwarding, err := os.ReadFile(filepath.Join(root, "packaging/rpm/runtime/sources/sysctl/60-soda-tailscale.conf"))
 	require.NoError(t, err)
 	require.Contains(t, string(forwarding), "net.ipv4.ip_forward = 1")

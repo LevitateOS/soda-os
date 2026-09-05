@@ -13,7 +13,7 @@ composition for the Soda OS appliance.
 mkdir -p %{buildroot}%{_libexecdir}/soda %{buildroot}%{_bindir} %{buildroot}%{_unitdir} %{buildroot}%{_unitdir}/getty@tty1.service.d %{buildroot}%{_presetdir} %{buildroot}%{_sysctldir} %{buildroot}%{_tmpfilesdir} %{buildroot}%{_sysconfdir}/profile.d
 install -m 0755 %{_sourcedir}/soda-tailnet %{buildroot}%{_bindir}/soda-tailnet
 install -m 0755 %{_sourcedir}/soda-console-welcome %{buildroot}%{_libexecdir}/soda/soda-console-welcome
-install -m 0644 %{_sourcedir}/90-soda.preset %{buildroot}%{_presetdir}/90-soda.preset
+install -m 0644 %{_sourcedir}/89-soda.preset %{buildroot}%{_presetdir}/89-soda.preset
 install -m 0644 %{_sourcedir}/soda-runtime.tmpfiles %{buildroot}%{_tmpfilesdir}/soda-runtime.conf
 install -m 0644 %{_sourcedir}/10-soda-console.conf %{buildroot}%{_unitdir}/getty@tty1.service.d/10-soda-console.conf
 install -m 0644 %{_sourcedir}/60-soda-console.conf %{buildroot}%{_sysctldir}/60-soda-console.conf
@@ -26,7 +26,7 @@ install -m 0644 %{_sourcedir}/60-soda-tailscale.conf %{buildroot}%{_sysctldir}/6
 %files
 %{_bindir}/soda-tailnet
 %{_libexecdir}/soda/soda-console-welcome
-%{_presetdir}/90-soda.preset
+%{_presetdir}/89-soda.preset
 %{_tmpfilesdir}/soda-runtime.conf
 %{_unitdir}/getty@tty1.service.d/10-soda-console.conf
 %{_sysctldir}/60-soda-console.conf

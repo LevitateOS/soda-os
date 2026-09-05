@@ -310,7 +310,7 @@ func TestForgejoTailnetPackagingContract(t *testing.T) {
 
 func TestRuntimeImageSystemdHostCompositionContract(t *testing.T) {
 	runtimeSources := filepath.Join("..", "..", "..", "packaging", "rpm", "runtime", "sources")
-	preset, err := os.ReadFile(filepath.Join(runtimeSources, "systemd", "90-soda.preset"))
+	preset, err := os.ReadFile(filepath.Join(runtimeSources, "systemd", "89-soda.preset"))
 	require.NoError(t, err)
 	for _, unit := range []string{"sshd.service", "forgejo.service", "cockpit.socket", "tailscaled.service"} {
 		require.True(t, strings.Contains(string(preset), "enable "+unit))

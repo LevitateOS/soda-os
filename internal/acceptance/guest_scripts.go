@@ -13,6 +13,9 @@ rpm -q cockpit-ws cockpit-system cockpit-storaged cockpit-networkmanager soda-re
 for path in /usr/share/cockpit/storaged/manifest.json /usr/share/cockpit/networkmanager/manifest.json /usr/share/cockpit/soda-projects/manifest.json /usr/share/cockpit/soda-tailscale/manifest.json /usr/share/cockpit/soda-tailscale/app.mjs /usr/share/cockpit/branding/sodaos/branding.css; do
   test -s "$path"
 done
+for package in soda-projects soda-runners soda-tailscale; do
+  cockpit-bridge --packages | awk '{print $1}' | grep -Fx "$package" >/dev/null
+done
 command -v git
 command -v gh
 command -v tea

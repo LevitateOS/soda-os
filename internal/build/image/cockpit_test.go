@@ -46,11 +46,16 @@ func assertCockpitStaged(t *testing.T, root, sources, name string) {
 		if err != nil {
 			return err
 		}
-		if !entry.IsDir() {
-			rel, relErr := filepath.Rel(destination, path)
-			require.NoError(t, relErr)
-			actual = append(actual, rel)
+		info, statErr := os.Stat(path)
+		require.NoError(t, statErr)
+		if entry.IsDir() {
+			require.Equal(t, fs.FileMode(0o755), info.Mode().Perm(), path)
+			return nil
 		}
+		require.Equal(t, fs.FileMode(0o644), info.Mode().Perm(), path)
+		rel, relErr := filepath.Rel(destination, path)
+		require.NoError(t, relErr)
+		actual = append(actual, rel)
 		return nil
 	}))
 	require.Equal(t, expected, actual)
@@ -59,6 +64,21 @@ func assertCockpitStaged(t *testing.T, root, sources, name string) {
 func TestCockpitStagingRejectsMissingBuild(t *testing.T) {
 	err := (&Builder{Root: t.TempDir()}).stageCockpitSources(t.TempDir())
 	require.ErrorContains(t, err, "missing built Cockpit package")
+}
+
+func TestNormalizeCockpitAssetModesMakesStaticAssetsReadable(t *testing.T) {
+	root := t.TempDir()
+	assets := filepath.Join(root, "assets")
+	require.NoError(t, os.Mkdir(assets, 0o700))
+	manifest := filepath.Join(root, "manifest.json")
+	require.NoError(t, os.WriteFile(manifest, []byte("{}"), 0o600))
+
+	require.NoError(t, normalizeCockpitAssetModes(root))
+	for path, want := range map[string]fs.FileMode{root: 0o755, assets: 0o755, manifest: 0o644} {
+		info, err := os.Stat(path)
+		require.NoError(t, err)
+		require.Equal(t, want, info.Mode().Perm(), path)
+	}
 }
 
 func TestCockpitBuildInstallsLockedDependenciesBeforeProductionBuild(t *testing.T) {

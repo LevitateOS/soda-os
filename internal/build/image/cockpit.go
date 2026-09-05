@@ -33,6 +33,22 @@ func (b *Builder) stageCockpitSources(sources string) error {
 		if err := os.CopyFS(filepath.Join(sources, name+"-cockpit"), os.DirFS(root)); err != nil {
 			return fmt.Errorf("stage %s: %w", name, err)
 		}
+		if err := normalizeCockpitAssetModes(filepath.Join(sources, name+"-cockpit")); err != nil {
+			return fmt.Errorf("normalize %s modes: %w", name, err)
+		}
 	}
 	return nil
+}
+
+func normalizeCockpitAssetModes(root string) error {
+	return filepath.WalkDir(root, func(path string, entry os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		mode := os.FileMode(0o644)
+		if entry.IsDir() {
+			mode = 0o755
+		}
+		return os.Chmod(path, mode)
+	})
 }

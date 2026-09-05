@@ -230,7 +230,7 @@ func (b *Builder) stageProductRPMSources(build, sources string) error {
 		{filepath.Join(build, "soda-runner-launch"), filepath.Join(sources, "soda-runner-launch")},
 		{filepath.Join(build, "soda-tailnet"), filepath.Join(sources, "soda-tailnet")},
 		{filepath.Join(build, "forgejo"), filepath.Join(sources, "forgejo")},
-		{b.path("packaging/rpm/runtime/sources/systemd/90-soda.preset"), filepath.Join(sources, "90-soda.preset")},
+		{b.path("packaging/rpm/runtime/sources/systemd/89-soda.preset"), filepath.Join(sources, "89-soda.preset")},
 		{b.path("packaging/rpm/runtime/sources/tmpfiles/soda-runtime.conf"), filepath.Join(sources, "soda-runtime.tmpfiles")},
 		{b.path("packaging/rpm/runtime/sources/systemd/getty@tty1.service.d/10-soda-console.conf"), filepath.Join(sources, "10-soda-console.conf")},
 		{b.path("packaging/rpm/runtime/sources/sysctl/60-soda-console.conf"), filepath.Join(sources, "60-soda-console.conf")},

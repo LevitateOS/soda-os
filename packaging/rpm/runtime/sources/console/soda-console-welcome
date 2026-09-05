@@ -24,5 +24,6 @@ done
 if [ "$found" = false ]; then
   printf '\nNo local IPv4 address is currently available.\n  Cockpit: https://%s:9090\n  Forgejo: http://%s:30000/\n  SSH: ssh %s@%s\n' "$host" "$host" "$user" "$host"
 fi
+printf '\nFirewall: disabled by default. Administrators can enable and configure it in Cockpit: Networking > Firewall.\n'
 soda-tailnet
 printf '\nAdministrators can customize this message in /etc/profile.d/soda-console-welcome.sh.\n'
