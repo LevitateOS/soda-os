@@ -103,7 +103,12 @@ func prepareGuestCommands(t *testing.T) Evidence {
 printf 'logout\n' >>"$GUEST_EVENT_LOG"
 exit "${FAIL_GUEST_LOGOUT:-0}"
 `)
-	evidence, err := CreateEvidence(filepath.Join(t.TempDir(), "evidence"))
+	// Linux uses the evidence path for its Unix socket; t.TempDir includes the
+	// full test name and can exceed sockaddr_un's path limit on replacement boots.
+	directory, err := os.MkdirTemp("", "soda-guest-test-")
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, os.RemoveAll(directory)) })
+	evidence, err := CreateEvidence(filepath.Join(directory, "evidence"))
 	require.NoError(t, err)
 	return evidence
 }
