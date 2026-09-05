@@ -5,7 +5,8 @@ import "@patternfly/patternfly/patternfly-base.css";
 import "../cockpit/soda.css";
 import { TailscalePage } from "../pages/TailscalePage";
 import { nativeTailscale } from "./native";
+import { createTailscaleStore } from "./store";
 
 createRoot(document.getElementById("app")!).render(
-  <TailscalePage native={nativeTailscale(window.cockpit)} />,
+  <TailscalePage store={createTailscaleStore(() => nativeTailscale(window.cockpit))} />,
 );

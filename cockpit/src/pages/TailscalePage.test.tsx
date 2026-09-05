@@ -1,7 +1,9 @@
 // @vitest-environment jsdom
 import { afterEach, test, expect, vi } from "vite-plus/test";
 import { render, screen, fireEvent, act, within } from "@testing-library/react";
+import { StrictMode } from "react";
 import { TailscalePage } from "./TailscalePage";
+import { createTailscaleStore } from "../tailscale/store";
 import type { Snapshot, AuthenticationMessage } from "../tailscale/types";
 import type { NativeTailscale } from "../tailscale/types";
 const connected: Snapshot = {
@@ -41,7 +43,13 @@ function setup(snapshot = connected) {
     close: vi.fn(),
   };
   const onReopen = vi.fn();
-  const rendered = render(<TailscalePage native={native} cockpit={cockpit} onReopen={onReopen} />);
+  const rendered = render(
+    <TailscalePage
+      store={createTailscaleStore(() => native)}
+      cockpit={cockpit}
+      onReopen={onReopen}
+    />,
+  );
   return { native, cockpit, visibility: () => visibility(), onReopen, ...rendered };
 }
 const flush = async () => {
@@ -234,7 +242,7 @@ test("pending reads do not overlap and hidden initial pages perform no reads", a
   });
   app.unmount();
   app.cockpit.hidden = true;
-  render(<TailscalePage native={app.native} cockpit={app.cockpit} />);
+  render(<TailscalePage store={createTailscaleStore(() => app.native)} cockpit={app.cockpit} />);
   await flush();
   expect(app.native.read).toHaveBeenCalledTimes(2);
 });
@@ -264,6 +272,66 @@ test("settings show progress and saved feedback only beside the affected form", 
   expect(exit.getByRole("status").textContent).toBe("Exit-node selection saved.");
   fireEvent.change(exit.getByLabelText("Exit node"), { target: { value: "" } });
   expect(exit.queryByText("Exit-node selection saved.")).toBeNull();
+});
+
+test("a pre-save poll cannot replace the selection with its old preferences", async () => {
+  const app = setup();
+  await flush();
+  let finish!: (value: Snapshot) => void;
+  app.native.read.mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+  );
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(3000);
+  });
+  fireEvent.change(screen.getByLabelText("Exit node"), { target: { value: "100.64.0.2" } });
+  fireEvent.click(
+    within(screen.getByRole("region", { name: "Use an exit node" })).getByRole("button", {
+      name: "Apply",
+    }),
+  );
+  await flush();
+  expect(screen.getByText("Saving exit-node selection…")).toBeTruthy();
+  app.native.read.mockResolvedValue({ ...connected, prefs: { ExitNodeIP: "100.64.0.2" } });
+  await act(async () => {
+    finish(connected);
+  });
+  expect((screen.getByLabelText("Exit node") as HTMLSelectElement).value).toBe("100.64.0.2");
+  expect(screen.getByText("Exit-node selection saved.")).toBeTruthy();
+  expect(app.native.read).toHaveBeenCalledTimes(3);
+});
+
+test("effect replay closes the old adapter and constructs a new one without replaying a mutation", async () => {
+  const app = setup();
+  await flush();
+  app.unmount();
+  const instances: Array<typeof app.native> = [];
+  const factory = vi.fn(() => {
+    const native = { ...app.native, close: vi.fn() };
+    instances.push(native);
+    return native;
+  });
+  const view = render(
+    <StrictMode>
+      <TailscalePage
+        store={createTailscaleStore(factory)}
+        cockpit={app.cockpit}
+        onReopen={app.onReopen}
+      />
+    </StrictMode>,
+  );
+  await flush();
+  expect(factory).toHaveBeenCalledTimes(2);
+  expect(instances[0].close).toHaveBeenCalledOnce();
+  expect(instances[1].close).not.toHaveBeenCalled();
+  expect(app.native.signIn).not.toHaveBeenCalled();
+  expect(app.native.selectExitNode).not.toHaveBeenCalled();
+  expect(screen.getByText("Connected")).toBeTruthy();
+  view.unmount();
+  expect(instances[1].close).toHaveBeenCalledOnce();
 });
 
 test("successful polling does not erase an unresolved settings failure", async () => {

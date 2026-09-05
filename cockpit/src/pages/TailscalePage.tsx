@@ -7,11 +7,23 @@ import { TailscaleDevices } from "../organisms/tailscale/TailscaleDevices";
 import { ExitNodeForm } from "../organisms/tailscale/ExitNodeForm";
 import { ExitNodeAdvertisement } from "../organisms/tailscale/ExitNodeAdvertisement";
 import { cliURL } from "../tailscale/links";
-import { useTailscale, type TailscaleOptions } from "../tailscale/useTailscale";
-export function TailscalePage(props: TailscaleOptions) {
+import { useEffect } from "react";
+import { useStore } from "zustand";
+import type { Cockpit } from "../cockpit/types";
+import type { TailscaleStore } from "../tailscale/store";
+import { deviceName, exitNodeChoices, exitSelection } from "../tailscale/status";
+const reload = () => window.location.reload();
+export function TailscalePage({
+  store,
+  cockpit = window.cockpit,
+  onReopen = reload,
+}: {
+  store: TailscaleStore;
+  cockpit?: Pick<Cockpit, "hidden" | "addEventListener" | "removeEventListener">;
+  onReopen?: () => void;
+}) {
   const {
     snapshot,
-    busy,
     loading,
     notice,
     readError,
@@ -21,11 +33,6 @@ export function TailscalePage(props: TailscaleOptions) {
     retryForgejo,
     authURL,
     streamState,
-    connected,
-    peers,
-    choices,
-    selected,
-    missingSelection,
     exitNode,
     allowLAN,
     advertise,
@@ -35,7 +42,38 @@ export function TailscalePage(props: TailscaleOptions) {
     signIn,
     applyExitNode,
     applyAdvertisement,
-  } = useTailscale(props);
+  } = useStore(store);
+  useEffect(() => {
+    let stop = cockpit.hidden ? undefined : store.getState().start();
+    function close() {
+      stop?.();
+      stop = undefined;
+    }
+    function visibility() {
+      if (cockpit.hidden) close();
+      else if (!stop) onReopen();
+    }
+    window.addEventListener("pagehide", close);
+    cockpit.addEventListener("visibilitychange", visibility);
+    return () => {
+      close();
+      window.removeEventListener("pagehide", close);
+      cockpit.removeEventListener("visibilitychange", visibility);
+    };
+  }, [store, cockpit, onReopen]);
+  const busy = operation !== undefined;
+  const status = snapshot?.status;
+  const connected = status?.BackendState === "Running" && !status.Self?.Expired;
+  const peers = Object.values(status?.Peer || {}).sort((a, b) =>
+    deviceName(a).localeCompare(deviceName(b)),
+  );
+  const choices = status ? exitNodeChoices(status).filter((peer) => peer.TailscaleIPs?.[0]) : [];
+  const selected = snapshot ? exitSelection(snapshot) : "";
+  const missingSelection = Boolean(
+    snapshot?.prefs.ExitNodeID &&
+    selected &&
+    !choices.some((peer) => peer.TailscaleIPs?.[0] === selected),
+  );
   return (
     <CockpitPageTemplate
       title="Tailscale"
@@ -71,7 +109,7 @@ export function TailscalePage(props: TailscaleOptions) {
         busy={busy}
         connected={connected}
         authURL={authURL}
-        onSignIn={signIn}
+        onSignIn={() => void signIn()}
       />
       <TailscaleDevices peers={peers} available={Boolean(snapshot)} loading={loading} />
       <ExitNodeForm
@@ -86,7 +124,7 @@ export function TailscalePage(props: TailscaleOptions) {
         missingSelection={missingSelection}
         onExitNodeChange={changeExitNode}
         onAllowLANChange={changeAllowLAN}
-        onApply={applyExitNode}
+        onApply={() => void applyExitNode()}
       />
       <ExitNodeAdvertisement
         saving={operation === "advertise"}
@@ -97,7 +135,7 @@ export function TailscalePage(props: TailscaleOptions) {
         connected={connected}
         advertise={advertise}
         onChange={changeAdvertise}
-        onApply={applyAdvertisement}
+        onApply={() => void applyAdvertisement()}
       />
       <PageSection>
         <ExternalLink href={cliURL}>Tailscale CLI documentation</ExternalLink>

@@ -21,6 +21,12 @@ test("all installed asset graphs are self-contained and clean rebuilds are ident
     expect(readFileSync(resolve(directory, "manifest.json"), "utf8")).toBe(
       readFileSync(resolve(root, `soda-${page}/manifest.json`), "utf8"),
     );
+    const dependencies = JSON.parse(readFileSync(resolve(root, "package.json"), "utf8")) as {
+      devDependencies: { zustand: string };
+    };
+    expect(readFileSync(resolve(directory, "LICENSES.txt"), "utf8")).toContain(
+      `zustand@${dependencies.devDependencies.zustand} (MIT)`,
+    );
     const html = readFileSync(resolve(directory, "index.html"), "utf8");
     expect(html).toContain('src="../base1/cockpit.js"');
     expect(html).toContain('id="app"');

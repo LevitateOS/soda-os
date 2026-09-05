@@ -64,8 +64,8 @@ and layouts directly instead of wrapping them merely to populate an atomic layer
 | `src/molecules/` | Shared heading, diagnostic and confirmation compositions; feature-specific field groups and summaries |
 | `src/organisms/{projects,runners,tailscale,updates}/` | Complete sections and dialogs with explicit data and callbacks |
 | `src/templates/` | Sidebar-free Cockpit page layout with content, actions, feedback, and dialog slots |
-| `src/pages/` | Feature hook and component composition for each registered page |
-| `src/{projects,runners,tailscale,updates}/` | Stable entrypoints, feature hooks, native adapters, protocols, types, and pure presentation helpers |
+| `src/pages/` | Store subscription, browser lifecycle, input boundaries, and component composition |
+| `src/{projects,runners,tailscale,updates}/` | Stable entrypoints, scoped Zustand stores, native adapters, protocols, types, and pure presentation helpers |
 | `src/cockpit/` | Shared Cockpit API types and minimal Soda CSS |
 
 `ProjectsPage`, `RunnersPage`, and `TailscalePage` replace the former `App.tsx`
@@ -78,18 +78,18 @@ deployment sections and the Apply confirmation dialog. Its feature molecules
 own operation feedback and native output presentation. The page connects them
 to `updates/store.ts`, which owns requests, bounded streaming output, reviewed
 selection, and native-state refresh. Status-read errors are independent of
-command/check outcomes; focus refresh never erases an unrelated failure. Long image identities reuse `CodeValue`; notices reuse
+command/check outcomes; focus refresh never erases an unrelated failure. Long
+image identities reuse `CodeValue`; notices reuse
 `DiagnosticAlert`, while errors retain a separate summary and detailed diagnostic.
 
 Passive organisms and molecules never invoke Cockpit or import native adapters.
 Feature organisms and molecules may use their own types and pure presentation helpers;
 shared components have no feature dependencies. Pages connect their own feature
-state owner to the template and organisms. Projects, Runners, and Updates use page-scoped
-Zustand stores in their feature's `store.ts` for
-transient observations, named actions, dialogs, and outcomes. Its entrypoint
-constructs the store with the native adapter; the page subscribes and binds its
-lifetime. Tailscale currently retains its feature hook. There is no
-cross-page application store or generic operation controller. Layers may skip levels and use PatternFly directly. For example,
+state owner to the template and organisms. Each page uses its feature's
+`store.ts` for transient observations, named actions, dialogs, and outcomes.
+Its entrypoint constructs the store with the native adapter; the page subscribes
+and binds its lifetime. There is no cross-page application store or generic
+operation controller. Layers may skip levels and use PatternFly directly. For example,
 `ProjectActions` composes PatternFly `Button` and `Flex`; `CatalogProjectDialog`
 uses PatternFly `Modal` and `Form` with Soda's `CatalogFields`.
 
@@ -97,18 +97,25 @@ Use direct imports, keep feature-specific components under their feature within
 an atomic layer, and do not import sibling features or higher layers. The
 source-boundary test parses the actual TypeScript/TSX imports (including type
 imports and re-exports) through the locked TypeScript API and resolves relative
-paths. It checks these boundaries and each entrypoint's own page/native wiring.
+paths. It checks these boundaries, store creation/subscription ownership, and
+each entrypoint's own page/native/store wiring.
 
 Browser state remains transient. Create a fresh feature store for each page
 instance and test. Store actions enforce their own pending/confirmation guards;
 disposal invalidates continuations, not native outcomes. No persistence or
 middleware is used. DOM input/focus stays in the view; registration provider
-selection and command outcomes belong to the Runners store. Runner registration secrets stay in the native
-input, are cleared immediately after synchronous request serialization, and
-are cleared on teardown. Tailscale's feature hook retains streaming auth URLs,
-non-overlapping reads, unsaved form edits, hidden-page cancellation, native state
-recovery on reopening, and conditional Forgejo refresh. Component composition
-adds no completion state, daemon, or privileged bridge.
+selection and command outcomes belong to the Runners store. Runner registration
+secrets stay in the native input, are cleared immediately after synchronous
+request serialization, and are cleared on teardown.
+
+Tailscale's store owns one observer and obtains a fresh adapter for each activation.
+The page binds Cockpit visibility/pagehide; hiding closes HTTP/subprocess handles
+and clears transient authentication state, while reopening reloads native state.
+Closing handles does not prove that native work was undone. Reads do not overlap. A preference write invalidates reads begun before or during it;
+post-write readback retires those reads before releasing draft protection.
+Command, read, and Forgejo errors remain independent. Forgejo refresh is attempted
+once per connected identity, with explicit retry after failure. No completion
+state, daemon, or privileged bridge is added.
 
 PatternFly owns spacing, typography, responsive layouts, modal focus, and theme
 behavior. Soda CSS is limited to identity, long values/diagnostics, and the page

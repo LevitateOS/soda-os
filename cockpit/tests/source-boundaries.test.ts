@@ -31,13 +31,14 @@ function allowed(from: string, to: string) {
   const fromLayer = layers.indexOf(from.split("/")[0]);
   const toLayer = layers.indexOf(to.split("/")[0]);
   if (fromLayer >= 0) {
+    // Pages own Cockpit visibility/lifetime binding; this file contains API types only.
+    if (fromLayer === layers.indexOf("pages") && to === "cockpit/types.ts") return true;
     if (toLayer >= 0) return toLayer <= fromLayer;
     if (!fromFeature || !to.startsWith(`${fromFeature}/`)) return false;
     const module = to.split("/")[1];
     return (
       ["types.ts", "ui.ts", "status.ts", "links.ts"].includes(module) ||
-      (fromLayer === layers.indexOf("pages") &&
-        (module === "store.ts" || /^use\w+\.ts$/.test(module)))
+      (fromLayer === layers.indexOf("pages") && module === "store.ts")
     );
   }
   if (toLayer >= 0) {
@@ -52,17 +53,19 @@ function allowed(from: string, to: string) {
 test.each([
   ["molecules/projects/ProjectActions.tsx", "projects/types.ts", true],
   ["templates/CockpitPageTemplate.tsx", "molecules/PageHeading.tsx", true],
-  ["pages/ProjectsPage.tsx", "projects/useProjects.ts", true],
+  ["pages/ProjectsPage.tsx", "projects/store.ts", true],
   ["pages/RunnersPage.tsx", "runners/store.ts", true],
+  ["pages/TailscalePage.tsx", "cockpit/types.ts", true],
+  ["organisms/tailscale/TailscaleConnection.tsx", "cockpit/types.ts", false],
   ["pages/ProjectsPage.tsx", "runners/store.ts", false],
   ["organisms/runners/RunnerCapacity.tsx", "runners/store.ts", false],
   ["projects/index.tsx", "pages/ProjectsPage.tsx", true],
   ["pages/UpdatesPage.tsx", "organisms/updates/ApplyUpdateDialog.tsx", true],
-  ["pages/UpdatesPage.tsx", "updates/useUpdates.ts", true],
+  ["pages/UpdatesPage.tsx", "updates/store.ts", true],
   ["organisms/updates/AvailableReleaseSection.tsx", "updates/status.ts", true],
   ["molecules/updates/UpdateFeedback.tsx", "molecules/DiagnosticAlert.tsx", true],
   ["organisms/updates/ApplyUpdateDialog.tsx", "updates/native.ts", false],
-  ["molecules/updates/UpdateFeedback.tsx", "updates/useUpdates.ts", false],
+  ["molecules/updates/UpdateFeedback.tsx", "updates/store.ts", false],
   ["organisms/updates/InstalledImageSection.tsx", "pages/UpdatesPage.tsx", false],
   ["organisms/updates/InstalledImageSection.tsx", "organisms/projects/ProjectCatalog.tsx", false],
   ["atoms/CodeValue.tsx", "molecules/DiagnosticAlert.tsx", false],
@@ -70,7 +73,7 @@ test.each([
   ["pages/ProjectsPage.tsx", "projects/protocol.ts", false],
   ["molecules/DiagnosticAlert.tsx", "projects/types.ts", false],
   ["organisms/projects/ProjectCatalog.tsx", "organisms/runners/RunnerCapacity.tsx", false],
-  ["projects/useProjects.ts", "runners/native.ts", false],
+  ["projects/store.ts", "runners/native.ts", false],
   ["projects/ui.ts", "pages/ProjectsPage.tsx", false],
   ["projects/index.tsx", "pages/RunnersPage.tsx", false],
 ])("source boundary %s → %s is %s", (from, to, expected) => {
@@ -93,7 +96,17 @@ test("authored imports preserve atomic layers, native ownership, and independent
         const targets: string[] = [];
         for (const node of file.imports) {
           expect(isStringLiteral(node), `Nonliteral import in ${from}`).toBe(true);
-          if (!isStringLiteral(node) || !node.text.startsWith(".")) continue;
+          if (!isStringLiteral(node)) continue;
+          if (node.text === "zustand/vanilla")
+            expect(from, `Only feature stores construct Zustand state: ${from}`).toBe(
+              `${featureOf(from)}/store.ts`,
+            );
+          if (node.text === "zustand")
+            expect(
+              from.startsWith("pages/"),
+              `Only pages bind React to feature stores: ${from}`,
+            ).toBe(true);
+          if (!node.text.startsWith(".")) continue;
           const base = resolve(dirname(path), node.text);
           const target = [base, `${base}.ts`, `${base}.tsx`].find(existsSync);
           expect(target, `Unresolved import ${node.text} in ${from}`).toBeDefined();
@@ -105,7 +118,11 @@ test("authored imports preserve atomic layers, native ownership, and independent
       }
       for (const [feature, page] of Object.entries(pageNames)) {
         expect(imports.get(`${feature}/index.tsx`)).toEqual(
-          expect.arrayContaining([`pages/${page}.tsx`, `${feature}/native.ts`]),
+          expect.arrayContaining([
+            `pages/${page}.tsx`,
+            `${feature}/native.ts`,
+            `${feature}/store.ts`,
+          ]),
         );
       }
     } finally {
