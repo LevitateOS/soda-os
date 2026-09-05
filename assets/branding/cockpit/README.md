@@ -1,6 +1,12 @@
 # Soda OS Cockpit identity kit
 
-Prepared assets only: nothing in this directory is installed into Cockpit yet.
+The Soda Projects RPM installs the palette, two login backgrounds, favicon and
+Apple touch icon into `/usr/share/cockpit/branding/sodaos/`, together with the
+canonical symbol and light/dark wordmarks. The four Soda pages bundle this same
+palette and canonical symbol. The preview and individual favicon PNG proofs are
+not installed. This describes image source composition, not deployment to an
+existing server.
+
 Open `preview.html` locally to review both themes at 100% browser zoom. Its login
 panels are non-interactive placement studies, not stock Cockpit screenshots or
 replacement login pages. The source is self-contained and makes no network requests.
@@ -20,7 +26,7 @@ do not create a second copy of the symbol or wordmark for Cockpit.
 | Apple shortcut | `apple-touch-icon.png` | 180 x 180 px, opaque approved navy; no baked-in corner mask |
 | Login background, light | `login-background-light.svg` | Static 1920 x 1080 vector canvas, cover-cropped |
 | Login background, dark | `login-background-dark.svg` | Static 1920 x 1080 vector canvas, cover-cropped |
-| Theme specification | `palette.css` | Soda tokens and proposed PatternFly 6 brand-token mappings |
+| Shared theme | `palette.css` | Soda tokens and PatternFly 6 brand-token mappings |
 | Asset and placement proof | `preview.html`, `preview.css` | Offline responsive review sheet, not runtime UI |
 
 The background waves and bubbles echo the existing symbol without modifying it.
@@ -62,7 +68,7 @@ actual 16px, not just enlarged. No new font files or duplicate logo masters.
 ## Proposed copy and documentation
 
 - Product identity: **Soda OS** (the approved artwork uses lowercase lettering).
-- Optional login tagline: **Your development home.**
+- Login tagline: **Your development home.**
 - Login instruction: keep Cockpit's **Log in with your server user account.**
 - Page names: keep **Projects**, **Runners**, **Tailscale**, **Soda Updates** for now.
 - Review-sheet headline: **Your workspace. Your machine.** This is proposed copy,
@@ -92,4 +98,6 @@ These are architecture-independent assets. No image build, installation, or
 native architecture support is established by generating them. Before shipping,
 validate real Cockpit 366 behavior in both themes, keyboard/error states, narrow
 screens, and favicon caching. Many but not all native pages load branding CSS;
-keep this distinction and preserve the stock authentication flow.
+keep this distinction and preserve the stock authentication flow. See
+[`docs/cockpit-development.md`](../../../docs/cockpit-development.md#branding-verification)
+for reference-DOM and real installed-session browser checks.

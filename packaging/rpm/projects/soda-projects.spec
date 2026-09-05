@@ -18,6 +18,13 @@ install -m 0755 %{_sourcedir}/soda-workspace-helper %{buildroot}%{_libexecdir}/s
 cp -a %{_sourcedir}/soda-projects-cockpit/. %{buildroot}%{_datadir}/cockpit/soda-projects/
 install -m 0644 %{_sourcedir}/soda-projects-branding.css %{buildroot}%{_datadir}/cockpit/branding/sodaos/branding.css
 install -m 0644 %{_sourcedir}/soda-projects-symbol.svg %{buildroot}%{_datadir}/cockpit/branding/sodaos/soda-symbol.svg
+install -m 0644 %{_sourcedir}/soda-logo-horizontal.svg %{buildroot}%{_datadir}/cockpit/branding/sodaos/soda-logo-horizontal.svg
+install -m 0644 %{_sourcedir}/soda-logo-horizontal-dark.svg %{buildroot}%{_datadir}/cockpit/branding/sodaos/soda-logo-horizontal-dark.svg
+install -m 0644 %{_sourcedir}/soda-cockpit-palette.css %{buildroot}%{_datadir}/cockpit/branding/sodaos/palette.css
+install -m 0644 %{_sourcedir}/soda-login-background-light.svg %{buildroot}%{_datadir}/cockpit/branding/sodaos/login-background-light.svg
+install -m 0644 %{_sourcedir}/soda-login-background-dark.svg %{buildroot}%{_datadir}/cockpit/branding/sodaos/login-background-dark.svg
+install -m 0644 %{_sourcedir}/soda-cockpit-favicon.ico %{buildroot}%{_datadir}/cockpit/branding/sodaos/favicon.ico
+install -m 0644 %{_sourcedir}/soda-cockpit-apple-touch-icon.png %{buildroot}%{_datadir}/cockpit/branding/sodaos/apple-touch-icon.png
 install -m 0644 %{_sourcedir}/org.sodaos.projects.policy %{buildroot}%{_datadir}/polkit-1/actions/org.sodaos.projects.policy
 install -m 0644 %{_sourcedir}/soda-projects.tmpfiles %{buildroot}%{_tmpfilesdir}/soda-projects.conf
 install -m 0644 %{_sourcedir}/soda-projects.sysusers %{buildroot}%{_sysusersdir}/soda-projects.conf

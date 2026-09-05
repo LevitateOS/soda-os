@@ -1,5 +1,21 @@
-/* Soda-specific identity and long native diagnostics within PatternFly layouts. */
+@import "../../../assets/branding/cockpit/palette.css";
+
+/* Soda-owned page surfaces; stock administration pages retain their native layout. */
+.soda-page {
+  --pf-t--global--background--color--primary--default: var(--soda-surface);
+  --pf-t--global--background--color--secondary--default: var(--soda-canvas);
+  --pf-t--global--text--color--regular: var(--soda-text);
+  --pf-t--global--text--color--subtle: var(--soda-muted);
+  color: var(--soda-text);
+  min-height: 100vh;
+  background: var(--soda-canvas);
+}
+
 .soda-eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  color: var(--soda-text);
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -11,11 +27,6 @@
 .soda-code {
   display: block;
   overflow-wrap: anywhere;
-}
-
-.soda-page {
-  min-height: 100vh;
-  background: var(--pf-t--global--background--color--primary--default);
 }
 
 .soda-external-link {

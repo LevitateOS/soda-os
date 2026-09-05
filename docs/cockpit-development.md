@@ -165,6 +165,59 @@ as displayed by the view. Prior attempted identities remain with the receipt;
 fresh previews never rewrite that evidence. Task dialogs in `organisms/projects`
 are passive. No parent/dialog refresh callbacks or separate task stores remain.
 
+## Branding verification
+
+The canonical palette lives in `assets/branding/cockpit/palette.css`. The native
+branding stylesheet imports the installed copy; each Soda package bundles that
+same source. Do not duplicate color literals in frontend adapters or copy
+`preview.css` into a package. Production asset tests verify the symbol and tokens
+in all four bundles. Go tests check the RPM asset allowlist and native-login
+boundary; `tools/render-cockpit-branding` verifies icon freshness and contrast.
+
+For reproducible login-DOM evidence, obtain the **installed**, compiled Cockpit
+366 `login.html`, `login.css`, and `login.js` from
+`/usr/share/cockpit/static/` on a matching-native reference host. Copy only those
+public static files, not its configuration or credentials, into a local ignored
+reference directory. Upstream Git's `login.js` is a build input, not the installed
+script. Keep Cockpit package-version evidence with the reference. Then run:
+
+```sh
+SODA_COCKPIT_LOGIN_REFERENCE="$PWD/.artifacts/cockpit-login-reference" \
+SODA_COCKPIT_BRANDING_EVIDENCE_DIRECTORY="$PWD/.artifacts/cockpit-branding-implementation" \
+  vp -C cockpit test tests/branding-browser.test.ts
+```
+
+This opt-in test serves the unmodified installed login files through Playwright
+routing, injects the normal environment/base placeholders, and serves local Soda
+branding. HTTP authentication responses are simulated: this is **not** installed
+login or PAM evidence. It tests explicit and automatic light/dark themes, live
+system-theme changes, desktop/narrow layouts, a prefixed URL root, image loading,
+computed button colors, password visibility, keyboard focus, failed-login text,
+and authentication conversations. Reference-file hashes accompany screenshots.
+No new server, authentication implementation, or runtime JavaScript is shipped.
+
+For real integration, provision a disposable matching-native guest as described
+below and run the additional suite:
+
+```sh
+SODA_COCKPIT_TARGET_FILE=/absolute/path/target.json \
+  vp -C cockpit test tests/branding-installed.test.ts
+```
+
+It verifies public branding payloads, real login/logout, RPM ownership, the
+native guest architecture, shell accents, all four Soda page identities/themes,
+narrow layouts, and read-only visits to stock pages. It does not deliberately
+submit incorrect passwords, change accounts, check/download updates, or restart.
+The other installed/acceptance suites still own privilege escalation and product
+operation evidence. Run them as well; this test does not replace them.
+
+Keep source checks, reference-DOM simulations, native RPM inspection, and
+installed-session evidence distinct. Integration remains unverified on any
+architecture without a matching-native guest run. Stock Cockpit does not load
+branding CSS in every frame; do not inject styles to conceal that boundary.
+Administrator `/etc/cockpit/branding/` precedence should also be checked in a
+disposable guest before shipping.
+
 ## Installed browser acceptance
 
 Run this separately on disposable matching-native Soda installations with the

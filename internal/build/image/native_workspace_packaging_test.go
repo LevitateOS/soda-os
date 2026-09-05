@@ -94,6 +94,9 @@ func TestNativeWorkspaceSourcesAreStagedForRPMBuild(t *testing.T) {
 	for _, name := range []string{
 		"soda-projects", "soda-workspace-helper", "cosign", "cosign-LICENSE",
 		"soda-projects-branding.css", "soda-projects-symbol.svg",
+		"soda-logo-horizontal.svg", "soda-logo-horizontal-dark.svg", "soda-cockpit-palette.css",
+		"soda-login-background-light.svg", "soda-login-background-dark.svg",
+		"soda-cockpit-favicon.ico", "soda-cockpit-apple-touch-icon.png",
 		"org.sodaos.projects.policy", "soda-projects.tmpfiles", "soda-projects.sysusers", "cockpit-stock.pam",
 		"soda-runners", "soda-runner-helper", "soda-runner-launch",
 		"org.sodaos.runners.policy", "soda-runners.tmpfiles", "soda-runners.sysusers", "soda-runner@.service",

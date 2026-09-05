@@ -5,6 +5,7 @@ import { mkdtempSync, readFileSync, readdirSync, rmSync, mkdirSync, writeFileSyn
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { packageInventory } from "../build/assets";
+import { brandingSources } from "./branding-assets";
 
 const rpmDirectory = process.env.SODA_COCKPIT_RPM_DIRECTORY;
 const builder = process.env.SODA_COCKPIT_RPM_BUILDER;
@@ -67,6 +68,24 @@ test.skipIf(!rpmDirectory)(
           `/rpms/${rpm}`,
           `soda-${page}`,
         ]);
+        if (page === "projects") {
+          docker([
+            "bash",
+            "-c",
+            'set -euo pipefail; rpm2cpio "$1" | cpio -idm --quiet "./usr/share/cockpit/branding/sodaos/*"',
+            "extract-branding",
+            `/rpms/${rpm}`,
+          ]);
+          const branding = resolve(extracted, "usr/share/cockpit/branding/sodaos");
+          expect(readdirSync(branding).sort()).toEqual(Object.keys(brandingSources).sort());
+          const hashes: Record<string, string> = {};
+          for (const [name, source] of Object.entries(brandingSources)) {
+            const data = readFileSync(resolve(branding, name));
+            expect(data).toEqual(readFileSync(resolve(root, "..", source)));
+            hashes[name] = createHash("sha256").update(data).digest("hex");
+          }
+          records.branding = hashes;
+        }
         const inventory = packageInventory(resolve(root, `dist/soda-${page}`));
         expect(packageInventory(resolve(extracted, `usr/share/cockpit/soda-${page}`))).toEqual(
           inventory,

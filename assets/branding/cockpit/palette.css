@@ -1,4 +1,4 @@
-/* Prepared design tokens, not installed Cockpit overrides. Keep semantic status colors native. */
+/* Shared by Cockpit branding and Soda pages. Keep semantic status colors native. */
 :root,
 .soda-theme-light {
   color-scheme: light;

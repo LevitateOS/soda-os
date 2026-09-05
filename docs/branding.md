@@ -90,29 +90,57 @@ freshness check and verifies dimensions and transparency. These assets are
 architecture-independent; no native RPM or image support is established by
 rendering them.
 
-## Cockpit asset preparation
+## Cockpit integration
 
-`assets/branding/cockpit` contains the prepared light/dark login backgrounds,
-PatternFly brand-token palette, native-size favicon PNGs, a multi-resolution ICO,
-and an opaque Apple touch icon. It references the existing approved symbol and
-horizontal SVG masters without duplicating or redrawing them. Nothing in this
-kit is installed into Cockpit yet; existing Cockpit, installer, and Forgejo
-branding is unchanged.
+The Soda Projects RPM owns `/usr/share/cockpit/branding/sodaos/`: the runtime
+branding stylesheet, shared palette, canonical symbol and horizontal marks,
+light/dark login backgrounds, favicon ICO, and opaque Apple touch icon.
+`internal/build/image/rpm.go` stages the approved sources directly. Individual
+favicon PNG proofs and the offline preview are not installed. Installer and
+Forgejo branding are unchanged.
+
+Cockpit discovers this directory through `ID=sodaos`. Administrator overrides in
+`/etc/cockpit/branding/` retain precedence; Soda does not write there or replace
+files in Cockpit's vendor `static` or `shell` packages. There is no custom login
+page, shell, authentication script, banner, or login-title override. Hostname
+identification, authentication conversations, password visibility, error and
+warning states remain native.
+
+`packaging/rpm/projects/sources/branding/sodaos/branding.css` imports the palette
+and adapts Cockpit 366's standalone login color variables. Its stock `#brand`
+hook supplies accessible wordmark images and the tagline; theme-specific CSS
+selects the image, including when the system preference changes. The login card
+uses a centered responsive grid and static decorative background. Inline/remote
+login behavior still follows Cockpit's own visibility rules. The version-bound
+selectors require browser revalidation when Cockpit changes.
+
+`assets/branding/cockpit/palette.css` is the single palette source for the shell,
+native pages that load branding CSS, and the four Soda packages. Soda pages
+bundle it via `cockpit/src/cockpit/soda.css` and use the canonical symbol in their
+shared heading. No other frame receives injected CSS. Logs, Services, Terminal,
+hardware information, and the standalone firewall entry do not load branding
+CSS in Cockpit 366; their interiors remain native inside the branded shell.
+Danger, warning, success and disabled-state colors remain native. Cockpit's
+Default/Light/Dark selection and host-specific accent overrides are preserved.
 
 Open `assets/branding/cockpit/preview.html` for the offline responsive placement
 sheet. Its login panels are non-interactive design studies, not screenshots of
 stock Cockpit or a replacement authentication UI. See
 [`assets/branding/cockpit/README.md`](../assets/branding/cockpit/README.md) for the
 asset inventory, palette, copy, usage rules, outstanding documentation-link
-decision, and integration boundaries. No optional social or About artwork is
-required for this scope.
+decision, and integration boundaries. These preview panels are not the installed layout;
+the runtime adaptation uses Cockpit's own controls and fonts. No optional social
+or About artwork is required for this scope.
 
 `go run ./tools/render-cockpit-branding` requires Go and librsvg and regenerates
 the four icon PNGs and the PNG-encoded ICO directly from the canonical symbol.
 `go test ./tools/render-cockpit-branding` checks pixel freshness, dimensions,
 opacity, ICO entries, and the intended text/control contrast pairs. Browser
 review at desktop and narrow widths is asset evidence, not installed-product
-acceptance. These assets are architecture-independent.
+acceptance. These assets are architecture-independent. See
+[branding verification](cockpit-development.md#branding-verification) for the
+browser commands and the distinction between simulated and installed evidence.
+Documentation/help links remain deferred until a published destination is chosen.
 
 ## Regenerating all derivatives
 

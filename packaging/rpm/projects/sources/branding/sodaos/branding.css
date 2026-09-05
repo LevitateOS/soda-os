@@ -1,16 +1,100 @@
-/* Soda OS login branding for Cockpit's supported os-release branding lookup. */
-#badge {
-    inline-size: 96px;
-    block-size: 96px;
-    background-image: url("soda-symbol.svg");
-    background-position: center;
-    background-repeat: no-repeat;
-    background-size: contain;
+/* Stock Cockpit branding. The palette is shared with the four Soda pages. */
+@import url("palette.css");
+
+/* Cockpit 366's standalone login uses these variables, not PatternFly brand tokens.
+ * Scope them to the login document; leave status and disabled colors native. */
+body.login-pf {
+    --color-background: var(--soda-surface);
+    --color-body-background: var(--soda-canvas);
+    --color-text: var(--soda-text);
+    --color-text-light: var(--soda-muted);
+    --color-text-lighter: var(--soda-muted);
+    --color-secondary-text: var(--soda-muted);
+    --color-primary: var(--soda-brand);
+    --color-primary-active: var(--soda-brand-hover);
+    --color-link: var(--soda-brand);
+    --color-link-active: var(--soda-brand-hover);
+    --color-border: var(--soda-border);
+    --color-border-light: var(--soda-border);
+    --color-input-background: var(--soda-canvas);
+    --color-input: var(--soda-text);
 }
 
-#brand::before {
-    content: "Soda OS";
-    color: #ffffff;
+html:not(.inline) body.login-pf {
+    background: var(--soda-canvas) url("login-background-light.svg") center / cover fixed;
+    grid-template-areas: ". banner ." ". . ." ". login ." ". details ." ". recent ." ". . .";
+    grid-template-columns: minmax(1rem, 1fr) minmax(0, 28rem) minmax(1rem, 1fr);
+    grid-template-rows: auto 1fr repeat(3, auto) 1fr;
+    column-gap: 0;
+    padding-block: 2rem;
+    box-sizing: border-box;
+    min-block-size: 100%;
+    block-size: auto;
+}
+
+html.pf-v6-theme-dark:not(.inline) body.login-pf {
+    background-image: url("login-background-dark.svg");
+}
+
+/* Cockpit reads this content once and inserts it into its existing h1.
+ * Both images stay in that markup so theme changes work without new JavaScript.
+ * Paths follow the stock login.html asset URLs, including its URL-root handling. */
+body.login-pf #brand::before {
+    content: "<img class='soda-logo-light' src='cockpit/static/soda-logo-horizontal.svg' alt='Soda OS'><img class='soda-logo-dark' src='cockpit/static/soda-logo-horizontal-dark.svg' alt='Soda OS'><span class='soda-login-tagline'>Your development home.</span>";
+}
+
+body.login-pf #badge {
+    display: none;
+}
+
+body.login-pf #brand img {
+    inline-size: 15rem;
+    max-inline-size: 100%;
+    margin: 0;
+}
+
+body.login-pf #brand .soda-logo-dark,
+.pf-v6-theme-dark body.login-pf #brand .soda-logo-light {
+    display: none;
+}
+
+.pf-v6-theme-dark body.login-pf #brand .soda-logo-dark {
+    display: block;
+}
+
+.soda-login-tagline {
+    display: block;
+    margin-block-start: 1rem;
+    color: var(--soda-text);
     font-size: 1.1rem;
-    font-weight: 700;
+    font-weight: 600;
+}
+
+/* Override only primary actions: danger/warning buttons retain their semantics. */
+body.login-pf .pf-v6-c-button.pf-m-primary {
+    --button-color-text: var(--soda-on-brand);
+    --button-color-hover-text: var(--soda-on-brand);
+}
+
+body.login-pf .pf-v6-c-button.pf-m-primary:not([disabled]):active {
+    --button-color-background: var(--soda-brand-pressed);
+    --button-color-border: var(--soda-brand-pressed);
+}
+
+body.login-pf :focus-visible {
+    outline: 2px solid var(--soda-focus);
+    outline-offset: 3px;
+}
+
+body.login-pf a {
+    text-underline-offset: 3px;
+}
+
+@media (width < 600px) {
+    body.login-pf .container .container-body {
+        padding: 1.5rem;
+    }
+    body.login-pf .container .container-footer {
+        padding-inline: 1.5rem;
+    }
 }

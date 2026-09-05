@@ -13,6 +13,10 @@ rpm -q cockpit-ws cockpit-system cockpit-storaged cockpit-networkmanager soda-re
 for path in /usr/share/cockpit/storaged/manifest.json /usr/share/cockpit/networkmanager/manifest.json /usr/share/cockpit/soda-projects/manifest.json /usr/share/cockpit/soda-tailscale/manifest.json /usr/share/cockpit/soda-tailscale/app.mjs /usr/share/cockpit/branding/sodaos/branding.css; do
   test -s "$path"
 done
+for asset in branding.css palette.css soda-symbol.svg soda-logo-horizontal.svg soda-logo-horizontal-dark.svg login-background-light.svg login-background-dark.svg favicon.ico apple-touch-icon.png; do
+  test -s "/usr/share/cockpit/branding/sodaos/$asset"
+  rpm -qf "/usr/share/cockpit/branding/sodaos/$asset" | grep '^soda-projects-'
+done
 for package in soda-projects soda-runners soda-tailscale; do
   cockpit-bridge --packages | awk '{print $1}' | grep -Fx "$package" >/dev/null
 done
