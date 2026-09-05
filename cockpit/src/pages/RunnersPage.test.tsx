@@ -2,6 +2,7 @@
 import { test, expect, vi } from "vite-plus/test";
 import { act, render, screen, within, fireEvent, waitFor } from "@testing-library/react";
 import { RunnersPage } from "./RunnersPage";
+import { createRunnersStore } from "../runners/store";
 import type { Invoke, ListResponse } from "../runners/types";
 import { coordinator } from "../runners/native";
 import { pendingProcess } from "../../tests/process";
@@ -24,7 +25,7 @@ const data: ListResponse = {
 };
 async function ready() {
   const invoke = vi.fn<Invoke>().mockResolvedValue(data);
-  render(<RunnersPage invoke={invoke as Invoke} hostname="soda.lan" />);
+  render(<RunnersPage store={createRunnersStore(invoke as Invoke)} hostname="soda.lan" />);
   await screen.findByText("1 local runner; 1 listening; 1 configured slot.");
   return invoke;
 }
@@ -71,7 +72,7 @@ test("real adapter writes token only to stdin before React clears form and paylo
     .mockReturnValueOnce(initial.process)
     .mockReturnValueOnce(registrationCall.process)
     .mockReturnValueOnce(initial.process);
-  render(<RunnersPage invoke={coordinator({ spawn })} />);
+  render(<RunnersPage store={createRunnersStore(coordinator({ spawn }))} />);
   await screen.findByText("1 local runner; 1 listening; 1 configured slot.");
   const dialog = registration();
   fireEvent.click(dialog.getByRole("button", { name: "Register and start" }));
@@ -154,7 +155,7 @@ test("load failure reports unavailable status without inferring permissions and 
     .fn<Invoke>()
     .mockRejectedValueOnce(new Error("access denied"))
     .mockResolvedValue(data);
-  render(<RunnersPage invoke={invoke as Invoke} />);
+  render(<RunnersPage store={createRunnersStore(invoke as Invoke)} />);
   await screen.findByText("Local runner status is unavailable. Refresh to try again.");
   expect(screen.getByText(/access denied/)).toBeTruthy();
   fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
@@ -243,7 +244,7 @@ test("Stop names the in-flight operation and preserves successful mutation plus 
 
 test("a failure arriving after leaving the page does not start another native read", async () => {
   const invoke = vi.fn<Invoke>().mockResolvedValue(data);
-  const { unmount } = render(<RunnersPage invoke={invoke as Invoke} />);
+  const { unmount } = render(<RunnersPage store={createRunnersStore(invoke as Invoke)} />);
   await screen.findByText("1 local runner; 1 listening; 1 configured slot.");
   let fail!: (error: Error) => void;
   invoke.mockImplementationOnce(

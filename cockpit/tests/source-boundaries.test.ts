@@ -36,7 +36,8 @@ function allowed(from: string, to: string) {
     const module = to.split("/")[1];
     return (
       ["types.ts", "ui.ts", "status.ts", "links.ts"].includes(module) ||
-      (fromLayer === layers.indexOf("pages") && /^use\w+\.ts$/.test(module))
+      (fromLayer === layers.indexOf("pages") &&
+        (module === "store.ts" || /^use\w+\.ts$/.test(module)))
     );
   }
   if (toLayer >= 0) {
@@ -52,6 +53,9 @@ test.each([
   ["molecules/projects/ProjectActions.tsx", "projects/types.ts", true],
   ["templates/CockpitPageTemplate.tsx", "molecules/PageHeading.tsx", true],
   ["pages/ProjectsPage.tsx", "projects/useProjects.ts", true],
+  ["pages/RunnersPage.tsx", "runners/store.ts", true],
+  ["pages/ProjectsPage.tsx", "runners/store.ts", false],
+  ["organisms/runners/RunnerCapacity.tsx", "runners/store.ts", false],
   ["projects/index.tsx", "pages/ProjectsPage.tsx", true],
   ["pages/UpdatesPage.tsx", "organisms/updates/ApplyUpdateDialog.tsx", true],
   ["pages/UpdatesPage.tsx", "updates/useUpdates.ts", true],

@@ -25,7 +25,7 @@ export function RunnerCapacity({
   loading: boolean;
   busy: boolean;
   hostname: string;
-  onAction: (action: LifecycleAction, id: string) => void;
+  onAction: (action: Exclude<LifecycleAction, "remove">, id: string) => void;
   onRemove: (id: string) => void;
 }) {
   return (

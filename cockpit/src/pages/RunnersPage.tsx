@@ -6,32 +6,59 @@ import { RunnerExecutionNotice } from "../organisms/runners/RunnerExecutionNotic
 import { ProviderAuthoritySection } from "../organisms/runners/ProviderAuthoritySection";
 import { RegisterRunnerDialog } from "../organisms/runners/RegisterRunnerDialog";
 import { RemoveRunnerDialog } from "../organisms/runners/RemoveRunnerDialog";
-import type { Invoke } from "../runners/types";
-import { useRunners } from "../runners/useRunners";
+import { useEffect, type FormEvent } from "react";
+import { useStore } from "zustand";
+import type { RunnersStore } from "../runners/store";
+import { createPayload } from "../runners/ui";
 export function RunnersPage({
-  invoke,
+  store,
   hostname = window.location.hostname,
 }: {
-  invoke: Invoke;
+  store: RunnersStore;
   hostname?: string;
 }) {
   const {
     data,
-    busy,
     loading,
     notice,
     readError,
     formError,
-    operation,
+    operation: pending,
     dialog,
     refresh,
-    create,
-    mutate,
+    register,
+    changeProvider,
+    changeListener,
     remove,
     close,
     openCreate,
     openRemove,
-  } = useRunners(invoke);
+  } = useStore(store);
+  useEffect(() => store.getState().start(), [store]);
+  const busy = pending !== null;
+  const operation =
+    pending && pending.action !== "list" && pending.action !== "create"
+      ? `${{ start: "Starting", stop: "Stopping", restart: "Restarting", remove: "Removing" }[pending.action]} ${pending.id}…`
+      : "";
+  function create(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = event.currentTarget;
+    if (!form.reportValidity()) return;
+    const token = form.elements.namedItem("registration_token") as HTMLInputElement;
+    const payload = createPayload(new FormData(form));
+    try {
+      void register(payload);
+    } finally {
+      token.value = "";
+      payload.registration_token = "";
+    }
+  }
+  function confirmRemoval(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const confirmation = new FormData(event.currentTarget).get("confirmation");
+    if (!remove(typeof confirmation === "string" ? confirmation : ""))
+      (event.currentTarget.elements.namedItem("confirmation") as HTMLElement | null)?.focus();
+  }
   const refreshError = readError
     ? `The current runner list could not be refreshed. ${readError}`
     : "";
@@ -74,6 +101,8 @@ export function RunnersPage({
         <>
           {dialog?.kind === "create" && (
             <RegisterRunnerDialog
+              provider={dialog.provider}
+              onProviderChange={changeProvider}
               busy={busy}
               onClose={close}
               onSubmit={create}
@@ -87,7 +116,7 @@ export function RunnersPage({
               busy={busy}
               error={error}
               onClose={close}
-              onSubmit={remove}
+              onSubmit={confirmRemoval}
             />
           )}
         </>
@@ -99,7 +128,7 @@ export function RunnersPage({
         loading={loading}
         busy={busy}
         hostname={hostname}
-        onAction={(action, id) => void mutate(action, id)}
+        onAction={(action, id) => void changeListener(action, id)}
         onRemove={openRemove}
       />
       <ProviderAuthoritySection />

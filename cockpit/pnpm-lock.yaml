@@ -62,6 +62,9 @@ importers:
       vite-plus:
         specifier: 0.3.0
         version: 0.3.0(@types/node@24.10.1)(jsdom@30.0.1)(sass@1.104.0)(typescript@7.0.2)(vite@8.2.2(@types/node@24.10.1)(sass@1.104.0))
+      zustand:
+        specifier: 5.0.15
+        version: 5.0.15(@types/react@18.3.13)(react@18.3.1)
 
 packages:
 
@@ -1663,6 +1666,24 @@ packages:
   yuku-parser@0.5.48:
     resolution: {integrity: sha512-OWBfhrpgK9+/4+IXG9oT8Bao4AhViQA7vdyNNH7EUg8dQYgwa70XtIBWTpCEme1P1ECyoDNYkn0wT63f8XRcVA==}
 
+  zustand@5.0.15:
+    resolution: {integrity: sha512-MpSEjRiBkA9crSYeOUH32rJC7SVqAbm0Fqcqge/bUi2PPoLcBWKOsG+C8mevmpr8TwXHBVkChbbJiyvkE+i/3A==}
+    engines: {node: '>=12.20.0'}
+    peerDependencies:
+      '@types/react': '>=18.0.0'
+      immer: '>=9.0.6'
+      react: '>=18.0.0'
+      use-sync-external-store: '>=1.2.0'
+    peerDependenciesMeta:
+      '@types/react':
+        optional: true
+      immer:
+        optional: true
+      react:
+        optional: true
+      use-sync-external-store:
+        optional: true
+
 snapshots:
 
   '@asamuzakjp/css-color@6.0.7':
@@ -2893,3 +2914,8 @@ snapshots:
       '@yuku-parser/binding-linux-x64-musl': 0.5.48
       '@yuku-parser/binding-win32-arm64': 0.5.48
       '@yuku-parser/binding-win32-x64': 0.5.48
+
+  zustand@5.0.15(@types/react@18.3.13)(react@18.3.1):
+    optionalDependencies:
+      '@types/react': 18.3.13
+      react: 18.3.1

@@ -5,7 +5,8 @@ import "@patternfly/patternfly/patternfly-base.css";
 import "../cockpit/soda.css";
 import { RunnersPage } from "../pages/RunnersPage";
 import { coordinator } from "./native";
+import { createRunnersStore } from "./store";
 
 createRoot(document.getElementById("app")!).render(
-  <RunnersPage invoke={coordinator(window.cockpit)} />,
+  <RunnersPage store={createRunnersStore(coordinator(window.cockpit))} />,
 );

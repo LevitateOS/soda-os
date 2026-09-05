@@ -1,5 +1,5 @@
 import { HelperText, HelperTextItem } from "@patternfly/react-core";
-import { useCallback, useRef, useState, type FormEvent } from "react";
+import { useCallback, useRef, type FormEvent } from "react";
 import {
   Button,
   Form,
@@ -15,19 +15,22 @@ import { DiagnosticAlert } from "../../molecules/DiagnosticAlert";
 import { ForgejoRegistrationFields } from "../../molecules/runners/ForgejoRegistrationFields";
 import { GitHubRegistrationFields } from "../../molecules/runners/GitHubRegistrationFields";
 export function RegisterRunnerDialog({
+  provider,
+  onProviderChange,
   busy,
   onClose,
   onSubmit,
   hostname,
   error,
 }: {
+  provider: "forgejo" | "github";
+  onProviderChange: (provider: "forgejo" | "github") => void;
   busy: boolean;
   onClose: () => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
   hostname: string;
   error: string;
 }) {
-  const [provider, setProvider] = useState("forgejo");
   const token = useRef<HTMLInputElement | null>(null);
   const tokenRef = useCallback((node: HTMLInputElement | null) => {
     if (!node && token.current) token.current.value = "";
@@ -77,7 +80,7 @@ export function RegisterRunnerDialog({
               label="Bundled Forgejo"
               isChecked={provider === "forgejo"}
               isDisabled={busy}
-              onChange={() => setProvider("forgejo")}
+              onChange={() => onProviderChange("forgejo")}
             />
             <Radio
               id="github"
@@ -86,7 +89,7 @@ export function RegisterRunnerDialog({
               label="GitHub"
               isChecked={provider === "github"}
               isDisabled={busy}
-              onChange={() => setProvider("github")}
+              onChange={() => onProviderChange("github")}
             />
           </FormGroup>
           <ForgejoRegistrationFields

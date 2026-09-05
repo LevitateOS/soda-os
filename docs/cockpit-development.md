@@ -83,9 +83,11 @@ native-state refresh. Long image identities reuse `CodeValue`; notices reuse
 Passive organisms and molecules never invoke Cockpit or import native adapters.
 Feature organisms and molecules may use their own types and pure presentation helpers;
 shared components have no feature dependencies. Pages connect their own feature
-hook to the template and organisms. Hooks own transient requests, refresh, and
-lifecycle handling; there is no shared application store or generic operation
-controller. Layers may skip levels and use PatternFly directly. For example,
+hook to the template and organisms. Runners uses a page-scoped Zustand store in `src/runners/store.ts` for
+transient observations, named actions, dialogs, and outcomes. Its entrypoint
+constructs the store with the native adapter; the page subscribes and binds its
+lifetime. The other pages currently retain their feature hooks. There is no
+cross-page application store or generic operation controller. Layers may skip levels and use PatternFly directly. For example,
 `ProjectActions` composes PatternFly `Button` and `Flex`; `CatalogProjectDialog`
 uses PatternFly `Modal` and `Form` with Soda's `CatalogFields`.
 
@@ -95,7 +97,11 @@ source-boundary test parses the actual TypeScript/TSX imports (including type
 imports and re-exports) through the locked TypeScript API and resolves relative
 paths. It checks these boundaries and each entrypoint's own page/native wiring.
 
-React state remains transient. Runner registration secrets stay in the native
+Browser state remains transient. Create a fresh feature store for each page
+instance and test. Store actions enforce their own pending/confirmation guards;
+disposal invalidates continuations, not native outcomes. No persistence or
+middleware is used. DOM input/focus stays in the view; registration provider
+selection and command outcomes belong to the Runners store. Runner registration secrets stay in the native
 input, are cleared immediately after synchronous request serialization, and
 are cleared on teardown. Tailscale's feature hook retains streaming auth URLs,
 non-overlapping reads, unsaved form edits, hidden-page cancellation, native state

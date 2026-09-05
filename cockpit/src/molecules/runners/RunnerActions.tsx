@@ -8,7 +8,7 @@ export function RunnerActions({
 }: {
   runner: Runner;
   busy: boolean;
-  onAction: (action: LifecycleAction, id: string) => void;
+  onAction: (action: Exclude<LifecycleAction, "remove">, id: string) => void;
   onRemove: (id: string) => void;
 }) {
   return (
