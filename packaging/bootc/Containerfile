@@ -33,7 +33,6 @@ RUN dnf -y --setopt=install_weak_deps=False --enablerepo=updates-testing install
     && dnf -y remove avahi \
     && ! rpm -q avahi \
     && ! test -e /usr/lib/systemd/system/avahi-daemon.service \
-    && firewall-offline-cmd --set-default-zone=drop \
     && sed -i '/^[[:space:]]*$/d' /usr/lib/sysusers.d/forgejo-runner.conf \
     && systemd-sysusers --dry-run /usr/lib/sysusers.d/forgejo-runner.conf \
     && dnf clean all \
@@ -60,7 +59,8 @@ RUN dnf -y --setopt=install_weak_deps=False --enablerepo=updates-testing install
     && install -o root -g root -m 0644 /usr/lib/soda/pam/cockpit /etc/pam.d/cockpit \
     && restorecon -F /etc/pam.d/cockpit \
     && systemctl preset sshd.service cockpit.socket forgejo.service tailscaled.service firewalld.service \
-    && systemctl enable sshd.service cockpit.socket forgejo.service tailscaled.service firewalld.service \
+    && systemctl enable sshd.service cockpit.socket forgejo.service tailscaled.service \
+    && systemctl disable firewalld.service \
     && systemctl enable cloud-init-main.service cloud-init-local.service cloud-config.service cloud-final.service \
     && getent passwd git \
     && systemctl mask bootc-fetch-apply-updates.timer \

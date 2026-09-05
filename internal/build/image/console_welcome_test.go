@@ -10,33 +10,43 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestConsoleWelcomeDisplaysHostnameAndIPv4Address(t *testing.T) {
-	for name, test := range map[string]struct {
-		ipOutput      string
-		tailnetOutput string
-		want          string
-	}{
-		"first global address": {
-			ipOutput:      "2: enp1s0    inet 10.0.2.15/24 brd 10.0.2.255 scope global dynamic enp1s0\n3: enp2s0    inet 192.0.2.4/24 scope global enp2s0\n",
-			tailnetOutput: "\nTailscale is connected.\nMagicDNS identity: atlas.example.ts.net\nOpen the Soda OS dashboard:\n  https://atlas.example.ts.net:9090\n",
-			want:          "\nWelcome to Soda OS.\n\nTailscale is connected.\nMagicDNS identity: atlas.example.ts.net\nOpen the Soda OS dashboard:\n  https://atlas.example.ts.net:9090\n\nLocal console address:\n  https://10.0.2.15:9090\n",
-		},
-		"no global address": {
-			tailnetOutput: "\nTailscale is not enrolled. Tailnet access is unavailable.\nInfrastructure owner: run `sudo tailscale up`, then open the one-time URL it prints to authorize this appliance. After authorization, run `sudo /usr/libexec/soda/forgejo-init refresh-tailnet` to load the Tailnet Forgejo address. Soda does not store a Tailnet authorization key.\n",
-			want:          "\nWelcome to Soda OS.\n\nTailscale is not enrolled. Tailnet access is unavailable.\nInfrastructure owner: run `sudo tailscale up`, then open the one-time URL it prints to authorize this appliance. After authorization, run `sudo /usr/libexec/soda/forgejo-init refresh-tailnet` to load the Tailnet Forgejo address. Soda does not store a Tailnet authorization key.\n",
-		},
-	} {
-		t.Run(name, func(t *testing.T) {
-			tools := t.TempDir()
-			writeWelcomeTestCommand(t, tools, "ip", "printf '%s' \"$SODA_TEST_IP_OUTPUT\"\n")
-			writeWelcomeTestCommand(t, tools, "soda-tailnet", "printf '%s' \"$SODA_TEST_TAILNET_OUTPUT\"\n")
+func TestConsoleWelcomeDisplaysNativeLANAndCurrentUser(t *testing.T) {
+	tools := t.TempDir()
+	writeWelcomeTestCommand(t, tools, "hostnamectl", "echo atlas\n")
+	writeWelcomeTestCommand(t, tools, "id", "echo alice\n")
+	writeWelcomeTestCommand(t, tools, "nmcli", "printf 'enp1s0:ethernet:connected\\nwlan0:wifi:connected\\ntailscale0:tun:connected\\n'\n")
+	writeWelcomeTestCommand(t, tools, "ip", `case "$*" in
+		*route*) echo 'default via 192.168.1.1 dev enp1s0';;
+		*enp1s0*) echo '2: enp1s0 inet 192.168.1.10/24 scope global enp1s0';;
+		*wlan0*) echo '3: wlan0 inet 10.0.0.2/24 scope global wlan0';;
+		*) echo '4: tailscale0 inet 100.64.0.1/32 scope global tailscale0';;
+	esac
+`)
+	writeWelcomeTestCommand(t, tools, "soda-tailnet", "echo 'Tailscale: disconnected.'\n")
+	command := exec.Command("sh", filepath.Join("..", "..", "..", "packaging", "rpm", "runtime", "sources", "console", "soda-console-welcome"))
+	command.Env = append(os.Environ(), "PATH="+tools+":"+os.Getenv("PATH"))
+	output, err := command.Output()
+	require.NoError(t, err)
+	for _, expected := range []string{"Welcome to Soda OS", "Hostname: atlas", "Cockpit: https://192.168.1.10:9090", "Forgejo: http://192.168.1.10:30000/", "ssh alice@192.168.1.10", "https://10.0.0.2:9090", "Tailscale: disconnected.", "/etc/profile.d/soda-console-welcome.sh"} {
+		require.Contains(t, string(output), expected)
+	}
+	require.NotContains(t, string(output), "100.64.0.1")
+	require.NotContains(t, string(output), "Setup")
+}
 
-			command := exec.Command("sh", filepath.Join("..", "..", "..", "packaging", "rpm", "runtime", "sources", "console", "soda-console-welcome"))
-			command.Env = append(os.Environ(), "PATH="+tools+":"+os.Getenv("PATH"), "SODA_TEST_IP_OUTPUT="+test.ipOutput, "SODA_TEST_TAILNET_OUTPUT="+test.tailnetOutput)
-			output, err := command.Output()
-			require.NoError(t, err)
-			require.Equal(t, test.want, string(output))
-		})
+func TestWelcomeSurvivesMissingNetworkAndTailnetTools(t *testing.T) {
+	tools := t.TempDir()
+	writeWelcomeTestCommand(t, tools, "hostnamectl", "echo atlas\n")
+	writeWelcomeTestCommand(t, tools, "id", "echo alice\n")
+	for _, name := range []string{"nmcli", "ip", "soda-tailnet"} {
+		writeWelcomeTestCommand(t, tools, name, "exit 1\n")
+	}
+	command := exec.Command("sh", filepath.Join("..", "..", "..", "packaging", "rpm", "runtime", "sources", "console", "soda-console-welcome"))
+	command.Env = append(os.Environ(), "PATH="+tools+":"+os.Getenv("PATH"))
+	output, err := command.Output()
+	require.NoError(t, err)
+	for _, expected := range []string{"Welcome to Soda OS", "Hostname: atlas", "No local IPv4 address", "ssh alice@atlas", "/etc/profile.d/soda-console-welcome.sh"} {
+		require.Contains(t, string(output), expected)
 	}
 }
 

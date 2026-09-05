@@ -11,7 +11,6 @@ import {
   sshCommand,
   successMessage,
 } from "./ui.mjs";
-import { initializeSetup } from "./setup.mjs";
 
 const cockpit = window.cockpit;
 const state = {
@@ -50,7 +49,6 @@ elements.rows.addEventListener("click", event => {
 });
 
 loadProjects();
-initializeSetup({ cockpit, showNotice, setBusy });
 
 async function invoke(action, payload) {
   const process = cockpit.spawn(coordinatorCommand(action), { err: "message" });

@@ -1,0 +1,23 @@
+:root { color-scheme: light dark; font-family: system-ui, sans-serif; color: light-dark(#151515, #eee); background: light-dark(#f0f0f0, #151515); }
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+main { max-width: 68rem; margin: 0 auto; padding: 2rem; }
+h1 { margin-top: 0; }
+h2 { font-size: 1.2rem; margin-top: 0; }
+.eyebrow { font-size: .8rem; text-transform: uppercase; letter-spacing: .08em; }
+section, #notice { padding: 1.5rem; margin-bottom: 1.5rem; border: 1px solid light-dark(#d2d2d2, #555); border-radius: .3rem; background: light-dark(#fff, #222); }
+#notice { border-inline-start: .3rem solid #c9190b; }
+a { color: light-dark(#0066cc, #73bcf7); overflow-wrap: anywhere; }
+button, select { font: inherit; padding: .5rem .8rem; border-radius: .2rem; border: 1px solid light-dark(#8a8d90, #777); }
+button { color: white; background: #0066cc; cursor: pointer; }
+button:disabled { opacity: .5; cursor: default; }
+fieldset { border: 0; padding: 0; margin: 0; display: grid; gap: 1rem; justify-items: start; }
+.checkbox { display: flex; gap: .5rem; align-items: baseline; }
+select { max-width: 100%; }
+dt { font-weight: 600; }
+dd { margin: .3rem 0 1rem; overflow-wrap: anywhere; }
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; }
+th, td { padding: .7rem; text-align: start; border-bottom: 1px solid light-dark(#ddd, #555); overflow-wrap: anywhere; }
+:focus-visible { outline: 3px solid #73bcf7; outline-offset: 3px; }
+@media (max-width: 40rem) { main { padding: 1rem; } section { padding: 1rem; } }

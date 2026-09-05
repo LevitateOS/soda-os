@@ -1,15 +1,28 @@
 #!/bin/sh
-set -eu
+# Runs as the logged-in user. No login state or configuration is written.
+printf '\nWelcome to Soda OS\n'
+host=$(hostnamectl --static 2>/dev/null)
+[ -n "$host" ] || host=$(uname -n)
+user=$(id -un)
+printf 'Hostname: %s\n' "$host"
 
-printf '\nWelcome to Soda OS.\n'
-
-if /usr/libexec/soda/soda-setup pending 2>/dev/null; then
-	printf '\nNetwork access is not yet configured. Soda Setup opens after administrator console login and is also available in Cockpit.\n'
+# Main-table uplinks remain local when Tailscale installs exit-node routes in
+# its own routing table. Also include connected Ethernet/Wi-Fi without a gateway.
+devices=$({
+  ip -o -4 route show default table main 2>/dev/null | awk '{ for (i=1; i<NF; i++) if ($i == "dev") print $(i+1) }'
+  LC_ALL=C nmcli -t -f DEVICE,TYPE,STATE device status 2>/dev/null | awk -F: '$3 == "connected" && ($2 == "ethernet" || $2 == "wifi") {print $1}'
+} | awk '!seen[$0]++')
+found=false
+for device in $devices; do
+  case "$device" in lo|tailscale*) continue ;; esac
+  addresses=$(ip -o -4 addr show dev "$device" scope global 2>/dev/null | awk '{sub(/\/.*/, "", $4); print $4}')
+  for address in $addresses; do
+    found=true
+    printf '\nLocal network (%s):\n  Cockpit: https://%s:9090\n  Forgejo: http://%s:30000/\n  SSH: ssh %s@%s\n' "$device" "$address" "$address" "$user" "$address"
+  done
+done
+if [ "$found" = false ]; then
+  printf '\nNo local IPv4 address is currently available.\n  Cockpit: https://%s:9090\n  Forgejo: http://%s:30000/\n  SSH: ssh %s@%s\n' "$host" "$host" "$user" "$host"
 fi
-
 soda-tailnet
-
-address=$(ip -o -4 addr show scope global 2>/dev/null | awk 'NR == 1 { sub(/\/.*/, "", $4); print $4 }')
-if [ -n "$address" ]; then
-	printf '\nLocal console address:\n  https://%s:9090\n' "$address"
-fi
+printf '\nAdministrators can customize this message in /etc/profile.d/soda-console-welcome.sh.\n'

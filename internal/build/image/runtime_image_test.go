@@ -25,10 +25,10 @@ func TestRuntimeImageBootcContainerContract(t *testing.T) {
 		"COPY --from=lock-inputs /fedora-packages.txt /var/tmp/soda-lock/fedora-packages.txt",
 		"COPY --from=lock-inputs /expected-packages.txt /var/tmp/soda-lock/expected-packages.txt",
 		"dnf -y remove avahi", "! rpm -q avahi", "! test -e /usr/lib/systemd/system/avahi-daemon.service",
-		"firewall-offline-cmd --set-default-zone=drop",
+		"systemctl disable firewalld.service",
 		"getent group soda-workspaces",
 		"install -o root -g root -m 0644 /usr/lib/soda/pam/cockpit /etc/pam.d/cockpit",
-		"systemctl enable sshd.service cockpit.socket forgejo.service tailscaled.service firewalld.service",
+		"systemctl enable sshd.service cockpit.socket forgejo.service tailscaled.service",
 		"systemctl enable cloud-init-main.service cloud-init-local.service cloud-config.service cloud-final.service",
 		"getent passwd git",
 		"systemctl mask bootc-fetch-apply-updates.timer", "cp -f /usr/lib/soda/os-release /etc/os-release",
@@ -120,8 +120,6 @@ func TestRuntimeImageStateDirectoriesAndSELinuxContract(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, []string{
 		"d /var/lib/soda 0755 root root -",
-		"d /run/lock/soda 0755 root root -",
-		"f /run/lock/soda/setup.lock 0600 root root -",
 	}, packagingNonCommentLines(string(runtimeTmpfiles)))
 }
 
@@ -132,8 +130,8 @@ func TestRuntimeImageRPMStagingContract(t *testing.T) {
 	require.NotContains(t, string(staging), "opt-soda-toolchains.mount")
 	require.NotContains(t, string(staging), "toolset-commands.txt")
 	require.NotContains(t, string(staging), "soda-tailscale-enroll.service")
-	require.Contains(t, string(staging), `b.path("packaging/rpm/runtime/sources/soda-local-access"), filepath.Join(sources, "soda-local-access")`)
-	require.Contains(t, string(staging), `b.path("packaging/rpm/runtime/sources/firewalld/zones/soda-tailnet.xml"), filepath.Join(sources, "soda-tailnet.xml")`)
+	require.NotContains(t, string(staging), `b.path("packaging/rpm/runtime/sources/soda-local-access"), filepath.Join(sources, "soda-local-access")`)
+	require.NotContains(t, string(staging), `b.path("packaging/rpm/runtime/sources/firewalld/zones/soda-tailnet.xml"), filepath.Join(sources, "soda-tailnet.xml")`)
 	require.NotContains(t, string(staging), "soda-installer-import.service")
 	require.NotContains(t, string(staging), "soda-installer-input")
 	require.NotContains(t, string(staging), "soda-installer-finalize")
@@ -163,10 +161,10 @@ func TestRuntimeHostCompositionRPMContract(t *testing.T) {
 	require.Contains(t, string(runtimeSpec), "tailscale")
 	require.Contains(t, string(runtimeSpec), "firewalld")
 	require.Contains(t, string(runtimeSpec), "NetworkManager")
-	require.Contains(t, string(runtimeSpec), "install -m 0755 %{_sourcedir}/soda-local-access %{buildroot}%{_bindir}/soda-local-access")
-	require.Contains(t, string(runtimeSpec), "install -m 0755 %{_sourcedir}/soda-setup %{buildroot}%{_libexecdir}/soda/soda-setup")
-	require.Contains(t, string(runtimeSpec), "install -m 0644 %{_sourcedir}/soda-tailnet.xml %{buildroot}%{_sysconfdir}/firewalld/zones/soda-tailnet.xml")
-	require.Contains(t, string(runtimeSpec), "%config(noreplace) %{_sysconfdir}/firewalld/zones/soda-tailnet.xml")
+	require.NotContains(t, string(runtimeSpec), "install -m 0755 %{_sourcedir}/soda-local-access %{buildroot}%{_bindir}/soda-local-access")
+	require.NotContains(t, string(runtimeSpec), "install -m 0755 %{_sourcedir}/soda-setup %{buildroot}%{_libexecdir}/soda/soda-setup")
+	require.NotContains(t, string(runtimeSpec), "install -m 0644 %{_sourcedir}/soda-tailnet.xml %{buildroot}%{_sysconfdir}/firewalld/zones/soda-tailnet.xml")
+	require.NotContains(t, string(runtimeSpec), "%config(noreplace) %{_sysconfdir}/firewalld/zones/soda-tailnet.xml")
 	require.NotContains(t, string(runtimeSpec), "soda-installer-import.service")
 	require.NotContains(t, string(runtimeSpec), "soda-installer-input")
 	require.NotContains(t, string(runtimeSpec), "soda-installer-finalize")
@@ -314,7 +312,7 @@ func TestRuntimeImageSystemdHostCompositionContract(t *testing.T) {
 	runtimeSources := filepath.Join("..", "..", "..", "packaging", "rpm", "runtime", "sources")
 	preset, err := os.ReadFile(filepath.Join(runtimeSources, "systemd", "90-soda.preset"))
 	require.NoError(t, err)
-	for _, unit := range []string{"sshd.service", "forgejo.service", "cockpit.socket", "tailscaled.service", "firewalld.service"} {
+	for _, unit := range []string{"sshd.service", "forgejo.service", "cockpit.socket", "tailscaled.service"} {
 		require.True(t, strings.Contains(string(preset), "enable "+unit))
 	}
 	_, err = os.Stat(filepath.Join(runtimeSources, "systemd", "soda-setup.service"))
@@ -328,10 +326,9 @@ func TestRuntimeImageSystemdHostCompositionContract(t *testing.T) {
 	_, err = os.Stat(filepath.Join(runtimeSources, "systemd", "soda-tailscale-enroll.service"))
 	require.ErrorIs(t, err, os.ErrNotExist)
 
-	tailnetZone, err := os.ReadFile(filepath.Join(runtimeSources, "firewalld", "zones", "soda-tailnet.xml"))
-	require.NoError(t, err)
-	require.Contains(t, string(tailnetZone), `<zone target="ACCEPT">`)
-	require.Contains(t, string(tailnetZone), `<interface name="tailscale0"/>`)
+	require.Contains(t, string(preset), "disable firewalld.service")
+	_, err = os.Stat(filepath.Join(runtimeSources, "firewalld", "zones", "soda-tailnet.xml"))
+	require.ErrorIs(t, err, os.ErrNotExist)
 	_, err = os.Stat(filepath.Join(runtimeSources, "firewalld", "firewalld.conf"))
 	require.ErrorIs(t, err, os.ErrNotExist)
 

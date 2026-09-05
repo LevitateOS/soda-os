@@ -29,7 +29,6 @@ func TestNativeWorkspaceBinariesAreBuilt(t *testing.T) {
 	joined := strings.Join(commands, "\n")
 	require.Contains(t, joined, "-o /src/.artifacts/build/soda-projects ./cmd/soda-projects")
 	require.Contains(t, joined, "-o /src/.artifacts/build/soda-workspace-helper ./cmd/soda-workspace-helper")
-	require.Contains(t, joined, "-o /src/.artifacts/build/soda-setup ./cmd/soda-setup")
 }
 
 func TestNativeWorkspaceCockpitPackagesAreLockedForSiblingArchitectures(t *testing.T) {
@@ -86,16 +85,16 @@ func TestNativeWorkspaceSourcesAreStagedForRPMBuild(t *testing.T) {
 	build := t.TempDir()
 	sources := t.TempDir()
 	for _, name := range []string{
-		"soda-projects", "soda-workspace-helper", "soda-setup", "soda-runners", "soda-runner-helper", "soda-runner-launch", "soda-tailnet", "soda-forgejo-tailnet", "forgejo",
+		"soda-projects", "soda-workspace-helper", "soda-runners", "soda-runner-helper", "soda-runner-launch", "soda-tailnet", "soda-forgejo-tailnet", "forgejo",
 	} {
 		require.NoError(t, os.WriteFile(filepath.Join(build, name), []byte(name), 0o755))
 	}
 
 	require.NoError(t, (&Builder{Root: root}).stageProductRPMSources(build, sources))
 	for _, name := range []string{
-		"soda-projects", "soda-workspace-helper", "soda-setup", "soda-projects-manifest.json",
+		"soda-projects", "soda-workspace-helper", "soda-projects-manifest.json",
 		"soda-projects-index.html", "soda-projects-app.mjs", "soda-projects-protocol.mjs",
-		"soda-projects-ui.mjs", "soda-projects-setup.mjs", "soda-projects-setup-protocol.mjs",
+		"soda-projects-ui.mjs",
 		"soda-projects-app.css", "soda-projects-branding.css", "soda-projects-symbol.svg",
 		"org.sodaos.projects.policy", "soda-projects.tmpfiles", "soda-projects.sysusers", "cockpit-stock.pam",
 		"soda-runners", "soda-runner-helper", "soda-runner-launch", "soda-runners-manifest.json",

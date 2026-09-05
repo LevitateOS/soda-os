@@ -1,6 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<zone target="ACCEPT">
-  <short>Soda Tailnet</short>
-  <description>Independent Tailscale ingress for Soda OS.</description>
-  <interface name="tailscale0"/>
-</zone>

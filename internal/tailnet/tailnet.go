@@ -34,13 +34,15 @@ const (
 
 // Status is the stable Soda interpretation of `tailscale status --json`.
 type Status struct {
-	BackendState string
-	Identity     string
-	IPv4         string
+	BackendState    string
+	Identity        string
+	IPv4            string
+	MagicDNSEnabled bool
+	Expired         bool
+	AuthPending     bool
 }
 
-// Endpoint identifies an enrolled appliance at its MagicDNS name and its
-// Tailnet-only IPv4 listener address.
+// Endpoint identifies an enrolled appliance by a resolvable name or IPv4 address.
 type Endpoint struct {
 	Identity string
 	IPv4     string
@@ -49,7 +51,7 @@ type Endpoint struct {
 // EnrollmentState returns Enrolled only when the local Tailscale node is
 // running and has supplied a usable MagicDNS FQDN.
 func (s Status) EnrollmentState() EnrollmentState {
-	if s.BackendState != "Running" {
+	if s.BackendState != "Running" || s.Expired {
 		return NeedsEnrollment
 	}
 	if s.Identity == "" {
@@ -108,30 +110,38 @@ func (c *Client) Identity(ctx context.Context) (string, error) {
 	}
 }
 
-// Endpoint returns the canonical MagicDNS identity and Tailnet IPv4 address
-// required by services that bind only to the Tailnet interface.
+// URLHost returns a usable Tailnet host without assuming MagicDNS is enabled.
+func (s Status) URLHost() string {
+	if s.MagicDNSEnabled && s.Identity != "" {
+		return s.Identity
+	}
+	return s.IPv4
+}
+
+// Endpoint returns the advertised host and the IPv4 address used by Forgejo.
 func (c *Client) Endpoint(ctx context.Context) (Endpoint, error) {
 	status, err := c.Status(ctx)
 	if err != nil {
 		return Endpoint{}, err
 	}
-	switch status.EnrollmentState() {
-	case Enrolled:
-		if status.IPv4 == "" {
-			return Endpoint{}, ErrIPv4Unavailable
-		}
-		return Endpoint{Identity: status.Identity, IPv4: status.IPv4}, nil
-	case IdentityUnavailable:
-		return Endpoint{}, ErrIdentityUnavailable
-	default:
+	if status.BackendState != "Running" || status.Expired {
 		return Endpoint{}, ErrNotEnrolled
 	}
+	if status.IPv4 == "" {
+		return Endpoint{}, ErrIPv4Unavailable
+	}
+	return Endpoint{Identity: status.URLHost(), IPv4: status.IPv4}, nil
 }
 
 type statusDocument struct {
-	BackendState string `json:"BackendState"`
-	Self         struct {
+	BackendState   string `json:"BackendState"`
+	AuthURL        string `json:"AuthURL"`
+	CurrentTailnet struct {
+		MagicDNSEnabled bool `json:"MagicDNSEnabled"`
+	} `json:"CurrentTailnet"`
+	Self struct {
 		DNSName      string   `json:"DNSName"`
+		Expired      bool     `json:"Expired"`
 		TailscaleIPs []string `json:"TailscaleIPs"`
 	} `json:"Self"`
 }
@@ -144,15 +154,14 @@ func parseStatus(contents []byte) (Status, error) {
 	if document.BackendState == "" {
 		return Status{}, errors.New("Tailscale status did not include a backend state")
 	}
-	status := Status{BackendState: document.BackendState}
-	if document.Self.DNSName == "" {
-		return status, nil
+	status := Status{BackendState: document.BackendState, MagicDNSEnabled: document.CurrentTailnet.MagicDNSEnabled, Expired: document.Self.Expired, AuthPending: document.AuthURL != ""}
+	if document.Self.DNSName != "" {
+		identity, err := CanonicalMagicDNSName(document.Self.DNSName)
+		if err != nil {
+			return Status{}, err
+		}
+		status.Identity = identity
 	}
-	identity, err := CanonicalMagicDNSName(document.Self.DNSName)
-	if err != nil {
-		return Status{}, err
-	}
-	status.Identity = identity
 	for _, rawAddress := range document.Self.TailscaleIPs {
 		address, parseErr := netip.ParseAddr(rawAddress)
 		if parseErr == nil && address.Is4() {

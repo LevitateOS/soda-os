@@ -26,7 +26,7 @@ func TestCloudInitUsesNativePackagesAndStageActivation(t *testing.T) {
 	require.NotContains(t, string(container), "cloud-init.disabled")
 	runtime, err := os.ReadFile(filepath.Join(root, "packaging", "rpm", "runtime", "soda-runtime.spec"))
 	require.NoError(t, err)
-	require.Contains(t, string(runtime), "Requires:       cloud-init,")
+	require.Contains(t, specRequires(string(runtime)), "cloud-init")
 	require.Contains(t, string(runtime), ", sudo,")
 	_, err = os.Stat(filepath.Join(root, "packaging", "rpm", "runtime", "sources", "systemd", "soda-setup.service"))
 	require.ErrorIs(t, err, os.ErrNotExist)

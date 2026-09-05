@@ -19,7 +19,7 @@ check:
     ./scripts/check-release-identity.sh
     ./scripts/check-release-ci.sh
     ./scripts/check-acceptance-evidence-ci.sh
-    node --test cockpit/soda-projects/*.test.mjs cockpit/soda-runners/*.test.mjs
+    node --test cockpit/soda-projects/*.test.mjs cockpit/soda-runners/*.test.mjs cockpit/soda-tailscale/*.test.mjs
     go vet ./...
     go test -race ./internal/acceptance
     go test ./...

@@ -160,48 +160,6 @@ select:focus-visible {
   padding: 1.25rem;
 }
 
-.setup-body {
-  padding: 0 1.25rem 1.25rem;
-  border-block-start: 1px solid #d2d2d2;
-}
-
-.fact-list,
-.setup-actions {
-  display: grid;
-  gap: 1rem;
-}
-
-.fact-list {
-  grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
-  margin: 1.25rem 0;
-}
-
-.fact-list div {
-  padding: 0.8rem;
-  border: 1px solid #d2d2d2;
-  border-radius: 0.2rem;
-}
-
-.fact-list dt {
-  color: #4f5255;
-  font-size: 0.85rem;
-  font-weight: 700;
-}
-
-.fact-list dd {
-  margin: 0.35rem 0 0;
-}
-
-.setup-actions {
-  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
-  align-items: start;
-}
-
-.setup-actions form {
-  display: grid;
-  gap: 0.5rem;
-}
-
 .notice {
   padding: 0.85rem 1rem;
 }

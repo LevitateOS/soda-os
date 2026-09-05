@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Tailscale</title>
+    <link rel="stylesheet" href="app.css">
+    <script src="../base1/cockpit.js"></script>
+    <script type="module" src="app.mjs"></script>
+  </head>
+  <body>
+    <main aria-labelledby="page-title">
+      <header><p class="eyebrow">Soda OS</p><h1 id="page-title">Tailscale</h1></header>
+      <p id="notice" role="status" aria-live="polite" hidden></p>
+      <section aria-labelledby="connection-title">
+        <h2 id="connection-title">Connection</h2>
+        <p id="connection" role="status" aria-live="polite">Reading Tailscale state…</p>
+        <p id="health" hidden></p>
+        <button id="sign-in" type="button" disabled>Sign in</button>
+        <p id="authentication" hidden><a id="auth-link" target="_blank" rel="noreferrer">Continue in Tailscale</a></p>
+        <p id="machine-approval" hidden>Ask a Tailnet administrator to approve this device in <a class="admin-link" target="_blank" rel="noreferrer">Tailscale administration</a>.</p>
+        <dl><dt>This device</dt><dd id="device-name">Unavailable</dd><dt>Tailscale addresses</dt><dd id="addresses">Unavailable</dd></dl>
+      </section>
+      <section aria-labelledby="devices-title">
+        <h2 id="devices-title">Devices</h2>
+        <p id="no-peers">No devices reported.</p>
+        <div class="table-wrap"><table id="devices" hidden>
+          <thead><tr><th scope="col">Device</th><th scope="col">Addresses</th><th scope="col">Connection</th></tr></thead>
+          <tbody id="peers"></tbody>
+        </table></div>
+      </section>
+      <section aria-labelledby="exit-title">
+        <h2 id="exit-title">Use an exit node</h2>
+        <form id="exit-form">
+          <fieldset disabled>
+            <label for="exit-node">Exit node</label>
+            <select id="exit-node"><option value="">None</option></select>
+            <label class="checkbox"><input id="allow-lan" type="checkbox">Allow local network access while using an exit node</label>
+            <button type="submit">Apply</button>
+          </fieldset>
+        </form>
+      </section>
+      <section aria-labelledby="advertise-title">
+        <h2 id="advertise-title">Advertise this device as an exit node</h2>
+        <form id="advertise-form">
+          <fieldset disabled>
+            <label class="checkbox"><input id="advertise" type="checkbox">Advertise as an exit node</label>
+            <button type="submit">Apply</button>
+          </fieldset>
+        </form>
+        <p id="exit-approval" role="status">Not advertised</p>
+        <p id="exit-admin" hidden>A Tailnet administrator can approve this exit node in <a class="admin-link" target="_blank" rel="noreferrer">Tailscale administration</a>.</p>
+      </section>
+      <footer><a id="cli-docs" target="_blank" rel="noreferrer">Tailscale CLI documentation</a></footer>
+    </main>
+  </body>
+</html>

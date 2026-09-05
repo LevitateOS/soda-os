@@ -24,36 +24,6 @@
 
       <div class="notice" id="notice" role="status" aria-live="polite" hidden></div>
 
-      <section class="panel setup-panel" aria-labelledby="soda-setup-title">
-        <div class="panel-heading">
-          <div>
-            <p class="eyebrow">Post-install configuration</p>
-            <h2 id="soda-setup-title">Soda Setup</h2>
-            <p id="soda-setup-summary">Loading machine setup…</p>
-          </div>
-          <button class="button secondary" id="refresh-setup" type="button">Refresh setup</button>
-        </div>
-        <div class="setup-body" id="soda-setup-body" hidden>
-          <dl class="fact-list" id="soda-setup-facts"></dl>
-          <div class="setup-actions">
-            <form id="allow-local-network-form">
-              <label for="setup-connection">NetworkManager connection</label>
-              <select id="setup-connection" name="connection" required></select>
-              <button class="button secondary" type="submit">Allow access from the local network.</button>
-            </form>
-            <form id="connect-tailscale-form">
-              <label for="setup-auth-key">Tailscale auth key</label>
-              <input id="setup-auth-key" name="auth_key" type="password" required autocomplete="off">
-              <p class="field-help">Requested only after installation, used once through Tailscale, and not retained by Soda.</p>
-              <button class="button secondary" type="submit">Connect Tailscale</button>
-            </form>
-            <button class="button secondary" id="dismiss-setup" type="button">Don't show Setup automatically</button>
-          </div>
-          <p class="field-help">Before your first workspace, add your personal SSH public key in Cockpit Accounts → your account → Authorized public SSH keys. Cloud-init may already have supplied it. This key permits incoming workspace access; the separate workspace Git public key must be registered with the Git host.</p>
-          <p class="field-help">Local-network access and Tailscale are independent. Connecting Tailscale does not disable a selected local network.</p>
-        </div>
-      </section>
-
       <section class="panel" aria-labelledby="catalog-title">
         <div class="panel-heading">
           <div>

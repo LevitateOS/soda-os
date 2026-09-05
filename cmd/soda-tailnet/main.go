@@ -3,25 +3,49 @@ package main
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/LevitateOS/soda-os/internal/tailnet"
 )
 
 func main() {
-	status, err := tailnet.New(tailnet.Options{}).Status(context.Background())
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	status, err := tailnet.New(tailnet.Options{}).Status(ctx)
 	fmt.Print(enrollmentMessage(status, err))
 }
 
 func enrollmentMessage(status tailnet.Status, statusErr error) string {
+	guidance := "Administrator: open Cockpit → Tailscale to connect this machine.\n"
 	if statusErr != nil {
-		return "\nTailscale status is unavailable. Check: sudo systemctl status tailscaled\n"
+		return "\nTailscale status is unavailable.\n" + guidance
 	}
-	switch status.EnrollmentState() {
-	case tailnet.Enrolled:
-		return fmt.Sprintf("\nTailscale is connected.\nMagicDNS identity: %s\nOpen the Soda OS dashboard:\n  https://%s:9090\n", status.Identity, status.Identity)
-	case tailnet.IdentityUnavailable:
-		return "\nTailscale is running but has no MagicDNS identity. Tailnet access is unavailable.\n"
-	default:
-		return "\nTailscale is not enrolled. Tailnet access is unavailable.\nInfrastructure owner: run `sudo tailscale up`, then open the one-time URL it prints to authorize this appliance. After authorization, run `sudo /usr/libexec/soda/forgejo-init refresh-tailnet` to load the Tailnet Forgejo address. Soda does not store a Tailnet authorization key.\n"
+	if status.Expired {
+		return "\nTailscale authentication has expired.\n" + guidance
 	}
+	if status.BackendState != "Running" {
+		return "\nTailscale: " + connectionDescription(status) + ".\n" + guidance
+	}
+	message := "\nTailscale: connected.\n"
+	if status.Identity != "" {
+		message += fmt.Sprintf("Tailnet identity: %s\n", status.Identity)
+	}
+	if host := status.URLHost(); host != "" {
+		return message + fmt.Sprintf("  Cockpit: https://%s:9090\n  Forgejo: http://%s:30000/\n", host, host)
+	}
+	return message + "Tailnet service addresses are unavailable.\n"
+}
+
+func connectionDescription(status tailnet.Status) string {
+	if status.BackendState == "NeedsLogin" && status.AuthPending {
+		return "waiting for browser authentication"
+	}
+	descriptions := map[string]string{
+		"NeedsLogin": "not signed in", "NeedsMachineAuth": "waiting for Tailnet administrator approval",
+		"Stopped": "disconnected", "Starting": "connecting", "NoState": "starting",
+	}
+	if description, ok := descriptions[status.BackendState]; ok {
+		return description
+	}
+	return status.BackendState
 }
