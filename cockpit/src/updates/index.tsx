@@ -5,7 +5,8 @@ import "@patternfly/patternfly/patternfly-base.css";
 import "../cockpit/soda.css";
 import { UpdatesPage } from "../pages/UpdatesPage";
 import { nativeUpdates } from "./native";
+import { createUpdatesStore } from "./store";
 
 createRoot(document.getElementById("app")!).render(
-  <UpdatesPage native={nativeUpdates(window.cockpit)} />,
+  <UpdatesPage store={createUpdatesStore(nativeUpdates(window.cockpit))} />,
 );

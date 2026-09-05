@@ -2,6 +2,7 @@
 import { test, expect, vi } from "vite-plus/test";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { UpdatesPage } from "./UpdatesPage";
+import { createUpdatesStore } from "../updates/store";
 import type { Host, Release, NativeUpdates } from "../updates/types";
 
 const reference = "ghcr.io/levitateos/soda-os@sha256:" + "a".repeat(64);
@@ -39,7 +40,7 @@ function setup(current = host()) {
     download: vi.fn<NativeUpdates["download"]>().mockResolvedValue(undefined),
     apply: vi.fn<NativeUpdates["apply"]>().mockResolvedValue(undefined),
   };
-  render(<UpdatesPage native={native} />);
+  render(<UpdatesPage store={createUpdatesStore(native)} />);
   return native;
 }
 async function ready() {
@@ -246,6 +247,18 @@ test("a failed status read clears previous deployment facts without diagnosing p
   fireEvent.click(screen.getByRole("button", { name: "Refresh status" }));
   await screen.findByText("Soda OS 0.6.3");
   expect(screen.queryByText(/bootc status unavailable/)).toBeNull();
+});
+
+test("window focus refresh cannot erase an unrelated verification failure", async () => {
+  const native = setup();
+  await ready();
+  native.check.mockRejectedValueOnce(new Error("signature verification failed"));
+  fireEvent.click(screen.getByRole("button", { name: "Check for updates" }));
+  await screen.findByText(/signature verification failed/);
+  fireEvent.focus(window);
+  await ready();
+  expect(screen.getByText(/signature verification failed/)).toBeTruthy();
+  expect(native.check).toHaveBeenCalledOnce();
 });
 
 test("completed download is distinguished from failed deployment readback", async () => {

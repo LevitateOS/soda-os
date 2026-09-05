@@ -76,17 +76,19 @@ feature owners.
 Updates organisms own the installed-image, available-release, and pending-
 deployment sections and the Apply confirmation dialog. Its feature molecules
 own operation feedback and native output presentation. The page connects them
-to `useUpdates`; the hook still owns requests, bounded streaming output, and
-native-state refresh. Long image identities reuse `CodeValue`; notices reuse
+to `updates/store.ts`, which owns requests, bounded streaming output, reviewed
+selection, and native-state refresh. Status-read errors are independent of
+command/check outcomes; focus refresh never erases an unrelated failure. Long image identities reuse `CodeValue`; notices reuse
 `DiagnosticAlert`, while errors retain a separate summary and detailed diagnostic.
 
 Passive organisms and molecules never invoke Cockpit or import native adapters.
 Feature organisms and molecules may use their own types and pure presentation helpers;
 shared components have no feature dependencies. Pages connect their own feature
-hook to the template and organisms. Runners uses a page-scoped Zustand store in `src/runners/store.ts` for
+state owner to the template and organisms. Runners and Updates use page-scoped
+Zustand stores in their feature's `store.ts` for
 transient observations, named actions, dialogs, and outcomes. Its entrypoint
 constructs the store with the native adapter; the page subscribes and binds its
-lifetime. The other pages currently retain their feature hooks. There is no
+lifetime. Projects and Tailscale currently retain their feature hooks. There is no
 cross-page application store or generic operation controller. Layers may skip levels and use PatternFly directly. For example,
 `ProjectActions` composes PatternFly `Button` and `Flex`; `CatalogProjectDialog`
 uses PatternFly `Modal` and `Form` with Soda's `CatalogFields`.

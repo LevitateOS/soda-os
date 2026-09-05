@@ -6,12 +6,23 @@ import { InstalledImageSection } from "../organisms/updates/InstalledImageSectio
 import { AvailableReleaseSection } from "../organisms/updates/AvailableReleaseSection";
 import { PendingDeploymentSection } from "../organisms/updates/PendingDeploymentSection";
 import { ApplyUpdateDialog } from "../organisms/updates/ApplyUpdateDialog";
-import { useUpdates } from "../updates/useUpdates";
+import { useEffect } from "react";
+import { useStore } from "zustand";
+import { operationLabels, type UpdatesStore } from "../updates/store";
 import { stagedSelection } from "../updates/status";
-import type { NativeUpdates } from "../updates/types";
-
-export function UpdatesPage({ native }: { native: NativeUpdates }) {
-  const state = useUpdates(native);
+export function UpdatesPage({ store }: { store: UpdatesStore }) {
+  const state = useStore(store);
+  useEffect(() => {
+    const stop = store.getState().start();
+    const focus = () => {
+      void store.getState().refresh();
+    };
+    window.addEventListener("focus", focus);
+    return () => {
+      window.removeEventListener("focus", focus);
+      stop();
+    };
+  }, [store]);
   const busy = Boolean(state.operation);
   const staged = state.host?.status.staged;
   const selected = stagedSelection(state.host);
@@ -28,8 +39,8 @@ export function UpdatesPage({ native }: { native: NativeUpdates }) {
       }
       feedback={
         <UpdateFeedback
-          operation={state.operation}
-          error={state.error}
+          operation={state.operation ? operationLabels[state.operation] : null}
+          error={[...new Set([state.error, state.readError].filter(Boolean))].join("\n\n") || null}
           notice={state.notice}
           blocked={blocked}
         />
@@ -38,7 +49,7 @@ export function UpdatesPage({ native }: { native: NativeUpdates }) {
         <ApplyUpdateDialog
           selection={state.confirmation}
           busy={busy}
-          onClose={() => state.setConfirmation(null)}
+          onClose={state.cancelApply}
           onApply={() => void state.apply()}
         />
       }
@@ -65,7 +76,7 @@ export function UpdatesPage({ native }: { native: NativeUpdates }) {
                 selection={selected}
                 busy={busy}
                 blocked={blocked}
-                onApply={() => state.setConfirmation(selected)}
+                onApply={state.requestApply}
               />
             </StackItem>
           )}
