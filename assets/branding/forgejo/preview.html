@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Soda OS — Forgejo asset review</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #edf0f4; color: #172537; font: 16px/1.5 system-ui, sans-serif; }
+    main { max-width: 1240px; margin: auto; padding: 32px; }
+    h1 { margin: 0 0 8px; font-size: 32px; color: #06245b; }
+    h2 { margin: 32px 0 12px; font-size: 20px; }
+    h3 { margin: 0 0 16px; font-size: 16px; }
+    p { margin: 8px 0; }
+    a { color: inherit; text-underline-offset: 3px; }
+    code { font-size: 0.9em; }
+    .intro { max-width: 850px; }
+    .pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; }
+    .surface { padding: 24px; border: 1px solid #c9d1db; border-radius: 12px; overflow-wrap: anywhere; }
+    .light { background: #fff; color: #18181b; --nav: #f4f4f5; --muted: #52525b; }
+    .dark { background: #171e26; color: #d2e0f0; border-color: #374351; --nav: #10161d; --muted: #9dadc0; }
+    .note, figcaption { color: var(--muted, #526175); font-size: 14px; }
+    figure { margin: 0; }
+    figcaption { margin-top: 12px; }
+    img { vertical-align: middle; }
+    .samples { display: flex; align-items: flex-start; flex-wrap: wrap; gap: 24px; }
+    .samples figure { min-width: 96px; }
+    .favicon { height: 40px; display: flex; align-items: center; }
+    .navbar { display: flex; align-items: center; gap: 16px; min-height: 48px; padding: 8px 16px; margin-top: 24px; background: var(--nav); }
+    .hero { text-align: center; }
+    .hero h3 { font-size: 32px; margin: 12px 0 0; }
+    .hero p { max-width: 340px; margin: 8px auto; }
+    .wordmark { width: 440px; max-width: 100%; height: auto; }
+    .download { display: block; margin-top: 12px; }
+    footer { margin-top: 32px; }
+    @media (max-width: 800px) {
+      main { padding: 20px; }
+      .pair { grid-template-columns: 1fr; }
+      .surface { padding: 20px; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header class="intro">
+      <h1>Soda OS</h1>
+      <p><strong>Forgejo asset review · not an installed Forgejo page</strong></p>
+      <p>Approved artwork, sized for the places it will appear. View at 100% browser zoom.
+        SVGs stay sharp on high-density displays; the favicon samples compare 1× and 2× PNGs
+        at the same 16 CSS pixels. All images are local; no server or network is needed.</p>
+    </header>
+
+    <section aria-labelledby="small-title">
+      <h2 id="small-title">Browser tabs and navigation</h2>
+      <div class="pair">
+        <div class="surface light">
+          <h3>Light surface</h3>
+          <div class="samples">
+            <figure>
+              <div class="favicon"><img src="favicon-16.png" width="16" height="16" alt="Soda OS favicon at 1×"></div>
+              <figcaption>16 px · 1× PNG</figcaption>
+            </figure>
+            <figure>
+              <div class="favicon"><img src="favicon.png" width="16" height="16" alt="Soda OS favicon at 2×"></div>
+              <figcaption>16 px · 2× PNG</figcaption>
+            </figure>
+            <figure>
+              <div class="favicon"><img src="../source/soda-symbol.svg" width="16" height="16" alt="Soda OS SVG favicon"></div>
+              <figcaption>16 px · SVG</figcaption>
+            </figure>
+            <figure>
+              <div class="favicon"><img src="favicon.png" width="32" height="32" alt="Soda OS 32px favicon"></div>
+              <figcaption>32 px · PNG</figcaption>
+            </figure>
+          </div>
+          <div class="navbar"><img src="../source/soda-symbol.svg" width="30" height="30" alt="Soda OS"><strong>Soda OS</strong></div>
+          <p class="note">Navigation: 30 × 30 CSS px · SVG · 48 px minimum bar height.</p>
+        </div>
+        <div class="surface dark">
+          <h3>Dark surface</h3>
+          <div class="samples">
+            <figure>
+              <div class="favicon"><img src="favicon-16.png" width="16" height="16" alt="Soda OS favicon at 1×"></div>
+              <figcaption>16 px · 1× PNG</figcaption>
+            </figure>
+            <figure>
+              <div class="favicon"><img src="favicon.png" width="16" height="16" alt="Soda OS favicon at 2×"></div>
+              <figcaption>16 px · 2× PNG</figcaption>
+            </figure>
+            <figure>
+              <div class="favicon"><img src="../source/soda-symbol.svg" width="16" height="16" alt="Soda OS SVG favicon"></div>
+              <figcaption>16 px · SVG</figcaption>
+            </figure>
+            <figure>
+              <div class="favicon"><img src="favicon.png" width="32" height="32" alt="Soda OS 32px favicon"></div>
+              <figcaption>32 px · PNG</figcaption>
+            </figure>
+          </div>
+          <div class="navbar"><img src="../source/soda-symbol.svg" width="30" height="30" alt="Soda OS"><strong>Soda OS</strong></div>
+          <p class="note">The existing white keyline separates the navy symbol from the dark bar.</p>
+        </div>
+      </div>
+    </section>
+
+    <section aria-labelledby="hero-title">
+      <h2 id="hero-title">Homepage · square symbol option</h2>
+      <div class="pair">
+        <figure class="surface light hero">
+          <img src="../source/soda-symbol.svg" width="220" height="220" alt="Soda OS terminal and bubbles symbol">
+          <h3>Soda OS</h3>
+          <p>Your team’s repositories and collaboration.</p>
+          <figcaption>220 × 220 CSS px · SVG · matches the native logo slot.</figcaption>
+        </figure>
+        <figure class="surface dark hero">
+          <img src="../source/soda-symbol.svg" width="220" height="220" alt="Soda OS terminal and bubbles symbol">
+          <h3>Soda OS</h3>
+          <p>Your team’s repositories and collaboration.</p>
+          <figcaption>The same full-colour master on both surfaces.</figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <section aria-labelledby="wordmark-title">
+      <h2 id="wordmark-title">Homepage · horizontal wordmark option</h2>
+      <div class="pair">
+        <figure class="surface light hero">
+          <img class="wordmark" src="../source/soda-logo-horizontal.svg" width="440" height="110" alt="Soda OS">
+          <p>Your team’s repositories and collaboration.</p>
+          <figcaption>440 × 110 CSS px · light-background SVG.</figcaption>
+        </figure>
+        <figure class="surface dark hero">
+          <img class="wordmark" src="../source/soda-logo-horizontal-dark.svg" width="440" height="110" alt="Soda OS">
+          <p>Your team’s repositories and collaboration.</p>
+          <figcaption>440 × 110 CSS px · dark-background SVG.</figcaption>
+        </figure>
+      </div>
+      <p class="note">This is an alternative layout, not a replacement for the square navigation logo.
+        On narrow screens the wordmark scales proportionally to fit.</p>
+    </section>
+
+    <section aria-labelledby="app-title">
+      <h2 id="app-title">Touch and app icons</h2>
+      <div class="pair">
+        <div class="surface light">
+          <h3>Light surface</h3>
+          <div class="samples">
+            <figure>
+              <img src="apple-touch-icon.png" width="180" height="180" alt="Soda OS Apple touch icon">
+              <figcaption>180 × 180 PNG · actual size.<br>Opaque navy; no baked-in rounding.</figcaption>
+            </figure>
+            <figure>
+              <img src="logo.png" width="128" height="128" alt="Soda OS app icon">
+              <figcaption>512 × 512 PNG · shown at 128 px.<br>Transparent app/social fallback.
+                <a class="download" href="logo.png">View full-size 512px export</a>
+              </figcaption>
+            </figure>
+          </div>
+        </div>
+        <div class="surface dark">
+          <h3>Dark surface</h3>
+          <div class="samples">
+            <figure>
+              <img src="apple-touch-icon.png" width="180" height="180" alt="Soda OS Apple touch icon">
+              <figcaption>Same opaque icon on both surfaces.<br>The platform applies its own mask.</figcaption>
+            </figure>
+            <figure>
+              <img src="logo.png" width="128" height="128" alt="Soda OS app icon">
+              <figcaption>512px export matches Forgejo’s<br>native web-app manifest dimensions.
+                <a class="download" href="logo.png">View full-size 512px export</a>
+              </figcaption>
+            </figure>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <footer>
+      <p>Source artwork is unchanged. For integration, use <a href="../source/soda-symbol.svg"><code>soda-symbol.svg</code></a>
+        as both <code>logo.svg</code> and <code>favicon.svg</code>; no duplicate SVG masters are maintained here.</p>
+      <p class="note">Review the homepage options before integration. Existing Cockpit, installer,
+        account avatars, repository avatars, and Forgejo configuration are untouched.</p>
+    </footer>
+  </main>
+</body>
+</html>

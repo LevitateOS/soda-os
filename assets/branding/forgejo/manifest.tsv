@@ -1,0 +1,5 @@
+# source	output	size	background
+assets/branding/source/soda-symbol.svg	assets/branding/forgejo/favicon-16.png	16	none
+assets/branding/source/soda-symbol.svg	assets/branding/forgejo/favicon.png	32	none
+assets/branding/source/soda-symbol.svg	assets/branding/forgejo/apple-touch-icon.png	180	#06245B
+assets/branding/source/soda-symbol.svg	assets/branding/forgejo/logo.png	512	none

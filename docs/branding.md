@@ -52,14 +52,56 @@ same artwork rather than duplicated raster images. Run
 `scripts/render-installer-branding.sh` to regenerate the set, or pass `--check`
 to verify that all tracked outputs are current.
 
+## Forgejo asset preparation
+
+`assets/branding/forgejo` contains the prepared web raster assets, not an
+installed Forgejo customization. Open `assets/branding/forgejo/preview.html`
+directly in a browser at 100% zoom to review the light/dark placements without
+a server or network connection. It compares 1x and 2x favicon samples and two
+homepage layouts; it is not an installed-product screenshot or visual approval.
+
+| Placement | Artwork | Size and treatment |
+| --- | --- | --- |
+| Navigation and native square homepage slot | `source/soda-symbol.svg` | SVG at 30x30 and 220x220 CSS px respectively |
+| SVG favicon | `source/soda-symbol.svg` | SVG; review at 16 CSS px on normal and high-density displays |
+| Small favicon proof / optional 16px PNG consumer | `forgejo/favicon-16.png` | 16x16, transparent |
+| Forgejo PNG favicon fallback | `forgejo/favicon.png` | 32x32, transparent; also a 2x sample at 16 CSS px |
+| Apple touch icon | `forgejo/apple-touch-icon.png` | 180x180, opaque midnight-navy canvas; the platform owns corner masking |
+| Native web-app manifest and default social image | `forgejo/logo.png` | 512x512, transparent; not a user or repository avatar |
+| Alternative homepage lockup | `source/soda-logo-horizontal.svg` and `source/soda-logo-horizontal-dark.svg` | SVG at 440x110 CSS px, scaling proportionally on narrow screens |
+
+Paths in this table are relative to `assets/branding`. The native 30px and
+220px placements come from Forgejo 15.0.7, not permanent Soda layout rules.
+The 440px horizontal layout is an alternative for review, not a replacement
+for the square navigation icon. Homepage copy in the preview is proposed copy.
+
+Use the canonical symbol as both `logo.svg` and `favicon.svg` when integrating;
+do not maintain duplicate SVG masters or manufacture raster copies of the
+SVG-only navigation/homepage slots. The Apple icon's background uses the
+approved navy without recolouring the mark or adding baked-in rounded corners.
+The existing Cockpit, installer, and general web exports are unchanged.
+
+`assets/branding/forgejo/manifest.tsv` records each PNG's source, output, square
+size, and background. `scripts/render-forgejo-branding.sh` renders directly from
+the SVG with `rsvg-convert` (librsvg), without scaling an intermediate PNG.
+Pass `--check` to compare decoded pixels with freshly rendered outputs using
+the existing Go `tools/png-equal` command. `go test ./scripts` includes this
+freshness check and verifies dimensions and transparency. These assets are
+architecture-independent; no native RPM or image support is established by
+rendering them.
+
+## Regenerating all derivatives
+
 Run the following from the repository root after changing an SVG:
 
 ```sh
 scripts/render-branding.sh
+scripts/render-installer-branding.sh
+scripts/render-forgejo-branding.sh
 just check
 ```
 
-The renderer requires the macOS Swift toolchain/AppKit and ImageMagick. AppKit
-rasterizes the SVGs and ImageMagick sizes its lossless TIFF output. Review every
-regenerated derivative before shipping. Installer rendering separately
-requires `rsvg-convert` from librsvg.
+The general web/system renderer requires the macOS Swift toolchain/AppKit and
+ImageMagick. AppKit rasterizes the SVGs and ImageMagick sizes its lossless TIFF
+output. Installer and Forgejo rendering separately require `rsvg-convert` from
+librsvg. Review every regenerated derivative before shipping.
