@@ -83,6 +83,42 @@ func TestPrepareX86CockpitISOCommandSequence(t *testing.T) {
 	}
 }
 
+func TestPrepareX86CockpitISOProgress(t *testing.T) {
+	root, bin, log := prepareScriptTest(t, "x86_64")
+	cmd := scriptCommand(t, root, bin, log)
+	var stderr strings.Builder
+	cmd.Stderr = &stderr
+	stdout, err := cmd.Output()
+	if err != nil {
+		t.Fatalf("script failed: %v\n%s", err, stderr.String())
+	}
+	want := []string{
+		"Checking native x86_64 host and required commands",
+		"Checking clean origin/main source identity and deriving Soda version",
+		"Checking candidate tag and destination availability",
+		"Checking libvirt destination traversal permissions",
+		"Running just check",
+		"Building locked x86_64 RPM inputs",
+		"Building x86_64 OCI archive",
+		"Publishing immutable GHCR candidate with soda-release image-stage",
+		"Verifying anonymous GHCR digest against local OCI digest",
+		"Verifying OCI platform, Soda version, and exact source revision",
+		"Building and inspecting matching graphical network-install ISO",
+		"Verifying ISO checksum sidecar and exact installer source",
+		"Verifying installed OCI os-release and Soda RPM versions",
+		"Copying ISO without overwrite to " + filepath.Join(root, "libvirt", "SodaOS-0.6.3-x86_64.iso"),
+		"Comparing source and copied ISO SHA-256 checksums",
+		"Verifying libvirt traversal, virt_image_t label, and non-booting QEMU open as qemu",
+	}
+	expected := "==> " + strings.Join(want, "\n==> ") + "\n"
+	if stderr.String() != expected {
+		t.Fatalf("unexpected progress output:\n%s", stderr.String())
+	}
+	if strings.Contains(string(stdout), "==>") {
+		t.Fatalf("progress leaked onto stdout:\n%s", stdout)
+	}
+}
+
 func scriptCommand(t *testing.T, root, bin, log string) *exec.Cmd {
 	t.Helper()
 	script, err := filepath.Abs("prepare-x86_64-cockpit-iso-candidate.sh")
