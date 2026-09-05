@@ -17,6 +17,9 @@ for asset in branding.css palette.css soda-symbol.svg soda-logo-horizontal.svg s
   test -s "/usr/share/cockpit/branding/sodaos/$asset"
   rpm -qf "/usr/share/cockpit/branding/sodaos/$asset" | grep '^soda-projects-'
 done
+for page in systemd/logs systemd/services systemd/terminal systemd/hwinfo networkmanager/firewall; do
+  grep -Fq '../../static/branding.css' "/usr/share/cockpit/$page.html"
+done
 for package in soda-projects soda-runners soda-tailscale; do
   cockpit-bridge --packages | awk '{print $1}' | grep -Fx "$package" >/dev/null
 done

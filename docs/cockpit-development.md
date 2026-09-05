@@ -213,10 +213,30 @@ operation evidence. Run them as well; this test does not replace them.
 
 Keep source checks, reference-DOM simulations, native RPM inspection, and
 installed-session evidence distinct. Integration remains unverified on any
-architecture without a matching-native guest run. Stock Cockpit does not load
-branding CSS in every frame; do not inject styles to conceal that boundary.
+architecture without a matching-native guest run. The image build adds the native
+branding link to the five stock entry points that omit it upstream. Guest checks
+verify those links; the palette covers surfaces and links as well as accents.
 Administrator `/etc/cockpit/branding/` precedence should also be checked in a
 disposable guest before shipping.
+
+For read-only signed-in color checks without a password, an operator can run
+native `cockpit-ws --local-session=/usr/bin/cockpit-bridge` as their own user,
+bound strictly to loopback, and relay it through their SSH connection. Never
+expose this passwordless test endpoint to the LAN or Tailnet. Stop the temporary
+server and relay afterwards; do not change Cockpit authentication or SELinux
+policy for this test. With that endpoint available on the driver's loopback:
+
+```sh
+SODA_COCKPIT_COLOR_URL=http://127.0.0.1:19091 \
+SODA_COCKPIT_BRANDING_EVIDENCE_DIRECTORY="$PWD/.artifacts/cockpit-stock-colors" \
+  vp -C cockpit test tests/stock-colors-browser.test.ts
+```
+
+This suite uses real native pages, no CSS/HTML interception or synthetic backend.
+It verifies rendered shell text/background, cards, primary actions, and links in
+both themes, including Logs, Services, Terminal, hardware, firewall and Metrics.
+It does not prove PAM login or privilege escalation; the credential-based suite
+above owns those checks. Terminal ANSI output colors remain terminal semantics.
 
 ## Installed browser acceptance
 

@@ -32,6 +32,12 @@ COPY --from=lock-inputs /expected-packages.txt /var/tmp/soda-lock/expected-packa
 RUN dnf -y --setopt=install_weak_deps=False --enablerepo=updates-testing install \
       $(cat /var/tmp/soda-lock/fedora-packages.txt) \
       /var/tmp/soda-rpms/*.rpm \
+    && for page in systemd/logs systemd/services systemd/terminal systemd/hwinfo networkmanager/firewall; do \
+         grep -Fq '</head>' "/usr/share/cockpit/${page}.html" || exit 1; \
+         if ! grep -Fq '../../static/branding.css' "/usr/share/cockpit/${page}.html"; then \
+           sed -i '\|</head>|i\    <link href="../../static/branding.css" rel="stylesheet" />' "/usr/share/cockpit/${page}.html" || exit 1; \
+         fi; \
+       done \
     && dnf -y remove avahi \
     && ! rpm -q avahi \
     && ! test -e /usr/lib/systemd/system/avahi-daemon.service \

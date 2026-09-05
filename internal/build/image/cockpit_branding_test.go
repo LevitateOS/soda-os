@@ -30,6 +30,30 @@ func TestCockpitBrandingInstallsOnlyRuntimeAssets(t *testing.T) {
 	require.NotContains(t, string(data), "/etc/cockpit/branding")
 }
 
+func TestCockpitStockPageColorCoverage(t *testing.T) {
+	root := filepath.Join("..", "..", "..")
+	data, err := os.ReadFile(filepath.Join(root, "packaging/bootc/Containerfile"))
+	require.NoError(t, err)
+	for _, page := range []string{"systemd/logs", "systemd/services", "systemd/terminal", "systemd/hwinfo", "networkmanager/firewall"} {
+		require.Contains(t, string(data), page)
+	}
+	require.Contains(t, string(data), `grep -Fq '</head>' "/usr/share/cockpit/${page}.html" || exit 1`)
+	require.Contains(t, string(data), `<link href="../../static/branding.css" rel="stylesheet" />`)
+	data, err = os.ReadFile(filepath.Join(root, "assets/branding/cockpit/palette.css"))
+	require.NoError(t, err)
+	for _, token := range []string{
+		"--pf-t--global--background--color--primary--default: var(--soda-surface)",
+		"--pf-t--global--background--color--secondary--default: var(--soda-canvas)",
+		"--pf-t--global--text--color--regular: var(--soda-text)",
+		"--pf-t--global--text--color--link--default: var(--soda-brand)",
+		"--pf-t--global--background--color--action--plain--alt--clicked: var(--soda-surface-pressed)",
+	} {
+		require.Contains(t, string(data), token)
+	}
+	require.NotContains(t, string(data), "--status--")
+	require.NotContains(t, string(data), "--disabled--")
+}
+
 func TestCockpitBrandingRetainsNativeLoginAndTheme(t *testing.T) {
 	root := filepath.Join("..", "..", "..")
 	data, err := os.ReadFile(filepath.Join(root, "packaging/rpm/projects/sources/branding/sodaos/branding.css"))

@@ -116,11 +116,16 @@ login behavior still follows Cockpit's own visibility rules. The version-bound
 selectors require browser revalidation when Cockpit changes.
 
 `assets/branding/cockpit/palette.css` is the single palette source for the shell,
-native pages that load branding CSS, and the four Soda packages. Soda pages
-bundle it via `cockpit/src/cockpit/soda.css` and use the canonical symbol in their
-shared heading. No other frame receives injected CSS. Logs, Services, Terminal,
-hardware information, and the standalone firewall entry do not load branding
-CSS in Cockpit 366; their interiors remain native inside the branded shell.
+all shipped stock pages, and the four Soda packages. It maps neutral surfaces,
+text, links, controls, and navigation interaction states—not just brand actions.
+Soda pages bundle it via `cockpit/src/cockpit/soda.css` and use the canonical
+symbol in their shared heading. Cockpit 366 omits the branding stylesheet in
+Logs, Services, Terminal, hardware information, and the standalone firewall
+entry. The image build adds the same native `../../static/branding.css` link to
+those five HTML entry points, after their own styles. This is a small maintained
+vendor HTML adaptation, not a replacement page, script injection, or runtime
+DOM patch. Recheck the entry points when upgrading Cockpit. Existing stylesheet
+links are retained; missing expected HTML fails the image build.
 Danger, warning, success and disabled-state colors remain native. Cockpit's
 Default/Light/Dark selection and host-specific accent overrides are preserved.
 

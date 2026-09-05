@@ -97,7 +97,8 @@ is intended for modern browsers, not legacy Windows icon consumers.
 These are architecture-independent assets. No image build, installation, or
 native architecture support is established by generating them. Before shipping,
 validate real Cockpit 366 behavior in both themes, keyboard/error states, narrow
-screens, and favicon caching. Many but not all native pages load branding CSS;
-keep this distinction and preserve the stock authentication flow. See
+screens, and favicon caching. The image build adds the native branding stylesheet
+link to the five Cockpit 366 entry points that omit it upstream. All shipped
+stock pages must receive the palette; preserve the stock authentication flow. See
 [`docs/cockpit-development.md`](../../../docs/cockpit-development.md#branding-verification)
 for reference-DOM and real installed-session browser checks.

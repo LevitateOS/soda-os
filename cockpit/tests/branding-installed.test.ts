@@ -119,7 +119,7 @@ test.skipIf(!targetFile)(
         }
         observations[slug] = native;
       }
-      // Native pages that opt into branding remain native; these are read-only visits.
+      // All shipped stock pages load the shared palette; these are read-only visits.
       for (const label of [
         "Overview",
         "Networking",
@@ -133,12 +133,11 @@ test.skipIf(!targetFile)(
         const selector = `iframe.container-frame[title="${label}"][data-loaded]:visible`;
         await page.locator(selector).waitFor();
         const frame = page.frameLocator(selector);
-        const branded = ["Overview", "Networking", "Storage", "Accounts"].includes(label);
         expect(
           await frame
             .locator("html")
             .evaluate((el) => getComputedStyle(el).getPropertyValue("--soda-brand").trim()),
-        ).toBe(branded ? "#10d7e8" : "");
+        ).toBe("#10d7e8");
         await page.screenshot({
           path: resolve(target.evidenceDirectory, `stock-${label.toLowerCase()}.png`),
         });
