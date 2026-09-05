@@ -47,7 +47,7 @@ func (state *runnerState) exerciseInstalledSystem(ctx context.Context, inputs ru
 	}
 	candidate := guestImageReference(state.options.Ports.Registry, state.artifacts.Candidate)
 	fallback := guestImageReference(state.options.Ports.Registry, state.artifacts.Fallback)
-	if err = state.checks.record("update-and-fallback", exerciseFallback(ctx, admin, installed, candidate, fallback)); err != nil {
+	if err = state.checks.record("update-and-fallback", exerciseFallback(ctx, project, installed, candidate, fallback)); err != nil {
 		return fmt.Errorf("manual update and fallback: %w", err)
 	}
 	if err = exerciseProductScenarios(ctx, project, inputs.Keys, tailnetHost, state.checks); err != nil {

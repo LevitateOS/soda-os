@@ -3,7 +3,9 @@ package acceptance
 import (
 	"bytes"
 	"context"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -27,29 +29,25 @@ esac
 	}
 }
 
-func TestWorkspaceRemovalRejectsRetainedAccountsAndLookupFailures(t *testing.T) {
-	for _, status := range []string{"0", "1", "2", "3"} {
-		t.Run(status, func(t *testing.T) {
+func TestRemovalRequiresAbsentAccountHomeAndProcesses(t *testing.T) {
+	for _, state := range []struct{ name, account, process string }{
+		{"removed", "2", "1"}, {"account", "0", "1"}, {"lookup-error", "3", "1"},
+		{"process", "2", "0"}, {"process-error", "2", "2"}, {"home", "2", "1"}, {"symlink", "2", "1"},
+	} {
+		t.Run(state.name, func(t *testing.T) {
 			installRemoteShell(t)
-			t.Setenv("ACCOUNT_STATUS", status)
-			installAcceptanceCommand(t, "getent", `case "$2" in deleted) exit "$ACCOUNT_STATUS" ;; *) printf 'survivor\n' ;; esac`)
-			// Only the Projects operation is simulated; its verification program
-			// executes through the remote shell and sudo stdin boundary unchanged.
-			installAcceptanceCommand(t, "ssh", `for command do :; done
-case "$command" in
- *soda-projects*"'remove'") cat >/dev/null; printf 'administrator status is required' >&2; exit 1 ;;
- *soda-projects*) cat >/dev/null; printf '{"ok":true}' ;;
- *) exec /bin/sh -c "$command" ;;
-esac
-`)
-			person := testPerson(t, "owner")
-			project := projectFixture{
-				Admin: workspaceFixture{Person: person, Remote: person.Remote.As("admin-workspace", "key")},
-				Alice: workspaceFixture{Person: person, Remote: person.Remote.As("deleted", "key"), ProjectID: "kept"},
-				Bob:   workspaceFixture{Person: person, Remote: person.Remote.As("bob-workspace", "key")},
+			installAcceptanceCommand(t, "getent", "exit "+state.account)
+			installAcceptanceCommand(t, "pgrep", "exit "+state.process)
+			home := filepath.Join(t.TempDir(), "deleted")
+			if state.name == "home" {
+				require.NoError(t, os.Mkdir(home, 0o700))
 			}
-			err := verifyWorkspaceRemoval(context.Background(), project)
-			require.Equal(t, status != "2", err != nil, "%v", err)
+			if state.name == "symlink" {
+				require.NoError(t, os.Symlink(home+"-missing", home))
+			}
+			target := deletionTarget{Username: "deleted", UID: 1001, Home: home}
+			err := verifyAccountRemoved(context.Background(), testPerson(t, "owner"), target, "removed")
+			require.Equal(t, state.name != "removed", err != nil, "%v", err)
 		})
 	}
 }

@@ -137,7 +137,7 @@ func createCatalogedForgejoProject(ctx context.Context, person personFixture, pr
 
 func createNativeForgejoRepository(ctx context.Context, person personFixture, id, evidence string) (string, error) {
 	config := fmt.Sprintf("user = %s\nsilent\nshow-error\nfail-with-body\nurl = %s\n", curlConfigQuote(person.Remote.Username+":"+string(bytes.TrimSpace(person.ForgejoPassword))), curlConfigQuote(forgejoLoopbackEndpoint+"/api/v1/user/repos"))
-	payload, err := json.Marshal(map[string]any{"name": id, "auto_init": false})
+	payload, err := json.Marshal(map[string]any{"name": id, "auto_init": false, "default_branch": "main"})
 	if err != nil {
 		return "", err
 	}

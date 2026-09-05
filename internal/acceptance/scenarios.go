@@ -11,10 +11,7 @@ func captureCore(ctx context.Context, admin personFixture, prefix string) error 
 	if err := admin.Remote.Capture(ctx, prefix+"/core", []byte(coreGuestChecks), "/bin/bash", "-s"); err != nil {
 		return err
 	}
-	if err := admin.Remote.Sudo(ctx, admin.LinuxPassword, tailscaleAccessCheck, prefix+"/tailscale-access"); err != nil {
-		return err
-	}
-	return admin.Remote.Sudo(ctx, admin.LinuxPassword, stableManifestScript, prefix+"/system-manifest")
+	return admin.Remote.Sudo(ctx, admin.LinuxPassword, tailscaleAccessCheck, prefix+"/tailscale-access")
 }
 
 func runQCOW2Checks(ctx context.Context, admin personFixture, originalVirtualSize int64) error {
@@ -65,30 +62,36 @@ func seedPreservationState(ctx context.Context, admin personFixture, keys fixtur
 	if err != nil {
 		return projectFixture{}, err
 	}
-	alice, err := addNativePerson(ctx, admin, "alice", keys, "seed/alice-add")
+	if err = seedCanonicalRepository(ctx, adminSpace); err != nil {
+		return projectFixture{}, err
+	}
+	aliceSpace, err := seedTeammateWorkspace(ctx, admin, keys, "alice")
 	if err != nil {
 		return projectFixture{}, err
 	}
-	aliceSpace, err := setupWorkspace(ctx, alice, "kept", "seed/alice-setup")
+	bobSpace, err := seedTeammateWorkspace(ctx, admin, keys, "bob")
 	if err != nil {
 		return projectFixture{}, err
 	}
-	bob, err := addNativePerson(ctx, admin, "bob", keys, "seed/bob-add")
-	if err != nil {
-		return projectFixture{}, err
-	}
-	bobSpace, err := setupWorkspace(ctx, bob, "kept", "seed/bob-setup")
-	if err != nil {
-		return projectFixture{}, err
-	}
-	if err = editCatalogMetadata(ctx, alice.Remote, bob.Remote); err != nil {
+	if err = editCatalogMetadata(ctx, aliceSpace.Person.Remote, bobSpace.Person.Remote); err != nil {
 		return projectFixture{}, err
 	}
 	project := projectFixture{Admin: adminSpace, Alice: aliceSpace, Bob: bobSpace}
 	if err = seedWorkspaceFiles(ctx, project); err != nil {
 		return projectFixture{}, err
 	}
+	if err = seedPreservedTools(ctx, project); err != nil {
+		return projectFixture{}, err
+	}
 	return project, nil
+}
+
+func seedTeammateWorkspace(ctx context.Context, admin personFixture, keys fixtureKeys, username string) (workspaceFixture, error) {
+	person, err := addNativePerson(ctx, admin, username, keys, "seed/"+username+"-add")
+	if err != nil {
+		return workspaceFixture{}, err
+	}
+	return setupWorkspace(ctx, person, "kept", "seed/"+username+"-setup")
 }
 
 func seedWorkspaceFiles(ctx context.Context, project projectFixture) error {
@@ -96,7 +99,7 @@ func seedWorkspaceFiles(ctx context.Context, project projectFixture) error {
 		label     string
 		workspace workspaceFixture
 	}{{"admin", project.Admin}, {"alice", project.Alice}, {"bob", project.Bob}} {
-		script := "set -eu; printf '%s-private\\n' " + item.label + " >\"$HOME/Projects/" + item.workspace.ProjectID + "/" + item.label + "-private.txt\"; printf 'preserved\\n' >\"$HOME/soda-acceptance-state.txt\""
+		script := "set -eu; printf '%s-private\\n' " + item.label + " >\"$HOME/Projects/" + item.workspace.ProjectID + "/" + item.label + "-private.txt\"; printf '%s-modified\\n' " + item.label + " >>\"$HOME/Projects/" + item.workspace.ProjectID + "/preserved.txt\"; printf 'preserved\\n' >\"$HOME/soda-acceptance-state.txt\""
 		if err := item.workspace.Remote.Capture(ctx, "seed/"+item.label+"-workspace-state", []byte(script), "/bin/bash", "-s"); err != nil {
 			return err
 		}

@@ -81,9 +81,9 @@ replace those requirements with a new product contract.
 | `cockpit-auth-and-independent-roles` | `verifyCockpitAndRoles`: check authentication, promote Alice to wheel, verify Forgejo role remains ordinary | `product/cockpit-status.txt`, `alice-wheel-promotion`, `alice-forgejo-after-promotion`; no browser interaction claim |
 | `external-ssh-repository` | `verifyExternalSSHRepository`: create bounded local git-shell host fixture, register key, retry clone, remove project and fixture | `product/external-ssh-*`, `local-guest-external-ssh-fixture-*`; not remote-provider deployment/reachability |
 | `project-removal` | `verifyProjectRemoval`: create admin/Bob workspaces, remove project, check accounts gone and canonical repository retained | `product/removable-*`, `project-removal-preserves-forgejo` |
-| `human-removal-preserves-forgejo` | `verifyIndependentPersonDeletion`: create person/workspace/owned repository, delete Linux person | `product/obsolete-*`, `linux-deletion-preserves-forgejo`; current assertions check primary account absence and retained Forgejo user/repository, not every derived home |
-| `update-and-fallback` | `exerciseFallback`: switch B→A→B, verify booted digests and compare snapshots | `fallback/*`; current snapshot scope is `stableManifestScript`, not a full data backup/integrity test |
-| `packaged-boundaries` | Final `captureCore`: packaged/native-service and forbidden-path assertions, current system snapshot | `final/core`, `final/tailscale-access`, `final/system-manifest`; asserts enumerated boundaries, not absence of every conceivable control plane |
+| `human-removal-preserves-forgejo` | `verifyIndependentPersonDeletion`: create person/workspace/owned repository, delete Linux person | `product/obsolete-*`, `linux-deletion-preserves-forgejo`; checks primary and seeded workspace account/home/process absence and retained Forgejo user/repository |
+| `update-and-fallback` | `exerciseFallback`: switch B→A→B, verify booted digests and compare snapshots | `fallback/*`; bounded snapshot scope is `preservation.sh` plus native Forgejo authentication, not a full filesystem backup |
+| `packaged-boundaries` | Final `captureCore`: packaged/native-service and forbidden-path assertions | `final/core`, `final/tailscale-access`; asserts enumerated boundaries, not absence of every conceivable control plane |
 | `runner-completion` | Complete input preparation and implemented itinerary without error | All preceding itinerary operations returned successfully; does not imply the missing observations above |
 | `evidence-and-cleanup` | Exact-resource cleanup, cleanup-log write, then credential scan | `cleanup.txt`, `secret-absence.txt`; any cleanup or sanitization failure leaves this check absent |
 
@@ -99,7 +99,8 @@ The order is intentional:
 2. Install through Anaconda; observe local-forwarded defaults before opening
    fixture Forgejo ports; discover native browser enrollment; recheck both paths.
 3. Verify native first-owner signup, capture initial boundaries, and seed the
-   kept project with administrator, Alice, and Bob workspaces and private files.
+   kept project with a canonical commit, administrator/Alice/Bob workspaces,
+   modified and untracked private files, and native mise tools before fallback.
 4. Switch B→A→B and compare returned preservation snapshots. Enrollment stays
    intact across both replacement VM processes.
 5. Run product checks in their written order. Inspect workspace keys and append
@@ -137,6 +138,26 @@ The order is intentional:
   `Capture` and `Sudo` propagate both. Evidence files are outputs for people,
   never an internal result bus. Setup diagnostics and preservation comparisons
   consume returned bytes, not reopened `.stderr` or snapshot files.
+
+### Preservation and deletion observations
+
+`preservation.go` passes explicit primary/workspace/project triples to the embedded
+`preservation.sh`. It captures only those fixture accounts: passwd/shadow hashes,
+group membership, actual homes and permissions, incoming/outbound key hashes,
+Git HEAD/refs and file contents/metadata, seeded Node binary integrity and native
+mise execution. Each canonical repository is freshly cloned and checked with
+Git fsck. Catalog, Tailnet identity, active network connections and SSH host keys
+are also compared. Forgejo authentication/administrator roles are read through
+its native API, not its SQLite schema. Unrelated system groups and accounts are
+not preservation fixtures. A failed command aborts the snapshot, including inside
+command substitutions. Linux tests execute this script against disposable Git
+fixtures and deliberately corrupt each protected class of state.
+
+Deletion checks observe each target's UID and actual home before mutation, then
+require native account absence, home/symlink absence and no remaining UID-owned
+processes. Project removal also requires catalog absence and preservation of a
+committed canonical file; human removal checks both the primary and seeded
+workspace. These are observations of bounded fixtures, not a Linux state cache.
 
 ### Executed assertions
 

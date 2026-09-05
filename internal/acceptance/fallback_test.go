@@ -15,7 +15,7 @@ func TestFallbackUsesExplicitDigestsAndPreservesCaptureLabels(t *testing.T) {
 	evidence := prepareGuestCommands(t)
 	cleanup := &Cleanup{}
 	guest := enrolledTestGuest(t, evidence, cleanup)
-	admin := personFixture{Remote: Remote{Evidence: evidence, KnownHosts: filepath.Join(t.TempDir(), "known-hosts")}, LinuxPassword: []byte("fixture-password")}
+	admin := personFixture{Remote: Remote{Username: "owner", Evidence: evidence, KnownHosts: filepath.Join(t.TempDir(), "known-hosts")}, LinuxPassword: []byte("fixture-password")}
 	t.Setenv("BOOTED_DIGEST", filepath.Join(t.TempDir(), "digest"))
 	t.Setenv("BOOTC_COMMANDS", filepath.Join(t.TempDir(), "commands"))
 	installAcceptanceCommand(t, "ssh-keyscan", "printf 'fixture-host-key\n'\n")
@@ -35,6 +35,9 @@ case "$*" in
   printf '{"status":{"booted":{"image":{"imageDigest":"%s"}}}}' "$(cat "$BOOTED_DIGEST")" ;;
  *)
   case "$input" in
+   *'/api/v1/user'*)
+     case "$input" in *alice:*) user=alice ;; *bob:*) user=bob ;; *) user=owner ;; esac
+     printf '{"login":"%s","is_admin":true}' "$user" ;;
    *'/usr/bin/tailscale logout'*) printf 'logout\n' >>"$GUEST_EVENT_LOG" ;;
    *) printf 'stable-snapshot\n' ;;
   esac ;;
@@ -47,7 +50,11 @@ esac
 	require.Equal(t, "10.0.2.2:5001/soda-os@"+fallbackDigest, fallback)
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
-	require.NoError(t, exerciseFallback(ctx, admin, guest, candidate, fallback))
+	workspace := workspaceFixture{Person: admin, Remote: admin.Remote, ProjectID: "kept"}
+	project := projectFixture{Admin: workspace, Alice: workspace, Bob: workspace}
+	project.Alice.Person.Remote = admin.Remote.As("alice", "key")
+	project.Bob.Person.Remote = admin.Remote.As("bob", "key")
+	require.NoError(t, exerciseFallback(ctx, project, guest, candidate, fallback))
 	require.NotContains(t, guestEvents(t), "logout")
 	commands, err := os.ReadFile(os.Getenv("BOOTC_COMMANDS"))
 	require.NoError(t, err)

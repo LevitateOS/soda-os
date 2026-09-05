@@ -20,8 +20,9 @@ type bootcStatus struct {
 	} `json:"status"`
 }
 
-func exerciseFallback(ctx context.Context, admin personFixture, guest *guest, candidate, fallback string) error {
-	before, err := captureManifest(ctx, admin, "fallback/b-before")
+func exerciseFallback(ctx context.Context, project projectFixture, guest *guest, candidate, fallback string) error {
+	admin := project.Admin.Person
+	before, err := captureManifest(ctx, project, "fallback/b-before")
 	if err != nil {
 		return err
 	}
@@ -32,7 +33,7 @@ func exerciseFallback(ctx context.Context, admin personFixture, guest *guest, ca
 	if err := switchImage(ctx, admin, guest, "fallback", fallback); err != nil {
 		return err
 	}
-	selected, err := captureManifest(ctx, admin, "fallback/a-selected")
+	selected, err := captureManifest(ctx, project, "fallback/a-selected")
 	if err != nil {
 		return err
 	}
@@ -42,7 +43,7 @@ func exerciseFallback(ctx context.Context, admin personFixture, guest *guest, ca
 	if err := switchImage(ctx, admin, guest, "candidate", candidate); err != nil {
 		return err
 	}
-	restored, err := captureManifest(ctx, admin, "fallback/b-restored")
+	restored, err := captureManifest(ctx, project, "fallback/b-restored")
 	if err != nil {
 		return err
 	}
@@ -50,10 +51,6 @@ func exerciseFallback(ctx context.Context, admin personFixture, guest *guest, ca
 		return err
 	}
 	return disableGuestRegistry(ctx, admin)
-}
-
-func captureManifest(ctx context.Context, admin personFixture, relative string) ([]byte, error) {
-	return admin.Remote.SudoOutput(ctx, admin.LinuxPassword, stableManifestScript, relative)
 }
 
 func compareManifests(expected, actual []byte, label string) error {

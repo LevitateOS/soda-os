@@ -103,46 +103,6 @@ runuser --user "$workspace" -- /bin/sh -c 'command -v git; command -v gh; comman
 printf 'workspace=%s\n' "$workspace"
 `
 
-const stableManifestScript = `set -euo pipefail
-shopt -s inherit_errexit
-accounts=$(
-  getent passwd | awk -F: '$5 ~ /^soda-workspace=/ || $3 >= 1000 {print $1":"$3":"$4":"$5":"$6":"$7}' | LC_ALL=C sort | jq -Rsc 'split("\n") | map(select(length > 0))'
-)
-groups=$(
-  getent group | LC_ALL=C sort | jq -Rsc 'split("\n") | map(select(length > 0))'
-)
-homes=$(
-  getent passwd | awk -F: '$5 ~ /^soda-workspace=/ || $3 >= 1000 {print $1":"$6}' | while IFS=: read -r user home; do
-    test -d "$home"
-    shadow=$(getent shadow "$user" | sha256sum | cut -d' ' -f1)
-    keys=absent
-    test ! -f "$home/.ssh/authorized_keys" || keys=$(sha256sum "$home/.ssh/authorized_keys" | cut -d' ' -f1)
-    fixture=absent
-    test ! -f "$home/soda-acceptance-state.txt" || fixture=$(sha256sum "$home/soda-acceptance-state.txt" | cut -d' ' -f1)
-    jq -cn --arg user "$user" --arg home "$home" --arg shadow "$shadow" --arg keys "$keys" --arg fixture "$fixture" '{user:$user,home:$home,shadow:$shadow,authorized_keys:$keys,fixture:$fixture}'
-  done | jq -sc 'sort_by(.user)'
-)
-workspaces=$(
-  getent passwd | awk -F: '$5 ~ /^soda-workspace=/ {print $1":"$5":"$6}' | while IFS=: read -r user marker home; do
-    project=${marker##*/}
-    checkout=$home/Projects/$project
-    test -d "$checkout/.git"
-    remote=$(runuser --user "$user" -- git -C "$checkout" remote get-url origin)
-    status=$(runuser --user "$user" -- git -C "$checkout" status --porcelain=v1 --untracked-files=all | LC_ALL=C sort | jq -Rsc 'split("\n") | map(select(length > 0))')
-    jq -cn --arg user "$user" --arg marker "$marker" --arg remote "$remote" --argjson status "$status" '{user:$user,marker:$marker,remote:$remote,status:$status}'
-  done | jq -sc 'sort_by(.user)'
-)
-catalog=$(jq -S . /var/lib/soda/catalog/projects.json)
-forgejo_users=$(sqlite3 /var/lib/forgejo/data/forgejo.db 'select lower_name || ":" || is_admin || ":" || is_active from user order by lower_name;' | jq -Rsc 'split("\n") | map(select(length > 0))')
-tailscale=$(tailscale status --json | jq -c '.Self | {id:.ID,dns_name:.DNSName,addresses:(.TailscaleIPs|sort)}')
-network=$(nmcli --terse --fields NAME,TYPE,ZONE connection show --active | LC_ALL=C sort | jq -Rsc 'split("\n") | map(select(length > 0))')
-host_keys=$(sha256sum /etc/ssh/ssh_host_*_key.pub | LC_ALL=C sort | jq -Rsc 'split("\n") | map(select(length > 0))')
-jq -cn --argjson accounts "$accounts" --argjson groups "$groups" --argjson homes "$homes" \
-  --argjson workspaces "$workspaces" --argjson catalog "$catalog" --argjson forgejo_users "$forgejo_users" \
-  --argjson tailscale "$tailscale" --argjson network "$network" --argjson host_keys "$host_keys" \
-  '{accounts:$accounts,groups:$groups,homes:$homes,workspaces:$workspaces,catalog:$catalog,forgejo_users:$forgejo_users,tailscale:$tailscale,network:$network,ssh_host_keys:$host_keys}'
-`
-
 // Service state alone does not establish network reachability.
 const nativeServiceChecks = `set -euo pipefail
 test "$(systemctl is-active sshd)" = active

@@ -214,11 +214,18 @@ printf 'mise_cache=%s\n' "$HOME/.cache/mise"
 
 func verifyWorkspaceRemoval(ctx context.Context, project projectFixture) error {
 	alice := project.Alice.Person.Remote
-	_, err := projectRemoval(ctx, alice, "remove-workspace", project.Alice.ProjectID, "product/alice-remove-workspace")
+	target, err := observeDeletionTarget(ctx, project.Admin.Person, project.Alice.Remote.Username, "product/alice-before-removal")
 	if err != nil {
 		return err
 	}
-	check := "if getent passwd " + project.Alice.Remote.Username + " >/dev/null; then exit 1; else test \"$?\" -eq 2; fi; getent passwd " + project.Admin.Remote.Username + " >/dev/null; getent passwd " + project.Bob.Remote.Username + " >/dev/null"
+	_, err = projectRemoval(ctx, alice, "remove-workspace", project.Alice.ProjectID, "product/alice-remove-workspace")
+	if err != nil {
+		return err
+	}
+	if err = verifyAccountRemoved(ctx, project.Admin.Person, target, "product/alice-account-home-processes-removed"); err != nil {
+		return err
+	}
+	check := "getent passwd " + project.Admin.Remote.Username + " >/dev/null; getent passwd " + project.Bob.Remote.Username + " >/dev/null"
 	if err = project.Admin.Person.Remote.Sudo(ctx, project.Admin.Person.LinuxPassword, check, "product/own-workspace-removal"); err != nil {
 		return err
 	}
@@ -237,14 +244,37 @@ func verifyProjectRemoval(ctx context.Context, admin, bob personFixture) error {
 	if err != nil {
 		return err
 	}
+	if err = seedCanonicalRepository(ctx, adminSetup); err != nil {
+		return err
+	}
 	bobSetup, err := setupWorkspace(ctx, bob, "removable", "product/removable-bob-setup")
 	if err != nil {
 		return err
 	}
-	if _, err = projectRemoval(ctx, admin.Remote, "remove", "removable", "product/removable-remove"); err != nil {
+	return removeSeededProject(ctx, admin, []workspaceFixture{adminSetup, bobSetup})
+}
+
+func removeSeededProject(ctx context.Context, admin personFixture, workspaces []workspaceFixture) error {
+	var targets []deletionTarget
+	for _, workspace := range workspaces {
+		target, err := observeDeletionTarget(ctx, admin, workspace.Remote.Username, "product/"+workspace.Remote.Username+"-before-removal")
+		if err != nil {
+			return err
+		}
+		targets = append(targets, target)
+	}
+	if _, err := projectRemoval(ctx, admin.Remote, "remove", "removable", "product/removable-remove"); err != nil {
 		return err
 	}
-	script := "set -eu; if getent passwd " + adminSetup.Remote.Username + " >/dev/null; then exit 1; else test \"$?\" -eq 2; fi; if getent passwd " + bobSetup.Remote.Username + " >/dev/null; then exit 1; else test \"$?\" -eq 2; fi; curl --fail --silent \"" + forgejoLoopbackEndpoint + "/api/v1/repos/" + admin.Remote.Username + "/removable\" >/dev/null"
+	for _, target := range targets {
+		if err := verifyAccountRemoved(ctx, admin, target, "product/"+target.Username+"-removed"); err != nil {
+			return err
+		}
+	}
+	if err := requireProjectAbsent(ctx, admin.Remote, "removable", "product/removable-catalog-absent"); err != nil {
+		return err
+	}
+	script := "set -eu; contents=$(curl --fail --silent --show-error --max-time 15 \"" + forgejoLoopbackEndpoint + "/api/v1/repos/" + admin.Remote.Username + "/removable/raw/preserved.txt?ref=main\"); test \"$contents\" = 'committed preservation fixture'"
 	return admin.Remote.Capture(ctx, "product/project-removal-preserves-forgejo", []byte(script), "/bin/bash", "-s")
 }
 
@@ -253,17 +283,34 @@ func verifyIndependentPersonDeletion(ctx context.Context, admin personFixture, k
 	if err != nil {
 		return err
 	}
-	if _, err = setupWorkspace(ctx, obsolete, "kept", "product/obsolete-setup"); err != nil {
+	workspace, err := setupWorkspace(ctx, obsolete, "kept", "product/obsolete-setup")
+	if err != nil {
 		return err
 	}
 	if _, err = createNativeForgejoRepository(ctx, obsolete, "owned", "product/owned-create"); err != nil {
 		return err
 	}
-	if _, err = projectRemoval(ctx, admin.Remote, "delete-human", "obsolete", "product/obsolete-delete"); err != nil {
+	return deleteSeededPerson(ctx, admin, obsolete, workspace)
+}
+
+func deleteSeededPerson(ctx context.Context, admin, obsolete personFixture, workspace workspaceFixture) error {
+	var targets []deletionTarget
+	for _, username := range []string{workspace.Remote.Username, obsolete.Remote.Username} {
+		target, err := observeDeletionTarget(ctx, admin, username, "product/"+username+"-before-human-removal")
+		if err != nil {
+			return err
+		}
+		targets = append(targets, target)
+	}
+	if _, err := projectRemoval(ctx, admin.Remote, "delete-human", obsolete.Remote.Username, "product/obsolete-delete"); err != nil {
 		return err
 	}
-	script := "if getent passwd obsolete >/dev/null; then exit 1; else test \"$?\" -eq 2; fi\n" +
-		"curl --fail --silent " + forgejoLoopbackEndpoint + "/api/v1/users/obsolete >/dev/null\n" +
+	for _, target := range targets {
+		if err := verifyAccountRemoved(ctx, admin, target, "product/"+target.Username+"-human-removal-complete"); err != nil {
+			return err
+		}
+	}
+	script := "curl --fail --silent " + forgejoLoopbackEndpoint + "/api/v1/users/obsolete >/dev/null\n" +
 		"curl --fail --silent " + forgejoLoopbackEndpoint + "/api/v1/repos/obsolete/owned >/dev/null\n"
 	return admin.Remote.Sudo(ctx, admin.LinuxPassword, script, "product/linux-deletion-preserves-forgejo")
 }
