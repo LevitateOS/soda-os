@@ -5,12 +5,15 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/LevitateOS/soda-os/internal/process"
 )
 
 // Build on the matching native build host; only static output enters the RPMs.
 func (b *Builder) buildCockpit(ctx context.Context) error {
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Minute)
+	defer cancel()
 	for _, args := range [][]string{{"install", "--frozen-lockfile"}, {"build"}} {
 		if err := b.runner.Run(ctx, process.Command{Dir: b.path("cockpit"), Name: "vp", Args: args}); err != nil {
 			return fmt.Errorf("build Cockpit assets (requires the pinned Vite+ build toolchain): %w", err)

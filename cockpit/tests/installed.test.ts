@@ -59,6 +59,18 @@ test.skipIf(!targetFile)(
       const records: Record<string, unknown> = {};
       for (const name of ["Projects", "Runners", "Tailscale"]) {
         const frame = await openPackage(page, name);
+        if (name === "Projects") {
+          await frame.getByText(/\d+ projects? available to /).waitFor();
+        } else if (name === "Runners") {
+          await frame.getByText(/\d+ local runners?; \d+ listening;/).waitFor();
+        } else {
+          await frame
+            .getByText("Reading Tailscale state…", { exact: true })
+            .waitFor({ state: "hidden" });
+          expect(
+            await frame.getByText("Tailscale state unavailable", { exact: true }).count(),
+          ).toBe(0);
+        }
         const installed = await frame.locator("#app").evaluate(async (_element, packageName) => {
           const architecture = await window.cockpit.spawn(["uname", "-m"], { err: "message" });
           const rpm = await window.cockpit.spawn(

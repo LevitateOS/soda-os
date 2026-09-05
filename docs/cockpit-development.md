@@ -27,6 +27,7 @@ just check
 `just cockpit-check` runs the four frontend commands. `just check` includes them
 before Go tests that inspect built assets. Direct `soda-image rpm` and `oci`
 commands also install locked frontend dependencies and build before RPM staging.
+That frontend invocation has a ten-minute deadline, including dependency installation.
 The release executor uses these same entry points; provision its matching-native
 hosts with the pinned toolchain before running a release.
 
@@ -61,6 +62,22 @@ No JavaScript tooling is installed on the appliance. React and PatternFly are
 compiled assets. Cockpit theme inputs and their licenses are pinned under
 `cockpit/vendor`; fonts come from the locked PatternFly dependency. Every package
 includes the bundled dependencies' license notices.
+
+After a native RPM build, compare extracted RPM payloads with the actual generated
+assets through the same test lifecycle. Use the builder image produced by that
+build and absolute paths for its RPM and evidence directories:
+
+```sh
+SODA_COCKPIT_RPM_DIRECTORY=/absolute/path/.artifacts/rpms \
+SODA_COCKPIT_RPM_BUILDER=soda-os-rpm-builder:0.6.1-aarch64 \
+SODA_COCKPIT_EVIDENCE_DIRECTORY=/absolute/path/evidence \
+  vp -C cockpit test tests/rpm.test.ts
+```
+
+Use the x86-64 builder on the x86-64 host. The test verifies the executing
+architecture and RPM headers before extraction, then compares every runtime file
+and hash, and records source, lock, builder, and RPM identities. The normal source
+suite skips this test until the native RPM directory is explicitly supplied.
 
 ## Installed browser acceptance
 

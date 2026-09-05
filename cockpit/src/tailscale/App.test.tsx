@@ -136,10 +136,12 @@ test("reopening pending authentication recovers native URL and later connection 
 });
 test("Forgejo refresh failure keeps enrollment connected and is not retried by polling", async () => {
   const app = setup();
-  app.native.refreshForgejo.mockRejectedValue(new Error("service failed"));
+  app.native.refreshForgejo.mockRejectedValue({ message: "service failed" });
   await flush();
   expect(screen.getByText("Connected")).toBeTruthy();
-  expect(screen.getByText(/Tailscale connected, but Forgejo could not refresh/)).toBeTruthy();
+  expect(
+    screen.getByText(/Tailscale connected, but Forgejo could not refresh.*service failed/),
+  ).toBeTruthy();
   await act(async () => {
     await vi.advanceTimersByTimeAsync(9000);
   });
@@ -148,11 +150,12 @@ test("Forgejo refresh failure keeps enrollment connected and is not retried by p
 test("native failure clears stale device facts and disables controls; polling can recover", async () => {
   const app = setup();
   await flush();
-  app.native.read.mockRejectedValueOnce(new Error("daemon unavailable"));
+  app.native.read.mockRejectedValueOnce({ message: "daemon unavailable" });
   await act(async () => {
     await vi.advanceTimersByTimeAsync(3000);
   });
   expect(screen.getByText("Tailscale state unavailable")).toBeTruthy();
+  expect(screen.getByText("daemon unavailable")).toBeTruthy();
   expect(screen.getByText("Device list unavailable.")).toBeTruthy();
   expect((screen.getByLabelText("Exit node") as HTMLSelectElement).disabled).toBe(true);
   await act(async () => {

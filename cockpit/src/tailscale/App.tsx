@@ -32,7 +32,17 @@ import {
 } from "./status";
 
 const reload = () => window.location.reload();
-const diagnostic = (error: unknown) => (error instanceof Error ? error.message : String(error));
+const diagnostic = (error: unknown) => {
+  if (
+    error &&
+    typeof error === "object" &&
+    "message" in error &&
+    typeof error.message === "string" &&
+    error.message
+  )
+    return error.message;
+  return String(error);
+};
 export function Tailscale({
   native,
   cockpit = window.cockpit,
