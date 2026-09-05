@@ -22,7 +22,8 @@ func TestPreservationDetectsFixtureCorruption(t *testing.T) {
 				return remote.SudoOutput(context.Background(), []byte("password"), "set -- primary workspace kept\n"+stableManifestScript, label)
 			}
 			before, err := capture("before")
-			require.NoError(t, err)
+			diagnostic, _ := os.ReadFile(filepath.Join(remote.Evidence.Root, "before.stderr"))
+			require.NoError(t, err, "%s", diagnostic)
 			same, err := capture("unchanged")
 			require.NoError(t, err)
 			require.NoError(t, compareManifests(before, same, "unchanged"))
@@ -57,7 +58,7 @@ esac`)
 exec `+remoteCommand([]string{jq})+` "$@"`)
 	sha, err := exec.LookPath("sha256sum")
 	require.NoError(t, err)
-	installAcceptanceCommand(t, "sha256sum", `case "$1" in /etc/ssh/*) printf 'host-key-hash\n' ;; *) exec `+remoteCommand([]string{sha})+` "$@" ;; esac`)
+	installAcceptanceCommand(t, "sha256sum", `case "${1:-}" in /etc/ssh/*) printf 'host-key-hash\n' ;; *) exec `+remoteCommand([]string{sha})+` "$@" ;; esac`)
 	for _, name := range []string{"primary/.ssh/authorized_keys", "workspace/.ssh/authorized_keys", "workspace/.ssh/id_ed25519_soda", "workspace/.ssh/id_ed25519_soda.pub", "workspace/soda-acceptance-state.txt", "workspace/.local/share/mise/installs/node/22.14.0/bin/node"} {
 		writePreservationFile(t, filepath.Join(root, name), "original\n")
 	}
