@@ -63,6 +63,17 @@ func (invoker PKExecInvoker) CatalogEdit(ctx context.Context, request catalog.Ed
 	return response, nil
 }
 
+func (invoker PKExecInvoker) WorkspaceInspect(ctx context.Context, request ProjectRequest) (WorkspaceInspectionResponse, error) {
+	var response WorkspaceInspectionResponse
+	if err := invoker.invoke(ctx, "workspace-inspect", request, &response); err != nil {
+		return WorkspaceInspectionResponse{}, err
+	}
+	if !response.OK || response.Workspace.Username == "" {
+		return WorkspaceInspectionResponse{}, privilegedIncomplete("workspace-inspect")
+	}
+	return response, nil
+}
+
 func (invoker PKExecInvoker) WorkspacePrepare(ctx context.Context, request HelperWorkspaceRequest) (WorkspacePreparationResponse, error) {
 	var response WorkspacePreparationResponse
 	if err := invoker.invoke(ctx, "workspace-prepare", request, &response); err != nil {

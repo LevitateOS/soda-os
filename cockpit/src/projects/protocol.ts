@@ -5,6 +5,7 @@ export const actions = Object.freeze([
   "list",
   "add-existing",
   "edit",
+  "inspect",
   "setup",
   "remove-workspace",
   "remove",
@@ -47,10 +48,36 @@ export function decodeResponse(action: Action, output: string): unknown {
   if (["add-existing", "edit"].includes(action)) {
     assertCatalogEntry(response.project);
   }
+  if (action === "inspect") assertWorkspaceInspection(response.workspace);
   if (action === "setup" && typeof response.workspace_username !== "string") {
     throw new TypeError("setup response is missing workspace_username");
   }
   return response;
+}
+
+function assertWorkspaceInspection(value: unknown) {
+  assertObject(value, "workspace inspection");
+  for (const field of [
+    "username",
+    "checkout_path",
+    "public_key",
+    "primary_key_problem",
+    "workspace_key_problem",
+    "checkout_problem",
+    "git_key_problem",
+  ]) {
+    if (typeof value[field] !== "string")
+      throw new TypeError(`workspace inspection is missing ${field}`);
+  }
+  if (typeof value.exists !== "boolean" || typeof value.checkout_ready !== "boolean") {
+    throw new TypeError("workspace inspection is missing account or checkout facts");
+  }
+  if (
+    !value.username ||
+    (value.checkout_ready && (!value.exists || !value.checkout_path || value.checkout_problem))
+  ) {
+    throw new TypeError("workspace inspection contains inconsistent checkout facts");
+  }
 }
 
 function assertAction(action: string) {

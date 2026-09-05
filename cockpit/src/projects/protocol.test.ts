@@ -30,6 +30,7 @@ test("coordinator command contains only the executable and allow-listed action",
     "list",
     "add-existing",
     "edit",
+    "inspect",
     "setup",
     "remove-workspace",
     "remove",
@@ -95,6 +96,40 @@ test("list response has only catalog, workspace-existence, and current-user fiel
       ),
     /missing workspace existence/,
   );
+});
+
+test("inspection requires native account and checkout facts, not a readiness guess", () => {
+  const workspace = {
+    username: "soda-w-example",
+    exists: true,
+    checkout_path: "/home/soda-w-example/Projects/site",
+    checkout_ready: true,
+    public_key: "ssh-ed25519 example",
+    primary_key_problem: "",
+    workspace_key_problem: "",
+    checkout_problem: "",
+    git_key_problem: "",
+  };
+  assert.deepEqual(
+    decodeResponse("inspect", JSON.stringify({ ok: true, workspace })).workspace,
+    workspace,
+  );
+  for (const changes of [
+    { exists: false },
+    { checkout_path: "" },
+    { checkout_problem: "unreadable" },
+    { checkout_ready: undefined },
+    { public_key: undefined },
+  ]) {
+    assert.throws(() =>
+      decodeResponse(
+        "inspect",
+        JSON.stringify({ ok: true, workspace: { ...workspace, ...changes } }),
+      ),
+    );
+  }
+  assert.deepEqual(coordinatorCommand("inspect"), [coordinatorPath, "inspect"]);
+  assert.equal(encodeRequest("inspect", { id: "site" }), '{"id":"site"}\n');
 });
 
 test("mutation responses contain the action-specific result", () => {

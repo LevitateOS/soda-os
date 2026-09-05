@@ -37,7 +37,7 @@ type OutboundKeyGenerator interface {
 
 // RepositoryPublication is the repository operation needed to finish setup.
 type RepositoryPublication interface {
-	CloneExists(linuxhost.Account, catalog.Entry) (bool, error)
+	CloneExists(context.Context, linuxhost.Account, catalog.Entry) (bool, error)
 	Publish(context.Context, linuxhost.Account, catalog.Entry) error
 }
 
@@ -128,7 +128,7 @@ func (accounts Accounts) Publish(ctx context.Context, repository RepositoryPubli
 	if !found {
 		return "", errors.New("workspace preparation is required before cloning")
 	}
-	exists, err := repository.CloneExists(workspace, entry)
+	exists, err := repository.CloneExists(ctx, workspace, entry)
 	if err != nil {
 		return "", err
 	}

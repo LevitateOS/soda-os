@@ -65,6 +65,8 @@ func (helper Helper) dispatch(ctx context.Context, actor linuxhost.PKExecIdentit
 		return helper.catalogAdd(ctx, actor, input)
 	case "catalog-edit":
 		return helper.catalogEdit(ctx, actor, input)
+	case "workspace-inspect":
+		return helper.workspaceInspect(ctx, actor, input)
 	case "workspace-prepare":
 		return helper.workspacePrepare(ctx, actor, input)
 	case "workspace-publish":

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 
 	"github.com/LevitateOS/soda-os/internal/projects/catalog"
+	"github.com/LevitateOS/soda-os/internal/projects/workspace"
 )
 
 type EmptyRequest struct{}
@@ -64,6 +65,11 @@ type ListResponse struct {
 type ProjectMutationResponse struct {
 	OK      bool        `json:"ok"`
 	Project ProjectView `json:"project"`
+}
+
+type WorkspaceInspectionResponse struct {
+	OK        bool                 `json:"ok"`
+	Workspace workspace.Inspection `json:"workspace"`
 }
 
 type SetupResponse struct {

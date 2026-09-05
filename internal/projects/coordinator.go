@@ -54,6 +54,8 @@ func (coordinator Coordinator) dispatch(ctx context.Context, primary linuxhost.A
 		return coordinator.executeAddExisting(ctx, input)
 	case "edit":
 		return coordinator.executeEdit(ctx, input)
+	case "inspect":
+		return coordinator.executeInspect(ctx, input)
 	case "setup":
 		return coordinator.executeSetup(ctx, primary, input)
 	case "remove-workspace":

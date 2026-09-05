@@ -30,7 +30,7 @@ func NewRepository(homes AccountHomes, runner linuxhost.CommandRunner) Repositor
 }
 
 // CloneExists reports only whether the expected complete Git clone exists.
-func (repository Repository) CloneExists(account linuxhost.Account, entry catalog.Entry) (bool, error) {
+func (repository Repository) CloneExists(ctx context.Context, account linuxhost.Account, entry catalog.Entry) (bool, error) {
 	if err := entry.Validate(); err != nil {
 		return false, err
 	}
@@ -52,6 +52,9 @@ func (repository Repository) CloneExists(account linuxhost.Account, entry catalo
 	if err = validateCompleteGitClone(checkout, account.UID); err != nil {
 		return false, err
 	}
+	if err = repository.validateLocalGit(ctx, account, filepath.Join(account.Home, "Projects", entry.ID)); err != nil {
+		return false, err
+	}
 	return true, nil
 }
 
@@ -59,7 +62,7 @@ func (repository Repository) CloneExists(account linuxhost.Account, entry catalo
 // the native Ed25519 key pair when it does not yet exist.
 func (repository Repository) GenerateOutboundKey(ctx context.Context, account linuxhost.Account) (string, error) {
 	keyPath := outboundKeyPath(account)
-	publicKey, err := repository.readOutboundKey(ctx, account, keyPath)
+	publicKey, err := repository.ReadOutboundKey(ctx, account)
 	if err == nil {
 		return publicKey, nil
 	}
@@ -72,12 +75,14 @@ func (repository Repository) GenerateOutboundKey(ctx context.Context, account li
 	if result.ExitCode != 0 {
 		return "", fmt.Errorf("generate workspace outbound Git key: %s", strings.TrimSpace(result.Stderr))
 	}
-	return repository.readOutboundKey(ctx, account, keyPath)
+	return repository.ReadOutboundKey(ctx, account)
 }
 
-func (repository Repository) readOutboundKey(ctx context.Context, account linuxhost.Account, keyPath string) (string, error) {
+// ReadOutboundKey derives only the public key. It never creates or replaces keys.
+func (repository Repository) ReadOutboundKey(ctx context.Context, account linuxhost.Account) (string, error) {
+	keyPath := outboundKeyPath(account)
 	result, err := repository.runner.Run(ctx, linuxhost.Command{Name: "/usr/sbin/runuser", Args: []string{
-		"--user", account.Username, "--", "/usr/bin/ssh-keygen", "-y", "-f", keyPath,
+		"--user", account.Username, "--", "/usr/bin/ssh-keygen", "-y", "-P", "", "-f", keyPath,
 	}})
 	if err != nil {
 		return "", err

@@ -13,7 +13,7 @@ import (
 
 func main() {
 	if len(os.Args) != 2 {
-		fmt.Fprintln(os.Stderr, "usage: soda-projects <list|add-existing|edit|setup|remove-workspace|remove|delete-human>")
+		fmt.Fprintln(os.Stderr, "usage: soda-projects <list|add-existing|edit|inspect|setup|remove-workspace|remove|delete-human>")
 		os.Exit(2)
 	}
 	current, err := user.Current()

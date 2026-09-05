@@ -102,13 +102,16 @@ func TestRepositoryUsesManagedSymlinkHomeRoot(t *testing.T) {
 	realHome := filepath.Join(realHomeRoot, account.Username)
 	require.NoError(t, os.Mkdir(realHome, 0o700))
 	host := &linuxhost.Native{HomeRoot: homeRoot}
-	repository := NewRepository(host, commandRunnerFunc(func(_ context.Context, command linuxhost.Command) (linuxhost.CommandResult, error) {
+	repository := NewRepository(host, commandRunnerFunc(func(ctx context.Context, command linuxhost.Command) (linuxhost.CommandResult, error) {
+		if command.Name == "/usr/sbin/runuser" {
+			return runInspectionGit(ctx, command)
+		}
 		require.Equal(t, "/usr/sbin/restorecon", command.Name)
 		return linuxhost.CommandResult{}, nil
 	}))
-	require.NoError(t, os.MkdirAll(filepath.Join(realHome, "Projects", "site", ".git"), 0o700))
+	initInspectionGit(t, filepath.Join(realHome, "Projects", "site"))
 
-	exists, err := repository.CloneExists(account, projectEntry("site"))
+	exists, err := repository.CloneExists(context.Background(), account, projectEntry("site"))
 	require.NoError(t, err)
 	require.True(t, exists)
 	projects, err := repository.openProjectsForPublication(account)
@@ -121,11 +124,9 @@ func TestRepositoryCloneEvidenceRejectsSymlinks(t *testing.T) {
 	account := repositoryAccount(root)
 	projects := filepath.Join(account.Home, "Projects")
 	checkout := filepath.Join(projects, "site")
-	require.NoError(t, os.MkdirAll(filepath.Join(checkout, ".git"), 0o700))
-	repository := NewRepository(&linuxhost.Native{HomeRoot: root}, commandRunnerFunc(func(context.Context, linuxhost.Command) (linuxhost.CommandResult, error) {
-		return linuxhost.CommandResult{}, nil
-	}))
-	exists, err := repository.CloneExists(account, projectEntry("site"))
+	initInspectionGit(t, checkout)
+	repository := NewRepository(&linuxhost.Native{HomeRoot: root}, commandRunnerFunc(runInspectionGit))
+	exists, err := repository.CloneExists(context.Background(), account, projectEntry("site"))
 	require.NoError(t, err)
 	require.True(t, exists)
 
@@ -133,30 +134,28 @@ func TestRepositoryCloneEvidenceRejectsSymlinks(t *testing.T) {
 	target := filepath.Join(root, "other")
 	require.NoError(t, os.MkdirAll(filepath.Join(target, ".git"), 0o700))
 	require.NoError(t, os.Symlink(target, checkout))
-	_, err = repository.CloneExists(account, projectEntry("site"))
+	_, err = repository.CloneExists(context.Background(), account, projectEntry("site"))
 	require.Error(t, err)
 
 	require.NoError(t, os.Remove(checkout))
 	require.NoError(t, os.Mkdir(checkout, 0o700))
 	require.NoError(t, os.Symlink(filepath.Join(target, ".git"), filepath.Join(checkout, ".git")))
-	_, err = repository.CloneExists(account, projectEntry("site"))
+	_, err = repository.CloneExists(context.Background(), account, projectEntry("site"))
 	require.Error(t, err)
 }
 
 func TestRepositoryCloneEvidenceDoesNotDependOnCurrentInboundKeys(t *testing.T) {
 	root := t.TempDir()
 	account := repositoryAccount(root)
-	require.NoError(t, os.MkdirAll(filepath.Join(account.Home, "Projects", "site", ".git"), 0o700))
-	repository := NewRepository(&linuxhost.Native{HomeRoot: root}, commandRunnerFunc(func(context.Context, linuxhost.Command) (linuxhost.CommandResult, error) {
-		return linuxhost.CommandResult{}, nil
-	}))
-	exists, err := repository.CloneExists(account, projectEntry("site"))
+	initInspectionGit(t, filepath.Join(account.Home, "Projects", "site"))
+	repository := NewRepository(&linuxhost.Native{HomeRoot: root}, commandRunnerFunc(runInspectionGit))
+	exists, err := repository.CloneExists(context.Background(), account, projectEntry("site"))
 	require.NoError(t, err)
 	require.True(t, exists)
 
 	require.NoError(t, os.MkdirAll(filepath.Join(account.Home, ".ssh"), 0o700))
 	require.NoError(t, os.WriteFile(filepath.Join(account.Home, ".ssh", "authorized_keys"), []byte("user-managed malformed contents\n"), 0o600))
-	exists, err = repository.CloneExists(account, projectEntry("site"))
+	exists, err = repository.CloneExists(context.Background(), account, projectEntry("site"))
 	require.NoError(t, err)
 	require.True(t, exists)
 }

@@ -143,8 +143,23 @@ interaction foundations across the existing pages:
 
 These changes preserve native authorization, Git ownership, exact destructive
 confirmation, credential clearing, and explicit update activation. They do not
-yet integrate the approved Projects composition or supply native clone-readiness
-facts. Keep the review prototype separate until that integration replaces it.
+yet integrate the approved Projects composition. Keep the review prototype
+separate until that integration replaces it.
+
+The native `inspect` action now provides on-demand facts through the existing
+Projects helper: validated account existence, actual checkout path, local Git
+usability, the existing outbound public key, and independent key/checkout read
+problems. It accepts only a project ID and inspects the caller's own derived
+account, without requiring that human to be an administrator. Catalog listing
+remains unprivileged and does not inspect private homes.
+
+Inspection creates no accounts, keys, or checkouts and performs no Git-host
+requests. It shares the existing removal lock. Checkout checks verify an owned
+Git working-tree root and readable HEAD commit or valid unborn branch; they do
+not assert a clean working tree, repository-host access, or complete historical
+object integrity. They neither refresh the index nor run working-tree filters.
+Malformed checkout metadata is reported for review, never overwritten by setup.
+A read problem is not treated as evidence that a file is absent.
 
 ## Remaining implementation milestones
 

@@ -161,6 +161,9 @@ case "$action" in
   catalog-edit)
     printf '{"ok":true,"project":{"id":"site","display_name":"Renamed","canonical_url":"git@git.example.test:site.git","catalog_metadata":{"owner":"new-owner","labels":["public"]},"workspace_username":"soda-w-example","workspace_exists":false}}\n'
     ;;
+  workspace-inspect)
+    printf '{"ok":true,"workspace":{"username":"soda-w-example","exists":false,"checkout_ready":false,"checkout_path":"","public_key":"","primary_key_problem":"","workspace_key_problem":"","checkout_problem":"","git_key_problem":""}}\n'
+    ;;
   workspace-prepare)
     printf '{"ok":true,"workspace_username":"soda-w-example","workspace_public_key":"ssh-ed25519 test"}\n'
     ;;

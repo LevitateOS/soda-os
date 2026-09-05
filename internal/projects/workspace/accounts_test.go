@@ -133,7 +133,7 @@ func (repository *fakeRepository) GenerateOutboundKey(_ context.Context, account
 	return repository.publicKey, repository.keyErr
 }
 
-func (repository *fakeRepository) CloneExists(account linuxhost.Account, entry catalog.Entry) (bool, error) {
+func (repository *fakeRepository) CloneExists(_ context.Context, account linuxhost.Account, entry catalog.Entry) (bool, error) {
 	return repository.cloned[account.Username+":"+entry.ID], nil
 }
 
