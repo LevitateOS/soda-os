@@ -45,7 +45,7 @@ export function RemoveProjectDialog({
       </ModalBody>
       <ModalFooter>
         <Button variant="secondary" isDisabled={busy} onClick={onClose}>
-          Cancel
+          {error ? "Close" : "Cancel"}
         </Button>
         <Button
           variant="danger"

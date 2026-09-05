@@ -10,6 +10,8 @@ import {
 import { ExitNodeApprovalGuidance } from "../../molecules/tailscale/ExitNodeApprovalGuidance";
 import type { Snapshot } from "../../tailscale/types";
 export function ExitNodeAdvertisement({
+  saving,
+  saved,
   snapshot,
   loading,
   busy,
@@ -18,6 +20,8 @@ export function ExitNodeAdvertisement({
   onChange,
   onApply,
 }: {
+  saving: boolean;
+  saved: boolean;
   snapshot: Snapshot | null;
   loading: boolean;
   busy: boolean;
@@ -46,11 +50,13 @@ export function ExitNodeAdvertisement({
             onChange={(_, checked) => onChange(checked)}
           />
           <ActionGroup>
-            <Button type="submit" isDisabled={busy || !connected}>
+            <Button type="submit" isDisabled={busy || !connected} isLoading={saving}>
               Apply
             </Button>
           </ActionGroup>
         </Form>
+        {saving && <p role="status">Saving exit-node advertisement…</p>}
+        {saved && <p role="status">Exit-node advertisement saved. Tailnet approval is separate.</p>}
         <ExitNodeApprovalGuidance snapshot={snapshot} loading={loading} />{" "}
       </Stack>
     </PageSection>

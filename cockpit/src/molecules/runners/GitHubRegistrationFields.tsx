@@ -16,7 +16,7 @@ export function GitHubRegistrationFields({ active, busy }: { active: boolean; bu
             name="registration_url"
             type="url"
             isRequired={active}
-            isDisabled={busy}
+            isDisabled={busy || !active}
             placeholder="https://github.com/owner/repository"
             autoComplete="off"
           />
@@ -27,7 +27,7 @@ export function GitHubRegistrationFields({ active, busy }: { active: boolean; bu
             name="github_labels"
             defaultValue="soda-local"
             isRequired={active}
-            isDisabled={busy}
+            isDisabled={busy || !active}
             pattern="[A-Za-z0-9][A-Za-z0-9._-]{0,63}(,[A-Za-z0-9][A-Za-z0-9._-]{0,63})*"
             autoComplete="off"
           />

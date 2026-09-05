@@ -182,6 +182,12 @@ test("Forgejo refresh failure keeps enrollment connected and is not retried by p
     await vi.advanceTimersByTimeAsync(9000);
   });
   expect(app.native.refreshForgejo).toHaveBeenCalledOnce();
+  app.native.refreshForgejo.mockResolvedValue(undefined);
+  fireEvent.click(screen.getByRole("button", { name: "Retry Forgejo address refresh" }));
+  await flush();
+  expect(app.native.refreshForgejo).toHaveBeenCalledTimes(2);
+  expect(screen.queryByText(/Forgejo could not refresh/)).toBeNull();
+  expect(screen.getByText("Connected")).toBeTruthy();
 });
 test("native failure clears stale device facts and disables controls; polling can recover", async () => {
   const app = setup();
@@ -198,6 +204,7 @@ test("native failure clears stale device facts and disables controls; polling ca
     await vi.advanceTimersByTimeAsync(3000);
   });
   expect(screen.getByText("Connected")).toBeTruthy();
+  expect(screen.queryByText("daemon unavailable")).toBeNull();
 });
 test("an unavailable selected exit node remains visible and approval uses native state", async () => {
   setup({ ...connected, prefs: { ExitNodeID: "missing", AdvertiseRoutes: ["0.0.0.0/0", "::/0"] } });
@@ -230,4 +237,48 @@ test("pending reads do not overlap and hidden initial pages perform no reads", a
   render(<TailscalePage native={app.native} cockpit={app.cockpit} />);
   await flush();
   expect(app.native.read).toHaveBeenCalledTimes(2);
+});
+
+test("settings show progress and saved feedback only beside the affected form", async () => {
+  const app = setup();
+  await flush();
+  let finish!: () => void;
+  app.native.selectExitNode.mockImplementationOnce(
+    () =>
+      new Promise<void>((resolve) => {
+        finish = resolve;
+      }),
+  );
+  const exit = within(screen.getByRole("region", { name: "Use an exit node" }));
+  const advertise = within(
+    screen.getByRole("region", { name: "Advertise this device as an exit node" }),
+  );
+  fireEvent.change(exit.getByLabelText("Exit node"), { target: { value: "100.64.0.2" } });
+  fireEvent.click(exit.getByRole("button", { name: "Apply" }));
+  expect(exit.getByRole("status").textContent).toBe("Saving exit-node selection…");
+  expect(advertise.queryByText(/Saving/)).toBeNull();
+  app.native.read.mockResolvedValue({ ...connected, prefs: { ExitNodeIP: "100.64.0.2" } });
+  await act(async () => {
+    finish();
+  });
+  expect(exit.getByRole("status").textContent).toBe("Exit-node selection saved.");
+  fireEvent.change(exit.getByLabelText("Exit node"), { target: { value: "" } });
+  expect(exit.queryByText("Exit-node selection saved.")).toBeNull();
+});
+
+test("successful polling does not erase an unresolved settings failure", async () => {
+  const app = setup();
+  await flush();
+  app.native.selectExitNode.mockRejectedValueOnce(new Error("Could not save exit-node settings"));
+  fireEvent.click(
+    within(screen.getByRole("region", { name: "Use an exit node" })).getByRole("button", {
+      name: "Apply",
+    }),
+  );
+  await flush();
+  expect(screen.getByText("Could not save exit-node settings")).toBeTruthy();
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(3000);
+  });
+  expect(screen.getByText("Could not save exit-node settings")).toBeTruthy();
 });

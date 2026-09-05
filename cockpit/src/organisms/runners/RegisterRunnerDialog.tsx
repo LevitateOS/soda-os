@@ -118,7 +118,7 @@ export function RegisterRunnerDialog({
       </ModalBody>
       <ModalFooter>
         <Button variant="secondary" isDisabled={busy} onClick={onClose}>
-          Cancel
+          {error ? "Close" : "Cancel"}
         </Button>
         <Button type="submit" form="register-runner" isDisabled={busy} isLoading={busy}>
           Register and start

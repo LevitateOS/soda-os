@@ -13,6 +13,8 @@ import {
 import type { Device } from "../../tailscale/types";
 import { deviceName } from "../../tailscale/status";
 export function ExitNodeForm({
+  saving,
+  saved,
   exitNode,
   allowLAN,
   busy,
@@ -24,6 +26,8 @@ export function ExitNodeForm({
   onAllowLANChange,
   onApply,
 }: {
+  saving: boolean;
+  saved: boolean;
   exitNode: string;
   allowLAN: boolean;
   busy: boolean;
@@ -79,11 +83,13 @@ export function ExitNodeForm({
             onChange={(_, checked) => onAllowLANChange(checked)}
           />
           <ActionGroup>
-            <Button type="submit" isDisabled={busy || !connected}>
+            <Button type="submit" isDisabled={busy || !connected} isLoading={saving}>
               Apply
             </Button>
           </ActionGroup>
         </Form>
+        {saving && <p role="status">Saving exit-node selection…</p>}
+        {saved && <p role="status">Exit-node selection saved.</p>}
       </Stack>
     </PageSection>
   );

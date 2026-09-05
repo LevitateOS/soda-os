@@ -51,7 +51,7 @@ test("catalog loading, empty, error, refresh and native adapter input", async ()
   failed.reject(new Error("catalog unavailable"));
   await screen.findByText("The project catalog could not be loaded.");
   expect(screen.queryByRole("heading", { name: "People" })).toBeNull();
-  expect(screen.getByText("catalog unavailable")).toBeTruthy();
+  expect(screen.getByText(/catalog unavailable/)).toBeTruthy();
 });
 test("workspace wording states existence, uses browser hostname and retains setup/removal actions", async () => {
   await ready();
@@ -193,4 +193,56 @@ test("dialog cancellation resets fields and restores keyboard focus", async () =
   expect(
     (within(screen.getByRole("dialog")).getByLabelText(/Project ID/) as HTMLInputElement).value,
   ).toBe("");
+});
+
+test("metadata validation is visible only inside the dialog and focuses the invalid field", async () => {
+  const invoke = await ready();
+  const dialog = await open("Edit");
+  const metadata = dialog.getByLabelText("Additional metadata");
+  fireEvent.change(metadata, { target: { value: "{invalid}" } });
+  fireEvent.click(dialog.getByRole("button", { name: "Save changes" }));
+  expect(dialog.getByRole("alert").textContent).toContain(
+    "Additional metadata must be a valid JSON object.",
+  );
+  expect(screen.getAllByText("Additional metadata must be a valid JSON object.")).toHaveLength(1);
+  expect(document.activeElement).toBe(metadata);
+  expect(invoke).toHaveBeenCalledTimes(1);
+});
+
+test("successful edit and failed refresh remain separate; recovered reads clear only the read error", async () => {
+  const invoke = await ready();
+  const dialog = await open("Edit");
+  invoke.mockResolvedValueOnce({ ok: true, project });
+  invoke.mockRejectedValueOnce(new Error("catalog unavailable"));
+  fireEvent.click(dialog.getByRole("button", { name: "Save changes" }));
+  await screen.findByText("Site was updated. Existing workspaces were not changed.");
+  expect(
+    screen.getByText(/current catalog could not be refreshed.*catalog unavailable/),
+  ).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
+  await screen.findByText("1 project available to alice.");
+  expect(screen.queryByText(/catalog unavailable/)).toBeNull();
+  expect(screen.getByText("Site was updated. Existing workspaces were not changed.")).toBeTruthy();
+});
+
+test("failed removal reconciles native facts and preserves its unresolved outcome after closing", async () => {
+  const invoke = await ready();
+  const dialog = await open("Remove project");
+  fireEvent.change(dialog.getByRole("textbox"), { target: { value: "site" } });
+  invoke.mockRejectedValueOnce(
+    new Error("Bob’s workspace remains; Alice’s workspace was deleted."),
+  );
+  invoke.mockResolvedValueOnce({ ...catalog, projects: [{ ...project, workspace_exists: false }] });
+  fireEvent.click(dialog.getByRole("button", { name: "Remove project" }));
+  await waitFor(() =>
+    expect(dialog.getByRole("alert").textContent).toContain("Bob’s workspace remains"),
+  );
+  expect(invoke).toHaveBeenLastCalledWith("list", {});
+  expect(screen.queryByText("Workspace account exists")).toBeNull();
+  expect(screen.getAllByText(/Bob’s workspace remains/)).toHaveLength(1);
+  fireEvent.click(dialog.getAllByRole("button", { name: "Close" }).at(-1)!);
+  expect(screen.getByText(/Bob’s workspace remains/)).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
+  await screen.findByText("1 project available to alice.");
+  expect(screen.getByText(/Bob’s workspace remains/)).toBeTruthy();
 });

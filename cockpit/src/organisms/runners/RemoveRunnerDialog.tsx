@@ -46,7 +46,7 @@ export function RemoveRunnerDialog({
       </ModalBody>
       <ModalFooter>
         <Button variant="secondary" isDisabled={busy} onClick={onClose}>
-          Cancel
+          {error ? "Close" : "Cancel"}
         </Button>
         <Button variant="danger" type="submit" form="remove-runner" isDisabled={busy}>
           Remove local runner

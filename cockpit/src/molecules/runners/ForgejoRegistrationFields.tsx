@@ -28,7 +28,7 @@ export function ForgejoRegistrationFields({
             id="registration-id"
             name="registration_id"
             isRequired={active}
-            isDisabled={busy}
+            isDisabled={busy || !active}
             pattern="[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
             autoComplete="off"
           />
@@ -39,7 +39,7 @@ export function ForgejoRegistrationFields({
             name="forgejo_labels"
             defaultValue="soda-linux:host"
             isRequired={active}
-            isDisabled={busy}
+            isDisabled={busy || !active}
             pattern="[A-Za-z0-9][A-Za-z0-9._-]{0,63}:host(,[A-Za-z0-9][A-Za-z0-9._-]{0,63}:host)*"
             autoComplete="off"
           />

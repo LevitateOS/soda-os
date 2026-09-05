@@ -1,4 +1,4 @@
-import { PageSection } from "@patternfly/react-core";
+import { Alert, Button, PageSection } from "@patternfly/react-core";
 import { CockpitPageTemplate } from "../templates/CockpitPageTemplate";
 import { DiagnosticAlert } from "../molecules/DiagnosticAlert";
 import { ExternalLink } from "../atoms/ExternalLink";
@@ -14,6 +14,11 @@ export function TailscalePage(props: TailscaleOptions) {
     busy,
     loading,
     notice,
+    readError,
+    forgejoError,
+    operation,
+    saved,
+    retryForgejo,
     authURL,
     streamState,
     connected,
@@ -35,7 +40,29 @@ export function TailscalePage(props: TailscaleOptions) {
     <CockpitPageTemplate
       title="Tailscale"
       busy={busy}
-      feedback={notice && <DiagnosticAlert message={notice} />}
+      feedback={
+        <>
+          {notice && <DiagnosticAlert message={notice} />}
+          {readError && <DiagnosticAlert message={readError} />}
+          {forgejoError && (
+            <Alert
+              isInline
+              variant="warning"
+              title={`${connected ? "Tailscale connected, but " : ""}Forgejo could not refresh its Tailnet address: ${forgejoError}`}
+            >
+              <Button
+                variant="link"
+                isInline
+                isDisabled={busy || !connected}
+                isLoading={operation === "forgejo"}
+                onClick={() => void retryForgejo()}
+              >
+                Retry Forgejo address refresh
+              </Button>
+            </Alert>
+          )}
+        </>
+      }
     >
       <TailscaleConnection
         status={snapshot?.status}
@@ -48,6 +75,8 @@ export function TailscalePage(props: TailscaleOptions) {
       />
       <TailscaleDevices peers={peers} available={Boolean(snapshot)} loading={loading} />
       <ExitNodeForm
+        saving={operation === "exit"}
+        saved={saved === "exit"}
         exitNode={exitNode}
         allowLAN={allowLAN}
         busy={busy}
@@ -60,6 +89,8 @@ export function TailscalePage(props: TailscaleOptions) {
         onApply={applyExitNode}
       />
       <ExitNodeAdvertisement
+        saving={operation === "advertise"}
+        saved={saved === "advertise"}
         snapshot={snapshot}
         loading={loading}
         busy={busy}

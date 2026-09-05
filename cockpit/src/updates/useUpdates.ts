@@ -12,8 +12,13 @@ export function useUpdates(native: NativeUpdates) {
   const active = useRef(false);
   const mounted = useRef(true);
   const readHost = useCallback(async () => {
-    const current = await native.status();
-    if (mounted.current) setHost(current);
+    try {
+      const current = await native.status();
+      if (mounted.current) setHost(current);
+    } catch (failure) {
+      if (mounted.current) setHost(null);
+      throw failure;
+    }
   }, [native]);
 
   const run = useCallback(async (name: string, action: () => Promise<void>) => {
@@ -35,8 +40,6 @@ export function useUpdates(native: NativeUpdates) {
   const refresh = useCallback(
     () =>
       run("Reading deployment status", async () => {
-        // Never retain stale deployment data when reconnect/status fails.
-        setHost(null);
         await readHost();
       }),
     [run, readHost],
@@ -77,7 +80,6 @@ export function useUpdates(native: NativeUpdates) {
   const download = () =>
     run("Verifying and downloading the selected image", async () => {
       if (!release) return;
-      setHost(null);
       try {
         await native.download(release, onProgress);
       } catch (failure) {
@@ -88,7 +90,13 @@ export function useUpdates(native: NativeUpdates) {
         }
         throw failure;
       }
-      await readHost();
+      try {
+        await readHost();
+      } catch (failure) {
+        throw new Error(
+          `The image download completed, but current deployment status could not be read. Refresh status before applying the update. ${String(failure)}`,
+        );
+      }
     });
   const apply = () =>
     run("Verifying, enabling the update, and requesting restart", async () => {

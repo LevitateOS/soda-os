@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { test, expect, vi } from "vite-plus/test";
-import { render, screen, within, fireEvent, waitFor } from "@testing-library/react";
+import { act, render, screen, within, fireEvent, waitFor } from "@testing-library/react";
 import { RunnersPage } from "./RunnersPage";
 import type { Invoke, ListResponse } from "../runners/types";
 import { coordinator } from "../runners/native";
@@ -69,7 +69,8 @@ test("real adapter writes token only to stdin before React clears form and paylo
   const spawn = vi
     .fn()
     .mockReturnValueOnce(initial.process)
-    .mockReturnValueOnce(registrationCall.process);
+    .mockReturnValueOnce(registrationCall.process)
+    .mockReturnValueOnce(initial.process);
   render(<RunnersPage invoke={coordinator({ spawn })} />);
   await screen.findByText("1 local runner; 1 listening; 1 configured slot.");
   const dialog = registration();
@@ -99,11 +100,12 @@ test("synchronous registration failure and dialog cancellation clear secrets", a
   });
   fireEvent.click(dialog.getByRole("button", { name: "Register and start" }));
   expect((dialog.getByLabelText(/Provider registration token/) as HTMLInputElement).value).toBe("");
+  await waitFor(() => expect(dialog.getByText("spawn failed")).toBeTruthy());
   fireEvent.change(dialog.getByLabelText(/Provider registration token/), {
     target: { value: "second-secret" },
   });
   const input = dialog.getByLabelText(/Provider registration token/) as HTMLInputElement;
-  fireEvent.click(dialog.getByRole("button", { name: "Cancel" }));
+  fireEvent.click(dialog.getAllByRole("button", { name: "Close" }).at(-1)!);
   expect(input.value).toBe("");
   dialog = registration();
   fireEvent.click(dialog.getByLabelText("Bundled Forgejo"));
@@ -147,13 +149,132 @@ test("runner removal requires exact confirmation and preserves provider history 
   await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   expect(screen.getByRole("heading", { name: "No local runners" })).toBeTruthy();
 });
-test("load failure shows administrator guidance and recovers through refresh", async () => {
+test("load failure reports unavailable status without inferring permissions and recovers through refresh", async () => {
   const invoke = vi
     .fn<Invoke>()
     .mockRejectedValueOnce(new Error("access denied"))
     .mockResolvedValue(data);
   render(<RunnersPage invoke={invoke as Invoke} />);
-  await screen.findByText("Local runner capacity is available only to Soda OS administrators.");
+  await screen.findByText("Local runner status is unavailable. Refresh to try again.");
+  expect(screen.getByText(/access denied/)).toBeTruthy();
   fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
   await screen.findByText("1 local runner; 1 listening; 1 configured slot.");
+  expect(screen.queryByText(/access denied/)).toBeNull();
+});
+
+test("invalid inactive provider fields neither block registration nor enter FormData", async () => {
+  const invoke = await ready();
+  const dialog = registration();
+  fireEvent.change(dialog.getByLabelText(/GitHub registration URL/), {
+    target: { value: "not a URL" },
+  });
+  fireEvent.click(dialog.getByLabelText("Bundled Forgejo"));
+  fireEvent.change(dialog.getByLabelText(/Forgejo runner UUID/), {
+    target: { value: "12345678-1234-1234-1234-123456789abc" },
+  });
+  const url = dialog.getByLabelText(/GitHub registration URL/) as HTMLInputElement;
+  expect(url.disabled).toBe(true);
+  expect(new FormData(url.form!).has("registration_url")).toBe(false);
+  expect(url.form!.checkValidity()).toBe(true);
+  invoke.mockResolvedValueOnce({ ok: true });
+  fireEvent.click(dialog.getByRole("button", { name: "Register and start" }));
+  await waitFor(() =>
+    expect(invoke).toHaveBeenCalledWith(
+      "create",
+      expect.objectContaining({
+        provider: "forgejo",
+        registration_url: "",
+        labels: "soda-linux:host",
+      }),
+    ),
+  );
+});
+
+test("registration with a retained runner reconciles the list, closes creation, and keeps the failure", async () => {
+  const invoke = await ready();
+  const dialog = registration();
+  const token = dialog.getByLabelText(/Provider registration token/) as HTMLInputElement;
+  invoke.mockRejectedValueOnce(
+    new Error("Runner registered and retained, but listener did not start."),
+  );
+  invoke.mockResolvedValueOnce({
+    ...data,
+    runners: [
+      {
+        ...data.runners[0],
+        id: "new",
+        service: { load: "loaded", active: "inactive", sub: "dead", enabled: "disabled" },
+      },
+    ],
+  });
+  fireEvent.click(dialog.getByRole("button", { name: "Register and start" }));
+  await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  expect(token.value).toBe("");
+  expect(screen.getByText("new")).toBeTruthy();
+  expect(screen.getByRole("button", { name: "Start" })).toBeTruthy();
+  expect(screen.getAllByText(/registered and retained/)).toHaveLength(1);
+  fireEvent.click(screen.getByRole("button", { name: "Create local runner" }));
+  const next = within(screen.getByRole("dialog"));
+  expect(next.queryByText(/registered and retained/)).toBeNull();
+  fireEvent.click(next.getByRole("button", { name: "Cancel" }));
+  expect(screen.getByText(/registered and retained/)).toBeTruthy();
+});
+
+test("Stop names the in-flight operation and preserves successful mutation plus failed refresh", async () => {
+  const invoke = await ready();
+  let finish!: () => void;
+  invoke.mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        finish = () => resolve({ ok: true });
+      }),
+  );
+  invoke.mockRejectedValueOnce(new Error("listener status unavailable"));
+  fireEvent.click(screen.getByRole("button", { name: "Stop" }));
+  expect(screen.getByText("Stopping one…").getAttribute("role")).toBe("status");
+  expect((screen.getByRole("button", { name: "Stop" }) as HTMLButtonElement).disabled).toBe(true);
+  finish();
+  await screen.findByText("one was stopped.");
+  expect(
+    screen.getByText(/current runner list could not be refreshed.*listener status unavailable/),
+  ).toBeTruthy();
+  expect(screen.queryByText("Stopping one…")).toBeNull();
+});
+
+test("a failure arriving after leaving the page does not start another native read", async () => {
+  const invoke = vi.fn<Invoke>().mockResolvedValue(data);
+  const { unmount } = render(<RunnersPage invoke={invoke as Invoke} />);
+  await screen.findByText("1 local runner; 1 listening; 1 configured slot.");
+  let fail!: (error: Error) => void;
+  invoke.mockImplementationOnce(
+    () =>
+      new Promise((_, reject) => {
+        fail = reject;
+      }),
+  );
+  fireEvent.click(screen.getByRole("button", { name: "Stop" }));
+  unmount();
+  await act(async () => {
+    fail(new Error("connection closed"));
+  });
+  expect(invoke).toHaveBeenCalledTimes(2);
+});
+
+test("failed lifecycle changes still re-read native listener status", async () => {
+  const invoke = await ready();
+  invoke.mockRejectedValueOnce(new Error("Stop outcome unknown"));
+  invoke.mockResolvedValueOnce({
+    ...data,
+    active_listeners: 0,
+    runners: [
+      {
+        ...data.runners[0],
+        service: { load: "loaded", active: "inactive", sub: "dead", enabled: "disabled" },
+      },
+    ],
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Stop" }));
+  await screen.findByText("Stop outcome unknown");
+  expect(invoke).toHaveBeenLastCalledWith("list", {});
+  expect(screen.getByRole("button", { name: "Start" })).toBeTruthy();
 });

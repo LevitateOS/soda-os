@@ -33,9 +33,13 @@ export function useTailscale({
   onReopen = reload,
 }: TailscaleOptions) {
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
-  const [busy, setBusy] = useState(false),
-    [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(true);
   const [notice, setNotice] = useState("");
+  const [readError, setReadError] = useState("");
+  const [forgejoError, setForgejoError] = useState("");
+  const [operation, setOperation] = useState<"exit" | "advertise" | "signin" | "forgejo">();
+  const busy = operation !== undefined;
+  const [saved, setSaved] = useState<"exit" | "advertise">();
   const [authURL, setAuthURL] = useState<string | null>(null),
     [streamState, setStreamState] = useState<string | undefined>();
   const [exitNode, setExitNode] = useState(""),
@@ -59,6 +63,7 @@ export function useTailscale({
       const next = await native.read();
       if (closed.current) return;
       setSnapshot(next);
+      setReadError("");
       setStreamState(undefined);
       setAuthURL(
         authenticationURL(next.status.BackendState === "NeedsLogin" ? next.status.AuthURL : ""),
@@ -74,22 +79,20 @@ export function useTailscale({
         return;
       }
       const identity = `${next.status.Self?.DNSName || ""}/${(next.status.TailscaleIPs || []).join(",")}`;
-      if (identity === refreshedIdentity.current) return;
+      if (pending.current || identity === refreshedIdentity.current) return;
       refreshedIdentity.current = identity;
       try {
         await native.refreshForgejo();
+        if (!closed.current) setForgejoError("");
       } catch (error) {
-        if (!closed.current)
-          setNotice(
-            `Tailscale connected, but Forgejo could not refresh its Tailnet address: ${diagnostic(error)}`,
-          );
+        if (!closed.current) setForgejoError(diagnostic(error));
       }
     } catch (error) {
       if (!closed.current) {
         setSnapshot(null);
         setAuthURL(null);
         setStreamState(undefined);
-        setNotice(diagnostic(error));
+        setReadError(diagnostic(error));
       }
     } finally {
       reading.current = false;
@@ -124,17 +127,33 @@ export function useTailscale({
   async function mutate(operation: () => Promise<void>, form?: "exit" | "advertise") {
     if (pending.current || closed.current) return;
     pending.current = true;
-    setBusy(true);
+    setOperation(form ?? "signin");
     setNotice("");
+    setSaved(undefined);
     try {
       await operation();
       if (form) dirty.current.delete(form);
+      if (!closed.current) setSaved(form);
     } catch (error) {
       if (!closed.current) setNotice(diagnostic(error));
     } finally {
       pending.current = false;
-      if (!closed.current) setBusy(false);
+      if (!closed.current) setOperation(undefined);
       await load();
+    }
+  }
+  async function retryForgejo() {
+    if (pending.current || closed.current) return;
+    pending.current = true;
+    setOperation("forgejo");
+    try {
+      await native.refreshForgejo();
+      if (!closed.current) setForgejoError("");
+    } catch (error) {
+      if (!closed.current) setForgejoError(diagnostic(error));
+    } finally {
+      pending.current = false;
+      if (!closed.current) setOperation(undefined);
     }
   }
   const status = snapshot?.status,
@@ -150,14 +169,17 @@ export function useTailscale({
   );
 
   function changeExitNode(value: string) {
+    setSaved(undefined);
     dirty.current.add("exit");
     setExitNode(value);
   }
   function changeAllowLAN(value: boolean) {
+    setSaved(undefined);
     dirty.current.add("exit");
     setAllowLAN(value);
   }
   function changeAdvertise(value: boolean) {
+    setSaved(undefined);
     dirty.current.add("advertise");
     setAdvertise(value);
   }
@@ -175,6 +197,11 @@ export function useTailscale({
     busy,
     loading,
     notice,
+    readError,
+    forgejoError,
+    operation,
+    saved,
+    retryForgejo,
     authURL,
     streamState,
     connected,

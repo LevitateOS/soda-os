@@ -1,4 +1,4 @@
-import { Button, Toolbar, ToolbarContent, ToolbarItem } from "@patternfly/react-core";
+import { Button, Spinner, Toolbar, ToolbarContent, ToolbarItem } from "@patternfly/react-core";
 import { CockpitPageTemplate } from "../templates/CockpitPageTemplate";
 import { DiagnosticAlert } from "../molecules/DiagnosticAlert";
 import { RunnerCapacity } from "../organisms/runners/RunnerCapacity";
@@ -20,6 +20,9 @@ export function RunnersPage({
     busy,
     loading,
     notice,
+    readError,
+    formError,
+    operation,
     dialog,
     refresh,
     create,
@@ -29,7 +32,10 @@ export function RunnersPage({
     openCreate,
     openRemove,
   } = useRunners(invoke);
-  const error = notice?.kind === "danger" ? notice.message : "";
+  const refreshError = readError
+    ? `The current runner list could not be refreshed. ${readError}`
+    : "";
+  const error = [formError, refreshError].filter(Boolean).join("\n\n");
   return (
     <CockpitPageTemplate
       title="Runners"
@@ -51,7 +57,19 @@ export function RunnersPage({
           </ToolbarContent>
         </Toolbar>
       }
-      feedback={notice && <DiagnosticAlert message={notice.message} variant={notice.kind} />}
+      feedback={
+        !dialog && (
+          <>
+            {operation && (
+              <div role="status">
+                <Spinner size="sm" aria-hidden /> {operation}
+              </div>
+            )}
+            {notice && <DiagnosticAlert message={notice.message} variant={notice.kind} />}
+            {readError && <DiagnosticAlert message={refreshError} />}
+          </>
+        )
+      }
       dialogs={
         <>
           {dialog?.kind === "create" && (

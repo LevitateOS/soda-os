@@ -22,7 +22,7 @@ export function InstalledImageSection({ image }: { image: Image | null | undefin
             </details>
           </>
         ) : (
-          <p>Enable Cockpit administrative access and refresh to read native bootc status.</p>
+          <p>Installed image unavailable. Refresh status to try again.</p>
         )}
       </CardBody>
     </Card>

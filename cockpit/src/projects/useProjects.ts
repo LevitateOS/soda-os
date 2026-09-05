@@ -10,17 +10,22 @@ export function useProjects(invoke: Invoke) {
   const [notice, setNotice] = useState<Notice | null>(null);
   const [dialog, setDialog] = useState<Dialog | null>(null);
   const [formError, setFormError] = useState("");
+  const [readError, setReadError] = useState("");
   const pending = useRef(false);
   const active = useRef(true);
   const load = useCallback(async () => {
+    if (!active.current) return;
     setLoading(true);
     try {
       const result = await invoke("list", {});
-      if (active.current) setData(result);
+      if (active.current) {
+        setData(result);
+        setReadError("");
+      }
     } catch (error) {
       if (active.current) {
         setData(null);
-        setNotice({ message: errorMessage(error), kind: "danger" });
+        setReadError(errorMessage(error));
       }
     } finally {
       if (active.current) setLoading(false);
@@ -53,12 +58,18 @@ export function useProjects(invoke: Invoke) {
     event.preventDefault();
     if (!dialog || pending.current || !event.currentTarget.reportValidity()) return;
     const { action } = dialog;
-    const payload = payloadFor(action, new FormData(event.currentTarget), (message) =>
-      setNotice({ message, kind: "danger" }),
-    );
+    const form = event.currentTarget;
+    setFormError("");
+    const payload = payloadFor(action, new FormData(form), (message) => {
+      setFormError(message);
+      const field =
+        action === "add-existing" || action === "edit" ? "additional_metadata" : "confirmation";
+      (form.elements.namedItem(field) as HTMLElement | null)?.focus();
+    });
     if (!payload) return;
     pending.current = true;
     setBusy(true);
+    setNotice(null);
     try {
       const result = await invoke(action, payload);
       if (!active.current) return;
@@ -68,7 +79,7 @@ export function useProjects(invoke: Invoke) {
       if (active.current) setNotice({ message, kind: "success" });
     } catch (error) {
       const message = errorMessage(error);
-      if (action === "setup") await load();
+      await load();
       if (active.current) {
         setFormError(message);
         setNotice({ message, kind: "danger" });
@@ -81,5 +92,17 @@ export function useProjects(invoke: Invoke) {
   function close() {
     if (!pending.current) setDialog(null);
   }
-  return { data, busy, loading, notice, dialog, formError, refresh, open, close, submit };
+  return {
+    data,
+    busy,
+    loading,
+    notice,
+    readError,
+    dialog,
+    formError,
+    refresh,
+    open,
+    close,
+    submit,
+  };
 }

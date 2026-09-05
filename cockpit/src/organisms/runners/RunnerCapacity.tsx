@@ -39,7 +39,7 @@ export function RunnerCapacity({
             ? "Loading local runner capacity…"
             : data
               ? `${data.runner_count} local ${data.runner_count === 1 ? "runner" : "runners"}; ${data.active_listeners} listening; ${data.total_capacity} configured ${data.total_capacity === 1 ? "slot" : "slots"}.`
-              : "Local runner capacity is available only to Soda OS administrators."}
+              : "Local runner status is unavailable. Refresh to try again."}
         </p>
         {loading && <Spinner aria-label="Loading local runner capacity" size="lg" />}
         {data && data.runners.length === 0 && (

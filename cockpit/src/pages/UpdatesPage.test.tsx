@@ -191,6 +191,8 @@ test("native output stays bounded and wraps while a download is busy", async () 
   const log = await screen.findByText(/last native line/);
   expect(log.textContent).toBe(output.slice(-16384));
   expect(log.className).toBe("soda-diagnostic");
+  expect(screen.getByText("Soda OS 0.6.3")).toBeTruthy();
+  expect(screen.queryByText(/Enable Cockpit administrative access/)).toBeNull();
   expect(
     screen
       .getByText("Native operation output (most recent 16 KiB)")
@@ -227,4 +229,35 @@ test("image identities and detailed failures use shared wrapping styles", async 
   const detail = within(alert).getByText(/verification failed/);
   expect(detail.textContent).toBe(`Error: ${diagnostic}`);
   expect(detail.className).toBe("soda-diagnostic");
+});
+
+test("a failed status read clears previous deployment facts without diagnosing permissions", async () => {
+  const native = setup(host("0.6.3", true));
+  await ready();
+  native.status.mockRejectedValueOnce(new Error("bootc status unavailable"));
+  fireEvent.click(screen.getByRole("button", { name: "Refresh status" }));
+  await screen.findByText(/bootc status unavailable/);
+  expect(screen.queryByText("Soda OS 0.6.3")).toBeNull();
+  expect(screen.queryByRole("button", { name: "Apply and restart…" })).toBeNull();
+  expect(
+    screen.getByText("Installed image unavailable. Refresh status to try again."),
+  ).toBeTruthy();
+  expect(screen.queryByText(/Enable Cockpit administrative access/)).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "Refresh status" }));
+  await screen.findByText("Soda OS 0.6.3");
+  expect(screen.queryByText(/bootc status unavailable/)).toBeNull();
+});
+
+test("completed download is distinguished from failed deployment readback", async () => {
+  const native = setup();
+  await ready();
+  fireEvent.click(screen.getByRole("button", { name: "Check for updates" }));
+  await screen.findByRole("button", { name: "Download update" });
+  native.status.mockRejectedValueOnce(new Error("readback unavailable"));
+  fireEvent.click(screen.getByRole("button", { name: "Download update" }));
+  await screen.findByText(
+    /image download completed, but current deployment status could not be read/,
+  );
+  expect(screen.queryByRole("button", { name: "Apply and restart…" })).toBeNull();
+  expect(native.apply).not.toHaveBeenCalled();
 });

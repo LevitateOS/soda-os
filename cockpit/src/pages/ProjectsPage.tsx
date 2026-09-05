@@ -18,9 +18,26 @@ export function ProjectsPage({
   invoke: Invoke;
   hostname?: string;
 }) {
-  const { data, busy, loading, notice, dialog, formError, refresh, open, close, submit } =
-    useProjects(invoke);
-  const dialogProps = { busy, error: formError, onClose: close, onSubmit: submit };
+  const {
+    data,
+    busy,
+    loading,
+    notice,
+    readError,
+    dialog,
+    formError,
+    refresh,
+    open,
+    close,
+    submit,
+  } = useProjects(invoke);
+  const refreshError = readError ? `The current catalog could not be refreshed. ${readError}` : "";
+  const dialogProps = {
+    busy,
+    error: [formError, refreshError].filter(Boolean).join("\n\n"),
+    onClose: close,
+    onSubmit: submit,
+  };
   let dialogView: ReactNode;
   if (dialog) {
     const key = dialog.action + (dialog.project?.id ?? "");
@@ -76,7 +93,14 @@ export function ProjectsPage({
           </ToolbarContent>
         </Toolbar>
       }
-      feedback={notice && <DiagnosticAlert message={notice.message} variant={notice.kind} />}
+      feedback={
+        !dialog && (
+          <>
+            {notice && <DiagnosticAlert message={notice.message} variant={notice.kind} />}
+            {readError && <DiagnosticAlert message={refreshError} />}
+          </>
+        )
+      }
       dialogs={dialogView}
     >
       <ProjectCatalog

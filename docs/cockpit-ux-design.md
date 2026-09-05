@@ -4,8 +4,9 @@
 
 Quiet by default, helpful when needed. A person should recognize the current
 state and next useful action without reading an operating-system manual.
-This implements the first, review-gated milestone of the UX overhaul, not a new
-product workflow or permission model.
+The Projects prototype completed the first, review-gated milestone of the UX
+overhaul. Its design is approved for implementation; it does not establish a
+new product workflow or permission model.
 
 | Level | Content |
 | --- | --- |
@@ -121,16 +122,37 @@ execution. Repository preservation and separate Forgejo account deletion remain
 unchanged. A page close cannot undo completed native mutations. Prototype
 transitions are deliberate fixtures, not implementations of these guarantees.
 
+## Integration status
+
+The prototype is approved. The first source integration milestone fixes the
+interaction foundations across the existing pages:
+
+- Projects validation is inside its dialog and focuses the invalid field.
+- Project and runner mutation outcomes are separate from list-read failures;
+  failed mutations re-read native facts, and recovered reads retire only read
+  errors. A retained runner leaves the creation dialog when the native list
+  confirms it, without erasing the failure or retaining the registration token.
+- Inactive provider fields are disabled, and runner lifecycle actions identify
+  the operation in progress. Closing a removal error is not called cancellation.
+- Tailscale read errors recover independently of mutation and Forgejo refresh
+  failures. Forgejo repair has an explicit retry, not automatic polling retries.
+  Routing forms show scoped saving/saved feedback without claiming approval.
+- Updates keeps the installed image visible during downloads, invalidates facts
+  after failed status reads, and distinguishes download completion from failed
+  readback. Missing data does not diagnose administrative permissions.
+
+These changes preserve native authorization, Git ownership, exact destructive
+confirmation, credential clearing, and explicit update activation. They do not
+yet integrate the approved Projects composition or supply native clone-readiness
+facts. Keep the review prototype separate until that integration replaces it.
+
 ## Remaining implementation milestones
 
-1. Review and approve this Projects interaction design.
-2. Fix invisible validation, hidden runner fields, stale/overwritten feedback,
-   misleading access states, and unexplained busy actions, with regression tests.
-3. Implement approved Projects setup, connection, removal, and Accounts handoffs.
-4. Apply the design to Runners, Tailscale, and Updates, one focused milestone at
+1. Implement approved Projects setup, connection, removal, and Accounts handoffs.
+2. Apply the design to Runners, Tailscale, and Updates, one focused milestone at
    a time. Keep routing optional, provider jobs provider-owned, and download
    separate from confirmed restart.
-5. Align documentation and complete keyboard, theme, responsive, error/recovery,
+3. Align documentation and complete keyboard, theme, responsive, error/recovery,
    native integration, and representative-user validation.
 
 Inspect full diffs and commit completed verified milestones. Run focused tests

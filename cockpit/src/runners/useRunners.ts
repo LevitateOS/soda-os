@@ -10,18 +10,25 @@ export function useRunners(invoke: Invoke) {
     null,
   );
   const [dialog, setDialog] = useState<Dialog | null>(null);
+  const [readError, setReadError] = useState("");
+  const [formError, setFormError] = useState("");
+  const [operation, setOperation] = useState("");
   const pending = useRef(false),
     active = useRef(true);
   const load = useCallback(async () => {
+    if (!active.current) return null;
     setLoading(true);
     try {
       const result = await invoke("list", {});
-      if (active.current) setData(result);
+      if (active.current) {
+        setData(result);
+        setReadError("");
+      }
       return result;
     } catch (error) {
       if (active.current) {
         setData(null);
-        setNotice({ message: errorMessage(error), kind: "danger" });
+        setReadError(errorMessage(error));
       }
       return null;
     } finally {
@@ -55,21 +62,28 @@ export function useRunners(invoke: Invoke) {
     const id = payload.id;
     pending.current = true;
     setBusy(true);
+    setNotice(null);
+    setFormError("");
     try {
-      let operation;
+      let registration;
       try {
-        operation = invoke("create", payload);
+        registration = invoke("create", payload);
       } finally {
         token.value = "";
         payload.registration_token = "";
       }
-      await operation;
+      await registration;
       if (!active.current) return;
       setDialog(null);
       await load();
       if (active.current) setNotice({ message: successMessage("create", id), kind: "success" });
     } catch (error) {
-      if (active.current) setNotice({ message: errorMessage(error), kind: "danger" });
+      const updated = await load();
+      if (active.current) {
+        if (updated?.runners.some((runner) => runner.id === id)) setDialog(null);
+        setFormError(errorMessage(error));
+        setNotice({ message: errorMessage(error), kind: "danger" });
+      }
     } finally {
       pending.current = false;
       if (active.current) setBusy(false);
@@ -79,29 +93,38 @@ export function useRunners(invoke: Invoke) {
     if (pending.current) return;
     pending.current = true;
     setBusy(true);
+    setNotice(null);
+    setFormError("");
+    setOperation(
+      `${{ start: "Starting", stop: "Stopping", restart: "Restarting", remove: "Removing" }[action]} ${id}…`,
+    );
     try {
       await invoke(action, { id });
       if (!active.current) return;
-      const updated = await load();
+      if (action === "remove") setDialog(null);
+      await load();
       if (!active.current) return;
-      if (action === "remove" && updated?.runners.every((runner) => runner.id !== id))
-        setDialog(null);
       setNotice({ message: successMessage(action, id), kind: "success" });
     } catch (error) {
-      if (active.current) setNotice({ message: errorMessage(error), kind: "danger" });
+      await load();
+      if (active.current) {
+        setFormError(errorMessage(error));
+        setNotice({ message: errorMessage(error), kind: "danger" });
+      }
     } finally {
       pending.current = false;
-      if (active.current) setBusy(false);
+      if (active.current) {
+        setBusy(false);
+        setOperation("");
+      }
     }
   }
   function remove(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (pending.current || dialog?.kind !== "remove") return;
     if (new FormData(event.currentTarget).get("confirmation") !== dialog.id) {
-      setNotice({
-        message: `Type ${dialog.id} exactly to confirm local runner removal.`,
-        kind: "danger",
-      });
+      setFormError(`Type ${dialog.id} exactly to confirm local runner removal.`);
+      (event.currentTarget.elements.namedItem("confirmation") as HTMLElement | null)?.focus();
       return;
     }
     void mutate("remove", dialog.id);
@@ -110,16 +133,25 @@ export function useRunners(invoke: Invoke) {
     if (!pending.current) setDialog(null);
   };
   function openCreate() {
-    if (!pending.current) setDialog({ kind: "create" });
+    if (!pending.current) {
+      setFormError("");
+      setDialog({ kind: "create" });
+    }
   }
   function openRemove(id: string) {
-    if (!pending.current) setDialog({ kind: "remove", id });
+    if (!pending.current) {
+      setFormError("");
+      setDialog({ kind: "remove", id });
+    }
   }
   return {
     data,
     busy,
     loading,
     notice,
+    readError,
+    formError,
+    operation,
     dialog,
     refresh,
     create,
