@@ -1,0 +1,3 @@
+/* Use Forgejo's native theme selection; automatic mode follows the browser. */
+@import "theme-soda-light.css";
+@import "theme-soda-dark.css" (prefers-color-scheme: dark);

@@ -1,0 +1,118 @@
+/* Soda website palette: b9e37c7, src/app/styles/{tokens,theme}.css.
+ * Extend Forgejo 15's native theme; keep its diff, syntax and status palettes. */
+@import "theme-forgejo-light.css";
+@import "soda-controls.css";
+
+:root {
+  --color-primary: #155eef;
+  --color-primary-contrast: #ffffff;
+  --color-primary-dark-1: #155eef;
+  --color-primary-dark-2: #0e56db;
+  --color-primary-dark-3: #0b46b3;
+  --color-primary-dark-4: #0b46b3;
+  --color-primary-dark-5: #123b91;
+  --color-primary-dark-6: #102f70;
+  --color-primary-dark-7: #06245b;
+  --color-primary-light-1: #2472fc;
+  --color-primary-light-2: #3880fd;
+  --color-primary-light-3: #60a5fa;
+  --color-primary-light-4: #93c5fd;
+  --color-primary-light-5: #bfdbfe;
+  --color-primary-light-6: #dbeafe;
+  --color-primary-light-7: #e8efff;
+  --color-primary-alpha-10: #155eef19;
+  --color-primary-alpha-20: #155eef33;
+  --color-primary-alpha-30: #155eef4b;
+  --color-primary-alpha-40: #155eef66;
+  --color-primary-alpha-50: #155eef80;
+  --color-primary-alpha-60: #155eef99;
+  --color-primary-alpha-70: #155eefb3;
+  --color-primary-alpha-80: #155eefcc;
+  --color-primary-alpha-90: #155eefe1;
+  --color-primary-hover: #0e56db;
+  --color-primary-active: #0b46b3;
+  --soda-button-bg: #155eef;
+  --soda-button-hover: #0e56db;
+  --soda-button-active: #0b46b3;
+  --soda-focus: #155eef;
+
+  /* Warm neutral ramp feeds native borders, menus and secondary controls. */
+  --zinc-50: #fffdf8;
+  --zinc-100: #f6f3ee;
+  --zinc-150: #efebe5;
+  --zinc-200: #e7e2da;
+  --zinc-250: #dcd5cc;
+  --zinc-300: #cfc6bb;
+  --zinc-350: #b5aaa0;
+  --zinc-400: #9f948a;
+  --zinc-450: #8f857d;
+  --zinc-500: #756b63;
+  --zinc-550: #655c55;
+  --zinc-600: #57524e;
+  --zinc-650: #4b4540;
+  --zinc-700: #403b36;
+  --zinc-750: #36312c;
+  --zinc-800: #2c2723;
+  --zinc-850: #241f1b;
+  --zinc-900: #1c1917;
+  --color-secondary-alpha-10: #e7e2da19;
+  --color-secondary-alpha-20: #e7e2da33;
+  --color-secondary-alpha-30: #e7e2da4b;
+  --color-secondary-alpha-40: #e7e2da66;
+  --color-secondary-alpha-50: #e7e2da80;
+  --color-secondary-alpha-60: #e7e2da99;
+  --color-secondary-alpha-70: #e7e2dab3;
+  --color-secondary-alpha-80: #e7e2dacc;
+  --color-secondary-alpha-90: #e7e2dae1;
+
+  --color-body: #fffdf8;
+  --color-box-body: #ffffff;
+  --color-box-header: #f6f3ee;
+  --color-text-dark: #1c1917;
+  --color-text: #1c1917;
+  --color-text-light: #57524e;
+  --color-text-light-1: #57524e;
+  --color-text-light-2: #57524e;
+  --color-text-light-3: #655c55;
+  --color-input-text: #1c1917;
+  --color-input-background: #ffffff;
+  --color-input-toggle-background: #ffffff;
+  --color-input-border: #8f857d;
+  --color-input-border-hover: #57524e;
+  --color-nav-bg: #fff7e8;
+  --color-nav-hover-bg: #e8efff;
+  --color-header-wrapper: #f6f3ee;
+  --color-header-wrapper-transparent: #f6f3ee00;
+  --color-hover: #efebe5;
+  --color-active: #e8efff;
+  --color-menu: #ffffff;
+  --color-card: #ffffff;
+  --color-code-bg: #ffffff;
+  --color-markup-code-block: #f6f3ee;
+  --color-markup-code-inline: #efebe5;
+  --color-button: #f6f3ee;
+  --color-footer: #f6f3ee;
+  --color-light-border: #8f857d;
+  --color-label-bg: #e7e2da;
+  --color-label-hover-bg: #dcd5cc;
+  --color-label-active-bg: #cfc6bb;
+  --color-label-bg-alt: #e7e2da;
+  --color-selection-bg: #155eef;
+  --color-selection-fg: #ffffff;
+  --color-accent: #155eef;
+  --color-highlight-fg: #1c1917;
+  --color-highlight-bg: #e8efff;
+
+  /* Website mint, attention and information roles, not Git diff colors. */
+  --color-success-bg: #dff4ea;
+  --color-success-border: #087c65;
+  --color-success-text: #066e59;
+  --color-warning-bg: #fff0df;
+  --color-warning-border: #a54808;
+  --color-warning-text: #923e07;
+  --color-info-bg: #e8efff;
+  --color-info-border: #155eef;
+  --color-info-text: #0b46b3;
+  --is-dark-theme: false;
+  color-scheme: light;
+}

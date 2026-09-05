@@ -1,0 +1,20 @@
+/* Filled controls need a different blue from links on dark surfaces.
+ * Bind the native variables locally; do not replace Forgejo's button behavior. */
+.ui.primary.button,
+.ui.primary.buttons .button,
+.button.primary {
+  --color-primary: var(--soda-button-bg);
+  --color-primary-hover: var(--soda-button-hover);
+  --color-primary-active: var(--soda-button-active);
+  --color-primary-contrast: #ffffff;
+}
+
+.button.primary:active {
+  background: var(--color-primary-active);
+}
+
+/* Fomantic's type-specific input selectors otherwise suppress the outline. */
+:root :focus-visible {
+  outline: 2px solid var(--soda-focus) !important;
+  outline-offset: 2px;
+}

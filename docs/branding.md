@@ -142,6 +142,58 @@ acceptance. These assets are architecture-independent. See
 browser commands and the distinction between simulated and installed evidence.
 Documentation/help links remain deferred until a published destination is chosen.
 
+## Forgejo themes
+
+The Soda themes in `packaging/rpm/forgejo/sources/custom/public/assets/css`
+extend Forgejo 15's native styles. The palette reference is
+[`soda-os-website` at `b9e37c7`](https://github.com/LevitateOS/soda-os-website/tree/b9e37c7e4bccb450c75574bd57a7c981e2f098f3),
+particularly `src/app/styles/tokens.css` and `theme.css`. There is no runtime or
+build-time dependency on the website repository, Tailwind, or an external CDN.
+
+Light mode uses the website's warm `#fffdf8` canvas, white surfaces, `#f6f3ee`
+panels, `#1c1917` ink, and `#155eef` primary blue. Dark mode uses `#0c1017`,
+`#141a24`, and `#1b2332` surfaces with `#f0f4f8` ink. Neutral ramps fill the
+intermediate roles required by native Forgejo controls. Mint, amber, and blue
+map to success, warning, and information messages. Git diffs, error colors,
+syntax highlighting, and Actions ANSI colors retain their native meanings and
+palettes. The logo's cyan is not used for small text on white.
+
+For contrast, dark links use the website's brighter `#60a5fa` blue, while filled
+primary buttons use `#2563eb` with white text and darker hover/active states.
+`soda-controls.css` binds native button variables locally and provides visible
+keyboard focus, including Fomantic fields that otherwise suppress outlines.
+It does not introduce new control behavior, fonts, animations, or layouts.
+`theme-soda-auto.css` follows the browser's color-scheme preference through
+conditional CSS imports; explicit light/dark choices ignore that preference.
+Stock and accessibility themes do not load these overrides.
+
+### Theme review
+
+`assets/branding/forgejo/theme-preview.html` is a review-only component sheet
+using **actual native Forgejo CSS and the same Soda stylesheets that ship**.
+Unlike the standalone artwork preview, it must be served from a disposable
+matching-native Forgejo instance: copy it to
+`$FORGEJO_CUSTOM/public/assets/soda-theme-preview.html` after staging the Soda
+custom assets. It is deliberately excluded from the RPM. Open
+`/assets/soda-theme-preview.html` to compare light, dark, automatic, and stock
+modes without changing any user's saved preference.
+
+With the repository's pinned Playwright/browser available, run:
+
+```sh
+node scripts/check-forgejo-branding.mjs \
+  http://127.0.0.1:PORT/assets/soda-theme-preview.html \
+  .artifacts/branding/themes
+```
+
+This read-only check exercises native primary button families and their
+normal/hover/active contrast, disabled controls, keyboard focus, preservation
+of native diff/error/ANSI colors, automatic preference changes without reload,
+explicit themes under the opposite OS preference, narrow screens, and 2x
+screenshots. Source tests additionally check text and field/focus contrast.
+Neither the component sheet nor these source checks establish installed-system
+acceptance or complete WCAG conformance.
+
 ## Regenerating all derivatives
 
 Run the following from the repository root after changing an SVG:

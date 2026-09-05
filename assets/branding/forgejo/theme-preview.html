@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Soda OS — Forgejo theme review</title>
+  <!-- Review-only: serve as /assets/soda-theme-preview.html in a disposable
+       Forgejo instance, alongside the packaged themes. Not an RPM payload. -->
+  <link rel="stylesheet" href="css/index.css">
+  <link id="theme" rel="stylesheet" href="css/theme-soda-auto.css">
+  <script>
+    const requested = new URLSearchParams(location.search).get('theme');
+    const theme = ['soda-light', 'soda-dark', 'soda-auto', 'forgejo-light', 'forgejo-dark'].includes(requested) ? requested : 'soda-auto';
+    document.documentElement.dataset.theme = theme;
+    document.getElementById('theme').href = `css/theme-${theme}.css`;
+  </script>
+  <style>
+    main { width: 100%; max-width: 1000px; min-width: 0; margin: auto; padding: 24px; }
+    section { margin: 24px 0; }
+    .review-links, .review-buttons { display: flex; flex-wrap: wrap; gap: 16px; margin: 16px 0; }
+    .review-card { padding: 24px; background: var(--color-card); border: 1px solid var(--color-secondary); border-radius: var(--border-radius); }
+    .review-nav { padding: 16px; background: var(--color-nav-bg); }
+    .review-hero { text-align: center; }
+    .review-hero img { max-width: 100%; height: auto; }
+    .review-diff { display: block; padding: 8px; }
+    .added { background: var(--color-diff-added-row-bg); }
+    .removed { background: var(--color-diff-removed-row-bg); }
+    .review-console { overflow-x: auto; background: var(--color-console-bg); color: var(--color-console-fg); padding: 16px; }
+    .review-muted { color: var(--color-text-light); }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Soda OS · theme review</h1>
+    <p>Native Forgejo CSS and the shipped Soda theme files. This component sheet is not a repository or a working product page.</p>
+    <nav class="review-links" aria-label="Preview theme">
+      <a href="?theme=soda-light">Soda light</a><a href="?theme=soda-dark">Soda dark</a><a href="?theme=soda-auto">Soda automatic</a>
+      <a href="?theme=forgejo-light">Stock light</a><a href="?theme=forgejo-dark">Stock dark</a>
+    </nav>
+    <div class="review-nav"><img src="img/logo.svg" width="30" height="30" alt="Soda OS"> <strong>Soda OS</strong></div>
+    <section class="review-card review-hero">
+      <img src="img/logo.svg" width="220" height="220" alt="Soda OS terminal and bubbles symbol">
+      <h2>Soda OS</h2><p>Your team’s repositories and collaboration.</p>
+    </section>
+    <section class="review-card">
+      <h2>Repository controls</h2>
+      <p>Regular text and <a href="#form">a primary link</a>.</p>
+      <p class="review-muted">Muted metadata · updated just now · main branch</p>
+      <div class="review-buttons">
+        <button id="primary" class="ui primary button">Create repository</button>
+        <button class="button primary">New-style primary</button>
+        <div class="ui primary buttons"><button class="button">Grouped primary</button></div>
+        <button class="button secondary">Cancel</button>
+        <button class="button danger">Remove</button>
+        <button class="ui primary disabled button" disabled>Disabled</button>
+      </div>
+      <form id="form" class="ui form" onsubmit="return false">
+        <div class="field"><label for="repository">Repository name</label><input id="repository" placeholder="my-project"></div>
+        <div class="field"><label for="description">Description</label><textarea id="description" rows="2">A native Git repository.</textarea></div>
+        <label><input type="checkbox" checked> Private repository</label>
+      </form>
+    </section>
+    <section aria-label="Messages">
+      <div class="ui success message">Success: your changes were saved.</div>
+      <div class="ui warning message">Warning: review changes before continuing.</div>
+      <div class="ui info message">Information: authenticate each workspace separately.</div>
+      <div class="ui error message">Error: a required field is missing.</div>
+    </section>
+    <section class="review-card">
+      <h2>Git and code colors remain semantic</h2>
+      <pre><code class="review-diff removed">- old value</code><code class="review-diff added">+ new value</code></pre>
+      <pre class="review-console">Actions console: native ANSI palette, not brand colors.</pre>
+      <table class="ui table"><thead><tr><th>File</th><th>State</th></tr></thead><tbody><tr><td>README.md</td><td>Updated</td></tr></tbody></table>
+    </section>
+    <p>Use Tab to inspect focus rings and select text to inspect selection colors. Automatic mode follows the browser’s light/dark preference.</p>
+  </main>
+</body>
+</html>
