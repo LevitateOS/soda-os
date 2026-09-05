@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 import { test, expect, vi } from "vite-plus/test";
 import { render, screen, within, fireEvent, waitFor } from "@testing-library/react";
-import { Runners } from "./App";
-import type { Invoke, ListResponse } from "./types";
-import { coordinator } from "./native";
+import { RunnersPage } from "./RunnersPage";
+import type { Invoke, ListResponse } from "../runners/types";
+import { coordinator } from "../runners/native";
 import { pendingProcess } from "../../tests/process";
 const data: ListResponse = {
   runner_count: 1,
@@ -24,7 +24,7 @@ const data: ListResponse = {
 };
 async function ready() {
   const invoke = vi.fn<Invoke>().mockResolvedValue(data);
-  render(<Runners invoke={invoke as Invoke} hostname="soda.lan" />);
+  render(<RunnersPage invoke={invoke as Invoke} hostname="soda.lan" />);
   await screen.findByText("1 local runner; 1 listening; 1 configured slot.");
   return invoke;
 }
@@ -70,7 +70,7 @@ test("real adapter writes token only to stdin before React clears form and paylo
     .fn()
     .mockReturnValueOnce(initial.process)
     .mockReturnValueOnce(registrationCall.process);
-  render(<Runners invoke={coordinator({ spawn })} />);
+  render(<RunnersPage invoke={coordinator({ spawn })} />);
   await screen.findByText("1 local runner; 1 listening; 1 configured slot.");
   const dialog = registration();
   fireEvent.click(dialog.getByRole("button", { name: "Register and start" }));
@@ -152,7 +152,7 @@ test("load failure shows administrator guidance and recovers through refresh", a
     .fn<Invoke>()
     .mockRejectedValueOnce(new Error("access denied"))
     .mockResolvedValue(data);
-  render(<Runners invoke={invoke as Invoke} />);
+  render(<RunnersPage invoke={invoke as Invoke} />);
   await screen.findByText("Local runner capacity is available only to Soda OS administrators.");
   fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
   await screen.findByText("1 local runner; 1 listening; 1 configured slot.");
