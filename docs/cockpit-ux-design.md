@@ -1,220 +1,170 @@
-# Cockpit UX design checkpoint
+# Cockpit UX design and integration
 
 ## Direction
 
 Quiet by default, helpful when needed. A person should recognize the current
 state and next useful action without reading an operating-system manual.
-The Projects prototype completed the first, review-gated milestone of the UX
-overhaul. Its design is approved for implementation; it does not establish a
-new product workflow or permission model.
+The approved Projects prototype is now integrated and retired. Production tests
+exercise the accepted journeys; no parallel preview implementation remains.
 
 | Level | Content |
 | --- | --- |
 | At a glance | Item name, accurate status, next useful action |
-| Active task | Only the current inputs, prerequisites, progress, or recovery |
+| Active task | Current inputs, prerequisites, progress, or recovery |
 | On request | Optional settings, background explanation, technical diagnostics |
 
-Use the installed PatternFly components and stock Cockpit navigation. Establish
-one primary call to action in a view; row actions use less prominent styling.
-Keep ordinary management actions in a labelled Actions menu. Essential
-prerequisites, destructive consequences, and unresolved partial results must
-not be hidden in optional details. A quiet screen must not be an ambiguous one.
+Use PatternFly and stock Cockpit navigation. Establish one primary action;
+keep management actions in a labelled Actions menu. Essential prerequisites,
+destructive consequences, and unresolved partial results must not be hidden in
+optional details. A quiet screen must not be an ambiguous one.
 
-Use short forms unless a genuinely complex ordered task requires a wizard.
-Show field errors at the field, inside the active dialog, with focus and
-accessible associations. Keep operational feedback with the affected task.
-Do not duplicate the same error in a modal and behind it. Routine success does
-not need another modal or a permanent banner. Use descriptive disclosure labels
-rather than hiding everything under an unexplained information icon.
+Use short forms, field-associated errors inside the active dialog, and useful
+keyboard focus. Keep feedback with its task rather than duplicating it behind
+a modal. Routine success does not need another modal or permanent banner.
+Working states name the operation without inventing percentages, duration,
+cancellation, or background-continuation guarantees.
 
-Working states name the operation without inventing a percentage, stage,
-duration, cancellation promise, or guarantee of background continuation.
 A successful mutation and a failed follow-up read are different facts. Retire
 obsolete read errors after recovery, but preserve unresolved partial outcomes.
-Never infer permissions, readiness, absence, or failure from unavailable data.
+Unavailable data establishes neither readiness nor absence.
 
-## Interactive Projects prototype
+## Integrated Projects journeys
 
-From the repository root:
-
-```sh
-vp -C cockpit dev --host 127.0.0.1 --port 5173 --strictPort
-```
-
-Open <http://127.0.0.1:5173/prototypes/projects/>. This is a local development
-preview, not an installed Cockpit package. The top **Design preview** controls
-are for reviewers and are not proposed product UI. Choose a scenario or follow
-the interactions. The simulated operation takes a short fixed delay solely to
-make the working design visible; this is not a proposed runtime estimate.
-
-All accounts, keys, repositories, destinations, and outcomes are examples.
-The preview never invokes Cockpit or native operations, registers keys, or
-navigates to a real provider. Destination buttons report where the real action
-would take the user. Reloading discards the preview's local state.
-
-The prototype lives in `cockpit/prototypes/projects`. Production entrypoints
-must not import it, and it must not be included in the four installed bundles.
-It reuses the existing React/PatternFly toolchain; it adds no server/backend,
-dependency, persistent state, or application framework. Its field checks are
-illustrations of validation placement, not authoritative Git URL validation.
-Remove this preview when its accepted design is integrated; do not maintain a
-second implementation or import prototype state into the product.
-
-### Review journeys
-
-| Scenario | What to inspect |
+| Journey | Production behavior |
 | --- | --- |
-| Empty catalog | One next action; no useless table or filters |
-| Not set up | Compact list; setup visible; management secondary |
-| Add/edit repository | Short form; optional metadata; immutable identity consequences visible |
-| Working | Clear task label, no duplicate submission, no invented completion |
-| Personal key needed | Primary-account destination; no confusion with the Git key |
-| Git access needed | Retained workspace acknowledged; copyable example key and provider handoff |
-| Account exists, clone unconfirmed | Not labelled ready; verify setup before connecting |
-| Ready | Connection command and checkout directory on request |
-| Unknown outcome | Verify before retrying; no false success or failure |
-| Removal | Exact confirmation, affected people/files, preservation and no undo |
-| Partial removal | What was deleted and what remains; Close is not cancellation |
+| Empty catalog | One addition action; no empty table |
+| Ordinary list | Compact project/status/actions; contextual setup and secondary management |
+| Add/edit | Short form, arbitrary optional JSON metadata, immutable ID and canonical URL |
+| Personal key needed | Read-only prerequisite inspection; stock Accounts handoff |
+| Git access needed | Actual retained outbound key; no blanket diagnosis of clone failures |
+| Existing account | Setup not confirmed until native inspection establishes readiness |
+| Ready | Inspected SSH username and checkout path; browser hostname; copyable command |
+| Unknown setup outcome | Inspection before retry; no automatic mutation retry |
+| Removal | Native people/account/home selection, exact confirmation, stopped-task and data-loss warnings |
+| Partial removal | Confirmed, uncertain, and unattempted outcomes; fresh review before another confirmation |
 
-Before wider implementation, review these on desktop and a narrow screen,
-with keyboard navigation and both themes. Confirm that essential guidance is
-reachable without opening technical details, and that normal use is not a
-wall of text. Observe representative users without coaching before calling
-the design understandable. Screenshots and component tests alone do not
-establish that conclusion.
+Workspace orchestration belongs to `ProjectsWorkspaceDialog` and `useWorkspace`.
+The native `inspect` action checks only the caller's own derived account and
+existing keys/checkout, without requiring administrator status. Catalog listing
+remains unprivileged and does not inspect private homes. Inspection creates no
+accounts, keys, or checkouts and makes no Git-host requests.
 
-The prototype concentrates on one example project and its workspace lifecycle.
-The example viewer, Alice, has administrative access.
-Adding a repository replaces that single example; it is not a complete catalog.
-Key-registration and connection outcomes remain illustrative GitHub/website
-fixtures even when the form's example name or address is edited.
-The primary-account deletion flow, runner registration, Tailscale routing, and
-OS updates remain subsequent design/implementation work. No shipped capability
-is removed or changed by this checkpoint.
+Checkout inspection verifies an owned working-tree root and readable HEAD or a
+valid unborn branch. It does not assert a clean tree, Git-host access, or complete
+historical object integrity; it neither refreshes the index nor runs filters.
+Read problems are not interpreted as absent files. Page-local readiness snapshots
+are discarded on catalog refresh; there is no persisted completion flag.
 
-### Repeatable browser evidence
+**Set up for me** preflights before mutation. **Review setup**, **Connection
+details**, and **Check setup** inspect only. Failed setup preserves the actual
+retained key and independent diagnostics. A completed command with failed
+verification is not presented as verified readiness.
 
-With the locked Playwright Chromium already installed, run:
+### Removal and recovery
+
+`ProjectsRemovalDialog` and `useRemoval` own transient removal interaction.
+The existing narrow helper supplies `removal-inspect` with `{action,target}`;
+its preview includes Linux usernames, UIDs, homes, native associations, catalog
+presence, and a scope revision. Inspection reuses native preflight checks and
+the shared operation lock without stopping processes or changing accounts/files.
+
+Deletion requires that revision as `expected`, alongside `id` for workspace or
+project removal, or `username` for person removal. Execution reauthorizes and
+rechecks native identities and the selection under the exclusive operation lock;
+project removal also holds the catalog lock. Changed scope stops before mutation.
+Cosmetic catalog metadata changes do not change repository identity. Revisions
+are stateless comparisons, not credentials, saved approvals, or permissions.
+
+Workspace/person selection stays with its native domain owner. The helper owns
+execution and catalog ordering; `linuxhost.DeleteAccounts` records sequential
+results. Person removal deletes workspaces before the primary account. Own
+workspace removal stays caller-scoped; whole-project and person removal remain
+administrator-only. Generic Cockpit/Linux deletion remains non-cascading.
+
+A failed deletion may already have stopped processes or removed account/home
+data. Structured receipts distinguish confirmed removals, the uncertain failed
+account, unattempted accounts, and catalog outcomes. The privileged helper
+returns the receipt; the public coordinator emits it before exiting nonzero for
+incomplete removal. The browser decodes stdout, never English stderr, to recover
+these results. Missing or malformed receipts remain unknown.
+
+Partial results appear before further confirmation fields. **Review remaining
+removal** performs a fresh read and requires exact confirmation again. Unknown
+outcomes require an explicit **Check current state**. Neither action retries
+deletion. An absent or replaced failed identity/home blocks further deletion in
+that task: an administrator must inspect prior local data, not assume it gone.
+Orphaned homes and missing-primary cascades are not repaired by inspection.
+
+Mutation receipts and catalog-read errors stay independent. Earlier account
+labels and homes are retained only within the current task for recovery details;
+no account database, deletion history, or durable browser workflow is added.
+Canonical repositories and Git-host accounts are never deleted by these actions.
+See [Data safety and removal](public/40-Operate-Soda-OS/30-data-safety-and-removal.md).
+
+## Other pages: foundations completed
+
+- Project and runner mutation outcomes are separate from list-read failures.
+  Retained runner creation exits when native listing confirms the account,
+  without erasing the failure or retaining registration credentials.
+- Inactive provider fields are disabled; local runner lifecycle progress is named.
+- Tailscale read, mutation, and Forgejo errors remain independent. Forgejo repair
+  has an explicit retry; routing feedback does not claim provider approval.
+- Updates retains the installed image during download, invalidates failed
+  readback, and distinguishes downloaded data from verified deployment status.
+
+These preserve native authorization, Git/provider ownership, credential clearing,
+and explicit update activation. Full page redesigns remain separate milestones.
+
+## Repeatable browser evidence
+
+With the locked toolchain and Playwright Chromium already installed:
 
 ```sh
-SODA_PROJECTS_PREVIEW_EVIDENCE_DIRECTORY="$PWD/.artifacts/projects-ux-preview" \
-  vp -C cockpit test tests/projects-preview-browser.test.ts
+vp -C cockpit build
+SODA_PROJECTS_BROWSER_EVIDENCE_DIRECTORY="$PWD/.artifacts/projects-removal-ux" \
+  vp -C cockpit test tests/projects-browser.test.ts
 ```
 
-The test starts and stops its own loopback-only Vite server. It verifies theme
-changes, 1440px and 390px layouts, keyboard focus, the simulated setup journey,
-clipboard copying, and visible form validation. It blocks and checks for
-external requests, confirms no Cockpit API is present, and saves screenshots
-plus `preview.json`. The ordinary suite skips this explicit browser-evidence
-run when the evidence directory is not supplied; component tests always run.
-No native credentials or disposable VM are required for the preview test.
+The test renders the production bundle with simulated Cockpit responses. All
+page requests are intercepted locally; no native commands, provider requests,
+credentials, or installed guest are used. It checks light/dark themes at 1440px
+and 390px, modal focus, clipboard contents, validation, and removal recovery,
+and writes screenshots and `observations.json`. The ordinary suite skips this
+explicit browser run; component/protocol tests always run. Fixture sources are
+excluded from installed bundles.
 
-## Native facts required after design approval
+Source checks, relevant Go race tests, and production-browser simulations have
+passed on x86-64. Earlier setup evidence has 44 states in
+`.artifacts/projects-native-ux/`; current repeatable evidence is in
+`.artifacts/projects-removal-ux/`. Neither proves installed behavior.
 
-Account existence and complete-clone readiness must remain separate native
-facts. The current `workspace_exists` boolean cannot establish readiness. Any
-new read/outcome information belongs in the existing narrow native boundary,
-not a frontend completion cache. Authorization failures must be distinguished
-from unrelated clone failures before presenting a key-registration remedy.
+## Remaining milestones and evidence
 
-Deletion summaries must use current native facts and be revalidated at
-execution. Repository preservation and separate Forgejo account deletion remain
-unchanged. A page close cannot undo completed native mutations. Prototype
-transitions are deliberate fixtures, not implementations of these guarantees.
+1. Redesign Runners, then Tailscale, then Updates in focused increments. Keep
+   provider jobs provider-owned, routing optional, and download separate from
+   confirmed restart.
+2. Complete comprehensive accessibility and representative-user validation.
+   Screenshots and component tests alone do not establish usability.
+3. Run separately authorized destructive installed acceptance on disposable
+   x86-64 and AArch64 targets: actual account/home deletion, process termination,
+   repository preservation, and primary-last deletion. Matching-native AArch64
+   runtime/browser evidence must also be reproduced; source checks do not replace it.
 
-## Integration status
-
-The prototype is approved. The first source integration milestone fixes the
-interaction foundations across the existing pages:
-
-- Projects validation is inside its dialog and focuses the invalid field.
-- Project and runner mutation outcomes are separate from list-read failures;
-  failed mutations re-read native facts, and recovered reads retire only read
-  errors. A retained runner leaves the creation dialog when the native list
-  confirms it, without erasing the failure or retaining the registration token.
-- Inactive provider fields are disabled, and runner lifecycle actions identify
-  the operation in progress. Closing a removal error is not called cancellation.
-- Tailscale read errors recover independently of mutation and Forgejo refresh
-  failures. Forgejo repair has an explicit retry, not automatic polling retries.
-  Routing forms show scoped saving/saved feedback without claiming approval.
-- Updates keeps the installed image visible during downloads, invalidates facts
-  after failed status reads, and distinguishes download completion from failed
-  readback. Missing data does not diagnose administrative permissions.
-
-These changes preserve native authorization, Git ownership, exact destructive
-confirmation, credential clearing, and explicit update activation.
-
-The native `inspect` action now provides on-demand facts through the existing
-Projects helper: validated account existence, actual checkout path, local Git
-usability, the existing outbound public key, and independent key/checkout read
-problems. It accepts only a project ID and inspects the caller's own derived
-account, without requiring that human to be an administrator. Catalog listing
-remains unprivileged and does not inspect private homes.
-
-Inspection creates no accounts, keys, or checkouts and performs no Git-host
-requests. It shares the existing removal lock. Checkout checks verify an owned
-Git working-tree root and readable HEAD commit or valid unborn branch; they do
-not assert a clean working tree, repository-host access, or complete historical
-object integrity. They neither refresh the index nor run working-tree filters.
-Malformed checkout metadata is reported for review, never overwritten by setup.
-A read problem is not treated as evidence that a file is absent.
-
-The production Projects page now uses the approved compact list, contextual
-workspace task, management menus, and short catalog forms. Optional metadata
-remains arbitrary JSON; invalid metadata is revealed and focused. Native read
-snapshots can show Ready within the current page, but are discarded on refresh.
-Account existence alone still shows Setup not confirmed. Workspace orchestration
-belongs to the page-level `ProjectsWorkspaceDialog` and `useWorkspace`; passive
-catalog and removal dialogs remain in the presentation layer.
-
-Set up for me performs read-only prerequisite inspection before mutation.
-Review setup, Connection details, and Check setup perform inspection only.
-Failed setup is reconciled through native reads: the actual retained public key
-is shown without assuming every Git failure is an authorization failure. An
-unavailable inspection blocks mutation retries. A completed command and failed
-verification remain distinct. Connection guidance uses the inspected username
-and path and the Cockpit browser hostname. Accounts handoffs use Cockpit's
-native navigation; administrator-only Soda-aware human deletion remains separate.
-
-Source checks and 44 rendered production-bundle states passed on x86-64,
-including 1440px/390px light/dark layouts, clipboard contents, changing-dialog
-focus, repeated metadata-error focus, unknown outcomes, separate catalog-read
-failures, and no external requests. Browser
-responses were simulated, not installed native acceptance. Local evidence is in
-`.artifacts/projects-native-ux/`. AArch64 must reproduce
-matching-native runtime and installed acceptance; both architectures still need
-authorized disposable installation targets. No deployment was performed.
-
-## Remaining implementation milestones
-
-1. Complete native-backed affected-account removal summaries and partial-result
-   presentation. Retire the separate prototype after production replaces those
-   remaining approved journeys.
-2. Apply the design to Runners, Tailscale, and Updates, one focused milestone at
-   a time. Keep routing optional, provider jobs provider-owned, and download
-   separate from confirmed restart.
-3. Align documentation and complete keyboard, theme, responsive, error/recovery,
-   native integration, and representative-user validation.
-
-Inspect full diffs and commit completed verified milestones. Run focused tests
-throughout, relevant race tests for concurrent changes, and `just check` before
-completion. Installed and mutating acceptance requires independently authorized
-disposable x86-64 and AArch64 targets, matching-native operations, and approved
-provider credentials. The prototype proves neither installation nor native
-operations on either architecture. No live system changes or publication are
-part of this checkpoint.
+Inspect complete diffs, commit verified milestones, and run focused tests,
+relevant race tests, and `just check`. No deployment, publication, or live
+deletion was performed for this integration.
 
 ## PatternFly references
 
 - [Content design](https://www.patternfly.org/content-design/best-practices)
 - [Button hierarchy](https://www.patternfly.org/components/button/design-guidelines)
-- [Forms and progressive disclosure](https://www.patternfly.org/components/forms/form/design-guidelines)
+- [Forms](https://www.patternfly.org/components/forms/form/design-guidelines)
 - [Expandable sections](https://www.patternfly.org/components/expandable-section/design-guidelines)
 - [Contextual alerts](https://www.patternfly.org/components/alert/design-guidelines)
 - [Empty states](https://www.patternfly.org/components/empty-state/design-guidelines)
 - [Modals](https://www.patternfly.org/components/modal/design-guidelines)
 - [Wizard usage](https://www.patternfly.org/components/wizard/design-guidelines)
 
-These inform the design, not claims of usability validation. Existing native
-contracts constrain correctness; old wording, section order, and visual
-prominence are implementation choices open to revision through this review.
+These inform design, not claims of usability validation. Native contracts
+constrain correctness; old wording and visual prominence are implementation
+choices, not permanent product rules.

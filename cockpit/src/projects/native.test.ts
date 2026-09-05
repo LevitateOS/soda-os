@@ -24,6 +24,21 @@ test("failed removal preserves a complete stdout receipt without parsing stderr"
   await expect(result).resolves.toEqual(receipt);
 });
 
+test("successful removal decodes the streamed receipt", async () => {
+  const call = pendingProcess();
+  const invoke = coordinator({ spawn: vi.fn(() => call.process) });
+  const result = invoke("remove", { id: "site", expected: "a".repeat(64) });
+  const receipt = {
+    ok: true,
+    result: { removed: ["alice"], uncertain: "", not_attempted: [], diagnostic: "" },
+    catalog: "removed",
+    problem: "",
+  };
+  call.emit(JSON.stringify(receipt));
+  call.resolve("");
+  await expect(result).resolves.toEqual(receipt);
+});
+
 test("lost or malformed removal output never becomes success", async () => {
   for (const output of ["", '{"ok":true}', '{"ok":']) {
     const call = pendingProcess();

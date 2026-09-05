@@ -29,7 +29,7 @@ test("all installed asset graphs are self-contained and clean rebuilds are ident
       path.endsWith(".js"),
     )) {
       expect(readFileSync(resolve(directory, file), "utf8")).not.toContain(
-        "SODA_PROJECTS_DESIGN_PREVIEW",
+        "PROJECTS_BROWSER_FIXTURE",
       );
     }
   });

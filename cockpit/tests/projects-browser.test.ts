@@ -78,6 +78,8 @@ test.skipIf(!directory)(
             "ready",
             "setup-unknown",
             "metadata",
+            "validation",
+            "removal-complete",
             "own-removal",
             "project-removal",
             "human-removal",
@@ -186,6 +188,25 @@ test.skipIf(!directory)(
                 },
               });
             }
+            if (scenario === "removal-complete") {
+              queues.remove = [
+                {
+                  value: {
+                    ok: true,
+                    result: {
+                      removed: accounts.map((account) => account.username),
+                      uncertain: "",
+                      not_attempted: [],
+                      diagnostic: "",
+                    },
+                    catalog: "removed",
+                    problem: "",
+                  },
+                  delay: 350,
+                },
+              ];
+              queues.list.push({ value: { ...catalog, projects: [] } });
+            }
             if (scenario === "removal-unknown")
               queues.remove = [{ error: "Removal connection closed.", delay: 350 }];
             if (scenario === "blocked-removal")
@@ -277,6 +298,11 @@ test.skipIf(!directory)(
                 window.dispatchEvent(new CustomEvent("cockpit-style", { detail: { style } })),
               theme,
             );
+            expect(
+              await page
+                .locator("html")
+                .evaluate((element) => element.classList.contains("pf-v6-theme-dark")),
+            ).toBe(theme === "dark");
             const dialog = page.getByRole("dialog");
             if (["personal-key", "git-key", "ready", "setup-unknown"].includes(scenario)) {
               await page
@@ -297,6 +323,21 @@ test.skipIf(!directory)(
                   `ssh ${workspace.username}@127.0.0.1`,
                 );
               }
+            } else if (scenario === "validation") {
+              const trigger = page.getByRole("button", { name: "Add repository", exact: true });
+              await trigger.click();
+              await dialog.getByRole("button", { name: "Add repository", exact: true }).click();
+              await page.waitForFunction(() => document.activeElement?.id === "display-name");
+              await dialog.getByLabel("Project name", { exact: false }).fill("Draft");
+              await page.keyboard.press("Escape");
+              await dialog.waitFor({ state: "hidden" });
+              expect(await trigger.evaluate((element) => element === document.activeElement)).toBe(
+                true,
+              );
+              await trigger.click();
+              expect(await dialog.getByLabel("Project name", { exact: false }).inputValue()).toBe(
+                "",
+              );
             } else if (scenario === "metadata") {
               await page.getByRole("button", { name: "Actions — Team website" }).click();
               await page.getByRole("menuitem", { name: "Edit project", exact: true }).click();
@@ -339,6 +380,7 @@ test.skipIf(!directory)(
                   "removal-unknown",
                   "changed-scope",
                   "absent-after-failure",
+                  "removal-complete",
                 ].includes(scenario)
               ) {
                 const remove = dialog.getByRole("button", { name: "Remove project", exact: true });
@@ -352,13 +394,17 @@ test.skipIf(!directory)(
                     hasText:
                       scenario === "removal-unknown"
                         ? "Removal outcome is not confirmed"
-                        : "Removal is incomplete",
+                        : scenario === "removal-complete"
+                          ? "Native removal completed"
+                          : "Removal is incomplete",
                   })
                   .waitFor();
                 expect(
                   await dialog.evaluate((element) => element.contains(document.activeElement)),
                 ).toBe(true);
-                if (["removal-unknown", "absent-after-failure"].includes(scenario))
+                if (
+                  ["removal-unknown", "absent-after-failure", "removal-complete"].includes(scenario)
+                )
                   expect(await remove.count()).toBe(0);
                 else {
                   expect(await remove.count()).toBe(0);
@@ -366,13 +412,17 @@ test.skipIf(!directory)(
                 }
               }
             }
-            if (await dialog.count())
+            if (await dialog.count()) {
+              expect(
+                await dialog.evaluate((element) => element.scrollWidth > element.clientWidth + 1),
+              ).toBe(false);
               for (let index = 0; index < 4; index++) {
                 await page.keyboard.press("Tab");
                 expect(
                   await dialog.evaluate((element) => element.contains(document.activeElement)),
                 ).toBe(true);
               }
+            }
             expect(
               await page.evaluate(() => document.documentElement.scrollWidth > innerWidth),
             ).toBe(false);
@@ -384,9 +434,43 @@ test.skipIf(!directory)(
             });
             const calls = await page.evaluate(
               () =>
-                (window as unknown as { PROJECTS_BROWSER_FIXTURE: { calls: unknown[] } })
-                  .PROJECTS_BROWSER_FIXTURE.calls,
+                (
+                  window as unknown as {
+                    PROJECTS_BROWSER_FIXTURE: { calls: { action: string; payload?: unknown }[] };
+                  }
+                ).PROJECTS_BROWSER_FIXTURE.calls,
             );
+            const mutations = calls.filter((call) =>
+              [
+                "setup",
+                "remove",
+                "remove-workspace",
+                "delete-human",
+                "add-existing",
+                "edit",
+              ].includes(call.action),
+            );
+            expect(mutations).toHaveLength(
+              [
+                "setup-unknown",
+                "partial-removal",
+                "removal-unknown",
+                "changed-scope",
+                "absent-after-failure",
+                "removal-complete",
+              ].includes(scenario)
+                ? 1
+                : 0,
+            );
+            for (const call of mutations.filter((call) => call.action === "remove"))
+              expect(call.payload).toEqual({ id: "site", expected: "a".repeat(64) });
+            if (scenario === "empty") {
+              expect(
+                await page.getByRole("button", { name: "Add repository", exact: true }).count(),
+              ).toBe(1);
+              expect(await page.getByRole("table").count()).toBe(0);
+              expect(await page.getByRole("grid").count()).toBe(0);
+            }
             captures.push({ file, calls });
             await context.close();
           }

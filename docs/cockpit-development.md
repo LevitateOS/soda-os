@@ -36,13 +36,21 @@ linter, or test runner configuration is needed. Pure tests use Node; component
 tests use jsdom and React Testing Library. Frontend tests also rebuild production
 assets and compare file hashes. Generated output and dependencies are untracked.
 
-## UX design preview
+## Projects browser journeys
 
-The review-gated [Projects UX prototype](cockpit-ux-design.md) runs through the
-existing Vite development server at `/prototypes/projects/`. It uses simulated
-state only and is not an installed package. Its sources are type-checked and
-its interactions tested; production entrypoints and native adapters do not
-import it. Review this design before changing the shipped page compositions.
+The approved Projects prototype is integrated and retired. See the
+[UX design and evidence](cockpit-ux-design.md) for current behavior and remaining
+milestones. Render the production bundle with simulated native responses using:
+
+```sh
+vp -C cockpit build
+SODA_PROJECTS_BROWSER_EVIDENCE_DIRECTORY="$PWD/.artifacts/projects-removal-ux" \
+  vp -C cockpit test tests/projects-browser.test.ts
+```
+
+This explicit Playwright test uses local intercepted assets and response fixtures,
+not a native backend or installed acceptance. It saves screenshots and request
+observations; no credentials or disposable guest are needed.
 
 ## Source and package ownership
 
@@ -72,8 +80,8 @@ to `useUpdates`; the hook still owns requests, bounded streaming output, and
 native-state refresh. Long image identities reuse `CodeValue`; notices reuse
 `DiagnosticAlert`, while errors retain a separate summary and detailed diagnostic.
 
-Visual components never invoke Cockpit or import native adapters. Feature
-organisms and molecules may use their own types and pure presentation helpers;
+Passive organisms and molecules never invoke Cockpit or import native adapters.
+Feature organisms and molecules may use their own types and pure presentation helpers;
 shared components have no feature dependencies. Pages connect their own feature
 hook to the template and organisms. Hooks own transient requests, refresh, and
 lifecycle handling; there is no shared application store or generic operation

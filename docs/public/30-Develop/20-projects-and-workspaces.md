@@ -112,7 +112,9 @@ and develop](30-connect-and-develop.md#manage-development-tools).
 Select **Actions → Remove my workspace** only after committing, pushing, or otherwise
 copying anything you need. This permanently deletes your local workspace and
 all uncommitted files in it. It preserves the shared project entry, every other
-person's workspace, and the canonical repository.
+person's workspace, and the canonical repository. Review the inspected account
+and local folder, then type the exact project ID to confirm. Running tasks stop
+as part of deletion.
 
 ## Remove an entire project
 
@@ -133,8 +135,11 @@ and removal](../40-Operate-Soda-OS/30-data-safety-and-removal.md) first.
   to the primary account and retry.
 - An ambiguous existing account, directory, or ownership state stops setup for
   administrator inspection.
-- A removal failure stops immediately and reports what remains. Retry only
-  after inspecting the reported state.
+- Removal stops at the first failure and distinguishes confirmed removals,
+  uncertain deletion, and accounts not attempted. Failure does not mean files
+  remain intact. Use **Review remaining removal** or **Check current state**,
+  inspect unresolved data with an administrator, and confirm a fresh selection
+  before retrying. No deletion retries automatically.
 
 ## Expected result
 
