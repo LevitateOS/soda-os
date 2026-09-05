@@ -174,10 +174,36 @@ Owner authentication captures are separate for ISO/QCOW2 and for each password;
 PAM signup and later wheel-promotion observations have separate capture names.
 These source tests do not establish live installed behavior.
 
+### Native prerequisites and enrollment
+
+Preflight checks the matching QEMU executable/firmware and SSH/SCP/SFTP tools
+before guest mutation. Firmware resolution is shared with command construction;
+`SODA_QEMU`, `SODA_QEMU_FIRMWARE`, and x86-64 `SODA_QEMU_VARS` remain explicit host
+overrides. Acceleration/display support still requires native launch validation.
+The fixed fixture ports 18080/18081 cannot collide with configured forwards or
+the registry. The administrator explicitly opens those guest development ports
+only after first-boot defaults have been checked. Fixture usernames are reserved
+only within this disposable suite, not as Soda account restrictions.
+
+Enrollment is observed through the known guest's local SSH connection. No host
+Tailscale CLI, whole-peer-set comparison, newly seen peer, or fixed `soda` hostname
+is required. Only the guest's own identity/address projection is retained in
+`iso/guest-tailnet-enrolled.json`. The client still needs a working route to that
+Tailnet address, proven by the separate access checks. Logout ownership begins
+before polling so cancellation cannot lose an enrollment completed between polls;
+cleanup uses the still-known local connection across B→A→B.
+
+The signup prompt owns its input descriptor and closes it on cancellation. SSH
+connection/liveness and development HTTP attempts have explicit native timeouts.
+Personal fixture key paths must be new; there is no key-reuse recovery branch.
+Fallback A needs its published OCI identity, native platform and OCI file, not
+unused historical installer checksums/files. Candidate artifact validation and
+published fallback signature/digest checks remain mandatory.
+
 ### Guest ownership
 
 `guest.go` owns one guest lifetime: its disk/boot configuration, active VM, and
-optional discovered-enrollment cleanup obligation. ISO and QCOW2 have separate
+optional enrollment-attempt cleanup obligation. ISO and QCOW2 have separate
 owners, each registered once with `Cleanup`:
 
 - `restart` powers down and replaces a VM without logging out. Failed powerdown

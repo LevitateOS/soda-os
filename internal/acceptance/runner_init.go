@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 )
@@ -76,7 +77,10 @@ func validateRunOptions(options RunOptions) error {
 	if err := validateCredentialFiles(options); err != nil {
 		return err
 	}
-	return RequireCommands("cosign", "curl", "docker", "git", "qemu-img", "cloud-localds", "openssl", "ssh", "ssh-keygen", "ssh-keyscan")
+	if err := RequireCommands("cosign", "curl", "docker", "git", "qemu-img", "cloud-localds", "openssl", "ssh", "ssh-keygen", "ssh-keyscan", "scp", "sftp"); err != nil {
+		return err
+	}
+	return requireQEMUInputs()
 }
 
 func validateCredentialFiles(options RunOptions) error {
@@ -99,6 +103,9 @@ func validateAdministratorInput(input AdministratorInput) error {
 	if !usernamePattern.MatchString(input.Username) {
 		return errors.New("administrator username must match [a-z][a-z0-9-]{0,23}")
 	}
+	if slices.Contains([]string{"alice", "bob", "obsolete", externalGitFixtureUsername}, input.Username) {
+		return errors.New("administrator username collides with a disposable acceptance fixture")
+	}
 	if input.PrivateKey == "" || input.PublicKey == "" || input.Password == "" {
 		return errors.New("disposable administrator credential files are required")
 	}
@@ -106,7 +113,7 @@ func validateAdministratorInput(input AdministratorInput) error {
 }
 
 func validateHostPorts(ports HostPorts) error {
-	seen := map[int]bool{}
+	seen := map[int]bool{18080: true, 18081: true}
 	for _, port := range []int{ports.SSH, ports.Cockpit, ports.Forgejo, ports.Registry} {
 		if port < 1 || port > 65535 {
 			return errors.New("host ports must be inside the TCP range")

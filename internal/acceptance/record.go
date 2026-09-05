@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"os"
 	"sort"
 	"time"
@@ -13,6 +12,7 @@ import (
 	"github.com/LevitateOS/soda-os/internal/build/release"
 	"github.com/LevitateOS/soda-os/internal/config"
 	"github.com/LevitateOS/soda-os/internal/process"
+	"github.com/LevitateOS/soda-os/internal/strictjson"
 )
 
 type AcceptanceRecord struct {
@@ -123,28 +123,11 @@ func readRunSummary(path string) (RunSummary, error) {
 		return RunSummary{}, err
 	}
 	defer file.Close()
-	decoder := json.NewDecoder(file)
-	decoder.DisallowUnknownFields()
 	var summary RunSummary
-	if err = decoder.Decode(&summary); err != nil {
-		return RunSummary{}, err
-	}
-	if err = requireJSONEOF(decoder); err != nil {
+	if err = strictjson.Decode(file, &summary); err != nil {
 		return RunSummary{}, err
 	}
 	return summary, summary.Validate()
-}
-
-func requireJSONEOF(decoder *json.Decoder) error {
-	var trailing any
-	err := decoder.Decode(&trailing)
-	if errors.Is(err, io.EOF) {
-		return nil
-	}
-	if err != nil {
-		return fmt.Errorf("decode trailing JSON: %w", err)
-	}
-	return errors.New("record contains trailing JSON")
 }
 
 func combinedRecord(runs []RunSummary, signer string) AcceptanceRecord {

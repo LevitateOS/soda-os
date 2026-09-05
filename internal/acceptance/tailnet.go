@@ -5,90 +5,58 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
-	"os/exec"
-	"runtime"
-	"sort"
+	"net"
 	"time"
 )
 
-type tailnetStatus struct {
-	Peer map[string]tailnetPeer `json:"Peer"`
+type guestTailnetStatus struct {
+	BackendState string `json:"BackendState"`
+	Self         struct {
+		ID           string   `json:"ID"`
+		TailscaleIPs []string `json:"TailscaleIPs"`
+	} `json:"Self"`
 }
 
-type tailnetPeer struct {
-	ID           string   `json:"ID"`
-	HostName     string   `json:"HostName"`
-	Online       bool     `json:"Online"`
-	TailscaleIPs []string `json:"TailscaleIPs"`
-}
-
-type Tailnet struct {
-	Binary string
-}
-
-func NewTailnet() (Tailnet, error) {
-	if path, err := executablePath("tailscale"); err == nil {
-		return Tailnet{Binary: path}, nil
-	}
-	path := "/Applications/Tailscale.app/Contents/MacOS/Tailscale"
-	if runtime.GOOS == "darwin" {
-		if info, err := os.Stat(path); err == nil && info.Mode().IsRegular() {
-			return Tailnet{Binary: path}, nil
-		}
-	}
-	return Tailnet{}, errors.New("Tailscale CLI is unavailable")
-}
-
-func (tailnet Tailnet) Snapshot(ctx context.Context) (tailnetStatus, []byte, error) {
-	contents, err := CommandOutput(ctx, CommandSpec{Name: tailnet.Binary, Args: []string{"status", "--json"}, Env: []string{"TAILSCALE_BE_CLI=1"}})
-	if err != nil {
-		return tailnetStatus{}, nil, err
-	}
-	var status tailnetStatus
-	if err = json.Unmarshal(contents, &status); err != nil {
-		return tailnetStatus{}, nil, fmt.Errorf("decode Tailscale status: %w", err)
-	}
-	return status, contents, nil
-}
-
-func (tailnet Tailnet) Discover(ctx context.Context, before tailnetStatus) (string, []byte, error) {
+// The guest is already reachable through its known local SSH connection. Read
+// its own identity, not the client's peer inventory or a guessed hostname.
+func awaitGuestEnrollment(ctx context.Context, installed *guest, admin personFixture) (string, []byte, error) {
+	// Enrollment can complete between polls or just as cancellation arrives.
+	// The known local connection owns logout from the beginning of this wait.
+	installed.enrollment = &guestEnrollment{remote: admin.Remote, password: admin.LinuxPassword}
+	ctx, cancel := context.WithTimeout(ctx, 20*time.Minute)
+	defer cancel()
 	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
 	for {
-		status, raw, err := tailnet.Snapshot(ctx)
-		if err == nil {
-			address, found, discoveryErr := newSodaPeer(before, status)
-			if found || discoveryErr != nil {
-				return address, raw, discoveryErr
-			}
+		raw, err := admin.Remote.Output(ctx, nil, "tailscale", "status", "--json")
+		if err != nil {
+			return "", nil, fmt.Errorf("read guest enrollment: %w", err)
+		}
+		var status guestTailnetStatus
+		if err = json.Unmarshal(raw, &status); err != nil {
+			return "", nil, fmt.Errorf("decode guest enrollment: %w", err)
+		}
+		if status.BackendState == "Running" {
+			host, addressErr := enrolledAddress(status)
+			evidence, encodeErr := json.Marshal(status)
+			return host, evidence, errors.Join(addressErr, encodeErr)
 		}
 		select {
 		case <-ctx.Done():
-			return "", nil, fmt.Errorf("discover enrolled Soda peer: %w", ctx.Err())
+			return "", nil, fmt.Errorf("wait for native guest enrollment: %w", ctx.Err())
 		case <-ticker.C:
 		}
 	}
 }
 
-func newSodaPeer(before, after tailnetStatus) (string, bool, error) {
-	addresses := []string{}
-	for id, peer := range after.Peer {
-		if _, existed := before.Peer[id]; existed || !peer.Online || peer.HostName != "soda" || len(peer.TailscaleIPs) == 0 {
-			continue
+func enrolledAddress(status guestTailnetStatus) (string, error) {
+	if status.Self.ID == "" {
+		return "", errors.New("enrolled guest returned no native identity")
+	}
+	for _, address := range status.Self.TailscaleIPs {
+		if net.ParseIP(address) != nil {
+			return address, nil
 		}
-		addresses = append(addresses, peer.TailscaleIPs[0])
 	}
-	sort.Strings(addresses)
-	if len(addresses) == 1 {
-		return addresses[0], true, nil
-	}
-	if len(addresses) > 1 {
-		return "", false, errors.New("multiple newly enrolled Soda peers are online")
-	}
-	return "", false, nil
-}
-
-func executablePath(name string) (string, error) {
-	return exec.LookPath(name)
+	return "", errors.New("enrolled guest returned no usable Tailnet address")
 }

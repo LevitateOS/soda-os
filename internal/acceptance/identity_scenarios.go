@@ -75,7 +75,7 @@ func registerForgejoKey(ctx context.Context, person personFixture, publicKey []b
 	}
 	config := fmt.Sprintf(
 		"user = %s\nsilent\nshow-error\nfail-with-body\nurl = %s\n",
-		curlConfigQuote(remote.Username+":"+string(bytes.TrimSpace(password))),
+		curlConfigQuote(remote.Username+":"+string(bytes.TrimRight(password, "\r\n"))),
 		curlConfigQuote(forgejoLoopbackEndpoint+"/api/v1/user/keys"),
 	)
 	_, err = remote.CaptureOutput(ctx, evidence, []byte(config), "curl", "--config", "-", "--json", string(payload))
@@ -123,7 +123,7 @@ func containsPublicKey(keys []forgejoKey, expected []byte) (bool, error) {
 }
 
 func forgejoKeys(ctx context.Context, remote Remote, username string, password []byte) ([]forgejoKey, error) {
-	config := fmt.Sprintf("user = %s\nsilent\nshow-error\nfail-with-body\nurl = %s\n", curlConfigQuote(username+":"+string(bytes.TrimSpace(password))), curlConfigQuote(forgejoLoopbackEndpoint+"/api/v1/user/keys"))
+	config := fmt.Sprintf("user = %s\nsilent\nshow-error\nfail-with-body\nurl = %s\n", curlConfigQuote(username+":"+string(bytes.TrimRight(password, "\r\n"))), curlConfigQuote(forgejoLoopbackEndpoint+"/api/v1/user/keys"))
 	output, err := remote.CaptureOutput(ctx, "product/"+username+"-forgejo-keys", []byte(config), "curl", "--config", "-")
 	if err != nil {
 		return nil, err

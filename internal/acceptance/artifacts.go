@@ -36,6 +36,9 @@ func ValidateArtifacts(candidate, fallback ArtifactSet) (ValidatedArtifacts, err
 	if err != nil {
 		return ValidatedArtifacts{}, fmt.Errorf("candidate release record: %w", err)
 	}
+	if !validReleaseChecksums(candidateRecord) {
+		return ValidatedArtifacts{}, errors.New("candidate release checksums are incomplete")
+	}
 	fallbackRecord, err := readReleaseRecord(fallback.Record)
 	if err != nil {
 		return ValidatedArtifacts{}, fmt.Errorf("fallback release record: %w", err)
@@ -89,7 +92,7 @@ func validReleaseRecord(record releaseRecord) bool {
 	if !strings.HasPrefix(record.SodaImageReference, release.Repository+"@sha256:") {
 		return false
 	}
-	return exactReference(record.SodaImageReference) && validReleaseChecksums(record)
+	return exactReference(record.SodaImageReference)
 }
 
 func validReleaseChecksums(record releaseRecord) bool {
@@ -117,6 +120,9 @@ func validateMatchingNative(candidate, fallback releaseRecord) error {
 	}
 	if candidate.Platform != expected || fallback.Platform != expected {
 		return fmt.Errorf("release records must both target native platform %s", expected)
+	}
+	if candidate.SodaImageReference == fallback.SodaImageReference {
+		return errors.New("candidate and fallback image digests must differ")
 	}
 	if candidate.SourceRevision == fallback.SourceRevision {
 		return errors.New("candidate and fallback records name the same source revision")

@@ -52,10 +52,13 @@ type personalKey struct {
 
 func (keys fixtureKeys) generate(ctx context.Context, username string) (personalKey, error) {
 	path := filepath.Join(keys.Directory, username)
-	if _, err := os.Stat(path); os.IsNotExist(err) {
-		if err = RunCommand(ctx, CommandSpec{Name: "ssh-keygen", Args: []string{"-q", "-t", "ed25519", "-N", "", "-C", username + "@soda-acceptance", "-f", path}}); err != nil {
-			return personalKey{}, err
+	for _, file := range []string{path, path + ".pub"} {
+		if _, err := os.Lstat(file); !os.IsNotExist(err) {
+			return personalKey{}, fmt.Errorf("fixture key path must be new: %s", file)
 		}
+	}
+	if err := RunCommand(ctx, CommandSpec{Name: "ssh-keygen", Args: []string{"-q", "-t", "ed25519", "-N", "", "-C", username + "@soda-acceptance", "-f", path}}); err != nil {
+		return personalKey{}, err
 	}
 	private, err := os.ReadFile(path)
 	if err != nil {
@@ -75,7 +78,7 @@ func addNativePerson(ctx context.Context, admin personFixture, username string, 
 		return personFixture{}, err
 	}
 	password := admin.LinuxPassword
-	password64 := base64.StdEncoding.EncodeToString(bytes.TrimSpace(password))
+	password64 := base64.StdEncoding.EncodeToString(bytes.TrimRight(password, "\r\n"))
 	key64 := base64.StdEncoding.EncodeToString(bytes.TrimSpace(key.Public))
 	script := fmt.Sprintf(`username=%q
 /usr/sbin/useradd --create-home --user-group --shell /bin/bash --home-dir "/home/$username" -- "$username"

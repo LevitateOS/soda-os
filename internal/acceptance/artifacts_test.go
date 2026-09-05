@@ -37,6 +37,25 @@ func TestValidateArtifactsRejectsSymlink(t *testing.T) {
 	require.ErrorContains(t, err, "regular non-symlink")
 }
 
+func TestFallbackNeedsNoHistoricalInstallerChecksumsOrFiles(t *testing.T) {
+	directory := t.TempDir()
+	candidate := writeArtifactFixture(t, directory, "candidate", strings.Repeat("a", 40))
+	fallback := writeArtifactFixture(t, directory, "fallback", strings.Repeat("b", 40))
+	record, err := readReleaseRecord(fallback.Record)
+	require.NoError(t, err)
+	record.ArtifactChecksums = release.ArtifactChecksums{}
+	contents, err := json.Marshal(record)
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(fallback.Record, contents, 0o600))
+	require.NoError(t, os.Remove(fallback.ISO))
+	require.NoError(t, os.Remove(fallback.QCOW2))
+	_, err = ValidateArtifacts(candidate, fallback)
+	require.NoError(t, err)
+	// The same incomplete record must never satisfy candidate validation.
+	_, err = ValidateArtifacts(fallback, candidate)
+	require.ErrorContains(t, err, "candidate release checksums")
+}
+
 func writeArtifactFixture(t *testing.T, directory, name, revision string) ArtifactSet {
 	t.Helper()
 	set := ArtifactSet{

@@ -13,10 +13,28 @@ import (
 // Signup stays in Forgejo's native UI. The runner only verifies its outcome.
 func awaitNativeOwnerSignup(ctx context.Context, person personFixture, address, passwordPath string, output io.Writer) error {
 	fmt.Fprintf(output, "Register the first Forgejo owner at %s/user/sign_up with username %q and the independent password in %s. Keep PAM active. Before teammates sign in, verify site administration is available, then press Enter here.\n", address, person.Remote.Username, passwordPath)
-	if _, err := bufio.NewReader(os.Stdin).ReadString('\n'); err != nil {
+	// Own this descriptor so cancellation can interrupt the read without closing
+	// the caller's os.Stdin or leaving an unbounded reader goroutine behind.
+	input, err := os.Open("/dev/stdin")
+	if err != nil {
 		return err
 	}
-	return ctx.Err()
+	return awaitEnter(ctx, input)
+}
+
+func awaitEnter(ctx context.Context, input io.ReadCloser) error {
+	defer input.Close()
+	done := make(chan error, 1)
+	go func() {
+		_, err := bufio.NewReader(input).ReadString('\n')
+		done <- err
+	}()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case err := <-done:
+		return errors.Join(ctx.Err(), err)
+	}
 }
 
 func verifyOwnerCredentials(ctx context.Context, person personFixture, evidence string) error {

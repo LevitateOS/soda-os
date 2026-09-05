@@ -12,21 +12,6 @@ import (
 )
 
 func (state *runnerState) installAndOnboard(ctx context.Context, inputs runInputs) (string, *guest, error) {
-	tailnet, err := NewTailnet()
-	if err != nil {
-		return "", nil, err
-	}
-	before, raw, err := tailnet.Snapshot(ctx)
-	if err != nil {
-		return "", nil, err
-	}
-	if err = state.evidence.Write("iso/host-tailnet-before.json", raw); err != nil {
-		return "", nil, err
-	}
-	return state.completeISOFlow(ctx, before, tailnet, inputs)
-}
-
-func (state *runnerState) completeISOFlow(ctx context.Context, before tailnetStatus, tailnet Tailnet, inputs runInputs) (string, *guest, error) {
 	installed, err := state.launch(ctx, "iso/install", "install", state.paths.installedDisk, state.artifacts.CandidateISO)
 	if err != nil {
 		return "", nil, err
@@ -37,16 +22,14 @@ func (state *runnerState) completeISOFlow(ctx context.Context, before tailnetSta
 		return "", installed, err
 	}
 	fmt.Fprintln(state.output, "Local-forwarded access through QEMU is verified (not independent LAN evidence). Open Cockpit → Tailscale and sign in through its native browser authentication URL.")
-	host, raw, err := resolveGuest(ctx, before, tailnet)
+	host, raw, err := awaitGuestEnrollment(ctx, installed, admin)
 	if err != nil {
 		return "", installed, err
 	}
 	remote := admin.Remote
 	remote.Host, remote.Port, remote.CockpitPort = host, 22, 9090
 	remote.KnownHosts = state.paths.knownHosts
-	// Own the discovered enrollment before retaining evidence can fail.
-	installed.enrollment = &guestEnrollment{remote: remote, password: admin.LinuxPassword}
-	if err = state.evidence.Write("iso/host-tailnet-enrolled.json", raw); err != nil {
+	if err = state.evidence.Write("iso/guest-tailnet-enrolled.json", raw); err != nil {
 		return "", installed, err
 	}
 	if err = state.evidence.Write("iso/tailnet-address.txt", []byte(host+"\n")); err != nil {
@@ -108,12 +91,6 @@ func (state *runnerState) launch(ctx context.Context, relative, mode, disk, iso 
 		SSHPort: state.options.Ports.SSH, CockpitPort: state.options.Ports.Cockpit, ForgejoPort: state.options.Ports.Forgejo,
 	}
 	return launchGuest(ctx, config, state.evidence, state.cleanup)
-}
-
-func resolveGuest(ctx context.Context, before tailnetStatus, tailnet Tailnet) (string, []byte, error) {
-	discoveryCtx, cancel := context.WithTimeout(ctx, 20*time.Minute)
-	defer cancel()
-	return tailnet.Discover(discoveryCtx, before)
 }
 
 func (state *runnerState) exerciseReusableQCOW2(ctx context.Context, inputs runInputs) error {

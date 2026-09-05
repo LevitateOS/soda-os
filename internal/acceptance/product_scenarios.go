@@ -96,7 +96,7 @@ type forgejoUser struct {
 }
 
 func cockpitLoginStatus(ctx context.Context, remote Remote, username string, password []byte) (string, error) {
-	config := fmt.Sprintf("user = %s\ninsecure\nsilent\nshow-error\noutput = \"/dev/null\"\nwrite-out = \"%%{http_code}\"\n", curlConfigQuote(username+":"+string(bytes.TrimSpace(password))))
+	config := fmt.Sprintf("user = %s\ninsecure\nsilent\nshow-error\noutput = \"/dev/null\"\nwrite-out = \"%%{http_code}\"\n", curlConfigQuote(username+":"+string(bytes.TrimRight(password, "\r\n"))))
 	url := "https://" + urlHost(remote.Host) + ":" + strconv.Itoa(remote.CockpitPort) + "/cockpit/login"
 	config += "url = " + curlConfigQuote(url) + "\n"
 	output, err := CommandOutput(ctx, CommandSpec{Name: "curl", Args: []string{"--config", "-", "--request", "GET"}, Stdin: bytes.NewReader([]byte(config))})
@@ -114,9 +114,10 @@ func forgejoAuthenticatedUser(ctx context.Context, person personFixture, evidenc
 	return user, err
 }
 
-func verifyDevelopmentServer(ctx context.Context, alice, bob workspaceFixture, tailnetHost string) error {
-	if tailnetHost == "" {
-		return errors.New("development-server endpoint host is unavailable")
+func verifyDevelopmentServer(ctx context.Context, admin personFixture, alice, bob workspaceFixture, tailnetHost string) error {
+	// Disposable fixture configuration, not image defaults or a Soda port manager.
+	if err := admin.Remote.Sudo(ctx, admin.LinuxPassword, "firewall-cmd --add-port=18080/tcp --add-port=18081/tcp\n", "product/administrator-allows-development-ports"); err != nil {
+		return err
 	}
 	if err := startDevelopmentServer(ctx, alice, 18080, "first", "product/alice-development-server"); err != nil {
 		return err
@@ -154,7 +155,7 @@ func startDevelopmentServer(ctx context.Context, workspace workspaceFixture, por
 func waitForDevelopmentServer(ctx context.Context, address, expected, label string, evidence Evidence) error {
 	url := "http://" + address + "/hot-reload.txt"
 	for attempt := 0; attempt < 20; attempt++ {
-		output, err := CommandOutput(ctx, CommandSpec{Name: "curl", Args: []string{"--fail", "--silent", "--show-error", url}})
+		output, err := CommandOutput(ctx, CommandSpec{Name: "curl", Args: []string{"--fail", "--silent", "--show-error", "--max-time", "10", url}})
 		if err == nil && string(output) == expected {
 			return evidence.Write(label+".txt", output)
 		}

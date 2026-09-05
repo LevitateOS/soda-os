@@ -70,7 +70,7 @@ func exerciseProductScenarios(ctx context.Context, project projectFixture, keys 
 	if err := checks.record("ssh-transports", verifySSHTransports(ctx, project.Alice.Remote)); err != nil {
 		return err
 	}
-	if err := checks.record("development-server-access", verifyDevelopmentServer(ctx, project.Alice, project.Bob, tailnetHost)); err != nil {
+	if err := checks.record("development-server-access", verifyDevelopmentServer(ctx, project.Admin.Person, project.Alice, project.Bob, tailnetHost)); err != nil {
 		return err
 	}
 	if err := checks.record("native-mise-ownership", verifyMiseOwnership(ctx, project)); err != nil {

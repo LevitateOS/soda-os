@@ -9,10 +9,15 @@ import (
 )
 
 func TestRunInputsDoNotRequireAnUnusedEnrollmentSecret(t *testing.T) {
-	for _, command := range []string{"cosign", "curl", "docker", "git", "qemu-img", "cloud-localds", "openssl", "ssh", "ssh-keygen", "ssh-keyscan"} {
+	for _, command := range []string{"cosign", "curl", "docker", "git", "qemu-img", "cloud-localds", "openssl", "ssh", "ssh-keygen", "ssh-keyscan", "scp", "sftp", "fixture-qemu"} {
 		installAcceptanceCommand(t, command, "exit 0\n")
 	}
 	work := t.TempDir()
+	firmware := filepath.Join(work, "firmware")
+	require.NoError(t, os.WriteFile(firmware, []byte("firmware fixture"), 0o600))
+	t.Setenv("SODA_QEMU", "fixture-qemu")
+	t.Setenv("SODA_QEMU_FIRMWARE", firmware)
+	t.Setenv("SODA_QEMU_VARS", firmware)
 	private := filepath.Join(work, "private")
 	public := filepath.Join(work, "public")
 	password := filepath.Join(work, "password")

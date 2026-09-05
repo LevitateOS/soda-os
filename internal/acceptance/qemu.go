@@ -173,33 +173,36 @@ func WaitForSocket(ctx context.Context, path string) error {
 }
 
 func qemuX86Command(config VMConfig) ([]string, string, error) {
-	binary := environmentOr("SODA_QEMU", "/usr/libexec/qemu-kvm")
-	firmware := environmentOr("SODA_QEMU_FIRMWARE", "/usr/share/edk2/ovmf/OVMF_CODE.fd")
-	varsTemplate := environmentOr("SODA_QEMU_VARS", "/usr/share/edk2/ovmf/OVMF_VARS.fd")
+	inputs, err := qemuHostInputs(config.Architecture)
+	if err != nil {
+		return nil, "", err
+	}
 	vars := config.Disk + ".OVMF_VARS.fd"
 	if config.Mode == "installed" {
 		if err := requireRegularFile(vars); err != nil {
 			return nil, "", fmt.Errorf("reuse OVMF variables: %w", err)
 		}
-	} else if err := copyFile(varsTemplate, vars); err != nil {
+	} else if err := copyFile(inputs.Variables, vars); err != nil {
 		return nil, "", fmt.Errorf("prepare OVMF variables: %w", err)
 	}
 	args := []string{"-machine", "q35,accel=kvm", "-cpu", "host", "-smp", "4", "-m", "8192"}
-	args = append(args, "-drive", "if=pflash,format=raw,readonly=on,file="+firmware, "-drive", "if=pflash,format=raw,file="+vars)
+	args = append(args, "-drive", "if=pflash,format=raw,readonly=on,file="+inputs.Firmware, "-drive", "if=pflash,format=raw,file="+vars)
 	args = append(args, qemuCommonArgs(config)...)
-	return args, binary, nil
+	return args, inputs.Binary, nil
 }
 
 func qemuARMCommand(config VMConfig) ([]string, string, error) {
-	binary := environmentOr("SODA_QEMU", "qemu-system-aarch64")
-	firmware := environmentOr("SODA_QEMU_FIRMWARE", armFirmware())
+	inputs, err := qemuHostInputs(config.Architecture)
+	if err != nil {
+		return nil, "", err
+	}
 	acceleration := map[string]string{"darwin": "hvf", "linux": "kvm"}[runtime.GOOS]
 	if acceleration == "" {
 		return nil, "", fmt.Errorf("AArch64 QEMU is unsupported on %s", runtime.GOOS)
 	}
-	args := []string{"-machine", "virt,accel=" + acceleration, "-cpu", "host", "-smp", "4", "-m", "8192", "-bios", firmware}
+	args := []string{"-machine", "virt,accel=" + acceleration, "-cpu", "host", "-smp", "4", "-m", "8192", "-bios", inputs.Firmware}
 	args = append(args, qemuCommonArgs(config)...)
-	return args, binary, nil
+	return args, inputs.Binary, nil
 }
 
 func qemuCommonArgs(config VMConfig) []string {

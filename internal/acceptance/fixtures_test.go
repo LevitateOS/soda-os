@@ -81,6 +81,21 @@ printf '`+testPublicKey+`' >"$path.pub"
 	require.ErrorContains(t, evidence.Sanitize(secrets), "redacted")
 }
 
+func TestFixtureKeyGenerationNeverReusesExistingMaterial(t *testing.T) {
+	for _, suffix := range []string{"", ".pub"} {
+		secrets := []Secret{}
+		keys := fixtureKeys{Directory: t.TempDir(), Secrets: &secrets}
+		path := filepath.Join(keys.Directory, "person") + suffix
+		require.NoError(t, os.WriteFile(path, []byte("existing material"), 0o600))
+		_, err := keys.generate(context.Background(), "person")
+		require.ErrorContains(t, err, "must be new")
+		require.Empty(t, secrets)
+		contents, err := os.ReadFile(path)
+		require.NoError(t, err)
+		require.Equal(t, "existing material", string(contents))
+	}
+}
+
 func testPerson(t *testing.T, username string) personFixture {
 	t.Helper()
 	evidence, err := CreateEvidence(filepath.Join(t.TempDir(), "evidence"))

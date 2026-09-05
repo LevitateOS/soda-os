@@ -140,7 +140,7 @@ func sudoScriptCommand() []string {
 
 func (remote Remote) sshArgs() []string {
 	return []string{
-		"-T", "-o", "BatchMode=yes", "-o", "IdentitiesOnly=yes", "-o", "StrictHostKeyChecking=yes",
+		"-T", "-o", "ConnectTimeout=10", "-o", "ServerAliveInterval=15", "-o", "ServerAliveCountMax=3", "-o", "BatchMode=yes", "-o", "IdentitiesOnly=yes", "-o", "StrictHostKeyChecking=yes",
 		"-o", "UserKnownHostsFile=" + remote.KnownHosts, "-i", remote.Key, "-p", strconv.Itoa(remote.Port),
 		remote.Username + "@" + remote.Host,
 	}
