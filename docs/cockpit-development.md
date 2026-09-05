@@ -36,6 +36,14 @@ linter, or test runner configuration is needed. Pure tests use Node; component
 tests use jsdom and React Testing Library. Frontend tests also rebuild production
 assets and compare file hashes. Generated output and dependencies are untracked.
 
+## UX design preview
+
+The review-gated [Projects UX prototype](cockpit-ux-design.md) runs through the
+existing Vite development server at `/prototypes/projects/`. It uses simulated
+state only and is not an installed package. Its sources are type-checked and
+its interactions tested; production entrypoints and native adapters do not
+import it. Review this design before changing the shipped page compositions.
+
 ## Source and package ownership
 
 The source uses atomic layers first. PatternFly supplies most primitives and

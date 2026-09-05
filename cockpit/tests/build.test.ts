@@ -25,6 +25,13 @@ test("all installed asset graphs are self-contained and clean rebuilds are ident
     expect(html).toContain('src="../base1/cockpit.js"');
     expect(html).toContain('id="app"');
     expect(html).not.toMatch(/src\/|\.tsx|app\.mjs|htmx/);
+    for (const file of Object.keys(packageInventory(directory)).filter((path) =>
+      path.endsWith(".js"),
+    )) {
+      expect(readFileSync(resolve(directory, file), "utf8")).not.toContain(
+        "SODA_PROJECTS_DESIGN_PREVIEW",
+      );
+    }
   });
 }, 120000);
 
