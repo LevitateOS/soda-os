@@ -21,7 +21,7 @@ type bootcStatus struct {
 	} `json:"status"`
 }
 
-func (state *runnerState) exerciseFallback(ctx context.Context, admin personFixture, vm **VM) error {
+func (state *runnerState) exerciseFallback(ctx context.Context, admin personFixture, guest *guest) error {
 	before, err := captureManifest(ctx, admin, "fallback/b-before")
 	if err != nil {
 		return err
@@ -29,7 +29,7 @@ func (state *runnerState) exerciseFallback(ctx context.Context, admin personFixt
 	if err := state.enableGuestRegistry(ctx, admin); err != nil {
 		return err
 	}
-	if err := state.switchImage(ctx, admin, vm, "fallback"); err != nil {
+	if err := state.switchImage(ctx, admin, guest, "fallback"); err != nil {
 		return err
 	}
 	selected, err := captureManifest(ctx, admin, "fallback/a-selected")
@@ -39,7 +39,7 @@ func (state *runnerState) exerciseFallback(ctx context.Context, admin personFixt
 	if err := compareManifests(before, selected, "fallback/a-selected"); err != nil {
 		return err
 	}
-	if err := state.switchImage(ctx, admin, vm, "candidate"); err != nil {
+	if err := state.switchImage(ctx, admin, guest, "candidate"); err != nil {
 		return err
 	}
 	restored, err := captureManifest(ctx, admin, "fallback/b-restored")
@@ -76,7 +76,7 @@ func disableGuestRegistry(ctx context.Context, admin personFixture) error {
 	return admin.Remote.Sudo(ctx, admin.LinuxPassword, script, "fallback/registry-disable")
 }
 
-func (state *runnerState) switchImage(ctx context.Context, admin personFixture, vm **VM, target string) error {
+func (state *runnerState) switchImage(ctx context.Context, admin personFixture, guest *guest, target string) error {
 	reference, digest, err := state.localImageReference(target)
 	if err != nil {
 		return err
@@ -92,12 +92,7 @@ func (state *runnerState) switchImage(ctx context.Context, admin personFixture, 
 	if err != nil {
 		return err
 	}
-	if err = (*vm).PowerDown(ctx); err != nil {
-		return err
-	}
-	boot := "fallback/boot-" + target
-	*vm, err = state.launch(ctx, boot, "installed", state.paths.installedDisk, "")
-	if err != nil {
+	if err = guest.restart(ctx, "fallback/boot-"+target); err != nil {
 		return err
 	}
 	waitCtx, cancel := context.WithTimeout(ctx, 20*time.Minute)

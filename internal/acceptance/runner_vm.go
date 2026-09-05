@@ -11,7 +11,7 @@ import (
 	"time"
 )
 
-func (state *runnerState) installAndOnboard(ctx context.Context, admin personFixture) (string, *VM, error) {
+func (state *runnerState) installAndOnboard(ctx context.Context, admin personFixture) (string, *guest, error) {
 	tailnet, err := NewTailnet()
 	if err != nil {
 		return "", nil, err
@@ -26,7 +26,7 @@ func (state *runnerState) installAndOnboard(ctx context.Context, admin personFix
 	return state.completeISOFlow(ctx, before, tailnet, admin)
 }
 
-func (state *runnerState) completeISOFlow(ctx context.Context, before tailnetStatus, tailnet Tailnet, admin personFixture) (string, *VM, error) {
+func (state *runnerState) completeISOFlow(ctx context.Context, before tailnetStatus, tailnet Tailnet, admin personFixture) (string, *guest, error) {
 	vm, err := state.launch(ctx, "iso/install", "install", state.paths.installedDisk, state.artifacts.CandidateISO)
 	if err != nil {
 		return "", nil, err
@@ -40,16 +40,15 @@ func (state *runnerState) completeISOFlow(ctx context.Context, before tailnetSta
 	if err != nil {
 		return "", vm, err
 	}
+	remote := admin.Remote
+	remote.Host, remote.Port, remote.CockpitPort = host, 22, 9090
+	remote.KnownHosts = state.paths.knownHosts
+	// Own the discovered enrollment before retaining evidence can fail.
+	vm.enrollment = &guestEnrollment{remote: remote, password: admin.LinuxPassword}
 	if err = state.evidence.Write("iso/host-tailnet-enrolled.json", raw); err != nil {
 		return "", vm, err
 	}
 	if err = state.evidence.Write("iso/tailnet-address.txt", []byte(host+"\n")); err != nil {
-		return "", vm, err
-	}
-	remote := admin.Remote
-	remote.Host, remote.Port, remote.CockpitPort = host, 22, 9090
-	remote.KnownHosts = state.paths.knownHosts
-	if err = state.registerTailnetCleanup(&remote, admin.LinuxPassword); err != nil {
 		return "", vm, err
 	}
 	waitCtx, cancel := context.WithTimeout(ctx, 20*time.Minute)
@@ -60,24 +59,7 @@ func (state *runnerState) completeISOFlow(ctx context.Context, before tailnetSta
 	if err = state.checks.record("local-forwarded-access", state.verifyLocalForwardedAccess(ctx, admin, remote)); err != nil {
 		return "", vm, err
 	}
-	return host, vm, state.captureQMP(ctx, vm, "iso/qmp-running.json")
-}
-
-func (state *runnerState) registerTailnetCleanup(remote *Remote, password []byte) error {
-	attempted := false
-	state.logout = func(ctx context.Context) error {
-		if attempted {
-			return nil
-		}
-		attempted = true
-		return remote.Sudo(ctx, password, "/usr/bin/tailscale logout\n", "cleanup/tailscale-logout")
-	}
-	if err := state.cleanup.Add(CleanupAction{Name: "guest Tailnet enrollment", Run: state.logout}); err != nil {
-		logoutCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-		defer cancel()
-		return errors.Join(err, state.logout(logoutCtx))
-	}
-	return nil
+	return host, vm, vm.captureQMP(ctx, "iso/qmp-running.json")
 }
 
 func (state *runnerState) verifyLocalForwardedAccess(ctx context.Context, admin personFixture, tailnet Remote) error {
@@ -111,7 +93,7 @@ func verifyTailnetAfterLocalAccess(ctx context.Context, tailnet Remote, password
 	return tailnet.Evidence.Write("iso/tailnet-forgejo-after-local-forwarded.txt", output)
 }
 
-func (state *runnerState) launch(ctx context.Context, relative, mode, disk, iso string) (*VM, error) {
+func (state *runnerState) launch(ctx context.Context, relative, mode, disk, iso string) (*guest, error) {
 	directory, err := state.evidence.path(relative)
 	if err != nil {
 		return nil, err
@@ -124,44 +106,13 @@ func (state *runnerState) launch(ctx context.Context, relative, mode, disk, iso 
 		Directory: directory, DiskSize: state.options.DiskSize, Host: "127.0.0.1",
 		SSHPort: state.options.Ports.SSH, CockpitPort: state.options.Ports.Cockpit, ForgejoPort: state.options.Ports.Forgejo,
 	}
-	vm, err := LaunchVM(ctx, config)
-	if err != nil {
-		return nil, err
-	}
-	if err = state.registerVMCleanup(relative, vm); err != nil {
-		stopCtx, cancel := StopDeadline()
-		defer cancel()
-		return nil, errors.Join(err, vm.Stop(stopCtx))
-	}
-	return vm, nil
-}
-
-func (state *runnerState) registerVMCleanup(relative string, vm *VM) error {
-	if err := state.cleanup.Add(CleanupAction{Name: "QEMU " + relative, Run: vm.Stop}); err != nil {
-		return err
-	}
-	if state.logout == nil {
-		return nil
-	}
-	return state.cleanup.Add(CleanupAction{Name: "guest Tailnet enrollment before QEMU " + relative, Run: state.logout})
+	return launchGuest(ctx, config, state.evidence, state.cleanup)
 }
 
 func (state *runnerState) resolveGuest(ctx context.Context, before tailnetStatus, tailnet Tailnet) (string, []byte, error) {
 	discoveryCtx, cancel := context.WithTimeout(ctx, 20*time.Minute)
 	defer cancel()
 	return tailnet.Discover(discoveryCtx, before)
-}
-
-func (state *runnerState) captureQMP(ctx context.Context, vm *VM, relative string) error {
-	var status map[string]any
-	if err := vm.QMP.Execute(ctx, "query-status", "status", nil, &status); err != nil {
-		return err
-	}
-	contents, err := json.MarshalIndent(status, "", "  ")
-	if err != nil {
-		return err
-	}
-	return state.evidence.Write(relative, append(contents, '\n'))
 }
 
 func (state *runnerState) exerciseReusableQCOW2(ctx context.Context, inputs runInputs) error {
@@ -198,10 +149,10 @@ func (state *runnerState) exerciseReusableQCOW2(ctx context.Context, inputs runI
 	if err = runQCOW2Checks(ctx, admin, originalSize); err != nil {
 		return err
 	}
-	if err = state.captureQMP(ctx, vm, "qcow2/qmp-running.json"); err != nil {
+	if err = vm.captureQMP(ctx, "qcow2/qmp-running.json"); err != nil {
 		return err
 	}
-	return vm.PowerDown(ctx)
+	return vm.shutdown(ctx)
 }
 
 type qemuImageInfo struct {

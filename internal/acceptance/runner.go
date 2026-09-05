@@ -62,7 +62,6 @@ type runnerState struct {
 	checks    checkResults
 	secrets   []Secret
 	output    io.Writer
-	logout    func(context.Context) error
 }
 
 func Run(ctx context.Context, options RunOptions, output io.Writer) (RunResult, error) {
@@ -110,11 +109,11 @@ func (state *runnerState) execute(ctx context.Context, inputs runInputs) error {
 	if err := state.prepareRegistry(ctx); err != nil {
 		return fmt.Errorf("registry: %w", err)
 	}
-	tailnetHost, vm, err := state.installAndOnboard(ctx, inputs.Admin)
+	tailnetHost, guest, err := state.installAndOnboard(ctx, inputs.Admin)
 	if err != nil {
 		return fmt.Errorf("network ISO and first boot: %w", err)
 	}
-	if err = state.exerciseInstalledSystem(ctx, inputs, tailnetHost, &vm); err != nil {
+	if err = state.exerciseInstalledSystem(ctx, inputs, tailnetHost, guest); err != nil {
 		return err
 	}
 	if err = state.checks.record("qcow2-cloud-init-local", state.exerciseReusableQCOW2(ctx, inputs)); err != nil {

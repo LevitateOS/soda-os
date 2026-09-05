@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-func (state *runnerState) exerciseInstalledSystem(ctx context.Context, inputs runInputs, tailnetHost string, vm **VM) error {
+func (state *runnerState) exerciseInstalledSystem(ctx context.Context, inputs runInputs, tailnetHost string, guest *guest) error {
 	admin := inputs.Admin
 	if err := state.verifyNativeOwner(ctx, admin, "http://"+urlHost(tailnetHost)+":30000", inputs.OwnerPasswordFile); err != nil {
 		return err
@@ -19,7 +19,7 @@ func (state *runnerState) exerciseInstalledSystem(ctx context.Context, inputs ru
 	if err != nil {
 		return fmt.Errorf("seed update and fallback state: %w", err)
 	}
-	if err = state.checks.record("update-and-fallback", state.exerciseFallback(ctx, admin, vm)); err != nil {
+	if err = state.checks.record("update-and-fallback", state.exerciseFallback(ctx, admin, guest)); err != nil {
 		return fmt.Errorf("manual update and fallback: %w", err)
 	}
 	if err = state.exerciseProductScenarios(ctx, project, inputs.Keys, tailnetHost); err != nil {
@@ -28,13 +28,10 @@ func (state *runnerState) exerciseInstalledSystem(ctx context.Context, inputs ru
 	if err = state.checks.record("packaged-boundaries", captureCore(ctx, admin, "final")); err != nil {
 		return fmt.Errorf("final product capture: %w", err)
 	}
-	if state.logout == nil {
+	if guest.enrollment == nil {
 		return errors.New("installed Tailnet cleanup was not registered")
 	}
-	if err = state.logout(ctx); err != nil {
-		return fmt.Errorf("revoke guest Tailnet enrollment: %w", err)
-	}
-	return (*vm).PowerDown(ctx)
+	return guest.shutdown(ctx)
 }
 
 func captureCore(ctx context.Context, admin personFixture, prefix string) error {
