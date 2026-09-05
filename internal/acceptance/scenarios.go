@@ -79,7 +79,7 @@ func (state *runnerState) runQCOW2Checks(ctx context.Context, remote Remote, ori
 	if err := state.verifyLocalProjectsWithoutTailscale(ctx, remote); err != nil {
 		return err
 	}
-	return remote.Sudo(ctx, password, localAccessCheck, "qcow2/local-access")
+	return remote.Sudo(ctx, password, nativeServiceChecks, "qcow2/native-service-state")
 }
 
 func (state *runnerState) verifyLocalProjectsWithoutTailscale(ctx context.Context, remote Remote) error {

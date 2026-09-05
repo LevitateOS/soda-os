@@ -7,20 +7,21 @@ import (
 	"time"
 )
 
-func (state *runnerState) localRemote() Remote {
+// localForwardedRemote reaches the guest through QEMU loopback forwards, not a LAN client.
+func (state *runnerState) localForwardedRemote() Remote {
 	return Remote{
 		Username: state.options.Administrator.Username, Host: "127.0.0.1", Port: state.options.Ports.SSH,
 		CockpitPort: state.options.Ports.Cockpit, Key: state.paths.adminKey,
-		KnownHosts: filepath.Join(state.paths.work, "iso-lan-known-hosts"), Evidence: state.evidence,
+		KnownHosts: filepath.Join(state.paths.work, "iso-local-forwarded-known-hosts"), Evidence: state.evidence,
 	}
 }
 
-func (state *runnerState) verifyInitialLAN(ctx context.Context, password []byte) error {
-	local := state.localRemote()
+func (state *runnerState) verifyInitialLocalForwardedAccess(ctx context.Context, password []byte) error {
+	local := state.localForwardedRemote()
 	waitCtx, cancel := context.WithTimeout(ctx, 20*time.Minute)
 	defer cancel()
 	if err := local.WaitReady(waitCtx); err != nil {
-		return fmt.Errorf("verify LAN before enrollment: %w", err)
+		return fmt.Errorf("verify local-forwarded access before enrollment: %w", err)
 	}
 	if err := local.Sudo(ctx, password, `set -euo pipefail
 test -f /etc/cloud/cloud-init.disabled
@@ -34,7 +35,7 @@ firewall-cmd --query-port=9090/tcp
 firewall-cmd --permanent --query-port=9090/tcp
 /usr/libexec/soda/soda-console-welcome | grep -F 'Firewall: enabled by default. Cockpit TCP port 9090 is allowed.'
 tailscale status --json | jq -e '.BackendState != "Running"' >/dev/null
-`, "iso/lan-before-enrollment"); err != nil {
+`, "iso/local-forwarded-before-enrollment"); err != nil {
 		return err
 	}
 	// The suite administrator opens Forgejo only after checking first-boot defaults.
@@ -46,7 +47,7 @@ tailscale status --json | jq -e '.BackendState != "Running"' >/dev/null
 		fmt.Sprintf("http://127.0.0.1:%d/api/healthz", state.options.Ports.Forgejo),
 	}})
 	if err != nil {
-		return fmt.Errorf("verify Forgejo before enrollment: %w", err)
+		return fmt.Errorf("verify local-forwarded Forgejo before enrollment: %w", err)
 	}
-	return state.evidence.Write("iso/lan-forgejo-before-enrollment.txt", output)
+	return state.evidence.Write("iso/local-forwarded-forgejo-before-enrollment.txt", output)
 }

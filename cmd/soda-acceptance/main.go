@@ -61,9 +61,9 @@ func runCommand() *cobra.Command {
 	flags.StringVar(&options.Administrator.Password, "administrator-password-file", "", "mode-0600 file containing one disposable password line")
 	flags.StringVar(&options.TempDir, "temp-dir", "", "host directory for disposable VM state; defaults to RUNNER_TEMP")
 	flags.StringVar(&options.DiskSize, "disk-size", "40G", "installed test disk size")
-	flags.IntVar(&options.Ports.SSH, "ssh-port", 2222, "host-forwarded SSH port for trusted-local-network checks")
-	flags.IntVar(&options.Ports.Cockpit, "cockpit-port", 19090, "host-forwarded Cockpit port for trusted-local-network checks")
-	flags.IntVar(&options.Ports.Forgejo, "forgejo-port", 13000, "host-forwarded Forgejo port for trusted-local-network checks")
+	flags.IntVar(&options.Ports.SSH, "ssh-port", 2222, "loopback-forwarded SSH port (not independent LAN evidence)")
+	flags.IntVar(&options.Ports.Cockpit, "cockpit-port", 19090, "loopback-forwarded Cockpit port (not independent LAN evidence)")
+	flags.IntVar(&options.Ports.Forgejo, "forgejo-port", 13000, "loopback-forwarded Forgejo port (not independent LAN evidence)")
 	flags.IntVar(&options.Ports.Registry, "registry-port", 5001, "loopback port for the disposable OCI registry")
 	flags.StringVar(&options.RepositoryRoot, "repository", ".", "clean acceptance-suite checkout")
 	for _, name := range []string{

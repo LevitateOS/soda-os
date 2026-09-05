@@ -10,7 +10,7 @@ import (
 	"strings"
 )
 
-// The LAN-only fixture uses VM tooling to deliver ordinary cloud-init input.
+// The local-forwarded fixture uses VM tooling to deliver ordinary cloud-init input.
 func (state *runnerState) prepareQCOW2UserData(ctx context.Context) (string, error) {
 	publicKey, err := os.ReadFile(state.paths.adminPublicKey)
 	if err != nil {

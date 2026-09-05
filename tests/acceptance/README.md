@@ -66,10 +66,10 @@ replace those requirements with a new product contract.
 
 | Check | Establishing operation and mutation | Evidence / success boundary |
 |---|---|---|
-| `iso-first-boot-defaults` | `verifyInitialLAN`: inspect ISO cloud-init/firewall/welcome defaults, then explicitly allow Forgejo fixture ports | `iso/lan-before-enrollment`, `iso/administrator-allows-forgejo`, `iso/lan-forgejo-before-enrollment.txt`; local forwarding, not an independently observed LAN |
-| `qcow2-cloud-init-local` | `exerciseReusableQCOW2`: clone/grow disk, provision cloud-init, operator Forgejo signup, create local-only workspace, power down | `qcow2/core`, `qcow2/cloud-init`, `qcow2/volume-growth`, local project setup captures and `qcow2/local-access`; not the complete console/browser journey |
-| `local-forwarded-access` | `verifyLAN`: SSH/Cockpit readiness and native service assertions after enrollment; initial local checks already completed | `iso/lan-before-enrollment`, `iso/lan-after-tailscale`; probes reach `127.0.0.1` QEMU forwards, not a separate LAN client |
-| `tailnet-access` | `verifyTailnetAfterLAN`: SSH/Cockpit readiness, native enrollment state, Forgejo health | `iso/tailnet-after-lan`, `iso/tailnet-forgejo-after-lan.txt`; not public-ingress evidence |
+| `iso-first-boot-defaults` | `verifyInitialLocalForwardedAccess`: inspect ISO cloud-init/firewall/welcome defaults, then explicitly allow Forgejo fixture ports | `iso/local-forwarded-before-enrollment`, `iso/administrator-allows-forgejo`, `iso/local-forwarded-forgejo-before-enrollment.txt`; local forwarding, not an independently observed LAN |
+| `qcow2-cloud-init-local` | `exerciseReusableQCOW2`: clone/grow disk, provision cloud-init, operator Forgejo signup, create local-only workspace, power down | `qcow2/core`, `qcow2/cloud-init`, `qcow2/volume-growth`, local project setup captures and `qcow2/native-service-state`; not the complete console/browser journey |
+| `local-forwarded-access` | `verifyLocalForwardedAccess`: SSH/Cockpit readiness and native service assertions after enrollment; initial local checks already completed | `iso/local-forwarded-before-enrollment`, `iso/local-forwarded-after-tailscale`; probes reach `127.0.0.1` QEMU forwards, not a separate LAN client |
+| `tailnet-access` | `verifyTailnetAfterLocalAccess`: SSH/Cockpit readiness, native enrollment state, Forgejo health | `iso/tailnet-after-local-forwarded`, `iso/tailnet-forgejo-after-local-forwarded.txt`; not public-ingress evidence |
 | `installed-onboarding-observations` | **Not recorded by runner.** Operator installation/console/browser/reboot checks in Installation and native onboarding below | Requires normal console/welcome, Cockpit key entry and native enrollment, Forgejo advertised URL/clone/refresh and registration-policy observations, plus installed service-ordering evidence; pressing Enter or a helper/API result does not establish this composite |
 | `trusted-lan-access` | **Not covered by runner topology.** Separate trusted LAN client | Real SSH/Cockpit, administrator-opened Forgejo/development access before/after enrollment as applicable; forwarding alone is insufficient |
 | `public-ingress-rejection` | **Not covered.** Actual public-side probes against cloud deployment | Verify protected services reject public ingress while their Tailnet path works |
@@ -101,9 +101,9 @@ After separately authorized builds, run on both matching architectures:
    runtime and permanent firewall configuration and confirm Cockpit is reachable.
    Confirm the welcome explains that administrators must open Forgejo and
    development ports through Cockpit → Networking → Firewall. The runner records
-   these states in `iso/lan-before-enrollment` and checks the cloud-init disabled
+   these states in `iso/local-forwarded-before-enrollment` and checks the cloud-init disabled
    file. Only then does the suite administrator explicitly open Forgejo TCP
-   30000/2222 in the disposable guest for subsequent LAN tests; QCOW2 uses the same
+   30000/2222 in the disposable guest for subsequent local-forwarded tests; QCOW2 uses the same
    explicit fixture configuration, recorded as `administrator-allows-forgejo`.
    Those additional ports are not Soda image or installer defaults.
 2. Provision QCOW2 through VM tooling; check key/password behavior, network
@@ -278,7 +278,7 @@ go run ./cmd/soda-acceptance run \
 Use `aarch64` as the evidence-directory leaf on an AArch64 host. The protected
 Tailscale file contains one reusable ephemeral guest key. The private key and
 password are disposable test credentials; all three secret files must have
-mode `0600` or stricter. The ISO uses only the installer. For the QCOW2 LAN fixture, the runner uses
+mode `0600` or stricter. The ISO uses only the installer. For the QCOW2 local-forwarded fixture, the runner uses
 cloud-localds to deliver native cloud-init user-data automatically; install
 cloud-localds and openssl on the matching host. Protected fixture files stay in
 the disposable work directory and are removed during cleanup. The operator
@@ -318,8 +318,8 @@ record, and retains only the five small record files for one day. It does not
 run QEMU, receive a guest Tailscale credential, publish an image, or create a
 release.
 
-The runner QCOW2 fixture covers cloud-init with an ordinary trusted disposable
-LAN. The late-enrollment Tailnet, native Cockpit key UI, first-signup, registration
+The runner QCOW2 fixture covers cloud-init through QEMU loopback-forwarded
+access, not an independent trusted-LAN client. The late-enrollment Tailnet, native Cockpit key UI, first-signup, registration
 policy, and reboot matrix above still requires separately recorded installed
 acceptance; a runner summary alone does not prove those interactive checks.
 

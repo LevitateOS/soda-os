@@ -37,7 +37,7 @@ func TestInstalledChecksUseNativeTailscaleState(t *testing.T) {
 	require.Contains(t, tailscaleAccessCheck, "tailscale status --json")
 	require.NotContains(t, tailscaleAccessCheck, "soda-setup")
 	require.NotContains(t, qcow2GuestChecks, "soda-setup")
-	require.NotContains(t, localAccessCheck, "connection.zone")
+	require.NotContains(t, nativeServiceChecks, "connection.zone")
 }
 
 func TestReusableQCOW2KeepsTheInteractiveConsoleVisible(t *testing.T) {

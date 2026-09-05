@@ -152,13 +152,13 @@ func (state *runnerState) verifyDevelopmentServer(ctx context.Context, scenario 
 	if err := startDevelopmentServer(ctx, bob, 18081, "bob", "product/bob-development-server"); err != nil {
 		return err
 	}
-	if err := state.waitForDevelopmentServer(ctx, "127.0.0.1", 18080, "first\n", "product/alice-development-server-lan-first"); err != nil {
+	if err := state.waitForDevelopmentServer(ctx, "127.0.0.1", 18080, "first\n", "product/alice-development-server-local-forwarded-first"); err != nil {
 		return err
 	}
 	if err := state.waitForDevelopmentServer(ctx, scenario.tailnetHost, 18080, "first\n", "product/alice-development-server-tailnet-first"); err != nil {
 		return err
 	}
-	if err := state.waitForDevelopmentServer(ctx, "127.0.0.1", 18081, "bob\n", "product/bob-development-server-lan"); err != nil {
+	if err := state.waitForDevelopmentServer(ctx, "127.0.0.1", 18081, "bob\n", "product/bob-development-server-local-forwarded"); err != nil {
 		return err
 	}
 	if err := state.waitForDevelopmentServer(ctx, scenario.tailnetHost, 18081, "bob\n", "product/bob-development-server-tailnet"); err != nil {
@@ -167,7 +167,7 @@ func (state *runnerState) verifyDevelopmentServer(ctx context.Context, scenario 
 	if err := alice.Capture(ctx, "product/hot-reload-write", []byte("printf 'second\\n' >\"$HOME/Projects/kept/hot-reload.txt\"\n"), "/bin/bash", "-s"); err != nil {
 		return err
 	}
-	if err := state.waitForDevelopmentServer(ctx, "127.0.0.1", 18080, "second\n", "product/alice-hot-reload-lan"); err != nil {
+	if err := state.waitForDevelopmentServer(ctx, "127.0.0.1", 18080, "second\n", "product/alice-hot-reload-local-forwarded"); err != nil {
 		return err
 	}
 	return state.waitForDevelopmentServer(ctx, scenario.tailnetHost, 18080, "second\n", "product/alice-hot-reload-tailnet")

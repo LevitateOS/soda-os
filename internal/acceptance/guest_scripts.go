@@ -139,11 +139,12 @@ jq -cn --argjson accounts "$accounts" --argjson groups "$groups" --argjson homes
   '{accounts:$accounts,groups:$groups,homes:$homes,workspaces:$workspaces,catalog:$catalog,forgejo_users:$forgejo_users,tailscale:$tailscale,network:$network,ssh_host_keys:$host_keys}'
 `
 
-const localAccessCheck = `set -euo pipefail
+// Service state alone does not establish network reachability.
+const nativeServiceChecks = `set -euo pipefail
 test "$(systemctl is-active sshd)" = active
 test "$(systemctl is-active cockpit.socket)" = active
 test "$(systemctl is-active forgejo)" = active
-printf 'local-network-services=pass\n'
+printf 'native-service-state=pass\n'
 `
 
 const tailscaleAccessCheck = `set -euo pipefail

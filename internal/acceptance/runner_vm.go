@@ -36,10 +36,10 @@ func (state *runnerState) completeISOFlow(ctx context.Context, before tailnetSta
 	if err != nil {
 		return scenarioState{}, vm, err
 	}
-	if err = state.checks.record("iso-first-boot-defaults", state.verifyInitialLAN(ctx, password)); err != nil {
+	if err = state.checks.record("iso-first-boot-defaults", state.verifyInitialLocalForwardedAccess(ctx, password)); err != nil {
 		return scenarioState{}, vm, err
 	}
-	fmt.Fprintln(state.output, "LAN access is verified. Open Cockpit → Tailscale and sign in through its native browser authentication URL.")
+	fmt.Fprintln(state.output, "Local-forwarded access through QEMU is verified (not independent LAN evidence). Open Cockpit → Tailscale and sign in through its native browser authentication URL.")
 	host, raw, err := state.resolveGuest(ctx, before, tailnet)
 	if err != nil {
 		return scenarioState{}, vm, err
@@ -64,7 +64,7 @@ func (state *runnerState) completeISOFlow(ctx context.Context, before tailnetSta
 }
 
 func (state *runnerState) completeInstalledAccess(ctx context.Context, remote Remote, vm *VM, password []byte) (Remote, *VM, error) {
-	local, err := state.verifyLAN(ctx, remote, password)
+	local, err := state.verifyLocalForwardedAccess(ctx, remote, password)
 	if err = state.checks.record("local-forwarded-access", err); err != nil {
 		return Remote{}, vm, err
 	}
@@ -88,29 +88,29 @@ func (state *runnerState) registerTailnetCleanup(remote *Remote, password []byte
 	return nil
 }
 
-func (state *runnerState) verifyLAN(ctx context.Context, tailnet Remote, password []byte) (Remote, error) {
-	local := state.localRemote()
+func (state *runnerState) verifyLocalForwardedAccess(ctx context.Context, tailnet Remote, password []byte) (Remote, error) {
+	local := state.localForwardedRemote()
 	waitCtx, cancel := context.WithTimeout(ctx, 5*time.Minute)
 	defer cancel()
 	if err := local.WaitReady(waitCtx); err != nil {
-		return Remote{}, fmt.Errorf("verify LAN after Tailscale: %w", err)
+		return Remote{}, fmt.Errorf("verify local-forwarded access after Tailscale: %w", err)
 	}
-	if err := local.Sudo(ctx, password, localAccessCheck, "iso/lan-after-tailscale"); err != nil {
+	if err := local.Sudo(ctx, password, nativeServiceChecks, "iso/local-forwarded-after-tailscale"); err != nil {
 		return Remote{}, err
 	}
-	if err := state.checks.record("tailnet-access", state.verifyTailnetAfterLAN(ctx, tailnet)); err != nil {
+	if err := state.checks.record("tailnet-access", state.verifyTailnetAfterLocalAccess(ctx, tailnet)); err != nil {
 		return Remote{}, err
 	}
 	return local, nil
 }
 
-func (state *runnerState) verifyTailnetAfterLAN(ctx context.Context, tailnet Remote) error {
+func (state *runnerState) verifyTailnetAfterLocalAccess(ctx context.Context, tailnet Remote) error {
 	waitCtx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 	defer cancel()
 	if err := tailnet.WaitReady(waitCtx); err != nil {
-		return fmt.Errorf("verify Tailnet after LAN: %w", err)
+		return fmt.Errorf("verify Tailnet after local-forwarded access: %w", err)
 	}
-	if err := tailnet.Sudo(ctx, state.secret("administrator-password"), tailscaleAccessCheck, "iso/tailnet-after-lan"); err != nil {
+	if err := tailnet.Sudo(ctx, state.secret("administrator-password"), tailscaleAccessCheck, "iso/tailnet-after-local-forwarded"); err != nil {
 		return err
 	}
 	output, err := CommandOutput(ctx, CommandSpec{Name: "curl", Args: []string{
@@ -118,9 +118,9 @@ func (state *runnerState) verifyTailnetAfterLAN(ctx context.Context, tailnet Rem
 		"http://" + urlHost(tailnet.Host) + ":30000/api/healthz",
 	}})
 	if err != nil {
-		return fmt.Errorf("verify Forgejo over Tailnet after LAN: %w", err)
+		return fmt.Errorf("verify Forgejo over Tailnet after local-forwarded access: %w", err)
 	}
-	return state.evidence.Write("iso/tailnet-forgejo-after-lan.txt", output)
+	return state.evidence.Write("iso/tailnet-forgejo-after-local-forwarded.txt", output)
 }
 
 func (state *runnerState) tailnetRemote(host string) Remote {
