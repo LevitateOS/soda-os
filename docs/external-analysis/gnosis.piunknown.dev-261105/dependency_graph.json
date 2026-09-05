@@ -1,0 +1,72 @@
+[
+  {
+    "file": "types.ts",
+    "path": "cockpit/src/tailscale/types.ts",
+    "imported_by": 15,
+    "imports": 0,
+    "risk": "LOW"
+  },
+  {
+    "file": "types.ts",
+    "path": "cockpit/src/projects/types.ts",
+    "imported_by": 13,
+    "imports": 0,
+    "risk": "LOW"
+  },
+  {
+    "file": "DiagnosticAlert.tsx",
+    "path": "cockpit/src/molecules/DiagnosticAlert.tsx",
+    "imported_by": 12,
+    "imports": 0,
+    "risk": "LOW"
+  },
+  {
+    "file": "ui.ts",
+    "path": "cockpit/src/projects/ui.ts",
+    "imported_by": 9,
+    "imports": 1,
+    "risk": "HIGH"
+  },
+  {
+    "file": "types.ts",
+    "path": "cockpit/src/runners/types.ts",
+    "imported_by": 9,
+    "imports": 0,
+    "risk": "LOW"
+  },
+  {
+    "file": "types.ts",
+    "path": "cockpit/src/updates/types.ts",
+    "imported_by": 9,
+    "imports": 0,
+    "risk": "LOW"
+  },
+  {
+    "file": "CodeValue.tsx",
+    "path": "cockpit/src/atoms/CodeValue.tsx",
+    "imported_by": 8,
+    "imports": 0,
+    "risk": "LOW"
+  },
+  {
+    "file": "types.ts",
+    "path": "cockpit/src/cockpit/types.ts",
+    "imported_by": 8,
+    "imports": 0,
+    "risk": "LOW"
+  },
+  {
+    "file": "status.ts",
+    "path": "cockpit/src/tailscale/status.ts",
+    "imported_by": 7,
+    "imports": 1,
+    "risk": "HIGH"
+  },
+  {
+    "file": "ExternalLink.tsx",
+    "path": "cockpit/src/atoms/ExternalLink.tsx",
+    "imported_by": 6,
+    "imports": 0,
+    "risk": "LOW"
+  }
+]

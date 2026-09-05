@@ -1,0 +1,2597 @@
+{
+  "cockpit/vite.config.ts": {
+    "risk_level": "LOW",
+    "avg_complexity": 0.0,
+    "max_complexity": 0.0,
+    "max_complexity_function": "",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": []
+  },
+  "scripts/check_native_test.go": {
+    "risk_level": "HIGH",
+    "avg_complexity": 3.86,
+    "max_complexity": 6.0,
+    "max_complexity_function": "TestCheckNativeDarwinIsolation",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "100% of 7 functions have no docstring"
+    ]
+  },
+  "scripts/place_libvirt_iso_test.go": {
+    "risk_level": "HIGH",
+    "avg_complexity": 2.67,
+    "max_complexity": 6.0,
+    "max_complexity_function": "TestPlaceLibvirtISORefusesOverwrite",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "100% of 6 functions have no docstring"
+    ]
+  },
+  "scripts/prepare_native_iso_candidate_test.go": {
+    "risk_level": "HIGH",
+    "avg_complexity": 3.0,
+    "max_complexity": 6.0,
+    "max_complexity_function": "prepareNativeScriptTest",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "100% of 14 functions have no docstring"
+    ]
+  },
+  "cmd/soda-acceptance/main.go": {
+    "risk_level": "HIGH",
+    "avg_complexity": 3.33,
+    "max_complexity": 4.0,
+    "max_complexity_function": "runCommand",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "100% of 3 functions have no docstring"
+    ]
+  },
+  "cmd/soda-forgejo-tailnet/main.go": {
+    "risk_level": "LOW",
+    "avg_complexity": 2.0,
+    "max_complexity": 2.0,
+    "max_complexity_function": "main",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": []
+  },
+  "cmd/soda-image/main.go": {
+    "risk_level": "HIGH",
+    "avg_complexity": 3.33,
+    "max_complexity": 6.0,
+    "max_complexity_function": "run",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "100% of 6 functions have no docstring"
+    ]
+  },
+  "cmd/soda-projects/main.go": {
+    "risk_level": "LOW",
+    "avg_complexity": 5.0,
+    "max_complexity": 5.0,
+    "max_complexity_function": "main",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": []
+  },
+  "cmd/soda-release/main.go": {
+    "risk_level": "HIGH",
+    "avg_complexity": 3.11,
+    "max_complexity": 4.0,
+    "max_complexity_function": "draftCommand",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "100% of 9 functions have no docstring"
+    ]
+  },
+  "cmd/soda-release/main_test.go": {
+    "risk_level": "HIGH",
+    "avg_complexity": 1.67,
+    "max_complexity": 3.0,
+    "max_complexity_function": "TestCommandExposesOnlyFixedPublicationOperations",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "100% of 3 functions have no docstring"
+    ]
+  },
+  "cmd/soda-runner-helper/main.go": {
+    "risk_level": "LOW",
+    "avg_complexity": 5.0,
+    "max_complexity": 5.0,
+    "max_complexity_function": "main",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": []
+  },
+  "cmd/soda-runner-launch/main.go": {
+    "risk_level": "LOW",
+    "avg_complexity": 5.0,
+    "max_complexity": 5.0,
+    "max_complexity_function": "main",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": []
+  },
+  "cmd/soda-runners/main.go": {
+    "risk_level": "LOW",
+    "avg_complexity": 5.0,
+    "max_complexity": 5.0,
+    "max_complexity_function": "main",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": []
+  },
+  "cmd/soda-tailnet/main.go": {
+    "risk_level": "HIGH",
+    "avg_complexity": 3.67,
+    "max_complexity": 6.0,
+    "max_complexity_function": "enrollmentMessage",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "100% of 3 functions have no docstring"
+    ]
+  },
+  "cmd/soda-tailnet/main_test.go": {
+    "risk_level": "LOW",
+    "avg_complexity": 1.5,
+    "max_complexity": 2.0,
+    "max_complexity_function": "TestEnrollmentMessage",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": []
+  },
+  "cmd/soda-updates/main.go": {
+    "risk_level": "HIGH",
+    "avg_complexity": 3.33,
+    "max_complexity": 5.0,
+    "max_complexity_function": "newCommand",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "100% of 3 functions have no docstring"
+    ]
+  },
+  "cmd/soda-updates/main_test.go": {
+    "risk_level": "HIGH",
+    "avg_complexity": 1.2,
+    "max_complexity": 2.0,
+    "max_complexity_function": "TestMutationRequiresExplicitSelection",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "100% of 5 functions have no docstring"
+    ]
+  },
+  "cmd/soda-workspace-helper/main.go": {
+    "risk_level": "LOW",
+    "avg_complexity": 5.0,
+    "max_complexity": 5.0,
+    "max_complexity_function": "main",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": []
+  },
+  "cockpit/tests/build.test.ts": {
+    "risk_level": "LOW",
+    "avg_complexity": 0.0,
+    "max_complexity": 0.0,
+    "max_complexity_function": "",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": []
+  },
+  "cockpit/tests/installed.test.ts": {
+    "risk_level": "LOW",
+    "avg_complexity": 1.0,
+    "max_complexity": 1.0,
+    "max_complexity_function": "openPackage",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": []
+  },
+  "cockpit/tests/process.ts": {
+    "risk_level": "LOW",
+    "avg_complexity": 1.0,
+    "max_complexity": 1.0,
+    "max_complexity_function": "pendingProcess",
+    "coupling_score": 1,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": []
+  },
+  "cockpit/tests/rpm.test.ts": {
+    "risk_level": "LOW",
+    "avg_complexity": 0.0,
+    "max_complexity": 0.0,
+    "max_complexity_function": "",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": []
+  },
+  "cockpit/tests/setup.ts": {
+    "risk_level": "LOW",
+    "avg_complexity": 0.0,
+    "max_complexity": 0.0,
+    "max_complexity_function": "",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": []
+  },
+  "cockpit/tests/source-boundaries.test.ts": {
+    "risk_level": "HIGH",
+    "avg_complexity": 7.0,
+    "max_complexity": 11.0,
+    "max_complexity_function": "allowed",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "A function has cyclomatic complexity 11 (threshold: 11)"
+    ]
+  },
+  "cockpit/tests/updates-installed.test.ts": {
+    "risk_level": "LOW",
+    "avg_complexity": 0.0,
+    "max_complexity": 0.0,
+    "max_complexity_function": "",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": []
+  },
+  "internal/acceptance/artifacts.go": {
+    "risk_level": "HIGH",
+    "avg_complexity": 4.4,
+    "max_complexity": 8.0,
+    "max_complexity_function": "ValidateArtifacts",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "100% of 10 functions have no docstring"
+    ]
+  },
+  "internal/acceptance/artifacts_test.go": {
+    "risk_level": "HIGH",
+    "avg_complexity": 1.25,
+    "max_complexity": 2.0,
+    "max_complexity_function": "writeArtifactFixture",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "100% of 4 functions have no docstring"
+    ]
+  },
+  "internal/acceptance/cleanup.go": {
+    "risk_level": "LOW",
+    "avg_complexity": 4.0,
+    "max_complexity": 4.0,
+    "max_complexity_function": "Add",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": []
+  },
+  "internal/acceptance/cleanup_test.go": {
+    "risk_level": "LOW",
+    "avg_complexity": 2.0,
+    "max_complexity": 3.0,
+    "max_complexity_function": "TestCleanupRunsExactRegisteredResourcesOnceInReverseOrder",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": []
+  },
+  "internal/acceptance/cloud_init.go": {
+    "risk_level": "MEDIUM",
+    "avg_complexity": 7.0,
+    "max_complexity": 7.0,
+    "max_complexity_function": "prepareQCOW2UserData",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "Average complexity across file is 7.0 (threshold: 6.0)"
+    ]
+  },
+  "internal/acceptance/command.go": {
+    "risk_level": "HIGH",
+    "avg_complexity": 2.0,
+    "max_complexity": 3.0,
+    "max_complexity_function": "CommandOutput",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "100% of 6 functions have no docstring"
+    ]
+  },
+  "internal/acceptance/evidence.go": {
+    "risk_level": "HIGH",
+    "avg_complexity": 5.83,
+    "max_complexity": 8.0,
+    "max_complexity_function": "Sanitize",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "100% of 6 functions have no docstring"
+    ]
+  },
+  "internal/acceptance/evidence_test.go": {
+    "risk_level": "LOW",
+    "avg_complexity": 1.0,
+    "max_complexity": 1.0,
+    "max_complexity_function": "TestEvidenceRetainsDiagnosticsAndRedactsSecrets",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": []
+  },
+  "internal/acceptance/external_git_scenario.go": {
+    "risk_level": "HIGH",
+    "avg_complexity": 2.89,
+    "max_complexity": 9.0,
+    "max_complexity_function": "setupExternalSSHWorkspace",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "100% of 9 functions have no docstring"
+    ]
+  },
+  "internal/acceptance/fallback.go": {
+    "risk_level": "HIGH",
+    "avg_complexity": 3.88,
+    "max_complexity": 9.0,
+    "max_complexity_function": "exerciseFallback",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "100% of 8 functions have no docstring"
+    ]
+  },
+  "internal/acceptance/guest_scripts.go": {
+    "risk_level": "LOW",
+    "avg_complexity": 0.0,
+    "max_complexity": 0.0,
+    "max_complexity_function": "",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": []
+  },
+  "internal/acceptance/identity_scenarios.go": {
+    "risk_level": "HIGH",
+    "avg_complexity": 4.18,
+    "max_complexity": 9.0,
+    "max_complexity_function": "isBase64KeyByte",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "100% of 11 functions have no docstring"
+    ]
+  },
+  "internal/acceptance/identity_scenarios_test.go": {
+    "risk_level": "HIGH",
+    "avg_complexity": 1.0,
+    "max_complexity": 1.0,
+    "max_complexity_function": "TestContainsPublicKeyIgnoresForgejoAndLocalComments",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "100% of 3 functions have no docstring"
+    ]
+  },
+  "internal/acceptance/lan.go": {
+    "risk_level": "LOW",
+    "avg_complexity": 3.0,
+    "max_complexity": 5.0,
+    "max_complexity_function": "verifyInitialLAN",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": []
+  },
+  "internal/acceptance/native_owner.go": {
+    "risk_level": "LOW",
+    "avg_complexity": 4.0,
+    "max_complexity": 6.0,
+    "max_complexity_function": "verifyNativeOwner",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": []
+  },
+  "internal/acceptance/processes.go": {
+    "risk_level": "HIGH",
+    "avg_complexity": 2.22,
+    "max_complexity": 6.0,
+    "max_complexity_function": "stop",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "100% of 9 functions have no docstring"
+    ]
+  },
+  "internal/acceptance/processes_test.go": {
+    "risk_level": "LOW",
+    "avg_complexity": 2.0,
+    "max_complexity": 2.0,
+    "max_complexity_function": "TestProcessStopTerminatesOnlyItsProcessGroup",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": []
+  },
+  "internal/acceptance/product_scenarios.go": {
+    "risk_level": "HIGH",
+    "avg_complexity": 3.72,
+    "max_complexity": 9.0,
+    "max_complexity_function": "verifyCockpitAndRoles",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "100% of 18 functions have no docstring"
+    ]
+  },
+  "internal/acceptance/project_scenarios.go": {
+    "risk_level": "HIGH",
+    "avg_complexity": 4.0,
+    "max_complexity": 8.0,
+    "max_complexity_function": "requireRetainedWorkspace",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "100% of 16 functions have no docstring"
+    ]
+  },
+  "internal/acceptance/qemu.go": {
+    "risk_level": "HIGH",
+    "avg_complexity": 3.0,
+    "max_complexity": 10.0,
+    "max_complexity_function": "LaunchVM",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "100% of 19 functions have no docstring"
+    ]
+  },
+  "internal/acceptance/qemu_test.go": {
+    "risk_level": "HIGH",
+    "avg_complexity": 1.0,
+    "max_complexity": 1.0,
+    "max_complexity_function": "TestQEMUInstallUsesOnlyCandidateISOAndTargetDisk",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "100% of 6 functions have no docstring"
+    ]
+  },
+  "internal/acceptance/qmp.go": {
+    "risk_level": "HIGH",
+    "avg_complexity": 4.8,
+    "max_complexity": 7.0,
+    "max_complexity_function": "Execute",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "100% of 5 functions have no docstring"
+    ]
+  },
+  "internal/acceptance/qmp_test.go": {
+    "risk_level": "HIGH",
+    "avg_complexity": 2.25,
+    "max_complexity": 6.0,
+    "max_complexity_function": "serveQMPFixture",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "100% of 4 functions have no docstring"
+    ]
+  },
+  "internal/acceptance/record.go": {
+    "risk_level": "HIGH",
+    "avg_complexity": 3.82,
+    "max_complexity": 7.0,
+    "max_complexity_function": "CreateSignedRecord",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "100% of 11 functions have no docstring"
+    ]
+  },
+  "internal/acceptance/record_test.go": {
+    "risk_level": "HIGH",
+    "avg_complexity": 1.0,
+    "max_complexity": 1.0,
+    "max_complexity_function": "Run",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "100% of 12 functions have no docstring"
+    ]
+  },
+  "internal/acceptance/registry.go": {
+    "risk_level": "HIGH",
+    "avg_complexity": 2.47,
+    "max_complexity": 5.0,
+    "max_complexity_function": "Start",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "100% of 15 functions have no docstring"
+    ]
+  },
+  "internal/acceptance/remote.go": {
+    "risk_level": "HIGH",
+    "avg_complexity": 2.18,
+    "max_complexity": 5.0,
+    "max_complexity_function": "WaitReady",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "100% of 11 functions have no docstring"
+    ]
+  },
+  "internal/acceptance/remote_test.go": {
+    "risk_level": "LOW",
+    "avg_complexity": 1.0,
+    "max_complexity": 1.0,
+    "max_complexity_function": "TestSudoCommandPreservesEmptyPromptAcrossSSHCommandJoin",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": []
+  },
+  "internal/acceptance/runner.go": {
+    "risk_level": "HIGH",
+    "avg_complexity": 2.62,
+    "max_complexity": 6.0,
+    "max_complexity_function": "execute",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "100% of 8 functions have no docstring"
+    ]
+  },
+  "internal/acceptance/runner_init.go": {
+    "risk_level": "HIGH",
+    "avg_complexity": 5.5,
+    "max_complexity": 9.0,
+    "max_complexity_function": "defaultRunOptions",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "100% of 14 functions have no docstring"
+    ]
+  },
+  "internal/acceptance/runner_test.go": {
+    "risk_level": "HIGH",
+    "avg_complexity": 1.0,
+    "max_complexity": 1.0,
+    "max_complexity_function": "TestFallbackVMCleanupKeepsTailnetLogoutAheadOfPowerOff",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "100% of 3 functions have no docstring"
+    ]
+  },
+  "internal/acceptance/runner_vm.go": {
+    "risk_level": "HIGH",
+    "avg_complexity": 4.13,
+    "max_complexity": 10.0,
+    "max_complexity_function": "exerciseReusableQCOW2",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "100% of 15 functions have no docstring"
+    ]
+  },
+  "internal/acceptance/scenarios.go": {
+    "risk_level": "HIGH",
+    "avg_complexity": 4.15,
+    "max_complexity": 10.0,
+    "max_complexity_function": "exerciseInstalledSystem",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "100% of 13 functions have no docstring"
+    ]
+  },
+  "internal/acceptance/summary.go": {
+    "risk_level": "HIGH",
+    "avg_complexity": 3.86,
+    "max_complexity": 9.0,
+    "max_complexity_function": "Validate",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "100% of 7 functions have no docstring"
+    ]
+  },
+  "internal/acceptance/summary_test.go": {
+    "risk_level": "LOW",
+    "avg_complexity": 1.0,
+    "max_complexity": 1.0,
+    "max_complexity_function": "TestRunSummaryRequiresEveryPassingScenario",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": []
+  },
+  "internal/acceptance/tailnet.go": {
+    "risk_level": "HIGH",
+    "avg_complexity": 4.6,
+    "max_complexity": 8.0,
+    "max_complexity_function": "newSodaPeer",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "100% of 5 functions have no docstring"
+    ]
+  },
+  "internal/config/config.go": {
+    "risk_level": "HIGH",
+    "avg_complexity": 4.67,
+    "max_complexity": 8.0,
+    "max_complexity_function": "LoadDistro",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "100% of 9 functions have no docstring"
+    ]
+  },
+  "internal/config/config_test.go": {
+    "risk_level": "HIGH",
+    "avg_complexity": 1.57,
+    "max_complexity": 3.0,
+    "max_complexity_function": "TestRequireNativeHostArchitecture",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "100% of 7 functions have no docstring"
+    ]
+  },
+  "internal/linuxhost/account.go": {
+    "risk_level": "HIGH",
+    "avg_complexity": 1.67,
+    "max_complexity": 3.0,
+    "max_complexity_function": "HasInteractiveShell",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "100% of 3 functions have no docstring"
+    ]
+  },
+  "internal/linuxhost/command.go": {
+    "risk_level": "LOW",
+    "avg_complexity": 3.0,
+    "max_complexity": 3.0,
+    "max_complexity_function": "Run",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": []
+  },
+  "internal/linuxhost/descriptors.go": {
+    "risk_level": "HIGH",
+    "avg_complexity": 4.33,
+    "max_complexity": 8.0,
+    "max_complexity_function": "OpenAccountHome",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "100% of 12 functions have no docstring"
+    ]
+  },
+  "internal/linuxhost/identity.go": {
+    "risk_level": "HIGH",
+    "avg_complexity": 4.81,
+    "max_complexity": 8.0,
+    "max_complexity_function": "parseGroupLine",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "100% of 16 functions have no docstring"
+    ]
+  },
+  "internal/linuxhost/identity_test.go": {
+    "risk_level": "HIGH",
+    "avg_complexity": 1.38,
+    "max_complexity": 2.0,
+    "max_complexity_function": "Run",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "100% of 8 functions have no docstring"
+    ]
+  },
+  "internal/linuxhost/keys.go": {
+    "risk_level": "HIGH",
+    "avg_complexity": 4.06,
+    "max_complexity": 7.0,
+    "max_complexity_function": "validateAuthorizedKeyFile",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "100% of 18 functions have no docstring"
+    ]
+  },
+  "internal/linuxhost/keys_test.go": {
+    "risk_level": "HIGH",
+    "avg_complexity": 1.17,
+    "max_complexity": 2.0,
+    "max_complexity_function": "TestNativeAuthorizedKeysReadIsBoundedAndRequiresAKey",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "100% of 12 functions have no docstring"
+    ]
+  },
+  "internal/linuxhost/native.go": {
+    "risk_level": "HIGH",
+    "avg_complexity": 2.0,
+    "max_complexity": 3.0,
+    "max_complexity_function": "Run",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "100% of 4 functions have no docstring"
+    ]
+  },
+  "internal/linuxhost/native_test.go": {
+    "risk_level": "LOW",
+    "avg_complexity": 1.0,
+    "max_complexity": 1.0,
+    "max_complexity_function": "TestNativeRequiresExplicitConstruction",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": []
+  },
+  "internal/linuxhost/password.go": {
+    "risk_level": "MEDIUM",
+    "avg_complexity": 8.0,
+    "max_complexity": 8.0,
+    "max_complexity_function": "PasswordStatus",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "Average complexity across file is 8.0 (threshold: 6.0)"
+    ]
+  },
+  "internal/linuxhost/password_test.go": {
+    "risk_level": "HIGH",
+    "avg_complexity": 1.67,
+    "max_complexity": 2.0,
+    "max_complexity_function": "TestNativeReportsLinuxPasswordStatus",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "100% of 3 functions have no docstring"
+    ]
+  },
+  "internal/linuxhost/removal.go": {
+    "risk_level": "HIGH",
+    "avg_complexity": 4.69,
+    "max_complexity": 9.0,
+    "max_complexity_function": "DeleteAccount",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "100% of 13 functions have no docstring"
+    ]
+  },
+  "internal/linuxhost/removal_test.go": {
+    "risk_level": "HIGH",
+    "avg_complexity": 1.78,
+    "max_complexity": 4.0,
+    "max_complexity_function": "Run",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "100% of 11 functions have no docstring"
+    ]
+  },
+  "internal/linuxhost/user_manager.go": {
+    "risk_level": "MEDIUM",
+    "avg_complexity": 6.5,
+    "max_complexity": 8.0,
+    "max_complexity_function": "resetFailedUserManager",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "Average complexity across file is 6.5 (threshold: 6.0)"
+    ]
+  },
+  "internal/process/process.go": {
+    "risk_level": "HIGH",
+    "avg_complexity": 2.0,
+    "max_complexity": 3.0,
+    "max_complexity_function": "commandError",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "100% of 7 functions have no docstring"
+    ]
+  },
+  "internal/process/process_test.go": {
+    "risk_level": "LOW",
+    "avg_complexity": 1.0,
+    "max_complexity": 1.0,
+    "max_complexity_function": "TestOSRunnerWiresOnlyExplicitStdin",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": []
+  },
+  "internal/projects/authorization.go": {
+    "risk_level": "LOW",
+    "avg_complexity": 3.0,
+    "max_complexity": 5.0,
+    "max_complexity_function": "Primary",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": []
+  },
+  "internal/projects/coordinator.go": {
+    "risk_level": "HIGH",
+    "avg_complexity": 3.08,
+    "max_complexity": 8.0,
+    "max_complexity_function": "dispatch",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "100% of 12 functions have no docstring"
+    ]
+  },
+  "internal/projects/coordinator_setup.go": {
+    "risk_level": "HIGH",
+    "avg_complexity": 3.17,
+    "max_complexity": 5.0,
+    "max_complexity_function": "prepareWorkspace",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "100% of 6 functions have no docstring"
+    ]
+  },
+  "internal/projects/coordinator_test.go": {
+    "risk_level": "HIGH",
+    "avg_complexity": 1.12,
+    "max_complexity": 2.0,
+    "max_complexity_function": "TestCoordinatorSetupHoldsCompositionAndReturnsSetupResponse",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "100% of 8 functions have no docstring"
+    ]
+  },
+  "internal/projects/helper.go": {
+    "risk_level": "HIGH",
+    "avg_complexity": 4.53,
+    "max_complexity": 8.0,
+    "max_complexity_function": "dispatch",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "100% of 15 functions have no docstring"
+    ]
+  },
+  "internal/projects/helper_test.go": {
+    "risk_level": "HIGH",
+    "avg_complexity": 1.5,
+    "max_complexity": 4.0,
+    "max_complexity_function": "LookupAccount",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "100% of 14 functions have no docstring"
+    ]
+  },
+  "internal/projects/locking_test.go": {
+    "risk_level": "HIGH",
+    "avg_complexity": 1.62,
+    "max_complexity": 2.0,
+    "max_complexity_function": "TestHelperSetupStepsUseSharedOperationLock",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "100% of 8 functions have no docstring"
+    ]
+  },
+  "internal/projects/locks.go": {
+    "risk_level": "LOW",
+    "avg_complexity": 2.0,
+    "max_complexity": 2.0,
+    "max_complexity_function": "closeLockWithError",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": []
+  },
+  "internal/projects/pkexec.go": {
+    "risk_level": "HIGH",
+    "avg_complexity": 2.58,
+    "max_complexity": 8.0,
+    "max_complexity_function": "invoke",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "100% of 12 functions have no docstring"
+    ]
+  },
+  "internal/projects/pkexec_test.go": {
+    "risk_level": "LOW",
+    "avg_complexity": 1.0,
+    "max_complexity": 1.0,
+    "max_complexity_function": "TestPKExecInvokerRequiresExplicitConstruction",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": []
+  },
+  "internal/projects/protocol.go": {
+    "risk_level": "LOW",
+    "avg_complexity": 2.0,
+    "max_complexity": 2.0,
+    "max_complexity_function": "newProjectView",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": []
+  },
+  "internal/projects/protocol_test.go": {
+    "risk_level": "HIGH",
+    "avg_complexity": 1.4,
+    "max_complexity": 2.0,
+    "max_complexity_function": "TestEditRequestsRejectCanonicalURLAtBothBoundaries",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "100% of 5 functions have no docstring"
+    ]
+  },
+  "internal/projects/system_operation_lock.go": {
+    "risk_level": "HIGH",
+    "avg_complexity": 3.11,
+    "max_complexity": 7.0,
+    "max_complexity_function": "openWorkspaceOperationLockDirectory",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "100% of 9 functions have no docstring"
+    ]
+  },
+  "internal/projects/system_operation_lock_test.go": {
+    "risk_level": "HIGH",
+    "avg_complexity": 1.57,
+    "max_complexity": 3.0,
+    "max_complexity_function": "requireLockBlocked",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "100% of 7 functions have no docstring"
+    ]
+  },
+  "internal/projects/test_support_test.go": {
+    "risk_level": "HIGH",
+    "avg_complexity": 1.3,
+    "max_complexity": 4.0,
+    "max_complexity_function": "requests",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "100% of 20 functions have no docstring"
+    ]
+  },
+  "internal/runners/auth.go": {
+    "risk_level": "MEDIUM",
+    "avg_complexity": 8.0,
+    "max_complexity": 8.0,
+    "max_complexity_function": "RequireAdministrator",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "Average complexity across file is 8.0 (threshold: 6.0)"
+    ]
+  },
+  "internal/runners/auth_test.go": {
+    "risk_level": "HIGH",
+    "avg_complexity": 1.25,
+    "max_complexity": 2.0,
+    "max_complexity_function": "TestLinuxAuthorizerAcceptsOnlyResolvedRegularInteractiveAdministrator",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "100% of 4 functions have no docstring"
+    ]
+  },
+  "internal/runners/coordinator.go": {
+    "risk_level": "HIGH",
+    "avg_complexity": 6.0,
+    "max_complexity": 8.0,
+    "max_complexity_function": "mutate",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "100% of 4 functions have no docstring"
+    ]
+  },
+  "internal/runners/coordinator_test.go": {
+    "risk_level": "HIGH",
+    "avg_complexity": 1.0,
+    "max_complexity": 1.0,
+    "max_complexity_function": "RequireAdministrator",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "100% of 11 functions have no docstring"
+    ]
+  },
+  "internal/runners/helper.go": {
+    "risk_level": "HIGH",
+    "avg_complexity": 5.67,
+    "max_complexity": 8.0,
+    "max_complexity_function": "mutate",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "100% of 3 functions have no docstring"
+    ]
+  },
+  "internal/runners/invoker.go": {
+    "risk_level": "HIGH",
+    "avg_complexity": 2.0,
+    "max_complexity": 7.0,
+    "max_complexity_function": "invoke",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "100% of 8 functions have no docstring"
+    ]
+  },
+  "internal/runners/invoker_test.go": {
+    "risk_level": "LOW",
+    "avg_complexity": 1.0,
+    "max_complexity": 1.0,
+    "max_complexity_function": "TestHelperListRequiresAdministratorAndStrictEmptyRequest",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": []
+  },
+  "internal/runners/launch.go": {
+    "risk_level": "LOW",
+    "avg_complexity": 3.0,
+    "max_complexity": 3.0,
+    "max_complexity_function": "Launch",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": []
+  },
+  "internal/runners/model.go": {
+    "risk_level": "HIGH",
+    "avg_complexity": 4.08,
+    "max_complexity": 9.0,
+    "max_complexity_function": "validateProviderURL",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "100% of 12 functions have no docstring"
+    ]
+  },
+  "internal/runners/model_test.go": {
+    "risk_level": "LOW",
+    "avg_complexity": 1.0,
+    "max_complexity": 1.0,
+    "max_complexity_function": "TestCreateRequestAcceptsOnlyTheTwoNativeProviderShapes",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": []
+  },
+  "internal/runners/native.go": {
+    "risk_level": "HIGH",
+    "avg_complexity": 3.04,
+    "max_complexity": 10.0,
+    "max_complexity_function": "readDescriptor",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "100% of 23 functions have no docstring"
+    ]
+  },
+  "internal/runners/native_create.go": {
+    "risk_level": "HIGH",
+    "avg_complexity": 3.47,
+    "max_complexity": 7.0,
+    "max_complexity_function": "prepareAccount",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "100% of 15 functions have no docstring"
+    ]
+  },
+  "internal/runners/native_lifecycle_test.go": {
+    "risk_level": "HIGH",
+    "avg_complexity": 2.38,
+    "max_complexity": 5.0,
+    "max_complexity_function": "Run",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "100% of 8 functions have no docstring"
+    ]
+  },
+  "internal/runners/native_test.go": {
+    "risk_level": "HIGH",
+    "avg_complexity": 1.0,
+    "max_complexity": 1.0,
+    "max_complexity_function": "Run",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "100% of 6 functions have no docstring"
+    ]
+  },
+  "internal/runners/pty_linux.go": {
+    "risk_level": "LOW",
+    "avg_complexity": 5.5,
+    "max_complexity": 7.0,
+    "max_complexity_function": "openNoEchoPTY",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": []
+  },
+  "internal/runners/pty_other.go": {
+    "risk_level": "LOW",
+    "avg_complexity": 1.0,
+    "max_complexity": 1.0,
+    "max_complexity_function": "RunSecret",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": []
+  },
+  "internal/strictjson/decode.go": {
+    "risk_level": "HIGH",
+    "avg_complexity": 4.83,
+    "max_complexity": 7.0,
+    "max_complexity_function": "Decode",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "100% of 6 functions have no docstring"
+    ]
+  },
+  "internal/strictjson/decode_test.go": {
+    "risk_level": "HIGH",
+    "avg_complexity": 1.33,
+    "max_complexity": 2.0,
+    "max_complexity_function": "TestDecodeRejectsInvalidRequestShapes",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "100% of 3 functions have no docstring"
+    ]
+  },
+  "internal/tailnet/tailnet.go": {
+    "risk_level": "HIGH",
+    "avg_complexity": 4.7,
+    "max_complexity": 8.0,
+    "max_complexity_function": "parseStatus",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "100% of 10 functions have no docstring"
+    ]
+  },
+  "internal/tailnet/tailnet_test.go": {
+    "risk_level": "HIGH",
+    "avg_complexity": 1.27,
+    "max_complexity": 2.0,
+    "max_complexity_function": "TestEnrollmentStateDoesNotPretendTailnetAccessIsAvailable",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "100% of 11 functions have no docstring"
+    ]
+  },
+  "internal/updates/fetch_test.go": {
+    "risk_level": "HIGH",
+    "avg_complexity": 2.0,
+    "max_complexity": 3.0,
+    "max_complexity_function": "TestReleaseChannelMustMatchHost",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "100% of 4 functions have no docstring"
+    ]
+  },
+  "internal/updates/host.go": {
+    "risk_level": "HIGH",
+    "avg_complexity": 8.67,
+    "max_complexity": 10.0,
+    "max_complexity_function": "requireTarget",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "100% of 3 functions have no docstring"
+    ]
+  },
+  "internal/updates/operations.go": {
+    "risk_level": "HIGH",
+    "avg_complexity": 5.6,
+    "max_complexity": 10.0,
+    "max_complexity_function": "Download",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "100% of 5 functions have no docstring"
+    ]
+  },
+  "internal/updates/operations_test.go": {
+    "risk_level": "HIGH",
+    "avg_complexity": 1.44,
+    "max_complexity": 3.0,
+    "max_complexity_function": "Run",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "100% of 16 functions have no docstring"
+    ]
+  },
+  "internal/updates/releases.go": {
+    "risk_level": "HIGH",
+    "avg_complexity": 5.18,
+    "max_complexity": 9.0,
+    "max_complexity_function": "fromURL",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "100% of 11 functions have no docstring"
+    ]
+  },
+  "internal/updates/releases_test.go": {
+    "risk_level": "HIGH",
+    "avg_complexity": 1.86,
+    "max_complexity": 3.0,
+    "max_complexity_function": "Run",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "100% of 14 functions have no docstring"
+    ]
+  },
+  "internal/updates/verification.go": {
+    "risk_level": "HIGH",
+    "avg_complexity": 5.0,
+    "max_complexity": 7.0,
+    "max_complexity_function": "CompareStableVersions",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "100% of 4 functions have no docstring"
+    ]
+  },
+  "internal/version/version.go": {
+    "risk_level": "LOW",
+    "avg_complexity": 0.0,
+    "max_complexity": 0.0,
+    "max_complexity_function": "",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": []
+  },
+  "internal/version/version_test.go": {
+    "risk_level": "LOW",
+    "avg_complexity": 2.0,
+    "max_complexity": 2.0,
+    "max_complexity_function": "TestReleaseIdentity",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": []
+  },
+  "packaging/installer/patch-anaconda-bootc-selinuxfs.py": {
+    "risk_level": "LOW",
+    "avg_complexity": 3.0,
+    "max_complexity": 5.0,
+    "max_complexity_function": "main",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": []
+  },
+  "tools/png-equal/main.go": {
+    "risk_level": "HIGH",
+    "avg_complexity": 3.67,
+    "max_complexity": 6.0,
+    "max_complexity_function": "equalPNG",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "100% of 3 functions have no docstring"
+    ]
+  },
+  "tools/png-equal/main_test.go": {
+    "risk_level": "LOW",
+    "avg_complexity": 1.0,
+    "max_complexity": 1.0,
+    "max_complexity_function": "TestEqualPNGComparesDecodedPixels",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": []
+  },
+  "tools/struct-field-limit/main.go": {
+    "risk_level": "HIGH",
+    "avg_complexity": 6.33,
+    "max_complexity": 8.0,
+    "max_complexity_function": "visitPath",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "100% of 3 functions have no docstring"
+    ]
+  },
+  "cockpit/src/atoms/CodeValue.tsx": {
+    "risk_level": "LOW",
+    "avg_complexity": 1.0,
+    "max_complexity": 1.0,
+    "max_complexity_function": "CodeValue",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": []
+  },
+  "cockpit/src/atoms/ExternalLink.tsx": {
+    "risk_level": "LOW",
+    "avg_complexity": 1.0,
+    "max_complexity": 1.0,
+    "max_complexity_function": "ExternalLink",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": []
+  },
+  "cockpit/src/atoms/SodaEyebrow.tsx": {
+    "risk_level": "LOW",
+    "avg_complexity": 1.0,
+    "max_complexity": 1.0,
+    "max_complexity_function": "SodaEyebrow",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": []
+  },
+  "cockpit/src/cockpit/assets.d.ts": {
+    "risk_level": "LOW",
+    "avg_complexity": 0.0,
+    "max_complexity": 0.0,
+    "max_complexity_function": "",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": []
+  },
+  "cockpit/src/cockpit/types.ts": {
+    "risk_level": "LOW",
+    "avg_complexity": 0.0,
+    "max_complexity": 0.0,
+    "max_complexity_function": "",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": []
+  },
+  "cockpit/src/molecules/ConfirmationField.tsx": {
+    "risk_level": "LOW",
+    "avg_complexity": 1.0,
+    "max_complexity": 1.0,
+    "max_complexity_function": "ConfirmationField",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": []
+  },
+  "cockpit/src/molecules/DiagnosticAlert.tsx": {
+    "risk_level": "LOW",
+    "avg_complexity": 2.0,
+    "max_complexity": 2.0,
+    "max_complexity_function": "DiagnosticAlert",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": []
+  },
+  "cockpit/src/molecules/PageHeading.tsx": {
+    "risk_level": "LOW",
+    "avg_complexity": 3.0,
+    "max_complexity": 3.0,
+    "max_complexity_function": "PageHeading",
+    "coupling_score": 1,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": []
+  },
+  "cockpit/src/pages/ProjectsPage.test.tsx": {
+    "risk_level": "HIGH",
+    "avg_complexity": 1.0,
+    "max_complexity": 1.0,
+    "max_complexity_function": "mockInvoke",
+    "coupling_score": 4,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "100% of 3 functions have no docstring"
+    ]
+  },
+  "cockpit/src/pages/ProjectsPage.tsx": {
+    "risk_level": "HIGH",
+    "avg_complexity": 12.0,
+    "max_complexity": 12.0,
+    "max_complexity_function": "ProjectsPage",
+    "coupling_score": 11,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "A function has cyclomatic complexity 12 (threshold: 11)",
+      "Average complexity across file is 12.0 (threshold: 10.0)",
+      "Imports from 11 unique internal modules (threshold: 8)"
+    ]
+  },
+  "cockpit/src/pages/RunnersPage.test.tsx": {
+    "risk_level": "MEDIUM",
+    "avg_complexity": 1.0,
+    "max_complexity": 1.0,
+    "max_complexity_function": "ready",
+    "coupling_score": 4,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "Imports from 4 unique internal modules (threshold: 4)"
+    ]
+  },
+  "cockpit/src/pages/RunnersPage.tsx": {
+    "risk_level": "HIGH",
+    "avg_complexity": 5.0,
+    "max_complexity": 5.0,
+    "max_complexity_function": "RunnersPage",
+    "coupling_score": 9,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "Imports from 9 unique internal modules (threshold: 8)"
+    ]
+  },
+  "cockpit/src/pages/TailscalePage.test.tsx": {
+    "risk_level": "LOW",
+    "avg_complexity": 1.0,
+    "max_complexity": 1.0,
+    "max_complexity_function": "setup",
+    "coupling_score": 2,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": []
+  },
+  "cockpit/src/pages/TailscalePage.tsx": {
+    "risk_level": "HIGH",
+    "avg_complexity": 2.0,
+    "max_complexity": 2.0,
+    "max_complexity_function": "TailscalePage",
+    "coupling_score": 9,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "Imports from 9 unique internal modules (threshold: 8)"
+    ]
+  },
+  "cockpit/src/pages/UpdatesPage.test.tsx": {
+    "risk_level": "HIGH",
+    "avg_complexity": 1.33,
+    "max_complexity": 2.0,
+    "max_complexity_function": "host",
+    "coupling_score": 2,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "100% of 3 functions have no docstring"
+    ]
+  },
+  "cockpit/src/pages/UpdatesPage.tsx": {
+    "risk_level": "HIGH",
+    "avg_complexity": 4.0,
+    "max_complexity": 4.0,
+    "max_complexity_function": "UpdatesPage",
+    "coupling_score": 10,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "Imports from 10 unique internal modules (threshold: 8)"
+    ]
+  },
+  "cockpit/src/projects/index.tsx": {
+    "risk_level": "LOW",
+    "avg_complexity": 0.0,
+    "max_complexity": 0.0,
+    "max_complexity_function": "",
+    "coupling_score": 2,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": []
+  },
+  "cockpit/src/projects/native.ts": {
+    "risk_level": "LOW",
+    "avg_complexity": 1.0,
+    "max_complexity": 1.0,
+    "max_complexity_function": "coordinator",
+    "coupling_score": 3,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": []
+  },
+  "cockpit/src/projects/protocol.test.ts": {
+    "risk_level": "LOW",
+    "avg_complexity": 0.0,
+    "max_complexity": 0.0,
+    "max_complexity_function": "",
+    "coupling_score": 1,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": []
+  },
+  "cockpit/src/projects/protocol.ts": {
+    "risk_level": "HIGH",
+    "avg_complexity": 3.62,
+    "max_complexity": 8.0,
+    "max_complexity_function": "decodeResponse",
+    "coupling_score": 1,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "100% of 8 functions have no docstring"
+    ]
+  },
+  "cockpit/src/projects/types.ts": {
+    "risk_level": "LOW",
+    "avg_complexity": 0.0,
+    "max_complexity": 0.0,
+    "max_complexity_function": "",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": []
+  },
+  "cockpit/src/projects/ui.test.ts": {
+    "risk_level": "LOW",
+    "avg_complexity": 0.0,
+    "max_complexity": 0.0,
+    "max_complexity_function": "",
+    "coupling_score": 1,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": []
+  },
+  "cockpit/src/projects/ui.ts": {
+    "risk_level": "HIGH",
+    "avg_complexity": 5.29,
+    "max_complexity": 10.0,
+    "max_complexity_function": "payloadFor",
+    "coupling_score": 1,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "100% of 7 functions have no docstring"
+    ]
+  },
+  "cockpit/src/projects/useProjects.ts": {
+    "risk_level": "HIGH",
+    "avg_complexity": 19.0,
+    "max_complexity": 19.0,
+    "max_complexity_function": "useProjects",
+    "coupling_score": 2,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "A function has cyclomatic complexity 19 (threshold: 11)",
+      "Average complexity across file is 19.0 (threshold: 10.0)"
+    ]
+  },
+  "cockpit/src/runners/index.tsx": {
+    "risk_level": "LOW",
+    "avg_complexity": 0.0,
+    "max_complexity": 0.0,
+    "max_complexity_function": "",
+    "coupling_score": 2,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": []
+  },
+  "cockpit/src/runners/native.ts": {
+    "risk_level": "LOW",
+    "avg_complexity": 1.0,
+    "max_complexity": 1.0,
+    "max_complexity_function": "coordinator",
+    "coupling_score": 3,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": []
+  },
+  "cockpit/src/runners/protocol.test.ts": {
+    "risk_level": "LOW",
+    "avg_complexity": 0.0,
+    "max_complexity": 0.0,
+    "max_complexity_function": "",
+    "coupling_score": 1,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": []
+  },
+  "cockpit/src/runners/protocol.ts": {
+    "risk_level": "HIGH",
+    "avg_complexity": 4.67,
+    "max_complexity": 10.0,
+    "max_complexity_function": "decodeResponse",
+    "coupling_score": 1,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "100% of 6 functions have no docstring"
+    ]
+  },
+  "cockpit/src/runners/types.ts": {
+    "risk_level": "LOW",
+    "avg_complexity": 0.0,
+    "max_complexity": 0.0,
+    "max_complexity_function": "",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": []
+  },
+  "cockpit/src/runners/ui.test.ts": {
+    "risk_level": "LOW",
+    "avg_complexity": 2.0,
+    "max_complexity": 2.0,
+    "max_complexity_function": "formData",
+    "coupling_score": 1,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": []
+  },
+  "cockpit/src/runners/ui.ts": {
+    "risk_level": "HIGH",
+    "avg_complexity": 4.62,
+    "max_complexity": 10.0,
+    "max_complexity_function": "createPayload",
+    "coupling_score": 1,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "100% of 8 functions have no docstring"
+    ]
+  },
+  "cockpit/src/runners/useRunners.ts": {
+    "risk_level": "CRITICAL",
+    "avg_complexity": 28.0,
+    "max_complexity": 28.0,
+    "max_complexity_function": "useRunners",
+    "coupling_score": 2,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "Function '28.0' has cyclomatic complexity 28 (threshold: 21)"
+    ]
+  },
+  "cockpit/src/tailscale/index.tsx": {
+    "risk_level": "LOW",
+    "avg_complexity": 0.0,
+    "max_complexity": 0.0,
+    "max_complexity_function": "",
+    "coupling_score": 2,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": []
+  },
+  "cockpit/src/tailscale/links.ts": {
+    "risk_level": "LOW",
+    "avg_complexity": 0.0,
+    "max_complexity": 0.0,
+    "max_complexity_function": "",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": []
+  },
+  "cockpit/src/tailscale/native.test.ts": {
+    "risk_level": "MEDIUM",
+    "avg_complexity": 2.0,
+    "max_complexity": 2.0,
+    "max_complexity_function": "fakeCockpit",
+    "coupling_score": 4,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "Imports from 4 unique internal modules (threshold: 4)"
+    ]
+  },
+  "cockpit/src/tailscale/native.ts": {
+    "risk_level": "HIGH",
+    "avg_complexity": 14.0,
+    "max_complexity": 14.0,
+    "max_complexity_function": "nativeTailscale",
+    "coupling_score": 3,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "A function has cyclomatic complexity 14 (threshold: 11)",
+      "Average complexity across file is 14.0 (threshold: 10.0)"
+    ]
+  },
+  "cockpit/src/tailscale/status.test.ts": {
+    "risk_level": "LOW",
+    "avg_complexity": 0.0,
+    "max_complexity": 0.0,
+    "max_complexity_function": "",
+    "coupling_score": 2,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": []
+  },
+  "cockpit/src/tailscale/status.ts": {
+    "risk_level": "HIGH",
+    "avg_complexity": 4.71,
+    "max_complexity": 10.0,
+    "max_complexity_function": "connectionState",
+    "coupling_score": 1,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "100% of 7 functions have no docstring"
+    ]
+  },
+  "cockpit/src/tailscale/stream.test.ts": {
+    "risk_level": "LOW",
+    "avg_complexity": 0.0,
+    "max_complexity": 0.0,
+    "max_complexity_function": "",
+    "coupling_score": 2,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": []
+  },
+  "cockpit/src/tailscale/stream.ts": {
+    "risk_level": "HIGH",
+    "avg_complexity": 16.0,
+    "max_complexity": 16.0,
+    "max_complexity_function": "authenticationStream",
+    "coupling_score": 1,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "A function has cyclomatic complexity 16 (threshold: 11)",
+      "Average complexity across file is 16.0 (threshold: 10.0)"
+    ]
+  },
+  "cockpit/src/tailscale/types.ts": {
+    "risk_level": "LOW",
+    "avg_complexity": 0.0,
+    "max_complexity": 0.0,
+    "max_complexity_function": "",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": []
+  },
+  "cockpit/src/tailscale/useTailscale.ts": {
+    "risk_level": "CRITICAL",
+    "avg_complexity": 14.33,
+    "max_complexity": 36.0,
+    "max_complexity_function": "useTailscale",
+    "coupling_score": 3,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "Function '36.0' has cyclomatic complexity 36 (threshold: 21)"
+    ]
+  },
+  "cockpit/src/templates/CockpitPageTemplate.test.tsx": {
+    "risk_level": "LOW",
+    "avg_complexity": 0.0,
+    "max_complexity": 0.0,
+    "max_complexity_function": "",
+    "coupling_score": 2,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": []
+  },
+  "cockpit/src/templates/CockpitPageTemplate.tsx": {
+    "risk_level": "LOW",
+    "avg_complexity": 2.0,
+    "max_complexity": 2.0,
+    "max_complexity_function": "CockpitPageTemplate",
+    "coupling_score": 1,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": []
+  },
+  "cockpit/src/updates/index.tsx": {
+    "risk_level": "LOW",
+    "avg_complexity": 0.0,
+    "max_complexity": 0.0,
+    "max_complexity_function": "",
+    "coupling_score": 2,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": []
+  },
+  "cockpit/src/updates/native.test.ts": {
+    "risk_level": "LOW",
+    "avg_complexity": 0.0,
+    "max_complexity": 0.0,
+    "max_complexity_function": "",
+    "coupling_score": 2,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": []
+  },
+  "cockpit/src/updates/native.ts": {
+    "risk_level": "LOW",
+    "avg_complexity": 1.0,
+    "max_complexity": 1.0,
+    "max_complexity_function": "nativeUpdates",
+    "coupling_score": 2,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": []
+  },
+  "cockpit/src/updates/status.ts": {
+    "risk_level": "MEDIUM",
+    "avg_complexity": 6.0,
+    "max_complexity": 9.0,
+    "max_complexity_function": "availability",
+    "coupling_score": 1,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "Average complexity across file is 6.0 (threshold: 6.0)"
+    ]
+  },
+  "cockpit/src/updates/types.ts": {
+    "risk_level": "LOW",
+    "avg_complexity": 0.0,
+    "max_complexity": 0.0,
+    "max_complexity_function": "",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": []
+  },
+  "cockpit/src/updates/useUpdates.ts": {
+    "risk_level": "HIGH",
+    "avg_complexity": 19.0,
+    "max_complexity": 19.0,
+    "max_complexity_function": "useUpdates",
+    "coupling_score": 1,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "A function has cyclomatic complexity 19 (threshold: 11)",
+      "Average complexity across file is 19.0 (threshold: 10.0)"
+    ]
+  },
+  "internal/projects/catalog/entry.go": {
+    "risk_level": "HIGH",
+    "avg_complexity": 4.48,
+    "max_complexity": 10.0,
+    "max_complexity_function": "entryFromValues",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "100% of 30 functions have no docstring"
+    ]
+  },
+  "internal/projects/catalog/entry_test.go": {
+    "risk_level": "HIGH",
+    "avg_complexity": 1.43,
+    "max_complexity": 2.0,
+    "max_complexity_function": "TestEntryAcceptsSSHRemotes",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "100% of 7 functions have no docstring"
+    ]
+  },
+  "internal/projects/catalog/store.go": {
+    "risk_level": "HIGH",
+    "avg_complexity": 3.76,
+    "max_complexity": 9.0,
+    "max_complexity_function": "decodeCatalog",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "100% of 24 functions have no docstring"
+    ]
+  },
+  "internal/projects/catalog/store_test.go": {
+    "risk_level": "HIGH",
+    "avg_complexity": 1.57,
+    "max_complexity": 3.0,
+    "max_complexity_function": "TestStoreSerializesConcurrentMutations",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "100% of 7 functions have no docstring"
+    ]
+  },
+  "internal/projects/people/deletion.go": {
+    "risk_level": "HIGH",
+    "avg_complexity": 4.4,
+    "max_complexity": 8.0,
+    "max_complexity_function": "Delete",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "100% of 5 functions have no docstring"
+    ]
+  },
+  "internal/projects/people/deletion_test.go": {
+    "risk_level": "HIGH",
+    "avg_complexity": 1.2,
+    "max_complexity": 2.0,
+    "max_complexity_function": "LookupAccount",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "100% of 20 functions have no docstring"
+    ]
+  },
+  "internal/projects/people/model.go": {
+    "risk_level": "LOW",
+    "avg_complexity": 3.0,
+    "max_complexity": 4.0,
+    "max_complexity_function": "IsPrimary",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": []
+  },
+  "internal/projects/people/model_test.go": {
+    "risk_level": "LOW",
+    "avg_complexity": 1.5,
+    "max_complexity": 2.0,
+    "max_complexity_function": "TestPrimaryAndAdministratorClassificationUsesOnlyLinuxFacts",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": []
+  },
+  "internal/projects/workspace/accounts.go": {
+    "risk_level": "HIGH",
+    "avg_complexity": 4.78,
+    "max_complexity": 7.0,
+    "max_complexity_function": "Association",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "100% of 9 functions have no docstring"
+    ]
+  },
+  "internal/projects/workspace/accounts_test.go": {
+    "risk_level": "HIGH",
+    "avg_complexity": 1.38,
+    "max_complexity": 3.0,
+    "max_complexity_function": "PasswordStatus",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "100% of 21 functions have no docstring"
+    ]
+  },
+  "internal/projects/workspace/contracts_test.go": {
+    "risk_level": "LOW",
+    "avg_complexity": 0.0,
+    "max_complexity": 0.0,
+    "max_complexity_function": "",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": []
+  },
+  "internal/projects/workspace/descriptors.go": {
+    "risk_level": "HIGH",
+    "avg_complexity": 4.6,
+    "max_complexity": 7.0,
+    "max_complexity_function": "openAbsoluteDirectoryNoSymlinks",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "100% of 10 functions have no docstring"
+    ]
+  },
+  "internal/projects/workspace/model.go": {
+    "risk_level": "HIGH",
+    "avg_complexity": 4.2,
+    "max_complexity": 10.0,
+    "max_complexity_function": "ValidateAccount",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "100% of 5 functions have no docstring"
+    ]
+  },
+  "internal/projects/workspace/model_test.go": {
+    "risk_level": "HIGH",
+    "avg_complexity": 1.0,
+    "max_complexity": 1.0,
+    "max_complexity_function": "TestDerivedAccountConvention",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "100% of 4 functions have no docstring"
+    ]
+  },
+  "internal/projects/workspace/removal.go": {
+    "risk_level": "HIGH",
+    "avg_complexity": 4.14,
+    "max_complexity": 8.0,
+    "max_complexity_function": "Remove",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "100% of 7 functions have no docstring"
+    ]
+  },
+  "internal/projects/workspace/removal_test.go": {
+    "risk_level": "HIGH",
+    "avg_complexity": 1.2,
+    "max_complexity": 2.0,
+    "max_complexity_function": "TestProjectRemovalReportsPartialProgressAndSupportsRetry",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "100% of 5 functions have no docstring"
+    ]
+  },
+  "internal/projects/workspace/repository.go": {
+    "risk_level": "HIGH",
+    "avg_complexity": 3.81,
+    "max_complexity": 9.0,
+    "max_complexity_function": "Publish",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "100% of 16 functions have no docstring"
+    ]
+  },
+  "internal/projects/workspace/repository_test.go": {
+    "risk_level": "HIGH",
+    "avg_complexity": 1.88,
+    "max_complexity": 8.0,
+    "max_complexity_function": "Run",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "100% of 8 functions have no docstring"
+    ]
+  },
+  "internal/projects/workspace/setup_lock.go": {
+    "risk_level": "HIGH",
+    "avg_complexity": 3.29,
+    "max_complexity": 6.0,
+    "max_complexity_function": "ensureCallerOwnedDirectoryAt",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "100% of 7 functions have no docstring"
+    ]
+  },
+  "internal/projects/workspace/setup_lock_test.go": {
+    "risk_level": "LOW",
+    "avg_complexity": 4.0,
+    "max_complexity": 4.0,
+    "max_complexity_function": "TestSetupLockerSerializesOnePrimaryProject",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": []
+  },
+  "internal/projects/workspace/tree.go": {
+    "risk_level": "HIGH",
+    "avg_complexity": 2.8,
+    "max_complexity": 5.0,
+    "max_complexity_function": "validateTreeEntry",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "100% of 5 functions have no docstring"
+    ]
+  },
+  "internal/projects/workspace/tree_test.go": {
+    "risk_level": "LOW",
+    "avg_complexity": 1.0,
+    "max_complexity": 1.0,
+    "max_complexity_function": "TestCopiedTreeRejectsSpecialFilesWithoutFollowingSymlinks",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": []
+  },
+  "cockpit/src/molecules/projects/CatalogFields.tsx": {
+    "risk_level": "HIGH",
+    "avg_complexity": 10.0,
+    "max_complexity": 10.0,
+    "max_complexity_function": "CatalogFields",
+    "coupling_score": 1,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "Average complexity across file is 10.0 (threshold: 10.0)"
+    ]
+  },
+  "cockpit/src/molecules/projects/ProjectActions.tsx": {
+    "risk_level": "LOW",
+    "avg_complexity": 3.0,
+    "max_complexity": 3.0,
+    "max_complexity_function": "ProjectActions",
+    "coupling_score": 2,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": []
+  },
+  "cockpit/src/molecules/projects/WorkspaceSummary.tsx": {
+    "risk_level": "LOW",
+    "avg_complexity": 2.0,
+    "max_complexity": 2.0,
+    "max_complexity_function": "WorkspaceSummary",
+    "coupling_score": 3,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": []
+  },
+  "cockpit/src/molecules/runners/ForgejoRegistrationFields.tsx": {
+    "risk_level": "LOW",
+    "avg_complexity": 1.0,
+    "max_complexity": 1.0,
+    "max_complexity_function": "ForgejoRegistrationFields",
+    "coupling_score": 2,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": []
+  },
+  "cockpit/src/molecules/runners/GitHubRegistrationFields.tsx": {
+    "risk_level": "LOW",
+    "avg_complexity": 1.0,
+    "max_complexity": 1.0,
+    "max_complexity_function": "GitHubRegistrationFields",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": []
+  },
+  "cockpit/src/molecules/runners/RunnerActions.tsx": {
+    "risk_level": "LOW",
+    "avg_complexity": 4.0,
+    "max_complexity": 4.0,
+    "max_complexity_function": "RunnerActions",
+    "coupling_score": 1,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": []
+  },
+  "cockpit/src/molecules/runners/RunnerServiceStatus.tsx": {
+    "risk_level": "LOW",
+    "avg_complexity": 4.0,
+    "max_complexity": 4.0,
+    "max_complexity_function": "RunnerServiceStatus",
+    "coupling_score": 3,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": []
+  },
+  "cockpit/src/molecules/tailscale/AuthenticationGuidance.tsx": {
+    "risk_level": "LOW",
+    "avg_complexity": 3.0,
+    "max_complexity": 3.0,
+    "max_complexity_function": "AuthenticationGuidance",
+    "coupling_score": 3,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": []
+  },
+  "cockpit/src/molecules/tailscale/DeviceIdentity.tsx": {
+    "risk_level": "LOW",
+    "avg_complexity": 4.0,
+    "max_complexity": 4.0,
+    "max_complexity_function": "DeviceIdentity",
+    "coupling_score": 2,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": []
+  },
+  "cockpit/src/molecules/tailscale/ExitNodeApprovalGuidance.tsx": {
+    "risk_level": "MEDIUM",
+    "avg_complexity": 7.0,
+    "max_complexity": 7.0,
+    "max_complexity_function": "ExitNodeApprovalGuidance",
+    "coupling_score": 4,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "Average complexity across file is 7.0 (threshold: 6.0)",
+      "Imports from 4 unique internal modules (threshold: 4)"
+    ]
+  },
+  "cockpit/src/molecules/updates/NativeOperationOutput.tsx": {
+    "risk_level": "LOW",
+    "avg_complexity": 1.0,
+    "max_complexity": 1.0,
+    "max_complexity_function": "NativeOperationOutput",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": []
+  },
+  "cockpit/src/molecules/updates/UpdateFeedback.tsx": {
+    "risk_level": "LOW",
+    "avg_complexity": 5.0,
+    "max_complexity": 5.0,
+    "max_complexity_function": "UpdateFeedback",
+    "coupling_score": 1,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": []
+  },
+  "cockpit/src/organisms/projects/CatalogProjectDialog.tsx": {
+    "risk_level": "MEDIUM",
+    "avg_complexity": 5.0,
+    "max_complexity": 5.0,
+    "max_complexity_function": "CatalogProjectDialog",
+    "coupling_score": 5,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "Imports from 5 unique internal modules (threshold: 4)"
+    ]
+  },
+  "cockpit/src/organisms/projects/PeopleSection.tsx": {
+    "risk_level": "LOW",
+    "avg_complexity": 1.0,
+    "max_complexity": 1.0,
+    "max_complexity_function": "PeopleSection",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": []
+  },
+  "cockpit/src/organisms/projects/ProjectCatalog.tsx": {
+    "risk_level": "MEDIUM",
+    "avg_complexity": 8.0,
+    "max_complexity": 8.0,
+    "max_complexity_function": "ProjectCatalog",
+    "coupling_score": 4,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "Average complexity across file is 8.0 (threshold: 6.0)",
+      "Imports from 4 unique internal modules (threshold: 4)"
+    ]
+  },
+  "cockpit/src/organisms/projects/RemoveHumanDialog.tsx": {
+    "risk_level": "MEDIUM",
+    "avg_complexity": 3.0,
+    "max_complexity": 3.0,
+    "max_complexity_function": "RemoveHumanDialog",
+    "coupling_score": 4,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "Imports from 4 unique internal modules (threshold: 4)"
+    ]
+  },
+  "cockpit/src/organisms/projects/RemoveProjectDialog.tsx": {
+    "risk_level": "MEDIUM",
+    "avg_complexity": 4.0,
+    "max_complexity": 4.0,
+    "max_complexity_function": "RemoveProjectDialog",
+    "coupling_score": 5,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "Imports from 5 unique internal modules (threshold: 4)"
+    ]
+  },
+  "cockpit/src/organisms/projects/WorkspaceSetupDialog.tsx": {
+    "risk_level": "MEDIUM",
+    "avg_complexity": 4.0,
+    "max_complexity": 4.0,
+    "max_complexity_function": "WorkspaceSetupDialog",
+    "coupling_score": 4,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "Imports from 4 unique internal modules (threshold: 4)"
+    ]
+  },
+  "cockpit/src/organisms/projects/dialogTypes.ts": {
+    "risk_level": "LOW",
+    "avg_complexity": 0.0,
+    "max_complexity": 0.0,
+    "max_complexity_function": "",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": []
+  },
+  "cockpit/src/organisms/runners/ProviderAuthoritySection.tsx": {
+    "risk_level": "LOW",
+    "avg_complexity": 1.0,
+    "max_complexity": 1.0,
+    "max_complexity_function": "ProviderAuthoritySection",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": []
+  },
+  "cockpit/src/organisms/runners/RegisterRunnerDialog.tsx": {
+    "risk_level": "LOW",
+    "avg_complexity": 5.0,
+    "max_complexity": 5.0,
+    "max_complexity_function": "RegisterRunnerDialog",
+    "coupling_score": 3,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": []
+  },
+  "cockpit/src/organisms/runners/RemoveRunnerDialog.tsx": {
+    "risk_level": "LOW",
+    "avg_complexity": 3.0,
+    "max_complexity": 3.0,
+    "max_complexity_function": "RemoveRunnerDialog",
+    "coupling_score": 2,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": []
+  },
+  "cockpit/src/organisms/runners/RunnerCapacity.tsx": {
+    "risk_level": "MEDIUM",
+    "avg_complexity": 9.0,
+    "max_complexity": 9.0,
+    "max_complexity_function": "RunnerCapacity",
+    "coupling_score": 6,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "Average complexity across file is 9.0 (threshold: 6.0)",
+      "Imports from 6 unique internal modules (threshold: 4)"
+    ]
+  },
+  "cockpit/src/organisms/runners/RunnerExecutionNotice.tsx": {
+    "risk_level": "LOW",
+    "avg_complexity": 1.0,
+    "max_complexity": 1.0,
+    "max_complexity_function": "RunnerExecutionNotice",
+    "coupling_score": 0,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": []
+  },
+  "cockpit/src/organisms/tailscale/ExitNodeAdvertisement.tsx": {
+    "risk_level": "LOW",
+    "avg_complexity": 3.0,
+    "max_complexity": 3.0,
+    "max_complexity_function": "ExitNodeAdvertisement",
+    "coupling_score": 2,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": []
+  },
+  "cockpit/src/organisms/tailscale/ExitNodeForm.tsx": {
+    "risk_level": "MEDIUM",
+    "avg_complexity": 7.0,
+    "max_complexity": 7.0,
+    "max_complexity_function": "ExitNodeForm",
+    "coupling_score": 2,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "Average complexity across file is 7.0 (threshold: 6.0)"
+    ]
+  },
+  "cockpit/src/organisms/tailscale/TailscaleConnection.tsx": {
+    "risk_level": "HIGH",
+    "avg_complexity": 13.0,
+    "max_complexity": 13.0,
+    "max_complexity_function": "TailscaleConnection",
+    "coupling_score": 5,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "A function has cyclomatic complexity 13 (threshold: 11)",
+      "Average complexity across file is 13.0 (threshold: 10.0)"
+    ]
+  },
+  "cockpit/src/organisms/tailscale/TailscaleDevices.tsx": {
+    "risk_level": "MEDIUM",
+    "avg_complexity": 8.0,
+    "max_complexity": 8.0,
+    "max_complexity_function": "TailscaleDevices",
+    "coupling_score": 2,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "Average complexity across file is 8.0 (threshold: 6.0)"
+    ]
+  },
+  "cockpit/src/organisms/updates/ApplyUpdateDialog.tsx": {
+    "risk_level": "LOW",
+    "avg_complexity": 1.0,
+    "max_complexity": 1.0,
+    "max_complexity_function": "ApplyUpdateDialog",
+    "coupling_score": 2,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": []
+  },
+  "cockpit/src/organisms/updates/AvailableReleaseSection.tsx": {
+    "risk_level": "MEDIUM",
+    "avg_complexity": 6.0,
+    "max_complexity": 6.0,
+    "max_complexity_function": "AvailableReleaseSection",
+    "coupling_score": 4,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": [
+      "Average complexity across file is 6.0 (threshold: 6.0)",
+      "Imports from 4 unique internal modules (threshold: 4)"
+    ]
+  },
+  "cockpit/src/organisms/updates/InstalledImageSection.tsx": {
+    "risk_level": "LOW",
+    "avg_complexity": 3.0,
+    "max_complexity": 3.0,
+    "max_complexity_function": "InstalledImageSection",
+    "coupling_score": 2,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": []
+  },
+  "cockpit/src/organisms/updates/PendingDeploymentSection.tsx": {
+    "risk_level": "LOW",
+    "avg_complexity": 5.0,
+    "max_complexity": 5.0,
+    "max_complexity_function": "PendingDeploymentSection",
+    "coupling_score": 2,
+    "parse_error": false,
+    "is_in_circular_dep": false,
+    "risk_reasons": []
+  }
+}
