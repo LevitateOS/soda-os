@@ -34,6 +34,7 @@ func TestRuntimeImageBootcContainerContract(t *testing.T) {
 		"systemctl enable sshd.service cockpit.socket forgejo.service tailscaled.service",
 		"systemctl enable cloud-init-main.service cloud-init-local.service cloud-config.service cloud-final.service",
 		"getent passwd git",
+		"systemctl mask rpm-ostree-countme.timer",
 		"systemctl mask bootc-fetch-apply-updates.timer", "cp -f /usr/lib/soda/os-release /etc/os-release",
 		"cp -f /usr/lib/soda/os-release /usr/lib/os-release", "cp -f /usr/lib/soda/issue /etc/issue",
 		"cp -f /usr/lib/soda/issue /etc/issue.net", "cp -f /usr/lib/soda/system-release /etc/system-release",

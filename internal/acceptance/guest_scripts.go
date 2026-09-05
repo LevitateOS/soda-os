@@ -23,6 +23,7 @@ command -v mise
 test ! -e "$HOME/.config/tea/config.yml"
 test ! -e "$HOME/.config/gh/hosts.yml"
 test "$(systemctl is-enabled bootc-fetch-apply-updates.timer 2>/dev/null || true)" = masked
+test "$(systemctl is-enabled rpm-ostree-countme.timer 2>/dev/null || true)" = masked
 test "$(systemctl is-enabled firewalld.service)" = enabled
 test "$(systemctl is-active firewalld.service)" = active
 ` + forbiddenServiceChecks + `for path in \

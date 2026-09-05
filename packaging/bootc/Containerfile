@@ -28,6 +28,7 @@ COPY --from=rpm-inputs /mise-*.rpm /var/tmp/soda-rpms/
 COPY --from=lock-inputs /fedora-packages.txt /var/tmp/soda-lock/fedora-packages.txt
 COPY --from=lock-inputs /expected-packages.txt /var/tmp/soda-lock/expected-packages.txt
 
+# Mask inherited Count Me reporting: it substitutes Soda's VERSION_ID into Fedora repository URLs.
 RUN dnf -y --setopt=install_weak_deps=False --enablerepo=updates-testing install \
       $(cat /var/tmp/soda-lock/fedora-packages.txt) \
       /var/tmp/soda-rpms/*.rpm \
@@ -65,6 +66,7 @@ RUN dnf -y --setopt=install_weak_deps=False --enablerepo=updates-testing install
     && systemctl enable cloud-init-main.service cloud-init-local.service cloud-config.service cloud-final.service \
     && getent passwd git \
     && systemctl mask bootc-fetch-apply-updates.timer \
+    && systemctl mask rpm-ostree-countme.timer \
     && cp -f /usr/lib/soda/os-release /etc/os-release \
     && cp -f /usr/lib/soda/os-release /usr/lib/os-release \
     && cp -f /usr/lib/soda/issue /etc/issue \
