@@ -83,7 +83,9 @@ test.skipIf(!targetFile)(
         expect(native.architecture).toBe(target.architecture);
         expect(native.owner).toMatch(/^soda-projects-/);
         const symbol = frame.locator(".soda-eyebrow img");
-        expect(await symbol.evaluate((el) => (el as HTMLImageElement).naturalWidth > 0)).toBe(true);
+        await expect
+          .poll(() => symbol.evaluate((el) => (el as HTMLImageElement).naturalWidth > 0))
+          .toBe(true);
         for (const theme of ["light", "dark"]) {
           await page.evaluate((style) => {
             localStorage.setItem("shell:style", style);
@@ -128,7 +130,15 @@ test.skipIf(!targetFile)(
         "Terminal",
       ]) {
         await page.getByRole("link", { name: label, exact: true }).click();
-        await page.locator("iframe.container-frame:visible").waitFor();
+        const selector = `iframe.container-frame[title="${label}"][data-loaded]:visible`;
+        await page.locator(selector).waitFor();
+        const frame = page.frameLocator(selector);
+        const branded = ["Overview", "Networking", "Storage", "Accounts"].includes(label);
+        expect(
+          await frame
+            .locator("html")
+            .evaluate((el) => getComputedStyle(el).getPropertyValue("--soda-brand").trim()),
+        ).toBe(branded ? "#10d7e8" : "");
         await page.screenshot({
           path: resolve(target.evidenceDirectory, `stock-${label.toLowerCase()}.png`),
         });
