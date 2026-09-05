@@ -70,7 +70,31 @@ func (r *Releases) Latest(ctx context.Context, architecture string) (Release, er
 	if err != nil {
 		return Release{}, err
 	}
-	contents, err := r.fetch(ctx, releaseAPI)
+	return r.fromURL(ctx, architecture, platform, releaseAPI)
+}
+
+// Published reverifies a selected version even if a newer release appeared
+// after download. Withdrawn or prerelease records are never accepted.
+func (r *Releases) Published(ctx context.Context, architecture, version string) (Release, error) {
+	platform, err := platformFor(architecture)
+	if err != nil {
+		return Release{}, err
+	}
+	if !stableVersion.MatchString(version) {
+		return Release{}, errors.New("invalid stable Soda version")
+	}
+	selected, err := r.fromURL(ctx, architecture, platform, "https://api.github.com/repos/LevitateOS/soda-os/releases/tags/v"+version)
+	if err != nil {
+		return Release{}, err
+	}
+	if selected.Version != version {
+		return Release{}, errors.New("published release version changed")
+	}
+	return selected, nil
+}
+
+func (r *Releases) fromURL(ctx context.Context, architecture, platform, url string) (Release, error) {
+	contents, err := r.fetch(ctx, url)
 	if err != nil {
 		return Release{}, err
 	}

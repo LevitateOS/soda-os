@@ -74,7 +74,9 @@ lifecycle. Soda owns no toolchain package manager, downloader, cache service,
 profile system, or version database. Coding assistants are selected and
 authenticated separately per workspace.
 
-Administrators update explicitly through native bootc operations. Automatic
+Administrators update explicitly through the Soda Updates Cockpit page or native
+bootc commands. The page discovers approved published releases, verifies their
+exact images, and separates downloading from a confirmed restart. Automatic
 updates are disabled. Supported fallback selects an earlier exact signed image
 while preserving current accounts and data. Soda has no updater, recovery
 engine, runtime daemon, general API, workflow engine, credential broker, or

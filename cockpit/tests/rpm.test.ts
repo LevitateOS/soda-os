@@ -10,7 +10,7 @@ const rpmDirectory = process.env.SODA_COCKPIT_RPM_DIRECTORY;
 const builder = process.env.SODA_COCKPIT_RPM_BUILDER;
 
 test.skipIf(!rpmDirectory)(
-  "native RPM payloads exactly match all three generated packages",
+  "native RPM payloads exactly match all generated packages",
   () => {
     expect(
       builder,
@@ -49,6 +49,7 @@ test.skipIf(!rpmDirectory)(
         ["projects", "soda-projects"],
         ["runners", "soda-runners"],
         ["tailscale", "soda-runtime"],
+        ["updates", "soda-runtime"],
       ]) {
         const matches = readdirSync(rpmDirectory!).filter(
           (file) => file.startsWith(`${owner}-`) && file.endsWith(`.${architecture}.rpm`),

@@ -1,0 +1,5 @@
+{
+  "version": 1,
+  "requires": { "cockpit": "318" },
+  "menu": { "index": { "label": "Soda Updates", "order": 38, "path": "index.html" } }
+}

@@ -15,7 +15,7 @@ func TestCockpitStagingCopiesAllBuiltRuntimeAssets(t *testing.T) {
 	require.NoError(t, err)
 	sources := t.TempDir()
 	require.NoError(t, (&Builder{Root: root}).stageCockpitSources(sources))
-	for _, name := range []string{"soda-projects", "soda-runners", "soda-tailscale"} {
+	for _, name := range []string{"soda-projects", "soda-runners", "soda-tailscale", "soda-updates"} {
 		assertCockpitStaged(t, root, sources, name)
 	}
 }

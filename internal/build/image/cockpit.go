@@ -23,7 +23,7 @@ func (b *Builder) buildCockpit(ctx context.Context) error {
 }
 
 func (b *Builder) stageCockpitSources(sources string) error {
-	for _, name := range []string{"soda-projects", "soda-runners", "soda-tailscale"} {
+	for _, name := range []string{"soda-projects", "soda-runners", "soda-tailscale", "soda-updates"} {
 		root := b.path(filepath.Join("cockpit", "dist", name))
 		for _, file := range []string{"manifest.json", "index.html", "LICENSES.txt", "assets"} {
 			if _, err := os.Stat(filepath.Join(root, file)); err != nil {

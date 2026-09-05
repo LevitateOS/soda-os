@@ -1,81 +1,90 @@
-# Soda Updates implementation
+# Soda Updates
 
-The approved browser workflow is: find the latest published stable Soda release,
-verify its architecture-specific signed record and exact OCI image, download that
-digest, and explicitly apply and restart. Development candidate tags are not an
-update channel. Native bootc remains authoritative for deployment state; this
-work adds no updater daemon, database, automatic updates, or copied account state.
+The administrator-only **Soda Updates** Cockpit package implements the approved
+workflow: discover the latest published stable Soda release, verify its signed
+architecture-specific record and exact OCI image, download that digest, and
+explicitly apply and restart. Candidate tags are not an update channel.
 
-## Release verification boundary
+## Ownership and commands
 
-`internal/updates` implements the first milestone: read-only discovery and
-verification. It is not yet installed or exposed through Cockpit. The native
-Cosign and Skopeo commands are invoked through the process runner, with temporary
-record/bundle files removed on success and failure. GitHub responses are bounded
-and requests have a timeout. No GitHub token is required or retained.
+- `cockpit/src/updates`, `cockpit/src/pages/UpdatesPage.tsx`: presentation and
+  transient interaction state, using the existing React/PatternFly build.
+- `/usr/libexec/soda/soda-updates` (`cmd/soda-updates`): synchronous root-only
+  `status`, `check`, `download`, and `apply` operations. Cockpit uses its native
+  administrative-access boundary; the executable is not setuid and installs no
+  privileged service or generic bridge.
+- `internal/updates`: published-release verification and native bootc invocation.
+- `soda-runtime`: packages the executable and static Cockpit assets and requires
+  native bootc, Skopeo, and Cosign executables.
 
-Discovery uses GitHub's `releases/latest` endpoint, not registry tag sorting.
-It requires a published, non-prerelease `vMAJOR.MINOR.PATCH` release and exactly
-one host-architecture record and Sigstore bundle. Verification binds the record
-to the production workflow certificate identity and requires schema 3, matching
-version/platform/channel, a full source revision, and an exact Soda GHCR digest.
-Image signature and provenance verification use that digest, followed by an
-anonymous OCI metadata check against the record. Artifact checksums remain owned
-by publication; this boundary reads only the signed identity fields.
+Native bootc owns deployments. There is no Soda deployment database, update
+service, timer, automatic update, account snapshot, or browser workflow cache.
+`status` and `check` emit JSON; download/apply stream native progress. A page
+reload recovers the downloaded/staged deployment from bootc, not browser state.
 
-No release, transport failure, invalid signature, and mismatched image are
-separate failure cases, never evidence that an installation is up to date.
-Stable versions compare numerically without integer overflow. Non-stable local
-versions require an explicit native administrator decision rather than an
-automatic downgrade or guessed ordering. A same-version/different-digest image
-must be displayed as a distinct installation, not silently replaced.
+## Release verification
 
-## Native bootc contract to preserve
+Checks query GitHub's `releases/latest`, not registry tag sorting. They require a
+published, non-prerelease `vMAJOR.MINOR.PATCH` and exactly one host-architecture
+record and Sigstore bundle. Cosign verifies the existing production-workflow
+certificate identity and issuer. Schema 3, version/platform/channel, source
+revision, and exact Soda GHCR digest must agree. Image signature and provenance
+verification use that digest, followed by anonymous Skopeo identity inspection.
+Temporary record/bundle files are removed on both success and failure.
 
-Source inspection of bootc `v1.16.10`, matching the current Soda runtime lock,
-finds `downloadOnly` on staged deployment entries and `rollbackQueued` in host
-status. This is evidence of the JSON contract, not an installed-system test.
+No release, transport failure, invalid signature, and mismatched image are not
+"up to date". Stable versions compare numerically; development versions and
+same-version/different-digest installations are not automatically replaced.
 
-The established Soda CLI sequence is:
+Download and Apply reverify the selected *published version*, not whatever
+became latest in the meantime. A removed release or changed digest fails closed.
+Apply does not trust release details held in the browser, including after reload.
 
-1. `bootc switch --download-only EXACT_VERIFIED_DIGEST`
-2. Inspect bootc state and confirm the selected digest is downloaded.
-3. `bootc switch --from-downloaded`
-4. Restart explicitly after successful finalization.
+## Download and activation
 
-The future page must reread native state after reconnect and before activation,
-and refuse a changed target. Determine how to bind the comparison and activation
-against concurrent native CLI operations before claiming stale-target safety.
-In `v1.16.10`'s `crates/lib/src/cli.rs`, `SwitchOpts.target` explicitly conflicts
-with `from_downloaded`, and `apply_from_downloaded_ostree` unlocks whichever
-staged deployment it finds. It accepts no expected digest. A status check in a
-separate command is therefore not an atomic guard against a concurrent native
-switch. This is a concrete activation integration gap, not a reason to claim
-that a separate status check guarantees the selected image.
-Do not solve this by adding a Soda deployment-state file or asserting that a
-Soda-only lock also protects ordinary bootc commands.
+Download uses `bootc switch --download-only EXACT_VERIFIED_DIGEST`. It refuses
+an existing staged deployment, downgrade, incompatible image, queued rollback,
+or transient `/usr` overlay. Its resulting digest and `downloadOnly` state are
+checked before success is reported.
 
-Direct `bootc rollback`, rollback-based cancellation, automatic-update controls,
-arbitrary image switching, and deployment deletion/pinning are outside the
-initial page. Supported fallback remains the account-preserving exact-image
-switch procedure in the administrator handbook.
+Apply rereads and verifies the exact staged target, runs
+`bootc switch --from-downloaded`, checks the resulting target and unlocked state,
+then requests a normal `systemctl reboot`. The confirmation explicitly warns
+that SSH sessions and development workloads will be interrupted. A failed
+restart request leaves the enabled-for-next-restart deployment visible. A
+connection loss never establishes success or failure: reconnect and refresh.
 
-## Remaining implementation and prerequisites
+**Coordinate administration during Apply.** Bootc 1.16.10 rejects an expected
+target with `--from-downloaded`; there is no atomic compare-and-activate argument.
+The helper's ephemeral `/run/soda-updates.lock` serializes Soda mutations only,
+not ordinary bootc or OSTree commands. Before/after checks detect changed native
+state but cannot eliminate a concurrent administrator race. The UI warns not to
+run other deployment commands during Apply. If a post-activation check fails,
+Soda does not request reboot and warns that native pending state may already
+have changed; inspect bootc before *any* restart. There is no compensating
+rollback or claim that a Soda-only lock protects native CLI operations.
 
-- Add the bounded command entry point and Cockpit React/PatternFly page.
-- Implement native status, exact verified download, and confirmed activation.
-- Confirm all native flags and disconnect/concurrency behavior against the
-  pinned bootc version, including downloaded versus finalized staged state.
-- Package the page and its verifier through the existing RPM workflow.
-- Cosign is installed on the development host but is absent from Soda's explicit
-  runtime RPM locks. Verify actual base/tool availability and add reviewed native
-  dependency inputs before claiming the installed page can verify releases.
-- Dependency resolution, artifact construction, and live acceptance must be
-  performed independently on native x86_64 and AArch64. No sibling artifact
-  support is established by mocked architecture-selection tests.
-- Verify the full update/restart flow and preservation of current Linux accounts,
-  passwords, groups, homes, project workspaces, and services on disposable guests.
+Direct rollback, rollback-based cancellation, arbitrary image switching,
+automatic-update controls, and deployment deletion/pinning are outside this
+page. Native CLI administration and the handbook's account-preserving fallback
+remain available.
 
-Builds, publication, guest creation, installation, and live updates remain
-separately authorized operations. Source checks and mocked command tests do not
-claim a usable installed update page.
+## Evidence and remaining prerequisites
+
+Source/unit/browser tests exercise selection, verification, command ordering,
+stale targets, failures, recovery after reload, confirmation, and privilege
+requirements. They do not prove a live upgrade across versions.
+
+The operator-provided ephemeral **x86_64** VM runs Soda 0.6.3 and bootc 1.16.10.
+Native inspection confirmed privileged JSON status, Skopeo availability, missing
+Cosign, a masked automatic-update timer, and clean refusal to activate without a
+staged deployment. The expected-target/`--from-downloaded` conflict was reproduced
+without changing its deployment. GitHub's latest Soda release endpoint returned
+404 during this implementation: there is no approved release to exercise the
+full positive discovery/update path at that checkpoint.
+
+Before producing a release image, resolve/lock the verification dependencies on
+matching-native hardware. The runtime RPM now requires Cosign; the previously
+installed image did not provide it. Native x86_64 and AArch64 artifact builds and
+full update/restart/account-preservation acceptance remain independently needed.
+Never claim sibling artifact validation from mocked architecture-selection tests.

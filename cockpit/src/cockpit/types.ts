@@ -5,7 +5,7 @@ export interface CockpitProcess extends PromiseLike<string> {
   close(reason?: string): void;
 }
 export interface SpawnOptions {
-  err: "message";
+  err: "message" | "out";
   superuser?: "require";
 }
 export interface HttpRequest {

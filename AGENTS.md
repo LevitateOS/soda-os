@@ -60,7 +60,12 @@ machinery, or architecture that only its authors can understand.
   version manager, downloader, cache format, profile system, shared tool store,
   or parallel state model. Tea and GitHub CLI are available in every workspace;
   each workspace authenticates them manually and separately.
-- Linux administrators use native `bootc` commands for explicit update checks,
+- Soda Updates provides an administrator-only Cockpit page for checking approved
+  published releases, verifying and downloading their exact architecture-matched
+  OCI digests, and explicitly applying and restarting. It uses native bootc,
+  Skopeo, and Cosign through a narrow synchronous command, without a daemon,
+  database, automatic updates, or a generic privileged bridge.
+- Linux administrators retain native `bootc` commands for explicit update checks,
   staging, activation, and supported fallback. Fallback to an earlier image
   must preserve current Linux account, password, group, and administrator
   state; direct `bootc rollback` is not supported unless verified against that
@@ -214,7 +219,8 @@ deployment contexts.
 Use the present tree as a navigation aid, not an immutable architecture:
 
 - `cmd`: executable-specific construction and command behavior
-- `cockpit`: the static stock-Cockpit Projects package and its presentation assets
+- `cockpit`: shared frontend sources and static Projects, Runners, Tailscale,
+  and Updates packages and their presentation assets
 - `internal/build`: image, installer, and release production
 - `internal`: native Projects behavior, host integration, process execution,
   and artifact construction

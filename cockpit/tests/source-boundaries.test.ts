@@ -6,9 +6,14 @@ import { isStringLiteral } from "typescript/unstable/ast";
 
 const root = resolve(import.meta.dirname, "..");
 const sourceRoot = resolve(root, "src");
-const features = ["projects", "runners", "tailscale"];
+const features = ["projects", "runners", "tailscale", "updates"];
 const layers = ["atoms", "molecules", "organisms", "templates", "pages"];
-const pageNames = { projects: "ProjectsPage", runners: "RunnersPage", tailscale: "TailscalePage" };
+const pageNames = {
+  projects: "ProjectsPage",
+  runners: "RunnersPage",
+  tailscale: "TailscalePage",
+  updates: "UpdatesPage",
+};
 
 function featureOf(path: string) {
   const parts = path.split("/");

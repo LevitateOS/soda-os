@@ -197,6 +197,20 @@ func TestLatestRejectsOCIIdentityMismatch(t *testing.T) {
 	}
 }
 
+func TestPublishedReverifiesSelectedVersionInsteadOfLatest(t *testing.T) {
+	f := newReleaseFixture(t, "x86_64")
+	url := "https://api.github.com/repos/LevitateOS/soda-os/releases/tags/v" + testVersion
+	f.documents[url] = f.documents[releaseAPI]
+	delete(f.documents, releaseAPI)
+	selected, err := f.releases.Published(context.Background(), "x86_64", testVersion)
+	require.NoError(t, err)
+	require.Equal(t, testVersion, selected.Version)
+	require.Equal(t, url, f.requests[0])
+	delete(f.documents, url)
+	_, err = f.releases.Published(context.Background(), "x86_64", testVersion)
+	require.ErrorContains(t, err, "HTTP 404")
+}
+
 func TestCompareStableVersions(t *testing.T) {
 	for _, item := range []struct {
 		installed, available string

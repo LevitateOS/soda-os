@@ -183,6 +183,7 @@ func (b *Builder) buildGoBinaries(ctx context.Context, revision string) error {
 		{"soda-runner-helper", "./cmd/soda-runner-helper"},
 		{"soda-runner-launch", "./cmd/soda-runner-launch"},
 		{"soda-tailnet", "./cmd/soda-tailnet"},
+		{"soda-updates", "./cmd/soda-updates"},
 		{"soda-forgejo-tailnet", "./cmd/soda-forgejo-tailnet"},
 	} {
 		if err := b.docker(ctx, []string{"CGO_ENABLED=1", "SOURCE_DATE_EPOCH=" + fmt.Sprint(b.Spec.Build.SourceDateEpoch)}, "go", "build", "-buildvcs=false", "-trimpath", "-ldflags="+linkerFlags, "-o", "/src/.artifacts/build/"+target.output, target.pkg); err != nil {
@@ -229,6 +230,7 @@ func (b *Builder) stageProductRPMSources(build, sources string) error {
 		{filepath.Join(build, "soda-runner-helper"), filepath.Join(sources, "soda-runner-helper")},
 		{filepath.Join(build, "soda-runner-launch"), filepath.Join(sources, "soda-runner-launch")},
 		{filepath.Join(build, "soda-tailnet"), filepath.Join(sources, "soda-tailnet")},
+		{filepath.Join(build, "soda-updates"), filepath.Join(sources, "soda-updates")},
 		{filepath.Join(build, "forgejo"), filepath.Join(sources, "forgejo")},
 		{b.path("packaging/rpm/runtime/sources/systemd/89-soda.preset"), filepath.Join(sources, "89-soda.preset")},
 		{b.path("packaging/rpm/runtime/sources/tmpfiles/soda-runtime.conf"), filepath.Join(sources, "soda-runtime.tmpfiles")},

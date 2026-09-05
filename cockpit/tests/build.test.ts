@@ -5,9 +5,9 @@ import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { packageInventory } from "../build/assets";
 
-test("all three installed asset graphs are self-contained and clean rebuilds are identical", () => {
+test("all installed asset graphs are self-contained and clean rebuilds are identical", () => {
   const root = resolve(import.meta.dirname, "..");
-  const pages = ["projects", "runners", "tailscale"];
+  const pages = ["projects", "runners", "tailscale", "updates"];
   const before = pages.map((page) => packageInventory(resolve(root, `dist/soda-${page}`)));
   execFileSync("vp", ["build"], {
     cwd: root,

@@ -32,7 +32,35 @@ cosign verify-attestation \
   EXACT_SIGNED_SODA_IMAGE
 ```
 
-## Inspect and stage an update
+## Update through Cockpit
+
+Open **Soda Updates** and enable Cockpit administrative access.
+
+1. Select **Check for updates**. Soda checks the latest published stable release
+   and verifies its signed record, image signature, provenance, architecture,
+   version, source revision, and exact digest.
+2. Read the release notes, then select **Download update**. Downloading does not
+   restart the server or enable the deployment for the next restart.
+3. When ready to interrupt SSH sessions and running development workloads,
+   select **Apply and restart…** and confirm.
+4. After reconnecting, select **Refresh status** and verify the installed version.
+
+Do not run other bootc or deployment commands while applying through Cockpit.
+The target is rechecked before and after activation, but bootc does not provide
+an atomic expected-digest activation guard. A detected change stops the restart
+request and requires inspection of native pending state before any restart.
+
+The page recovers pending deployment state after a refresh. Connection loss is
+not proof of either success or failure; reconnect and inspect before retrying.
+No published release, unavailable registry, missing verification tool, or invalid
+signature is reported as a successful update check. Development candidates and
+same-version/different-digest images are not replaced automatically.
+
+Existing installations without this package continue using the native commands
+below. See the [engineering notes](../../cockpit-updates.md) for implementation
+and current validation evidence.
+
+## Inspect and stage an update with native commands
 
 ```sh
 sudo bootc status
