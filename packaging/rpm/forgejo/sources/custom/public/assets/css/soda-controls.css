@@ -6,7 +6,7 @@
   --color-primary: var(--soda-button-bg);
   --color-primary-hover: var(--soda-button-hover);
   --color-primary-active: var(--soda-button-active);
-  --color-primary-contrast: #ffffff;
+  --color-primary-contrast: var(--soda-button-text);
 }
 
 .button.primary:active {

@@ -28,6 +28,7 @@ install -m 0644 %{_sourcedir}/soda-forgejo-logo.svg "$custom/public/assets/img/f
 install -m 0644 %{_sourcedir}/soda-forgejo-logo.png "$custom/public/assets/img/logo.png"
 install -m 0644 %{_sourcedir}/soda-forgejo-favicon.png "$custom/public/assets/img/favicon.png"
 install -m 0644 %{_sourcedir}/soda-forgejo-apple-touch-icon.png "$custom/public/assets/img/apple-touch-icon.png"
+install -m 0644 %{_sourcedir}/soda-palette.css "$custom/public/assets/css/palette.css"
 for stylesheet in theme-soda-light.css theme-soda-dark.css theme-soda-auto.css soda-controls.css; do
     install -m 0644 %{_sourcedir}/"$stylesheet" "$custom/public/assets/css/$stylesheet"
 done

@@ -25,6 +25,7 @@ func TestForgejoBrandingRPMInstall(t *testing.T) {
 	require.NoErrorf(t, err, "%s", output)
 	custom := filepath.Join(buildroot, "usr", "share", "soda", "forgejo", "custom")
 	for _, file := range [][2]string{
+		{"assets/branding/theme/palette.css", "public/assets/css/palette.css"},
 		{"assets/branding/source/soda-symbol.svg", "public/assets/img/logo.svg"},
 		{"assets/branding/source/soda-symbol.svg", "public/assets/img/favicon.svg"},
 		{"assets/branding/forgejo/logo.png", "public/assets/img/logo.png"},

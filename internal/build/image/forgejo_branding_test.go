@@ -20,6 +20,8 @@ func TestForgejoSodaThemesExtendNativeThemes(t *testing.T) {
 		css := string(contents)
 		require.Contains(t, css, `@import "theme-forgejo-`+mode+`.css";`)
 		require.Contains(t, css, `@import "soda-controls.css";`)
+		require.Contains(t, css, `@import "palette.css";`)
+		require.NotRegexp(t, `#[0-9a-fA-F]{6}`, css)
 		require.Contains(t, css, "color-scheme: "+mode+";")
 		for _, untouched := range []string{"--color-diff-", "--color-ansi-", "--color-error-", "--color-red:", "--color-green:"} {
 			require.NotContains(t, css, untouched)
@@ -35,7 +37,7 @@ func TestForgejoSodaThemesExtendNativeThemes(t *testing.T) {
 	for _, selector := range []string{".ui.primary.button", ".ui.primary.buttons .button", ".button.primary", ":focus-visible"} {
 		require.Contains(t, string(controls), selector)
 	}
-	require.Contains(t, string(controls), "--color-primary-contrast: #ffffff;")
+	require.Contains(t, string(controls), "--color-primary-contrast: var(--soda-button-text);")
 }
 
 func TestForgejoSodaPaletteContrast(t *testing.T) {
@@ -75,8 +77,14 @@ func forgejoThemeColors(t *testing.T, mode string) map[string]string {
 	contents, err := os.ReadFile(path)
 	require.NoError(t, err)
 	colors := map[string]string{"#ffffff": "#ffffff"}
-	for _, match := range regexp.MustCompile(`(?m)^  (--[\w-]+): (#[0-9a-f]{6});$`).FindAllStringSubmatch(string(contents), -1) {
+	palette, err := os.ReadFile(filepath.Join("..", "..", "..", "assets", "branding", "theme", "palette.css"))
+	require.NoError(t, err)
+	for _, match := range regexp.MustCompile(`(?m)^  (--[\w-]+): (#[0-9a-f]{6}(?:[0-9a-f]{2})?);$`).FindAllStringSubmatch(string(palette), -1) {
 		colors[match[1]] = match[2]
+	}
+	for _, match := range regexp.MustCompile(`(?m)^  (--[\w-]+): var\((--[\w-]+)\);$`).FindAllStringSubmatch(string(contents), -1) {
+		require.NotEmpty(t, colors[match[2]], "unresolved palette reference %s", match[2])
+		colors[match[1]] = colors[match[2]]
 	}
 	return colors
 }

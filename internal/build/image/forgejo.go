@@ -56,6 +56,7 @@ func validInputFilename(value string) bool {
 func (b *Builder) stageForgejoBranding(sources string) error {
 	custom := "packaging/rpm/forgejo/sources/custom/"
 	files := [][2]string{
+		{"assets/branding/theme/palette.css", "soda-palette.css"},
 		{"assets/branding/source/soda-symbol.svg", "soda-forgejo-logo.svg"},
 		{"assets/branding/forgejo/logo.png", "soda-forgejo-logo.png"},
 		{"assets/branding/forgejo/favicon.png", "soda-forgejo-favicon.png"},
