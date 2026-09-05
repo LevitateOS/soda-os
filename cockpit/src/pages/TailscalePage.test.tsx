@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 import { afterEach, test, expect, vi } from "vite-plus/test";
 import { render, screen, fireEvent, act, within } from "@testing-library/react";
-import { Tailscale } from "./App";
-import type { Snapshot, AuthenticationMessage } from "./types";
-import type { NativeTailscale } from "./native";
+import { TailscalePage } from "./TailscalePage";
+import type { Snapshot, AuthenticationMessage } from "../tailscale/types";
+import type { NativeTailscale } from "../tailscale/types";
 const connected: Snapshot = {
   status: {
     BackendState: "Running",
@@ -41,7 +41,7 @@ function setup(snapshot = connected) {
     close: vi.fn(),
   };
   const onReopen = vi.fn();
-  const rendered = render(<Tailscale native={native} cockpit={cockpit} onReopen={onReopen} />);
+  const rendered = render(<TailscalePage native={native} cockpit={cockpit} onReopen={onReopen} />);
   return { native, cockpit, visibility: () => visibility(), onReopen, ...rendered };
 }
 const flush = async () => {
@@ -191,7 +191,7 @@ test("pending reads do not overlap and hidden initial pages perform no reads", a
   });
   app.unmount();
   app.cockpit.hidden = true;
-  render(<Tailscale native={app.native} cockpit={app.cockpit} />);
+  render(<TailscalePage native={app.native} cockpit={app.cockpit} />);
   await flush();
   expect(app.native.read).toHaveBeenCalledTimes(2);
 });

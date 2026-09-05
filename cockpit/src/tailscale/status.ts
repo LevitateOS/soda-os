@@ -1,3 +1,4 @@
+import type { Snapshot } from "./types";
 import type { Status, Device, Preferences } from "./types";
 export function connectionState(status: Status) {
   if (status.Self?.Expired) return "Authentication expired";
@@ -51,4 +52,13 @@ export function authenticationURL(value: string | undefined) {
   if (url.protocol !== "https:")
     throw new Error("Tailscale returned an invalid authentication URL.");
   return url.href;
+}
+
+export function exitSelection({ status, prefs }: Snapshot) {
+  let selected = prefs.ExitNodeIP || "";
+  const choices = exitNodeChoices(status).filter((peer) => peer.TailscaleIPs?.[0]);
+  for (const peer of choices) if (peer.ID === prefs.ExitNodeID) selected = peer.TailscaleIPs![0];
+  if (prefs.ExitNodeID && !choices.some((peer) => selected && peer.TailscaleIPs![0] === selected))
+    selected = status.ExitNodeStatus?.TailscaleIPs?.[0] || selected || "unavailable";
+  return selected;
 }

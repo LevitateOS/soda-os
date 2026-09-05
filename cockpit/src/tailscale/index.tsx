@@ -3,9 +3,9 @@ import "../../vendor/cockpit-dark-theme";
 import "../../vendor/patternfly/patternfly-6-cockpit.scss";
 import "@patternfly/patternfly/patternfly-base.css";
 import "../cockpit/soda.css";
-import { Tailscale } from "./App";
+import { TailscalePage } from "../pages/TailscalePage";
 import { nativeTailscale } from "./native";
 
 createRoot(document.getElementById("app")!).render(
-  <Tailscale native={nativeTailscale(window.cockpit)} />,
+  <TailscalePage native={nativeTailscale(window.cockpit)} />,
 );

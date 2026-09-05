@@ -1,12 +1,10 @@
 import type { Cockpit, CockpitProcess } from "../cockpit/types";
-import type { Status, Preferences, AuthenticationMessage } from "./types";
+import type { Status, Preferences, AuthenticationMessage, NativeTailscale } from "./types";
 import { authenticationStream } from "./stream";
 
 export const cli = "/usr/bin/tailscale";
-export const adminURL = "https://login.tailscale.com/admin/machines";
-export const cliURL = "https://tailscale.com/docs/reference/tailscale-cli";
 
-export function nativeTailscale(cockpit: Pick<Cockpit, "spawn" | "http">) {
+export function nativeTailscale(cockpit: Pick<Cockpit, "spawn" | "http">): NativeTailscale {
   const processes = new Set<CockpitProcess>();
   const http = cockpit.http("/var/run/tailscale/tailscaled.sock", {
     superuser: "require",
@@ -94,5 +92,3 @@ export function nativeTailscale(cockpit: Pick<Cockpit, "spawn" | "http">) {
     },
   };
 }
-
-export type NativeTailscale = ReturnType<typeof nativeTailscale>;

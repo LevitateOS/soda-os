@@ -31,3 +31,13 @@ export interface Snapshot {
   status: Status;
   prefs: Preferences;
 }
+
+export interface NativeTailscale {
+  readStatus(): Promise<Status>;
+  read(): Promise<Snapshot>;
+  signIn(status: Status, onMessage: (message: AuthenticationMessage) => void): Promise<void>;
+  selectExitNode(address: string, allowLAN: boolean): Promise<void>;
+  advertiseExitNode(enabled: boolean): Promise<void>;
+  refreshForgejo(): Promise<void>;
+  close(): void;
+}
