@@ -1,0 +1,56 @@
+/* Offline asset proof only. This is not a Cockpit replacement login or shell. */
+* { box-sizing: border-box; }
+body { margin: 0; padding: 48px; background: #eaf0f6; color: #142d4e; font: 15px/1.5 system-ui, sans-serif; }
+header, main, footer { max-width: 1320px; margin: auto; }
+header { display: flex; justify-content: space-between; gap: 32px; align-items: flex-start; }
+h1 { margin: 8px 0; font-size: clamp(28px, 3vw, 42px); letter-spacing: -.04em; line-height: 1.15; }
+h2, .eyebrow { text-transform: uppercase; font-size: 12px; letter-spacing: .14em; font-weight: 700; }
+h2 { margin: 28px 0 12px; }
+h3 { margin: 8px 0; font-size: 19px; }
+p { margin: 8px 0; }
+.intro { max-width: 720px; color: #50627a; }
+.tag { border: 1px solid #77889b; border-radius: 30px; padding: 8px 14px; font-size: 12px; white-space: nowrap; }
+.pair { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+.mark, .palette, .icons > div { color: var(--soda-text); background: var(--soda-surface); }
+.mark { border-radius: 12px; padding: 24px 32px 16px; }
+.mark img { display: block; width: min(100%, 380px); height: 95px; object-fit: contain; object-position: left; }
+.mark.pf-v6-theme-dark { background: #06245b; }
+.mark p, .icons p { font-size: 12px; color: var(--soda-muted); }
+.login { display: grid; place-items: center; padding: 32px; min-height: 458px; border-radius: 12px; color: var(--soda-text); background: url('login-background-light.svg') center / cover; }
+.login.pf-v6-theme-dark { background-image: url('login-background-dark.svg'); }
+.login-card { background: var(--soda-surface); width: min(100%, 340px); padding: 24px 28px; border: 1px solid var(--soda-border); border-radius: 8px; }
+.login-logo { width: 204px; max-width: 100%; height: 51px; object-fit: contain; object-position: left; }
+.login-card h3 { font-size: 17px; }
+.login-card p { font-size: 12px; color: var(--soda-muted); }
+.field { margin-top: 14px; font-size: 12px; }
+.field > div { margin-top: 4px; padding: 8px 10px; border: 1px solid var(--soda-border); border-radius: 4px; color: var(--soda-muted); background: var(--soda-canvas); }
+.button { display: inline-block; background: var(--soda-brand); color: var(--soda-on-brand); padding: 9px 18px; border-radius: 5px; font-weight: 650; font-size: 13px; text-align: center; }
+.login-card .button { display: block; margin-top: 20px; }
+.specimen { text-align: center; margin-top: 12px; }
+.icons { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; }
+.icons > div { padding: 20px; border-radius: 12px; }
+.icon-samples { display: flex; gap: 28px; align-items: center; height: 76px; }
+.touch { display: flex; align-items: center; gap: 20px; }
+.palette { border-radius: 12px; padding: 20px 24px; }
+.palette h3 { margin-top: 0; }
+.palette p { font-size: 12px; color: var(--soda-muted); }
+.swatches { display: flex; gap: 8px; margin: 14px 0; }
+.swatches span { flex: 1; padding: 22px 5px 8px; text-align: center; font-size: 11px; border-radius: 6px; border: 1px solid var(--soda-border); }
+.canvas { background: var(--soda-canvas); }
+.surface { background: var(--soda-surface); }
+.brand { background: var(--soda-brand); color: var(--soda-on-brand); }
+.hover { background: var(--soda-brand-hover); color: var(--soda-on-brand); }
+.pressed { background: var(--soda-brand-pressed); color: var(--soda-on-brand); }
+.states { display: flex; align-items: center; gap: 18px; margin-top: 18px; }
+a { color: var(--soda-brand); text-underline-offset: 3px; }
+a:hover { color: var(--soda-brand-hover); }
+.focus, a:focus-visible { outline: 2px solid var(--soda-focus); outline-offset: 3px; }
+footer { margin-top: 28px; padding-top: 20px; border-top: 1px solid #aab8c8; font-size: 12px; color: #50627a; }
+@media (max-width: 760px) {
+  body { padding: 20px; }
+  header { display: block; }
+  .tag { display: inline-block; margin-top: 12px; }
+  .pair, .icons { grid-template-columns: 1fr; }
+  .login { padding: 20px; }
+  .states { flex-wrap: wrap; }
+}

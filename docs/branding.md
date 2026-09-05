@@ -90,6 +90,30 @@ freshness check and verifies dimensions and transparency. These assets are
 architecture-independent; no native RPM or image support is established by
 rendering them.
 
+## Cockpit asset preparation
+
+`assets/branding/cockpit` contains the prepared light/dark login backgrounds,
+PatternFly brand-token palette, native-size favicon PNGs, a multi-resolution ICO,
+and an opaque Apple touch icon. It references the existing approved symbol and
+horizontal SVG masters without duplicating or redrawing them. Nothing in this
+kit is installed into Cockpit yet; existing Cockpit, installer, and Forgejo
+branding is unchanged.
+
+Open `assets/branding/cockpit/preview.html` for the offline responsive placement
+sheet. Its login panels are non-interactive design studies, not screenshots of
+stock Cockpit or a replacement authentication UI. See
+[`assets/branding/cockpit/README.md`](../assets/branding/cockpit/README.md) for the
+asset inventory, palette, copy, usage rules, outstanding documentation-link
+decision, and integration boundaries. No optional social or About artwork is
+required for this scope.
+
+`go run ./tools/render-cockpit-branding` requires Go and librsvg and regenerates
+the four icon PNGs and the PNG-encoded ICO directly from the canonical symbol.
+`go test ./tools/render-cockpit-branding` checks pixel freshness, dimensions,
+opacity, ICO entries, and the intended text/control contrast pairs. Browser
+review at desktop and narrow widths is asset evidence, not installed-product
+acceptance. These assets are architecture-independent.
+
 ## Regenerating all derivatives
 
 Run the following from the repository root after changing an SVG:
@@ -98,6 +122,7 @@ Run the following from the repository root after changing an SVG:
 scripts/render-branding.sh
 scripts/render-installer-branding.sh
 scripts/render-forgejo-branding.sh
+go run ./tools/render-cockpit-branding
 just check
 ```
 

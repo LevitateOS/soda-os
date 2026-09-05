@@ -1,0 +1,56 @@
+/* Prepared design tokens, not installed Cockpit overrides. Keep semantic status colors native. */
+:root,
+.soda-theme-light {
+  color-scheme: light;
+  --soda-canvas: #f3f7fb;
+  --soda-surface: #ffffff;
+  --soda-text: #142d4e;
+  --soda-muted: #50627a;
+  --soda-border: #77889b;
+  --soda-brand: #007885;
+  --soda-brand-hover: #006571;
+  --soda-brand-pressed: #00535e;
+  --soda-on-brand: #ffffff;
+  --soda-focus: #007885;
+  --soda-accent: #007885;
+}
+
+.pf-v6-theme-dark {
+  color-scheme: dark;
+  --soda-canvas: #081526;
+  --soda-surface: #11243c;
+  --soda-text: #f4f8fc;
+  --soda-muted: #b3c4d8;
+  --soda-border: #788ba1;
+  --soda-brand: #10d7e8;
+  --soda-brand-hover: #65e7f1;
+  --soda-brand-pressed: #a0f2f8;
+  --soda-on-brand: #06245b;
+  --soda-focus: #10d7e8;
+  --soda-accent: #10d7e8;
+}
+
+/* Map every theme in its own scope, including side-by-side review containers. */
+:root,
+.soda-theme-light,
+.pf-v6-theme-dark {
+  --ct-color-host-accent: var(--soda-accent);
+  --pf-t--global--color--brand--default: var(--soda-brand);
+  --pf-t--global--color--brand--hover: var(--soda-brand-hover);
+  --pf-t--global--color--brand--clicked: var(--soda-brand-pressed);
+  --pf-t--global--text--color--brand--default: var(--soda-brand);
+  --pf-t--global--text--color--brand--hover: var(--soda-brand-hover);
+  --pf-t--global--text--color--brand--clicked: var(--soda-brand-pressed);
+  --pf-t--global--icon--color--brand--default: var(--soda-brand);
+  --pf-t--global--icon--color--brand--hover: var(--soda-brand-hover);
+  --pf-t--global--icon--color--brand--clicked: var(--soda-brand-pressed);
+  --pf-t--global--border--color--brand--default: var(--soda-brand);
+  --pf-t--global--border--color--brand--hover: var(--soda-brand-hover);
+  --pf-t--global--border--color--brand--clicked: var(--soda-brand-pressed);
+  --pf-t--global--text--color--on-brand--default: var(--soda-on-brand);
+  --pf-t--global--text--color--on-brand--hover: var(--soda-on-brand);
+  --pf-t--global--text--color--on-brand--clicked: var(--soda-on-brand);
+  --pf-t--global--icon--color--on-brand--default: var(--soda-on-brand);
+  --pf-t--global--icon--color--on-brand--hover: var(--soda-on-brand);
+  --pf-t--global--icon--color--on-brand--clicked: var(--soda-on-brand);
+}
