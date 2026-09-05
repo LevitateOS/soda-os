@@ -78,7 +78,7 @@ replace those requirements with a new product contract.
 | `development-server-access` | `verifyDevelopmentServer`: run two workspace-owned Python servers, change served content | `product/*development-server*`, `alice-hot-reload-*`; local-forwarded and Tailnet fetches, not browser hot-module replacement or independent LAN evidence |
 | `native-mise-ownership` | `verifyMiseOwnership`: concurrent native installation in two workspaces, privacy checks | `product/mise-native-*`, `mise-workspace-privacy`, `cli-ownership-boundaries` |
 | `workspace-removal` | `verifyWorkspaceRemoval`: remove Alice's workspace, reject nonadmin project removal | `product/own-workspace-removal`, `nonadmin-project-remove`; surviving peer accounts checked |
-| `cockpit-auth-and-independent-roles` | `verifyCockpitAndRoles`: check authentication, promote Alice to wheel, verify Forgejo role remains ordinary | `product/cockpit-status.txt`, `alice-wheel-promotion`, `alice-forgejo-user`; no browser interaction claim |
+| `cockpit-auth-and-independent-roles` | `verifyCockpitAndRoles`: check authentication, promote Alice to wheel, verify Forgejo role remains ordinary | `product/cockpit-status.txt`, `alice-wheel-promotion`, `alice-forgejo-after-promotion`; no browser interaction claim |
 | `external-ssh-repository` | `verifyExternalSSHRepository`: create bounded local git-shell host fixture, register key, retry clone, remove project and fixture | `product/external-ssh-*`, `local-guest-external-ssh-fixture-*`; not remote-provider deployment/reachability |
 | `project-removal` | `verifyProjectRemoval`: create admin/Bob workspaces, remove project, check accounts gone and canonical repository retained | `product/removable-*`, `project-removal-preserves-forgejo` |
 | `human-removal-preserves-forgejo` | `verifyIndependentPersonDeletion`: create person/workspace/owned repository, delete Linux person | `product/obsolete-*`, `linux-deletion-preserves-forgejo`; current assertions check primary account absence and retained Forgejo user/repository, not every derived home |
@@ -137,6 +137,21 @@ The order is intentional:
   `Capture` and `Sudo` propagate both. Evidence files are outputs for people,
   never an internal result bus. Setup diagnostics and preservation comparisons
   consume returned bytes, not reopened `.stderr` or snapshot files.
+
+### Executed assertions
+
+Remote calls pass literal argv. `remote.go` quotes each argument for OpenSSH's
+remote shell, including empty sudo prompts and JSON. Shell programs are explicit
+`bash -c` arguments or stdin, never an implicitly interpreted single argument.
+Regression tests execute that boundary through a real shell, without a guest.
+
+Absence checks require the native negative result: `getent` exit 2, `grep` exit 1,
+or a successful empty systemd unit-file inventory. A transport/lookup failure is
+not evidence of absence. Projects rejection requires exit 1 and the expected
+product diagnostic; independent owner credentials require an observed HTTP 401.
+Owner authentication captures are separate for ISO/QCOW2 and for each password;
+PAM signup and later wheel-promotion observations have separate capture names.
+These source tests do not establish live installed behavior.
 
 ### Guest ownership
 

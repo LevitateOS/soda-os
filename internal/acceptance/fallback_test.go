@@ -21,6 +21,8 @@ func TestFallbackUsesExplicitDigestsAndPreservesCaptureLabels(t *testing.T) {
 	installAcceptanceCommand(t, "ssh-keyscan", "printf 'fixture-host-key\n'\n")
 	installAcceptanceCommand(t, "curl", "exit 0\n")
 	installAcceptanceCommand(t, "ssh", `input=$(cat)
+for command do :; done
+eval "set -- $command"
 case "$*" in
  *--download-only*)
   for arg do

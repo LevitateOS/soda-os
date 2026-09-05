@@ -19,8 +19,8 @@ const createExternalGitFixtureScript = `username=soda-git-fixture
 home=/home/soda-git-fixture
 repository="$home/external-ssh.git"
 seed="$home/seed"
-! getent passwd "$username" >/dev/null
-! getent group "$username" >/dev/null
+if getent passwd "$username" >/dev/null; then exit 1; else test "$?" -eq 2; fi
+if getent group "$username" >/dev/null; then exit 1; else test "$?" -eq 2; fi
 test ! -e "$home"
 test -x /usr/bin/git-shell
 created=0
@@ -64,8 +64,8 @@ fi
 if getent group "$username" >/dev/null; then
   /usr/sbin/groupdel -- "$username"
 fi
-! getent passwd "$username" >/dev/null
-! getent group "$username" >/dev/null
+if getent passwd "$username" >/dev/null; then exit 1; else test "$?" -eq 2; fi
+if getent group "$username" >/dev/null; then exit 1; else test "$?" -eq 2; fi
 test ! -e "$home"
 printf 'local-guest-external-ssh-fixture=removed\n'
 `
@@ -182,7 +182,7 @@ func removeExternalSSHProject(ctx context.Context, admin personFixture, workspac
 	script := fmt.Sprintf(`workspace=%q
 fixture_user=%q
 fixture_repository=%q
-! getent passwd "$workspace" >/dev/null
+if getent passwd "$workspace" >/dev/null; then exit 1; else test "$?" -eq 2; fi
 getent passwd "$fixture_user" >/dev/null
 test "$(/usr/sbin/runuser --user "$fixture_user" -- /usr/bin/git --git-dir="$fixture_repository" rev-parse --is-bare-repository)" = true
 test "$(/usr/sbin/runuser --user "$fixture_user" -- /usr/bin/git --git-dir="$fixture_repository" show main:fixture.txt)" = external-ssh-fixture

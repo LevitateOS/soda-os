@@ -41,7 +41,9 @@ func TestExpectedSetupFailureCannotConsumeEvidenceFailure(t *testing.T) {
 }
 
 func TestRetainedSetupUsesReturnedDiagnostic(t *testing.T) {
-	installAcceptanceCommand(t, "ssh", `for last do :; done
+	installAcceptanceCommand(t, "ssh", `for command do :; done
+eval "set -- $command"
+for last do :; done
 case "$last" in
  setup) printf 'retained retry `+testPublicKey+`' >&2; exit 1 ;;
  list) printf '%s' '{"projects":[{"id":"kept","workspace_username":"workspace","workspace_exists":true}]}' ;;

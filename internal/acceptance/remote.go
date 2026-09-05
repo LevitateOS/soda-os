@@ -28,7 +28,7 @@ func (remote Remote) WaitReady(ctx context.Context) error {
 	defer ticker.Stop()
 	for {
 		if err := remote.refreshHostKey(ctx); err == nil {
-			if _, err = remote.Output(ctx, nil, "id; cat /proc/sys/kernel/random/boot_id"); err == nil {
+			if _, err = remote.Output(ctx, nil, "/bin/bash", "-c", "id; cat /proc/sys/kernel/random/boot_id"); err == nil {
 				return remote.waitCockpit(ctx)
 			}
 		}
@@ -78,7 +78,7 @@ func (remote Remote) Output(ctx context.Context, input []byte, command ...string
 	if input != nil {
 		stdin = bytes.NewReader(input)
 	}
-	return CommandOutput(ctx, CommandSpec{Name: "ssh", Args: append(remote.sshArgs(), command...), Stdin: stdin})
+	return CommandOutput(ctx, CommandSpec{Name: "ssh", Args: append(remote.sshArgs(), remoteCommand(command)), Stdin: stdin})
 }
 
 func (remote Remote) Capture(ctx context.Context, relative string, input []byte, command ...string) error {
@@ -105,7 +105,7 @@ func (remote Remote) Exchange(ctx context.Context, relative string, input []byte
 	if input != nil {
 		stdin = bytes.NewReader(input)
 	}
-	spec := CommandSpec{Name: "ssh", Args: append(remote.sshArgs(), command...), Stdin: stdin, Stdout: &stdout, Stderr: &stderr}
+	spec := CommandSpec{Name: "ssh", Args: append(remote.sshArgs(), remoteCommand(command)), Stdin: stdin, Stdout: &stdout, Stderr: &stderr}
 	runErr := RunCommand(ctx, spec)
 	writeErr := errors.Join(remote.Evidence.Write(relative+".stdout", stdout.Bytes()), remote.Evidence.Write(relative+".stderr", stderr.Bytes()))
 	return CommandResult{Stdout: stdout.Bytes(), Stderr: stderr.Bytes(), Err: runErr}, writeErr
@@ -124,11 +124,18 @@ func (remote Remote) SudoOutput(ctx context.Context, password []byte, script str
 	return remote.CaptureOutput(ctx, relative, input, sudoScriptCommand()...)
 }
 
+// OpenSSH sends a shell command, not argv. Quote every argument, including empty
+// strings. Callers pass literal arguments; shell programs use bash -c or stdin.
+func remoteCommand(args []string) string {
+	quoted := make([]string, len(args))
+	for i, arg := range args {
+		quoted[i] = "'" + strings.ReplaceAll(arg, "'", "'\"'\"'") + "'"
+	}
+	return strings.Join(quoted, " ")
+}
+
 func sudoScriptCommand() []string {
-	// OpenSSH joins remote arguments into a shell command. Preserve the empty
-	// prompt as shell syntax instead of passing an empty argv element, which is
-	// lost during that join and makes sudo consume /bin/bash as the prompt.
-	return []string{"sudo", "-k", "-S", "-p", "''", "/bin/bash", "-eu", "-o", "pipefail", "-s"}
+	return []string{"sudo", "-k", "-S", "-p", "", "/bin/bash", "-eu", "-o", "pipefail", "-s"}
 }
 
 func (remote Remote) sshArgs() []string {

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os/exec"
 )
 
 type projectResponse struct {
@@ -55,8 +56,8 @@ func rejectCatalogURLEdit(ctx context.Context, alice Remote) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if result.Err == nil {
-		return "", errors.New("Projects accepted a canonical URL in an edit request")
+	if err = requireProjectRejection(result, `must not include "canonical_url"`); err != nil {
+		return "", err
 	}
 	projects, err = catalogProjects(ctx, alice, "seed/catalog-after-url-edit-rejection")
 	if err != nil {
@@ -164,6 +165,16 @@ func invokeProject(ctx context.Context, remote Remote, action string, payload an
 	return remote.Exchange(ctx, evidence, append(contents, '\n'), "/usr/libexec/soda/soda-projects", action)
 }
 
+// soda-projects reports product rejection with exit 1 and a specific diagnostic.
+// SSH failures, a missing executable, and unrelated product errors are not proof.
+func requireProjectRejection(result CommandResult, diagnostic string) error {
+	var exit *exec.ExitError
+	if !errors.As(result.Err, &exit) || exit.ExitCode() != 1 || !bytes.Contains(result.Stderr, []byte(diagnostic)) {
+		return fmt.Errorf("expected Projects rejection %q: %w", diagnostic, errors.Join(errors.New("unexpected command outcome"), result.Err))
+	}
+	return nil
+}
+
 func projectCall(ctx context.Context, remote Remote, action string, payload any, evidence string) (projectResponse, error) {
 	result, err := invokeProject(ctx, remote, action, payload, evidence)
 	if err = errors.Join(result.Err, err); err != nil {
@@ -220,6 +231,9 @@ func requireRetainedWorkspace(ctx context.Context, remote Remote, projectID, evi
 	}
 	if result.Err == nil {
 		return retainedWorkspace{}, errors.New("workspace setup completed before its outbound Git key was registered")
+	}
+	if err = requireProjectRejection(result, "retained"); err != nil {
+		return retainedWorkspace{}, err
 	}
 	diagnostic := result.Stderr
 	if err = validateRetainedWorkspaceDiagnostic(diagnostic); err != nil {

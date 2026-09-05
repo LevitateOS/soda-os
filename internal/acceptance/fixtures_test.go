@@ -13,7 +13,9 @@ func TestWorkspaceSetupUsesSuppliedPersonAndForgejoCredentials(t *testing.T) {
 	directory := t.TempDir()
 	t.Setenv("SETUP_COUNT", filepath.Join(directory, "setup-count"))
 	t.Setenv("KEY_REGISTRATION", filepath.Join(directory, "registration"))
-	installAcceptanceCommand(t, "ssh", `case "$*" in
+	installAcceptanceCommand(t, "ssh", `for command do :; done
+eval "set -- $command"
+case "$*" in
  *soda-projects*setup)
   if test ! -e "$SETUP_COUNT"; then
    touch "$SETUP_COUNT"
@@ -49,15 +51,16 @@ func TestFailedSetupDoesNotReturnCompletedFixture(t *testing.T) {
 func TestOwnerCredentialsKeepLinuxAndForgejoIndependent(t *testing.T) {
 	installAcceptanceCommand(t, "ssh", `config=$(cat)
 case "$config" in
- *forgejo-password*) printf '%s' '{"login":"owner","is_admin":true}' ;;
- *linux-password*) exit 22 ;;
+ *forgejo-password*)
+  case "$config" in *write-out*) printf 200 ;; *) printf '%s' '{"login":"owner","is_admin":true}' ;; esac ;;
+ *linux-password*) printf 401 ;;
  *) exit 1 ;;
 esac
 `)
 	person := testPerson(t, "owner")
-	require.NoError(t, verifyOwnerCredentials(context.Background(), person))
+	require.NoError(t, verifyOwnerCredentials(context.Background(), person, "owner"))
 	person.LinuxPassword = person.ForgejoPassword
-	require.ErrorContains(t, verifyOwnerCredentials(context.Background(), person), "unexpectedly accepts")
+	require.ErrorContains(t, verifyOwnerCredentials(context.Background(), person, "owner-recheck"), "must reject")
 }
 
 func TestGeneratedFixtureKeysAreRegisteredForSanitization(t *testing.T) {

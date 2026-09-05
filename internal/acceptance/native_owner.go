@@ -2,6 +2,7 @@ package acceptance
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -10,29 +11,31 @@ import (
 )
 
 // Signup stays in Forgejo's native UI. The runner only verifies its outcome.
-func verifyNativeOwner(ctx context.Context, person personFixture, address, passwordPath string, output io.Writer) error {
+func awaitNativeOwnerSignup(ctx context.Context, person personFixture, address, passwordPath string, output io.Writer) error {
 	fmt.Fprintf(output, "Register the first Forgejo owner at %s/user/sign_up with username %q and the independent password in %s. Keep PAM active. Before teammates sign in, verify site administration is available, then press Enter here.\n", address, person.Remote.Username, passwordPath)
 	if _, err := bufio.NewReader(os.Stdin).ReadString('\n'); err != nil {
 		return err
 	}
-	return verifyOwnerCredentials(ctx, person)
+	return ctx.Err()
 }
 
-func verifyOwnerCredentials(ctx context.Context, person personFixture) error {
+func verifyOwnerCredentials(ctx context.Context, person personFixture, evidence string) error {
 	remote := person.Remote
-	user, err := forgejoAuthenticatedUser(ctx, remote, remote.Username, person.ForgejoPassword)
+	user, err := forgejoAuthenticatedUser(ctx, person, evidence+"-forgejo-password")
 	if err != nil {
 		return err
 	}
 	if user.Login != remote.Username || !user.IsAdmin {
 		return errors.New("native first owner is not the expected Forgejo administrator")
 	}
-	result, err := requestForgejoUser(ctx, remote, remote.Username, person.LinuxPassword)
+	// Do not use curl --fail: HTTP 401 is the observation, not just an exit code.
+	config := fmt.Sprintf("user = %s\nsilent\nshow-error\nmax-time = 15\noutput = \"/dev/null\"\nwrite-out = \"%%{http_code}\"\nurl = %s\n", curlConfigQuote(remote.Username+":"+string(bytes.TrimRight(person.LinuxPassword, "\r\n"))), curlConfigQuote(forgejoLoopbackEndpoint+"/api/v1/user"))
+	status, err := remote.CaptureOutput(ctx, evidence+"-linux-password-rejected", []byte(config), "curl", "--config", "-")
 	if err != nil {
 		return err
 	}
-	if result.Err == nil {
-		return errors.New("Forgejo owner unexpectedly accepts the independent Linux password")
+	if string(status) != "401" {
+		return fmt.Errorf("Forgejo owner must reject the independent Linux password with HTTP 401, got %q", status)
 	}
 	return nil
 }

@@ -143,6 +143,8 @@ func canonicalPublicKey(contents []byte) (string, error) {
 	return strings.TrimSpace(string(ssh.MarshalAuthorizedKey(key))), nil
 }
 
+const laterAuthorizedKeyAbsent = `if grep --fixed-strings --line-regexp --file=- "$1"; then exit 1; else test "$?" -eq 1; fi`
+
 func verifyOneTimeAuthorizedKeys(ctx context.Context, alice workspaceFixture, keys fixtureKeys) error {
 	key, err := keys.generate(ctx, "alice-later")
 	if err != nil {
@@ -151,6 +153,5 @@ func verifyOneTimeAuthorizedKeys(ctx context.Context, alice workspaceFixture, ke
 	if err = alice.Person.Remote.Capture(ctx, "product/alice-new-authorized-key", key.Public, "tee", "-a", ".ssh/authorized_keys"); err != nil {
 		return err
 	}
-	script := `if grep --fixed-strings --line-regexp --file=- "$HOME/.ssh/authorized_keys"; then exit 1; fi`
-	return alice.Remote.Capture(ctx, "product/workspace-key-copy-once", key.Public, "/bin/bash", "-c", script)
+	return alice.Remote.Capture(ctx, "product/workspace-key-copy-once", key.Public, "/bin/bash", "-c", laterAuthorizedKeyAbsent, "key-copy-check", ".ssh/authorized_keys")
 }

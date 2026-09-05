@@ -80,7 +80,7 @@ func verifyCockpitAndRoles(ctx context.Context, adminWorkspace workspaceFixture,
 	if err = admin.Remote.Sudo(ctx, admin.LinuxPassword, "/usr/sbin/usermod --append --groups wheel -- "+alice.Remote.Username+"\n", "product/alice-wheel-promotion"); err != nil {
 		return err
 	}
-	response, err := forgejoAuthenticatedUser(ctx, alice.Remote, alice.Remote.Username, alice.ForgejoPassword)
+	response, err := forgejoAuthenticatedUser(ctx, alice, "product/alice-forgejo-after-promotion")
 	if err != nil {
 		return err
 	}
@@ -103,18 +103,14 @@ func cockpitLoginStatus(ctx context.Context, remote Remote, username string, pas
 	return strings.TrimSpace(string(output)), err
 }
 
-func requestForgejoUser(ctx context.Context, remote Remote, username string, password []byte) (CommandResult, error) {
-	config := fmt.Sprintf("user = %s\nsilent\nshow-error\nfail-with-body\nurl = %s\n", curlConfigQuote(username+":"+string(bytes.TrimSpace(password))), curlConfigQuote(forgejoLoopbackEndpoint+"/api/v1/user"))
-	return remote.Exchange(ctx, "product/"+username+"-forgejo-user", []byte(config), "curl", "--config", "-")
-}
-
-func forgejoAuthenticatedUser(ctx context.Context, remote Remote, username string, password []byte) (forgejoUser, error) {
-	result, err := requestForgejoUser(ctx, remote, username, password)
-	if err = errors.Join(result.Err, err); err != nil {
+func forgejoAuthenticatedUser(ctx context.Context, person personFixture, evidence string) (forgejoUser, error) {
+	config := fmt.Sprintf("user = %s\nsilent\nshow-error\nfail-with-body\nmax-time = 15\nurl = %s\n", curlConfigQuote(person.Remote.Username+":"+string(bytes.TrimRight(person.ForgejoPassword, "\r\n"))), curlConfigQuote(forgejoLoopbackEndpoint+"/api/v1/user"))
+	output, err := person.Remote.CaptureOutput(ctx, evidence, []byte(config), "curl", "--config", "-")
+	if err != nil {
 		return forgejoUser{}, err
 	}
 	var user forgejoUser
-	err = json.Unmarshal(result.Stdout, &user)
+	err = json.Unmarshal(output, &user)
 	return user, err
 }
 
@@ -222,7 +218,7 @@ func verifyWorkspaceRemoval(ctx context.Context, project projectFixture) error {
 	if err != nil {
 		return err
 	}
-	check := "! getent passwd " + project.Alice.Remote.Username + " >/dev/null; getent passwd " + project.Admin.Remote.Username + " >/dev/null; getent passwd " + project.Bob.Remote.Username + " >/dev/null"
+	check := "if getent passwd " + project.Alice.Remote.Username + " >/dev/null; then exit 1; else test \"$?\" -eq 2; fi; getent passwd " + project.Admin.Remote.Username + " >/dev/null; getent passwd " + project.Bob.Remote.Username + " >/dev/null"
 	if err = project.Admin.Person.Remote.Sudo(ctx, project.Admin.Person.LinuxPassword, check, "product/own-workspace-removal"); err != nil {
 		return err
 	}
@@ -230,10 +226,7 @@ func verifyWorkspaceRemoval(ctx context.Context, project projectFixture) error {
 	if err != nil {
 		return err
 	}
-	if result.Err == nil {
-		return errors.New("non-administrator removed an entire project")
-	}
-	return nil
+	return requireProjectRejection(result, "administrator status is required")
 }
 
 func verifyProjectRemoval(ctx context.Context, admin, bob personFixture) error {
@@ -251,7 +244,7 @@ func verifyProjectRemoval(ctx context.Context, admin, bob personFixture) error {
 	if _, err = projectRemoval(ctx, admin.Remote, "remove", "removable", "product/removable-remove"); err != nil {
 		return err
 	}
-	script := "! getent passwd " + adminSetup.Remote.Username + " >/dev/null; ! getent passwd " + bobSetup.Remote.Username + " >/dev/null; curl --fail --silent \"" + forgejoLoopbackEndpoint + "/api/v1/repos/" + admin.Remote.Username + "/removable\" >/dev/null"
+	script := "set -eu; if getent passwd " + adminSetup.Remote.Username + " >/dev/null; then exit 1; else test \"$?\" -eq 2; fi; if getent passwd " + bobSetup.Remote.Username + " >/dev/null; then exit 1; else test \"$?\" -eq 2; fi; curl --fail --silent \"" + forgejoLoopbackEndpoint + "/api/v1/repos/" + admin.Remote.Username + "/removable\" >/dev/null"
 	return admin.Remote.Capture(ctx, "product/project-removal-preserves-forgejo", []byte(script), "/bin/bash", "-s")
 }
 
@@ -269,7 +262,7 @@ func verifyIndependentPersonDeletion(ctx context.Context, admin personFixture, k
 	if _, err = projectRemoval(ctx, admin.Remote, "delete-human", "obsolete", "product/obsolete-delete"); err != nil {
 		return err
 	}
-	script := "! getent passwd obsolete >/dev/null\n" +
+	script := "if getent passwd obsolete >/dev/null; then exit 1; else test \"$?\" -eq 2; fi\n" +
 		"curl --fail --silent " + forgejoLoopbackEndpoint + "/api/v1/users/obsolete >/dev/null\n" +
 		"curl --fail --silent " + forgejoLoopbackEndpoint + "/api/v1/repos/obsolete/owned >/dev/null\n"
 	return admin.Remote.Sudo(ctx, admin.LinuxPassword, script, "product/linux-deletion-preserves-forgejo")

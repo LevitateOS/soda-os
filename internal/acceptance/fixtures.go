@@ -90,7 +90,7 @@ printf '%%s' %q | base64 --decode >"/home/$username/.ssh/authorized_keys"
 		return personFixture{}, err
 	}
 	person := personFixture{Remote: admin.Remote.As(username, key.PrivatePath), PublicKey: key.Public, LinuxPassword: password, ForgejoPassword: password}
-	user, err := forgejoAuthenticatedUser(ctx, person.Remote, username, person.ForgejoPassword)
+	user, err := forgejoAuthenticatedUser(ctx, person, evidence+"-forgejo-pam")
 	if err != nil {
 		return personFixture{}, err
 	}

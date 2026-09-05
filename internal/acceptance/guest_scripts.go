@@ -25,10 +25,7 @@ test ! -e "$HOME/.config/gh/hosts.yml"
 test "$(systemctl is-enabled bootc-fetch-apply-updates.timer 2>/dev/null || true)" = masked
 test "$(systemctl is-enabled firewalld.service)" = enabled
 test "$(systemctl is-active firewalld.service)" = active
-for unit in soda-authd.service soda-cockpit.service sodad.service avahi-daemon.service var-srv-soda-projects.mount soda-tailscale-enroll.service soda-setup.service; do
-  ! systemctl cat "$unit" >/dev/null 2>&1
-done
-for path in \
+` + forbiddenServiceChecks + `for path in \
   /usr/libexec/soda/soda-setup \
   /usr/bin/soda-local-access \
   /var/lib/soda/setup-complete \
@@ -54,6 +51,12 @@ for path in \
   test ! -e "$path"
 done
 printf 'core-product-boundaries=pass\n'
+`
+
+const forbiddenServiceChecks = `for unit in soda-authd.service soda-cockpit.service sodad.service avahi-daemon.service var-srv-soda-projects.mount soda-tailscale-enroll.service soda-setup.service; do
+  units=$(systemctl list-unit-files --no-legend --no-pager "$unit")
+  test -z "$units"
+done
 `
 
 // Explicit administrator configuration in disposable acceptance guests, not image defaults.
@@ -101,6 +104,7 @@ printf 'workspace=%s\n' "$workspace"
 `
 
 const stableManifestScript = `set -euo pipefail
+shopt -s inherit_errexit
 accounts=$(
   getent passwd | awk -F: '$5 ~ /^soda-workspace=/ || $3 >= 1000 {print $1":"$3":"$4":"$5":"$6":"$7}' | LC_ALL=C sort | jq -Rsc 'split("\n") | map(select(length > 0))'
 )
