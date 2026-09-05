@@ -269,17 +269,19 @@ go run ./cmd/soda-acceptance run \
   --candidate-record PATH --candidate-oci PATH \
   --candidate-iso PATH --candidate-qcow2 PATH \
   --fallback-record PATH --fallback-oci PATH \
-  --tailscale-auth-key-file PATH \
   --administrator-private-key PATH \
   --administrator-public-key PATH \
   --administrator-password-file PATH
 ```
 
-Use `aarch64` as the evidence-directory leaf on an AArch64 host. The protected
-Tailscale file contains one reusable ephemeral guest key. The private key and
-password are disposable test credentials; all three secret files must have
-mode `0600` or stricter. The ISO uses only the installer. For the QCOW2 local-forwarded fixture, the runner uses
-cloud-localds to deliver native cloud-init user-data automatically; install
+Use `aarch64` as the evidence-directory leaf on an AArch64 host. The private key
+and password are disposable test credentials; both secret files must have mode
+`0600` or stricter. No Tailscale auth-key file is consumed or accepted: ISO
+enrollment uses native browser authentication, and QCOW2 stays unenrolled.
+A future fixture that actually consumes an auth key may require a protected
+reusable ephemeral key; the current flow must not request an unused secret.
+The ISO uses only the installer. For the QCOW2 local-forwarded fixture, the runner
+uses cloud-localds to deliver native cloud-init user-data automatically; install
 cloud-localds and openssl on the matching host. Protected fixture files stay in
 the disposable work directory and are removed during cleanup. The operator
 creates the ISO Linux administrator in Anaconda, logs in, configures the network,

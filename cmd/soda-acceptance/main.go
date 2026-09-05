@@ -54,7 +54,6 @@ func runCommand() *cobra.Command {
 	flags.StringVar(&options.Candidate.QCOW2, "candidate-qcow2", "", "candidate architecture reusable QCOW2")
 	flags.StringVar(&options.Fallback.Record, "fallback-record", "", "previous published architecture release record")
 	flags.StringVar(&options.Fallback.OCI, "fallback-oci", "", "previous published architecture OCI archive")
-	flags.StringVar(&options.TailscaleKey, "tailscale-auth-key-file", "", "mode-0600 file containing one reusable ephemeral guest key")
 	flags.StringVar(&options.Administrator.Username, "administrator", "soda-test", "temporary primary administrator username")
 	flags.StringVar(&options.Administrator.PrivateKey, "administrator-private-key", "", "mode-0600 disposable administrator SSH private key")
 	flags.StringVar(&options.Administrator.PublicKey, "administrator-public-key", "", "matching disposable administrator SSH public key")
@@ -68,7 +67,7 @@ func runCommand() *cobra.Command {
 	flags.StringVar(&options.RepositoryRoot, "repository", ".", "clean acceptance-suite checkout")
 	for _, name := range []string{
 		"evidence", "candidate-record", "candidate-oci", "candidate-iso", "candidate-qcow2",
-		"fallback-record", "fallback-oci", "tailscale-auth-key-file", "administrator-private-key",
+		"fallback-record", "fallback-oci", "administrator-private-key",
 		"administrator-public-key", "administrator-password-file",
 	} {
 		_ = command.MarkFlagRequired(name)

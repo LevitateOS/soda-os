@@ -29,7 +29,6 @@ type RunOptions struct {
 	EvidenceDir    string
 	Candidate      ArtifactSet
 	Fallback       ArtifactSet
-	TailscaleKey   string
 	Administrator  AdministratorInput
 	TempDir        string
 	DiskSize       string

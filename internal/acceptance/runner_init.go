@@ -64,8 +64,8 @@ func defaultRunOptions(options RunOptions) RunOptions {
 }
 
 func validateRunOptions(options RunOptions) error {
-	if options.EvidenceDir == "" || options.TailscaleKey == "" {
-		return errors.New("evidence, reusable ephemeral Tailscale key, and disposable administrator credential files are required")
+	if options.EvidenceDir == "" {
+		return errors.New("evidence directory is required")
 	}
 	if err := validateAdministratorInput(options.Administrator); err != nil {
 		return err
@@ -80,12 +80,6 @@ func validateRunOptions(options RunOptions) error {
 }
 
 func validateCredentialFiles(options RunOptions) error {
-	if err := requireProtectedSecret(options.TailscaleKey); err != nil {
-		return fmt.Errorf("Tailscale auth key: %w", err)
-	}
-	if _, err := readSecretLine(options.TailscaleKey); err != nil {
-		return fmt.Errorf("Tailscale auth key: %w", err)
-	}
 	if err := requireProtectedSecret(options.Administrator.PrivateKey); err != nil {
 		return fmt.Errorf("administrator private key: %w", err)
 	}
@@ -224,17 +218,12 @@ func (state *runnerState) loadSecrets(password []byte) error {
 	if err != nil {
 		return err
 	}
-	tailscaleKey, err := os.ReadFile(state.options.TailscaleKey)
-	if err != nil {
-		return err
-	}
 	ownerPassword := []byte(rand.Text())
 	if err = os.WriteFile(filepath.Join(state.paths.work, "forgejo-owner-password"), ownerPassword, 0600); err != nil {
 		return err
 	}
 	state.secrets = []Secret{
 		{Label: "forgejo-owner-password", Value: ownerPassword},
-		{Label: "tailscale-auth-key", Value: tailscaleKey},
 		{Label: "administrator-password", Value: password},
 		{Label: "administrator-private-key", Value: privateKey},
 	}
