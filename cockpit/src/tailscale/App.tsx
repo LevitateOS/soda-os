@@ -13,6 +13,7 @@ import {
   FormGroup,
   FormSelect,
   FormSelectOption,
+  Page,
   PageSection,
   Spinner,
   Title,
@@ -169,7 +170,7 @@ export function Tailscale({
     prefs?.ExitNodeID && selected && !choices.some((peer) => peer.TailscaleIPs?.[0] === selected),
   );
   return (
-    <main className="soda-page" aria-labelledby="page-title" aria-busy={busy}>
+    <Page sidebar={null} className="soda-page" mainAriaLabel="Tailscale" aria-busy={busy}>
       <PageSection>
         <p className="soda-eyebrow">Soda OS</p>
         <Title headingLevel="h1" id="page-title">
@@ -392,7 +393,7 @@ export function Tailscale({
           Tailscale CLI documentation
         </a>
       </PageSection>
-    </main>
+    </Page>
   );
 }
 

@@ -10,6 +10,7 @@ import {
   ModalBody,
   ModalFooter,
   ModalHeader,
+  Page,
   PageSection,
   Spinner,
   TextArea,
@@ -147,7 +148,7 @@ export function Projects({
     }
   }
   return (
-    <main className="soda-page" aria-labelledby="page-title" aria-busy={busy}>
+    <Page sidebar={null} className="soda-page" mainAriaLabel="Projects" aria-busy={busy}>
       <PageSection>
         <p className="soda-eyebrow">Soda OS</p>
         <Title headingLevel="h1" id="page-title">
@@ -299,7 +300,7 @@ export function Projects({
           onSubmit={submit}
         />
       )}
-    </main>
+    </Page>
   );
 }
 

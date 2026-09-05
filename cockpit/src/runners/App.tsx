@@ -11,6 +11,7 @@ import {
   ModalBody,
   ModalFooter,
   ModalHeader,
+  Page,
   PageSection,
   Radio,
   Spinner,
@@ -147,7 +148,7 @@ export function Runners({
     if (!pending.current) setDialog(null);
   };
   return (
-    <main className="soda-page" aria-labelledby="page-title" aria-busy={busy}>
+    <Page sidebar={null} className="soda-page" mainAriaLabel="Runners" aria-busy={busy}>
       <PageSection>
         <p className="soda-eyebrow">Soda OS</p>
         <Title headingLevel="h1" id="page-title">
@@ -359,7 +360,7 @@ export function Runners({
           </ModalFooter>
         </Modal>
       )}
-    </main>
+    </Page>
   );
 }
 
