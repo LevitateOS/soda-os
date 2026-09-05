@@ -2,10 +2,10 @@
 import { test, expect, vi } from "vite-plus/test";
 import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { Projects } from "./App";
-import { coordinator } from "./native";
+import { ProjectsPage } from "./ProjectsPage";
+import { coordinator } from "../projects/native";
 import { pendingProcess } from "../../tests/process";
-import type { Invoke, ListResponse, Project } from "./types";
+import type { Invoke, ListResponse, Project } from "../projects/types";
 
 const project: Project = {
   id: "site",
@@ -25,7 +25,7 @@ function mockInvoke(data = catalog) {
   return invoke;
 }
 async function ready(invoke = mockInvoke()) {
-  render(<Projects invoke={invoke as Invoke} hostname="soda.lan" />);
+  render(<ProjectsPage invoke={invoke as Invoke} hostname="soda.lan" />);
   await screen.findByText("1 project available to alice.");
   return invoke;
 }
@@ -37,7 +37,7 @@ async function open(name: string) {
 test("catalog loading, empty, error, refresh and native adapter input", async () => {
   const call = pendingProcess();
   const spawn = vi.fn(() => call.process);
-  render(<Projects invoke={coordinator({ spawn })} />);
+  render(<ProjectsPage invoke={coordinator({ spawn })} />);
   expect(screen.getByRole("button", { name: "Refresh" }).hasAttribute("disabled")).toBe(true);
   expect(spawn).toHaveBeenCalledWith(["/usr/libexec/soda/soda-projects", "list"], {
     err: "message",

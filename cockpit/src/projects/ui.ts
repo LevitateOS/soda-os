@@ -129,3 +129,36 @@ export function errorMessage(error: unknown) {
   }
   return "The operation failed without a diagnostic message.";
 }
+
+export const dialogCopy = {
+  "add-existing": [
+    "Add an existing repository",
+    "The repository URL is stored without credentials.",
+    "Add repository",
+  ],
+  edit: [
+    "Edit project",
+    "The project ID and canonical Git URL remain unchanged. Display-name and metadata edits affect future setup only.",
+    "Save changes",
+  ],
+  setup: [
+    "Set up for me",
+    "Creates your derived workspace and clones the repository through native SSH.",
+    "Set up for me",
+  ],
+  "remove-workspace": [
+    "Remove my workspace",
+    "This permanently removes your workspace account, home, independent clone, dependencies, processes, project state, and uncommitted work. The shared project, other workspaces, and canonical repository are not deleted.",
+    "Remove my workspace",
+  ],
+  remove: [
+    "Remove project from Soda",
+    "This permanently removes all local workspace accounts, homes, clones, dependencies, and uncommitted work for this project. The canonical repository is not deleted.",
+    "Remove project",
+  ],
+  "delete-human": [
+    "Remove person from Soda OS",
+    "This permanently removes the person’s local Soda workspaces, then their primary Linux account. Their Forgejo account and repository data are unchanged. Delete a Forgejo account separately in Forgejo.",
+    "Remove person",
+  ],
+} as const;
