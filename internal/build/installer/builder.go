@@ -351,7 +351,9 @@ func kickstart(reference, hostname string) string {
 		"network --bootproto=dhcp --device=link --activate --onboot=on --hostname=" + hostname + "\n" +
 		"rootpw --lock\n" +
 		"firstboot --disable\n" +
-		"%post --erroronfail\nset -eu\nmkdir -p /etc/cloud\ntouch /etc/cloud/cloud-init.disabled\n%end\n" +
+		// Anaconda enables firewalld after deployment, regardless of image presets.
+		// %post is chrooted into the offline target; remove boot and D-Bus activation links.
+		"%post --erroronfail\nset -eu\nmkdir -p /etc/cloud\ntouch /etc/cloud/cloud-init.disabled\nsystemctl --root=/ disable firewalld.service\n%end\n" +
 		"bootc --source-imgref=\"docker://" + reference + "\" --target-imgref=\"" + reference + "\"\n"
 }
 

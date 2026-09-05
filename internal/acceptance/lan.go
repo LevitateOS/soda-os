@@ -23,8 +23,14 @@ func (state *runnerState) verifyInitialLAN(ctx context.Context, password []byte)
 		return fmt.Errorf("verify LAN before enrollment: %w", err)
 	}
 	if err := local.Sudo(ctx, password, `set -euo pipefail
-test "$(systemctl is-enabled firewalld.service)" = disabled
-test "$(systemctl is-active firewalld.service || true)" = inactive
+test -f /etc/cloud/cloud-init.disabled
+rpm -q firewalld
+firewall_enabled=$(systemctl is-enabled firewalld.service || true)
+firewall_active=$(systemctl is-active firewalld.service || true)
+printf 'firewalld.service is-enabled=%s\nfirewalld.service is-active=%s\n' "$firewall_enabled" "$firewall_active"
+test "$firewall_enabled" = disabled
+test "$firewall_active" = inactive
+/usr/libexec/soda/soda-console-welcome | grep -F 'Firewall: disabled by default. Administrators can enable and configure it in Cockpit: Networking > Firewall.'
 tailscale status --json | jq -e '.BackendState != "Running"' >/dev/null
 `, "iso/lan-before-enrollment"); err != nil {
 		return err

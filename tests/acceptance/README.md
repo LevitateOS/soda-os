@@ -35,6 +35,13 @@ After separately authorized builds, run on both matching architectures:
 
 1. Complete graphical Anaconda account creation, reboot, and verify normal login,
    home ownership, administrator privilege, and cloud-init-disabled ISO startup.
+   Before firewall changes or Tailscale enrollment, require
+   `systemctl is-enabled firewalld.service` → `disabled` and
+   `systemctl is-active firewalld.service` → `inactive`. Both commands normally
+   exit nonzero for these expected states; compare their output. Keep firewalld
+   installed, not masked, and confirm the welcome warns it is disabled by default
+   and points to Cockpit → Networking → Firewall. The runner records these states
+   in `iso/lan-before-enrollment` and checks the cloud-init disabled file.
 2. Provision QCOW2 through VM tooling; check key/password behavior, network
    access, persistence, and mandatory stateless welcome after
    administrator console login.
@@ -53,6 +60,36 @@ After separately authorized builds, run on both matching architectures:
    copying, and incoming workspace SSH.
 7. Delete a Linux person through Soda and verify the same-named Forgejo account
    and its data remain. Source tests are not installed-system acceptance.
+
+### ISO firewalld regression evidence
+
+The reported 0.6.3 graphical ISO guest had firewalld enabled even though the
+0.6.3 OCI image had it disabled. Inspection of the local x86-64 0.6.3 image
+confirmed the package, `89-soda.preset` disable rule, direct image disablement,
+and existing welcome warning were present. The old Kickstart `%post` only
+created `/etc/cloud/cloud-init.disabled`.
+
+The Anaconda code extracted from the matching installer environment explains
+this difference: `modules/network/firewall/installation.py` defaults to
+`firewall-offline-cmd --enabled --service=ssh` in the target when no firewall
+mode is specified. `modules/boss/installation.py` schedules that configuration
+before `%post`. This explicitly enables the service, independently of presets.
+Replaying that command in a disposable x86-64 0.6.3 image container changed
+`disabled` to `enabled`, creating both the multi-user startup link and the
+D-Bus activation alias. The new `%post` action,
+`systemctl --root=/ disable firewalld.service`, removed both links and restored
+`disabled`; subsequent explicit enablement succeeded. It operates offline in
+Anaconda's target chroot, not on the installer's running systemd, so it does
+not use `--now` or mask the unit. No runtime hook overrides later admin choices.
+
+That reproduction is image-container evidence, not a newly installed boot.
+The reported guest was not accessed or modified. First-boot `inactive` and
+Cockpit interaction must still be observed through disposable native ISO
+acceptance on **both x86-64 and AArch64**. The investigation host lacked native
+host `qemu-system-x86_64`, `cloud-localds`, and candidate/fallback release records
+required by the existing full acceptance runner; no new ISO guest was run.
+The sibling AArch64 run must reproduce image and installed-system checks on
+AArch64 hardware. Source tests alone do not qualify either installation path.
 
 ### Access
 
