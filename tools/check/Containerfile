@@ -1,0 +1,19 @@
+# Development verification only. This is not a Soda image or a replacement bootc base.
+# GO_VERSION comes from go.mod; frontend versions remain owned by the existing inputs.
+ARG GO_VERSION
+FROM golang:${GO_VERSION}-trixie
+RUN apt-get update && apt-get install --yes --no-install-recommends \
+        bash ca-certificates curl gcc git jq just libc6-dev librsvg2-bin \
+    && rm -rf /var/lib/apt/lists/*
+# Source tests exercise ordinary Linux caller identity, not a root substitute.
+RUN useradd --create-home --user-group --uid 1000 --shell /bin/bash check
+ENV HOME=/home/check GOPATH=/home/check/go \
+    PATH="/home/check/.local/share/vite-plus/bin:${PATH}" GOTOOLCHAIN=local CI=true
+COPY scripts/install-cockpit-toolchain.sh /opt/soda-check/install-cockpit-toolchain.sh
+COPY cockpit/.node-version /opt/soda-check/.node-version
+USER check
+WORKDIR /opt/soda-check
+RUN sh ./install-cockpit-toolchain.sh \
+    && vp env install \
+    && vp env default "$(cat .node-version)"
+CMD ["bash"]

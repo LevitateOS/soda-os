@@ -233,9 +233,10 @@ Use the present tree as a navigation aid, not an immutable architecture:
   building through the existing repository workflow.
 
 Inspect `scripts` and `justfile` before assembling manual artifact commands.
-For example, `scripts/prepare-x86_64-cockpit-iso-candidate.sh` prepares and
-publishes an x86-64 OCI candidate and builds its Cockpit-selectable installer
-ISO. Read each script's prerequisites and side effects before running it;
+For example, `scripts/prepare-native-iso-candidate.sh <architecture>` prepares
+and publishes a matching-native OCI candidate and builds its installer ISO;
+`scripts/place-libvirt-iso.sh` separately places an existing ISO for Linux/libvirt.
+Read each script's prerequisites and side effects before running it;
 convenience wrappers do not authorize builds, publication, or host changes.
 
 Move code when responsibility genuinely changes. Update imports, tests, and
