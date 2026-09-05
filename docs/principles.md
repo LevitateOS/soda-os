@@ -49,12 +49,10 @@ Soda does not replace Fedora, Linux administration, OpenSSH, Tailscale, Cockpit,
 Forgejo, Git, Podman, or bootc. Its value is combining them into one coherent,
 installable system with a repeatable workflow.
 
-The intended installation architecture is one complete journey with no
-separate Soda-owned post-install setup. The current release uses **Soda Setup**
-after the installed system boots as a temporary workaround shared by the
-machine console and Cockpit. Preserve that usable release journey until it is
-replaced; the long-term goal does not authorize hiding Soda Setup inside a
-renamed custom installer or inventing another onboarding system.
+Installation uses native Anaconda or cloud-init account creation followed by
+normal login. A mandatory stateless welcome provides system orientation.
+The separate Cockpit Tailscale page uses native browser authentication and
+native device and exit-node settings. Soda has no post-install setup system.
 
 Linux administrators manage image updates through native bootc operations.
 The supported fallback to an earlier image must preserve current Linux account
@@ -269,14 +267,14 @@ for Cockpit.
 Soda owns:
 
 - the branded Fedora bootc image;
-- one-ISO installation, with Soda Setup retained as the current temporary
-  post-install workaround until one complete installation journey replaces it;
+- one-ISO installation and mandatory stateless connection guidance;
 - Tailscale and LAN/OpenSSH access composition;
 - package and service configuration;
 - the project catalog;
 - the primary-human-to-workspace-account convention;
 - the focused Cockpit Projects page;
 - the focused Cockpit Runners page and local client/listener lifecycle;
+- the separate Cockpit Tailscale page composing native administration;
 - the narrow synchronous operations needed for catalog mutation, workspace
   setup and removal, and supported cascading human deletion;
 - connection guidance for SSH-capable development tools;

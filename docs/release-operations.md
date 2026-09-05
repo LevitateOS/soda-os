@@ -28,7 +28,7 @@ Expensive product validation runs before the production push on user-controlled
 matching-native machines. It covers:
 
 - graphical one-ISO installation;
-- the current Soda Setup journey on ISO and reusable QCOW2;
+- native installation, mandatory welcome and Cockpit Tailscale on ISO and reusable QCOW2;
 - LAN and cloud/Tailscale access;
 - identities, Forgejo SSH keys, Projects, workspaces, `mise`, and deletion;
 - manual update and account-preserving fallback; and

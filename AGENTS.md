@@ -66,12 +66,15 @@ machinery, or architecture that only its authors can understand.
   state; direct `bootc rollback` is not supported unless verified against that
   invariant. The automatic update timer is disabled, and Soda has no runtime
   update service or shadow deployment state.
+- Firewalld stays installed and available through stock Cockpit Networking →
+  Firewall, but is disabled by default, not masked. Preserve administrator choices.
+  Soda adds no selected-LAN trust workflow or custom firewall zone.
 - AArch64 and x86-64 are equal sibling architectures. Neither is a default,
   fallback, experimental, or second-class target.
 - ISO installation uses graphical Anaconda including Linux account creation,
   followed by normal login. QCOW2 uses standard Fedora cloud-init delivered by
-  VM tooling; ISO uses its native disabled file. Temporary Soda Setup handles
-  only missing post-login network configuration. No Soda checkout, manually
+  VM tooling; ISO uses its native disabled file. Interactive sessions always show
+  stateless welcome guidance. Tailscale enrollment uses a separate Cockpit page. No Soda checkout, manually
   built credential ISO, or public-SSH bootstrap is required.
 
 ### Standing commit authorization
@@ -195,7 +198,7 @@ services, jobs, retries, rollback, reconciliation, toolchain profiles, broad
 immutable tool manifests, copied Tea credentials, alternate onboarding paths,
 and translated update state are implementation evidence and deletion targets,
 not preservation contracts. The catalog, derived workspace-account convention,
-Projects page, Soda Setup composition, and narrow synchronous operations are
+Projects page, native Tailscale composition, and narrow synchronous operations are
 retained outcomes; they must not become a generic control plane.
 
 Do not add Internet-scale, enterprise, attacker-first, or multi-path machinery

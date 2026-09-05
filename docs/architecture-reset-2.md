@@ -1,5 +1,11 @@
 # Soda postmortem decision ledger
 
+> Historical record: references below to Soda Setup, selected-LAN trust, or
+> default-drop host configuration are superseded by the current
+> [native installation and access contract](native-onboarding.md). They are not
+> operating instructions for the current image.
+
+
 ## Native onboarding correction, 2026-09-05
 
 The accepted [native onboarding contract](native-onboarding.md) supersedes the

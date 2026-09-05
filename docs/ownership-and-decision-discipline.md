@@ -1,5 +1,11 @@
 # Refine Soda ownership and decision discipline
 
+> Historical record: references below to Soda Setup, selected-LAN trust, or
+> default-drop host configuration are superseded by the current
+> [native installation and access contract](native-onboarding.md). They are not
+> operating instructions for the current image.
+
+
 **Status:** Governing interpretation and implementation discipline.
 
 **Supersedes:** `20260831T084503+0200-refine-subsystem-takeover-rule.md`

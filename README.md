@@ -12,13 +12,12 @@ No Soda OS WSL2 distribution is currently available.
 ## Product contract
 
 Human installation uses one finished network ISO. Stock graphical Anaconda
-handles storage, networking, bootloader, firmware, and bootc deployment. After
-the installed system starts, **Soda Setup** creates the first administrator,
-installs the SSH public key, prepares Forgejo, and either connects Tailscale or
-trusts the current connection through **Allow access from the local network**.
-The same Soda Setup state and operations serve reusable QCOW2 systems through
-their console and Cockpit. The ISO is the only installation medium the owner
-prepares.
+handles storage, networking, bootloader, firmware, bootc deployment and Linux
+administrator creation. Reusable QCOW2 systems use standard Fedora cloud-init.
+Normal interactive login shows mandatory, stateless connection guidance.
+Tailscale is initially unenrolled; its separate Cockpit page uses native browser
+sign-in. Firewalld is installed but disabled by default; administrators may
+configure it through stock Cockpit Networking → Firewall.
 
 On a trusted LAN, OpenSSH, Cockpit, Forgejo, and project development servers are
 directly reachable over the LAN. In cloud environments, OpenSSH, Cockpit, and
@@ -30,10 +29,10 @@ Development happens in a separate derived Linux workspace account for every
 selected person-project pair. Each workspace has its own UID, private home,
 complete Git clone, dependencies, processes, and mutable state.
 
-Soda Setup creates the first same-named Linux and Forgejo administrator and
-installs that administrator's public SSH key in Linux and registers it with
-Forgejo. Later primary accounts are created through stock Cockpit or Linux; a
-person's first normal Forgejo sign-in creates their matching profile through
+The owner registers the first Forgejo account natively with independent
+credentials. Personal SSH keys are added through Cockpit Accounts or supplied
+by cloud-init. Later primary accounts are created through stock Cockpit or Linux;
+a person's first normal Forgejo sign-in creates their matching profile through
 PAM, and they manage Forgejo keys there. Git uses SSH.
 
 Workspace creation copies the person's current public SSH keys once into the

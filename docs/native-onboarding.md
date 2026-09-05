@@ -2,7 +2,7 @@
 
 ISO installation uses stock graphical Anaconda for storage, networking, bootc
 deployment, Linux user creation, and administrator selection. Root stays locked.
-Reboot and log in normally before Soda Setup appears. ISO installation creates
+Reboot and log in normally; the welcome message shows connection details. ISO installation creates
 `/etc/cloud/cloud-init.disabled`, preventing cloud-init from altering those accounts.
 
 QCOW2 deployments use standard Fedora cloud-init delivered by VM tooling. Supply
@@ -11,26 +11,38 @@ network configuration through user-data. No Soda checkout or manually built
 credential ISO is required. A key alone enables SSH authentication; it does not
 supply a password for console, Cockpit, PAM, or password-based sudo.
 
-Soda Setup is temporary and handles only missing network trust or Tailscale
-enrollment. It starts after an authenticated administrator logs in on an
-interactive machine console and uses ordinary privilege elevation. Cancellation
-or failure returns to the logged-in shell. SSH, SCP, and SFTP do not launch it.
-Native network readiness permits explicit dismissal but does not suppress
-automatic Setup. It keeps appearing after an administrator console login until
-they choose **Don't show Setup automatically**. Administrators can reopen it
-with `sudo /usr/libexec/soda/soda-setup console` or through Cockpit.
+Interactive local and SSH shells always show a concise welcome with the native
+hostname, local Cockpit and Forgejo URLs, a current-user SSH command, and current
+Tailscale status. It has no completion or dismissal state. Administrators can
+customize the native `/etc/profile.d/soda-console-welcome.sh` entry point.
+Non-interactive commands, SCP, and SFTP keep their ordinary output.
 
-Default-drop protection remains in place. Explicitly trust only a trusted LAN
-connection; cloud services remain private through Tailscale. Tailscale never
-disables the existing trusted-LAN path.
+Soda runs on a trusted network. Firewalld is installed but disabled by default,
+not masked. Administrators can enable and configure it through stock Cockpit's
+**Networking → Firewall** page. Soda supplies no default-drop override, custom
+zone, or connection-selection trust workflow. Enrolling Tailscale does not
+change LAN access or an administrator's firewall choices.
 
-After successful cloud-init Tailscale enrollment and verification, invoke
-`/usr/libexec/soda/forgejo-init refresh-tailnet`. Interactive Setup uses this same
-entry point. It compares DOMAIN, SSH_DOMAIN, and ROOT_URL against the native
-Tailnet identity. Matching values cause no writes or restart. Stale values cause
-the existing Forgejo service restart; its inactive oneshot initializer applies
-the address before the replacement process starts. Forgejo never waits for
-cloud-final. Report enrollment success separately from refresh failure.
+Tailscale is preinstalled and tailscaled is enabled, initially unenrolled.
+Administrators sign in through native browser authentication on the separate
+**Cockpit → Tailscale** page. The page shows connection state, this device's
+name and addresses, visible peers, eligible exit nodes, the native LAN-access
+setting for exit-node use, exit-node advertisement and approval, and a link to
+the official CLI documentation. It stores no authentication key or workflow state.
+
+The page reads native state on opening and while active. Authentication URLs
+are shown as soon as the native process emits them, before authentication
+completes. Native status owns pending authentication and approval across page
+loads. Closing the page closes its processes; it does not log out the machine.
+
+When the page observes a connected machine, it invokes the existing
+`/usr/libexec/soda/forgejo-init refresh-tailnet` command. That command compares
+DOMAIN, SSH_DOMAIN, and ROOT_URL against the native reachable Tailnet identity.
+Matching values cause no writes or restart. Stale values cause the existing
+Forgejo service restart; its inactive oneshot initializer applies the address
+before the replacement process starts. The native initializer also runs when
+Forgejo starts. Enrollment success and refresh failure are reported separately.
+There is no watcher or durable recovery state.
 
 The owner registers the first Forgejo account through the normal trusted LAN
 or Tailnet before teammates sign in. Native first-user signup grants Forgejo
@@ -68,9 +80,9 @@ After separately authorized builds, run on both matching architectures:
 
 1. Complete graphical Anaconda account creation, reboot, and verify normal login,
    home ownership, administrator privilege, and cloud-init-disabled ISO startup.
-2. Provision QCOW2 through VM tooling; check key/password behavior, network
-   protection, persistence, and explicit automatic-Setup dismissal.
-3. Start Forgejo before cloud-init finishes Tailscale enrollment. Verify the
+2. Provision QCOW2 through VM tooling; check key/password behavior, ordinary LAN
+   access, persistence, and mandatory stateless welcome.
+3. Start Forgejo before enrolling through the Cockpit Tailscale page. Verify the
    conditional refresh reruns native initialization and advertises the intended
    reachable Tailnet address. After native signup and workspace Git-key
    registration, clone using Forgejo's displayed SSH URL from the intended client.
@@ -85,3 +97,18 @@ After separately authorized builds, run on both matching architectures:
    copying, and incoming workspace SSH.
 7. Delete a Linux person through Soda and verify the same-named Forgejo account
    and its data remain. Source tests are not installed-system acceptance.
+
+8. Verify the Tailscale URL appears before sign-in completes; cover native machine
+   approval, reauthentication, unavailable daemon, cancellation by leaving the
+   page, and reopening with pending or completed native authentication.
+9. Exercise exit-node selection and its LAN-access setting. Advertise this machine
+   as an exit node, observe pending approval, approve in the native Tailnet admin
+   surface, and verify real routed traffic from another device.
+10. Verify firewalld starts disabled, not masked; enable/configure it through stock
+    Cockpit, reboot and verify the administrator choice persists. Restore the
+    fixture's original firewall configuration before unrelated access scenarios.
+11. Check actual local login, SSH login and interactive terminal welcome output,
+    and unchanged non-interactive SSH, SCP and SFTP output. Confirm explicit LAN
+    and Tailnet Cockpit/Forgejo URLs, including MagicDNS-disabled enrollment.
+12. Verify an ordinary project-selected listening port from a second LAN machine
+    before and after enrollment; a host-forwarded VM check alone is insufficient.

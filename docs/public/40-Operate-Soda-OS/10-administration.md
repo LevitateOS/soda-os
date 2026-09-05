@@ -49,13 +49,19 @@ Do not expose these ports to the public Internet on a cloud machine.
 
 ## Configure Tailscale later
 
-A machine configured with **Allow access from the local network** can join
-Tailscale later. Open Soda Setup from Cockpit and complete its Tailscale step,
-or use the native
-Tailscale administration path. Follow Tailscale's [device setup
-guide](https://tailscale.com/docs/features/access-control/device-management/how-to/set-up).
-The auth key is used once and removed. Tailscale enrollment does not disable
-the trusted local-network connection.
+Open **Cockpit → Tailscale** and sign in using the native browser-authentication
+URL. The machine remains usable over the trusted LAN. The page shows native
+connection state, device identity and addresses, peers, exit-node selection,
+LAN access while using an exit node, and exit-node advertisement and approval.
+It links to native Tailscale administration and the official CLI documentation.
+
+Firewalld is disabled by default, not masked. Enable or configure it through
+stock Cockpit **Networking → Firewall** when needed. Soda does not overwrite
+that administrator choice on later boots.
+
+The mandatory welcome shows local and connected Tailnet URLs for Cockpit and
+Forgejo. Administrators can customize it in
+`/etc/profile.d/soda-console-welcome.sh`.
 
 ## Native diagnostics
 
@@ -92,8 +98,7 @@ committed and successfully pushed to a repository that is itself protected.
 ## Expected result
 
 Every administrative fact can be inspected through its native owner, while
-Soda-specific administration stays limited to Soda Setup, Projects, local
-Runners, and their focused lifecycle actions.
+Soda-specific administration stays limited to Projects, local Runners, and native Tailscale composition.
 
 ## If something fails
 

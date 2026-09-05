@@ -106,7 +106,7 @@ chosen Scaleway project, plus an authenticated Scaleway CLI.
    the root-volume option for the snapshot's storage type and size it for the
    team's data. Confirm the attached boot volume and security group before
    starting the Instance. Supply standard cloud-init user-data through the
-   platform before first boot, including the Linux account and network enrollment.
+   platform before first boot, including the Linux account and private network configuration.
 6. Start the Instance, then open **Console** from its overview in Scaleway.
    The [serial console](https://www.scaleway.com/en/docs/instances/how-to/use-serial-console/)
    is available independently of public SSH access. Use the cloud-init-created
@@ -137,30 +137,6 @@ users:
     # hashed_passwd: '$6$REPLACE_WITH_YOUR_PASSWORD_HASH'
 disable_root: true
 
-# Optional Tailnet enrollment: uncomment and supply a protected auth key.
-# Cloud-init/provider copies of user-data may retain this key after enrollment.
-# write_files:
-#   - path: /run/soda-tailscale-auth-key
-#     permissions: '0600'
-#     owner: root:root
-#     content: tskey-auth-REPLACE
-# runcmd:
-#   - |
-#     set -eu
-#     trap 'rm -f /run/soda-tailscale-auth-key' EXIT
-#     tailscale up --auth-key=file:/run/soda-tailscale-auth-key
-#     tailscale wait --timeout=30s
-#     printf 'Tailscale enrollment succeeded.\n'
-#     if ! /usr/libexec/soda/forgejo-init refresh-tailnet; then
-#       printf 'Tailscale enrolled, but Forgejo address refresh failed.\n' >&2
-#       exit 1
-#     fi
-
-# For LAN-only provisioning instead, explicitly select a trusted NetworkManager
-# connection. Never trust a cloud public-facing connection.
-# runcmd:
-#   - [nmcli, connection, modify, YOUR_TRUSTED_CONNECTION, connection.zone, trusted]
-#   - [nmcli, connection, up, YOUR_TRUSTED_CONNECTION]
 ```
 
 Store user-data with restricted permissions. A personal public key is not a
@@ -168,24 +144,20 @@ password: key-only provisioning enables SSH but does not enable password login
 to the console, Cockpit, or Forgejo PAM. Supply a password hash when those
 logins are required. Use native Linux administration for later password changes.
 
-Cloud-init and the provider may retain user-data, including auth keys and
-password hashes. Removing the temporary enrollment file does not erase those
-copies. Apply the team's provider and cloud-init retention policy, and never
-publish user-data or enrollment credentials.
+Cloud-init and the provider may retain user-data, including password hashes.
+Apply the team's provider and cloud-init retention policy; do not publish it.
 
-After enrollment, the native conditional Forgejo refresh applies its Tailnet
-address even if Forgejo started first. A refresh failure is a provisioning
-failure despite successful enrollment; inspect cloud-init and Forgejo logs,
-correct the cause, and explicitly rerun the refresh. It does nothing when the
-address already matches.
+Tailscale starts unenrolled. Access Cockpit through the trusted private network
+and use its separate Tailscale page for native browser sign-in. The page applies
+Forgejo's native conditional Tailnet-address refresh after observing connection.
+The provider's network boundary remains responsible for keeping public ingress
+closed; the host firewall is installed but disabled by default.
 
 ## Expected result
 
 The QCOW2 boots from the enlarged disk and cloud-init provisions the Linux
-account and chosen private network access. Setup still appears after an
-administrator console login until they explicitly choose **Don't show Setup
-automatically**; it remains available through Cockpit and manual console
-launches. No Soda service is reachable from the public Internet. Register the
+account. Interactive login always shows the welcome message. Keep the provider's
+private network boundary in place and register the
 first Forgejo owner before teammates begin signing in, as described in [Make
 the first connection](30-first-connection.md).
 
@@ -196,8 +168,7 @@ the first connection](30-first-connection.md).
   mismatch; compare those settings with the provider's QCOW2 documentation.
 - If the filesystem does not reflect the enlarged virtual disk, stop before
   creating project data and retain the console output for diagnosis.
-- If Tailscale cannot connect, correct outbound networking or the auth key from
-  Soda Setup. Do not open public SSH as a workaround.
+- If Tailscale cannot connect, inspect its native error in Cockpit.
 
 ## Next step
 

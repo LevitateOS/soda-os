@@ -16,7 +16,7 @@ deployments use Tailscale and never expose those services to the public
 Internet.
 
 Anaconda creates ISO Linux accounts; standard cloud-init provisions QCOW2.
-Log in normally before temporary network-only Soda Setup. Add a personal SSH
+Log in normally for stateless welcome and connection guidance. Add a personal SSH
 public key through Cockpit Accounts before the first workspace; cloud-init may
 already supply it. Workspace creation copies those authorized keys once.
 

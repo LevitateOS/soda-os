@@ -1,81 +1,38 @@
 # Make the first connection
 
-Complete Soda Setup and connect through the trusted local network, Tailscale, or both.
+Log in normally after Anaconda installation or native cloud-init provisioning.
+The welcome message shows the hostname, local Cockpit and Forgejo URLs, your
+SSH command, and current Tailscale status. It appears in interactive local and
+SSH sessions, without a dismissal option. An administrator can customize the
+message in `/etc/profile.d/soda-console-welcome.sh`.
 
-ISO installation uses stock graphical Anaconda for storage, networking, bootc
-deployment, Linux user creation, and administrator selection. Root stays locked.
-Reboot and log in normally before Soda Setup appears. ISO installation creates
-`/etc/cloud/cloud-init.disabled`, preventing cloud-init from altering those accounts.
+## Local-network access
 
-QCOW2 deployments use standard Fedora cloud-init delivered by VM tooling. Supply
-the Linux account, personal SSH public key, optional password hash, and optional
-network configuration through user-data. No Soda checkout or manually built
-credential ISO is required. A key alone enables SSH authentication; it does not
-supply a password for console, Cockpit, PAM, or password-based sudo.
+SSH, Cockpit, Forgejo and project-selected development ports are available on
+the trusted LAN. Firewalld is installed but disabled by default, not masked.
+Administrators can enable and configure it through stock Cockpit's
+**Networking → Firewall** page.
 
-Soda Setup is temporary and handles only missing network trust or Tailscale
-enrollment. It starts after an authenticated administrator logs in on an
-interactive machine console and uses ordinary privilege elevation. Cancellation
-or failure returns to the logged-in shell. SSH, SCP, and SFTP do not launch it.
-Native network readiness permits explicit dismissal but does not suppress
-automatic Setup. It keeps appearing after an administrator console login until
-they choose **Don't show Setup automatically**. Administrators can reopen it
-with `sudo /usr/libexec/soda/soda-setup console` or through Cockpit.
+Open the local Cockpit URL shown in the welcome message. Use the Linux account
+created by Anaconda or cloud-init. A supplied SSH key enables SSH authentication;
+a password is needed for password-based console, Cockpit and PAM login.
 
-Default-drop protection remains in place. Explicitly trust only a trusted LAN
-connection; cloud services remain private through Tailscale. Tailscale never
-disables the existing trusted-LAN path.
+## Tailscale
 
-After native Tailscale enrollment, run
-`sudo /usr/libexec/soda/forgejo-init refresh-tailnet` to apply the address
-when needed. Setup performs this step automatically; the cloud-init example
-includes it. A refresh failure needs attention even when enrollment succeeded.
+Tailscale is preinstalled and its daemon runs initially unenrolled. An
+administrator opens **Cockpit → Tailscale**, chooses **Sign in**, and follows the
+native authentication URL. If device approval is required, the page links to
+Tailscale administration. The page shows device identity and addresses, visible
+peers, eligible exit nodes, LAN access during exit-node use, and exit-node
+advertisement with its approval state.
 
-## Choose the access path
+Tailscale enrollment does not disable LAN access. When using an exit node,
+use the native **Allow local network access while using an exit node** setting.
+The mandatory welcome includes explicit Cockpit and Forgejo Tailnet links when
+connected, using MagicDNS when enabled or a Tailnet IP address.
 
-### Tailscale
-
-Create a suitably scoped auth key by following Tailscale's [auth-key
-guide](https://tailscale.com/docs/features/access-control/auth-keys) and [device
-setup guide](https://tailscale.com/docs/features/access-control/device-management/how-to/set-up).
-Enter the key in Soda Setup or supply protected cloud-init user-data. Soda uses it for enrollment once and
-removes it immediately afterward.
-
-Confirm the new node in the Tailscale admin console and record its MagicDNS
-name. Do not paste the key into shell history, chat, issue trackers, or logs.
-
-### Local-network access
-
-Select **Allow access from the local network** only when you trust the current
-local network connection. This explicitly allows Soda services over that
-connection and lets Soda Setup complete without Tailscale.
-
-Tailscale enrollment is a separate choice. Enabling Tailscale never disables
-local-network access, and an administrator can enroll the machine later by
-reopening Soda Setup in Cockpit or by using native Tailscale administration.
-Cloud deployments use Tailscale rather than trusting a public network
-connection.
-
-## Find the machine
-
-For a LAN installation, obtain the address from Soda Setup, the console,
-or Cockpit's networking page. For Tailscale, use the confirmed MagicDNS name or
-Tailnet address.
-
-Open Cockpit with the LAN hostname or Tailnet name that developers should use.
-The Projects page builds its SSH guidance from that browser hostname; it does
-not choose or require a Tailscale identity. Before Tailnet enrollment, bundled
-Forgejo advertises the machine's static hostname. After enrollment, the conditional native address refresh applies the Tailnet
-identity when needed while the LAN path remains available.
-
-| Service | LAN installation | Cloud installation |
-|---|---|---|
-| OpenSSH, port 22 | Direct LAN or Tailscale | Tailscale only |
-| Cockpit, port 9090 | Direct LAN or Tailscale | Tailscale only |
-| Forgejo, port 30000 | Direct LAN or Tailscale | Tailscale only |
-| Project-selected development port | Direct LAN or Tailscale | Tailscale |
-
-Tailscale never disables direct LAN access on a LAN installation.
+Projects builds SSH guidance from the hostname used to open Cockpit. Project
+listing and workspace creation do not require Tailscale.
 
 ## Connect
 
@@ -115,8 +72,7 @@ the Linux password, and Forgejo recognizes its independent administrator.
   path and use the Linux password.
 - **Forgejo:** confirm port 30000 and use the Forgejo administrator credentials
   chosen during native signup.
-- **Tailscale:** correct the key or outbound networking from Soda Setup;
-  a failed key is not retained for background retry.
+- **Tailscale:** inspect its native connection or authentication error in Cockpit.
 
 ## Next step
 

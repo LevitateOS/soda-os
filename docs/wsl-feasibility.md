@@ -1,5 +1,11 @@
 # WSL2 feasibility: x86-64 Windows gaming PCs
 
+> Historical record: references below to Soda Setup, selected-LAN trust, or
+> default-drop host configuration are superseded by the current
+> [native installation and access contract](native-onboarding.md). They are not
+> operating instructions for the current image.
+
+
 Research date: 2026-09-04. **Documentary assessment complete; native validation
 unexecuted. Full Soda server viability remains unverified.**
 

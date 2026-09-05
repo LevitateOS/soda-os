@@ -1,6 +1,6 @@
 # Install on premises
 
-Install Soda from the architecture-matched network ISO with graphical Anaconda and then complete Soda Setup.
+Install Soda from the architecture-matched network ISO with graphical Anaconda and log in normally.
 
 WSL2 support for x86-64 Windows gaming PCs is planned for a future release.
 No Soda OS WSL2 distribution is currently available; this guide covers the
@@ -77,9 +77,7 @@ device. Double-check the target before starting.
    the installed system.
 
 Anaconda creates the Linux administrator. After reboot, log in normally.
-Network-only Soda Setup appears after administrator console login until the
-administrator explicitly chooses **Don't show Setup automatically**. A trusted
-LAN or Tailscale makes dismissal available; it does not dismiss Setup itself.
+The mandatory welcome message shows connection details.
 ISO installation disables cloud-init so it cannot alter the Anaconda accounts.
 
 ## Expected result

@@ -18,7 +18,7 @@ or local control socket.
 
 At initialization Forgejo uses the machine's static hostname for its advertised
 HTTP and SSH domains. When a Tailnet identity is available, initialization uses
-that identity instead. Native maintenance and acceptance calls from the host use
+its MagicDNS name when enabled, or its Tailnet IPv4 address instead. Native maintenance and acceptance calls from the host use
 Forgejo's loopback listener; the Projects list does not publish or select a
 Forgejo endpoint.
 
@@ -33,26 +33,19 @@ state with `ss`, `systemctl`, and `journalctl`.
 
 ## Current implementation
 
-`firewalld` uses `drop` as the default zone, so unassigned normal-network
-connections do not admit inbound services. Soda Setup's **Allow access from the
-local network** action selects trusted LAN ingress for the current connection
-with:
+Firewalld is installed and disabled by default, not masked. Administrators may
+enable and configure it through stock Cockpit **Networking → Firewall**.
+There is no Soda default zone override, custom Tailnet zone, selected-network
+trust action, or service that changes an administrator's firewall choices.
+Tailscale keeps its native netfilter behavior. Forgejo listens on IPv4 on LAN
+and Tailnet addresses. Services and project-selected ports work directly on the
+trusted network while the host firewall is disabled.
 
-```
-sudo soda-local-access CONNECTION on
-```
-
-This assigns that named NetworkManager connection to firewalld's `trusted`
-zone and reactivates it. `soda-local-access CONNECTION off` assigns it to the
-`drop` zone again. The command does not infer trust from addresses or select a
-connection itself.
-
-Tailscale keeps its normal independent netfilter path. The packaged
-`soda-tailnet` firewalld zone explicitly accepts `tailscale0`, so firewalld's
-default `drop` policy cannot override Tailscale ingress. It does not modify the
-NetworkManager connection zone, so enrolling Tailscale never narrows a trusted
-LAN connection. Forgejo listens on IPv4; firewalld, rather than listener
-binding, determines which ingress paths reach it.
+The separate **Tailscale** page provides native browser sign-in, state, device
+addresses, visible peers and native exit-node settings. The native **Allow local
+network access while using an exit node** preference controls LAN routing during
+exit-node use. Linux forwarding is enabled through native sysctl configuration
+for exit-node advertisement; the Tailnet administrator owns approval.
 
 Raw-QEMU host port forwards are acceptance-harness details and never product
 ingress evidence.

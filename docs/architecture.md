@@ -17,7 +17,7 @@ versions.
 Soda owns only:
 
 - the branded image, network ISO, and reusable QCOW2 composition;
-- the current bounded Soda Setup workaround shared by the console and Cockpit;
+- mandatory stateless welcome and a separate native Cockpit Tailscale page;
 - the shared project catalog;
 - one derived Linux workspace account per selected person-project pair;
 - branding and one focused Cockpit Projects page;
@@ -32,7 +32,7 @@ be proven against Fedora's native installation boundaries.
 
 ISO installation uses stock graphical Anaconda for storage, networking, bootc
 deployment, Linux user creation, and administrator selection. Root stays locked.
-Reboot and log in normally before Soda Setup appears. ISO installation creates
+Reboot and log in normally; the welcome message shows connection details. ISO installation creates
 `/etc/cloud/cloud-init.disabled`, preventing cloud-init from altering those accounts.
 
 QCOW2 deployments use standard Fedora cloud-init delivered by VM tooling. Supply
@@ -41,26 +41,38 @@ network configuration through user-data. No Soda checkout or manually built
 credential ISO is required. A key alone enables SSH authentication; it does not
 supply a password for console, Cockpit, PAM, or password-based sudo.
 
-Soda Setup is temporary and handles only missing network trust or Tailscale
-enrollment. It starts after an authenticated administrator logs in on an
-interactive machine console and uses ordinary privilege elevation. Cancellation
-or failure returns to the logged-in shell. SSH, SCP, and SFTP do not launch it.
-Native network readiness permits explicit dismissal but does not suppress
-automatic Setup. It keeps appearing after an administrator console login until
-they choose **Don't show Setup automatically**. Administrators can reopen it
-with `sudo /usr/libexec/soda/soda-setup console` or through Cockpit.
+Interactive local and SSH shells always show a concise welcome with the native
+hostname, local Cockpit and Forgejo URLs, a current-user SSH command, and current
+Tailscale status. It has no completion or dismissal state. Administrators can
+customize the native `/etc/profile.d/soda-console-welcome.sh` entry point.
+Non-interactive commands, SCP, and SFTP keep their ordinary output.
 
-Default-drop protection remains in place. Explicitly trust only a trusted LAN
-connection; cloud services remain private through Tailscale. Tailscale never
-disables the existing trusted-LAN path.
+Soda runs on a trusted network. Firewalld is installed but disabled by default,
+not masked. Administrators can enable and configure it through stock Cockpit's
+**Networking → Firewall** page. Soda supplies no default-drop override, custom
+zone, or connection-selection trust workflow. Enrolling Tailscale does not
+change LAN access or an administrator's firewall choices.
 
-After successful cloud-init Tailscale enrollment and verification, invoke
-`/usr/libexec/soda/forgejo-init refresh-tailnet`. Interactive Setup uses this same
-entry point. It compares DOMAIN, SSH_DOMAIN, and ROOT_URL against the native
-Tailnet identity. Matching values cause no writes or restart. Stale values cause
-the existing Forgejo service restart; its inactive oneshot initializer applies
-the address before the replacement process starts. Forgejo never waits for
-cloud-final. Report enrollment success separately from refresh failure.
+Tailscale is preinstalled and tailscaled is enabled, initially unenrolled.
+Administrators sign in through native browser authentication on the separate
+**Cockpit → Tailscale** page. The page shows connection state, this device's
+name and addresses, visible peers, eligible exit nodes, the native LAN-access
+setting for exit-node use, exit-node advertisement and approval, and a link to
+the official CLI documentation. It stores no authentication key or workflow state.
+
+The page reads native state on opening and while active. Authentication URLs
+are shown as soon as the native process emits them, before authentication
+completes. Native status owns pending authentication and approval across page
+loads. Closing the page closes its processes; it does not log out the machine.
+
+When the page observes a connected machine, it invokes the existing
+`/usr/libexec/soda/forgejo-init refresh-tailnet` command. That command compares
+DOMAIN, SSH_DOMAIN, and ROOT_URL against the native reachable Tailnet identity.
+Matching values cause no writes or restart. Stale values cause the existing
+Forgejo service restart; its inactive oneshot initializer applies the address
+before the replacement process starts. The native initializer also runs when
+Forgejo starts. Enrollment success and refresh failure are reported separately.
+There is no watcher or durable recovery state.
 
 Managed services are directly reachable on a trusted LAN. Cloud deployments
 use Tailscale and never expose SSH, Cockpit, or Forgejo to the public Internet.
@@ -138,7 +150,7 @@ implementation debt:
 
 | Current source | Approved replacement |
 | --- | --- |
-| Mandatory OEMDRV and installer-time administrator/Forgejo provisioning | One ISO followed by the current Soda Setup workaround |
+| Mandatory OEMDRV and installer-time administrator/Forgejo provisioning | Graphical Anaconda account creation and normal login |
 | Soda-owned cloud provisioning and finalizer | Standard Fedora cloud-init through VM tooling |
 | Tailnet-only managed-service firewall | Direct trusted-LAN access plus cloud Tailscale access |
 | Exact three-field catalog | No closed metadata field list |
@@ -164,7 +176,7 @@ owning issues replace the conflicting behavior.
 ## Evidence status
 
 Historical native x86-64 and AArch64 runs prove the implementation that existed
-at their exact commits. They do not prove the newly approved Soda Setup, LAN,
+at their exact commits. They do not prove the welcome, Tailscale, LAN,
 Forgejo-key, manual CLI-authentication, mise, person-deletion, or build-once
 release paths.
 

@@ -1,5 +1,11 @@
 # Installer size accounting
 
+> Historical record: references below to Soda Setup, selected-LAN trust, or
+> default-drop host configuration are superseded by the current
+> [native installation and access contract](native-onboarding.md). They are not
+> operating instructions for the current image.
+
+
 Soda retains one graphical Anaconda installer ISO.  Its payload is a network
 installation of the exact GHCR bootc image; the runtime image is not embedded
 in the installer.
