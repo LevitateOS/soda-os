@@ -1,36 +1,31 @@
-import {
-  EmptyState,
-  EmptyStateBody,
-  PageSection,
-  Spinner,
-  Stack,
-  Title,
-} from "@patternfly/react-core";
+import { EmptyState, EmptyStateBody, PageSection, Spinner, Stack } from "@patternfly/react-core";
 import { Table, Thead, Tbody, Tr, Th, Td } from "@patternfly/react-table";
-import { CodeValue } from "../../atoms/CodeValue";
 import { ProjectActions } from "../../molecules/projects/ProjectActions";
 import { WorkspaceSummary } from "../../molecules/projects/WorkspaceSummary";
-import type { FormAction, ListResponse, Project } from "../../projects/types";
+import type {
+  ProjectAction,
+  ListResponse,
+  Project,
+  WorkspaceInspection,
+} from "../../projects/types";
+
 export function ProjectCatalog({
   data,
+  inspections,
   loading,
   busy,
-  hostname,
   onAction,
 }: {
   data: ListResponse | null;
+  inspections: Record<string, WorkspaceInspection>;
   loading: boolean;
   busy: boolean;
-  hostname: string;
-  onAction: (action: FormAction, project: Project) => void;
+  onAction: (action: ProjectAction, project: Project) => void;
 }) {
   return (
-    <PageSection aria-labelledby="catalog-title">
+    <PageSection aria-label="Project list">
       <Stack hasGutter>
-        <Title headingLevel="h2" id="catalog-title">
-          Project catalog
-        </Title>
-        <p>
+        <p role="status" className="pf-v6-screen-reader">
           {loading
             ? "Loading projects…"
             : data
@@ -39,18 +34,17 @@ export function ProjectCatalog({
         </p>
         {loading && <Spinner aria-label="Loading projects" size="lg" />}
         {data && data.projects.length === 0 && (
-          <EmptyState titleText="No projects yet" headingLevel="h3">
+          <EmptyState titleText="No projects yet" headingLevel="h2">
             <EmptyStateBody>
-              Create a repository in Forgejo or another Git host, then add its SSH clone URL here.
+              Create a repository on your Git host, then choose Add repository.
             </EmptyStateBody>
           </EmptyState>
         )}
         {!!data?.projects.length && (
-          <Table aria-label="Project catalog">
+          <Table aria-label="Projects">
             <Thead>
               <Tr>
                 <Th>Project</Th>
-                <Th>Canonical repository</Th>
                 <Th>Your workspace</Th>
                 <Th>Actions</Th>
               </Tr>
@@ -60,17 +54,14 @@ export function ProjectCatalog({
                 <Tr key={project.id}>
                   <Td dataLabel="Project">
                     <strong>{project.display_name}</strong>
-                    <CodeValue>{project.id}</CodeValue>
-                  </Td>
-                  <Td dataLabel="Canonical repository">
-                    <CodeValue>{project.canonical_url}</CodeValue>
                   </Td>
                   <Td dataLabel="Your workspace">
-                    <WorkspaceSummary project={project} hostname={hostname} />{" "}
+                    <WorkspaceSummary project={project} inspection={inspections[project.id]} />
                   </Td>
                   <Td dataLabel="Actions">
                     <ProjectActions
                       project={project}
+                      inspection={inspections[project.id]}
                       currentUser={data.current_user}
                       busy={busy}
                       onAction={onAction}

@@ -8,11 +8,35 @@ import {
   projectRemovalHidden,
   sshCommand,
   successMessage,
+  workspaceReady,
+  workspaceCanSetup,
 } from "./ui";
 
-test("setup sends only the selected project id", () => {
-  const setup = payloadFor("setup", new Map([["id", "site"]]), assert.fail);
-  assert.deepEqual(setup, { id: "site" });
+test("readiness and retry eligibility require inspected native facts", () => {
+  const workspace = {
+    username: "soda-w-example",
+    exists: true,
+    checkout_path: "/home/soda-w-example/Projects/site",
+    checkout_ready: false,
+    public_key: "",
+    primary_key_problem: "",
+    workspace_key_problem: "",
+    checkout_problem: "",
+    git_key_problem: "",
+  };
+  assert.equal(workspaceReady(workspace), false);
+  assert.equal(workspaceCanSetup(workspace), true);
+  assert.equal(workspaceCanSetup(null), false);
+  assert.equal(workspaceReady({ ...workspace, checkout_ready: true }), true);
+  assert.equal(workspaceCanSetup({ ...workspace, checkout_problem: "unreadable" }), false);
+  assert.equal(
+    workspaceCanSetup({ ...workspace, exists: false, primary_key_problem: "unreadable" }),
+    false,
+  );
+  assert.equal(
+    workspaceReady({ ...workspace, checkout_ready: true, workspace_key_problem: "unreadable" }),
+    false,
+  );
 });
 
 test("catalog forms preserve arbitrary metadata while edit omits the immutable URL", () => {

@@ -1,11 +1,11 @@
 // @vitest-environment jsdom
-import { test, expect, vi } from "vite-plus/test";
-import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
+import { afterEach, test, expect, vi } from "vite-plus/test";
+import { act, render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ProjectsPage } from "./ProjectsPage";
 import { coordinator } from "../projects/native";
 import { pendingProcess } from "../../tests/process";
-import type { Invoke, ListResponse, Project } from "../projects/types";
+import type { Invoke, ListResponse, Project, WorkspaceInspection } from "../projects/types";
 
 const project: Project = {
   id: "site",
@@ -19,10 +19,29 @@ const catalog: ListResponse = {
   current_user: { username: "alice", administrator: true },
   projects: [project],
 };
-function mockInvoke(data = catalog) {
-  const invoke = vi.fn<Invoke>();
-  invoke.mockResolvedValue(data);
-  return invoke;
+const inspection: WorkspaceInspection = {
+  username: "soda-w-abc",
+  exists: true,
+  checkout_ready: true,
+  checkout_path: "/home/soda-w-abc/Projects/site",
+  public_key: "ssh-ed25519 EXAMPLE-PUBLIC-KEY",
+  primary_key_problem: "",
+  workspace_key_problem: "",
+  checkout_problem: "",
+  git_key_problem: "",
+};
+const absent: WorkspaceInspection = {
+  ...inspection,
+  exists: false,
+  checkout_ready: false,
+  checkout_path: "",
+  public_key: "",
+};
+function mockInvoke(data = catalog, workspace = inspection) {
+  return vi
+    .fn<Invoke>()
+    .mockImplementation((async (action) =>
+      action === "inspect" ? { ok: true, workspace } : data) as Invoke);
 }
 async function ready(invoke = mockInvoke()) {
   render(<ProjectsPage invoke={invoke as Invoke} hostname="soda.lan" />);
@@ -30,116 +49,223 @@ async function ready(invoke = mockInvoke()) {
   return invoke;
 }
 async function open(name: string) {
-  fireEvent.click(screen.getByRole("button", { name }));
+  if (["Edit project", "Remove project", "Remove my workspace"].includes(name)) {
+    fireEvent.click(screen.getByRole("button", { name: "Actions — Site" }));
+    fireEvent.click(screen.getByRole("menuitem", { name }));
+  } else if (name === "Remove person…") {
+    fireEvent.click(screen.getByRole("button", { name: "People actions" }));
+    fireEvent.click(screen.getByRole("menuitem", { name }));
+  } else fireEvent.click(screen.getByRole("button", { name }));
   return within(await screen.findByRole("dialog"));
 }
+afterEach(() => vi.unstubAllGlobals());
 
-test("catalog loading, empty, error, refresh and native adapter input", async () => {
+test("catalog loading, failed read and recovery use the unprivileged native list", async () => {
   const call = pendingProcess();
   const spawn = vi.fn(() => call.process);
   render(<ProjectsPage invoke={coordinator({ spawn })} />);
-  expect(screen.getByRole("button", { name: "Refresh" }).hasAttribute("disabled")).toBe(true);
   expect(spawn).toHaveBeenCalledWith(["/usr/libexec/soda/soda-projects", "list"], {
     err: "message",
   });
   expect(call.process.input).toHaveBeenCalledWith("{}\n");
+  expect((screen.getByRole("button", { name: "Refresh" }) as HTMLButtonElement).disabled).toBe(
+    true,
+  );
   call.resolve(JSON.stringify({ ...catalog, projects: [] }));
   await screen.findByRole("heading", { name: "No projects yet" });
+  expect(screen.getAllByRole("button", { name: "Add repository" })).toHaveLength(1);
   const failed = pendingProcess();
   spawn.mockReturnValue(failed.process);
   fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
   failed.reject(new Error("catalog unavailable"));
-  await screen.findByText("The project catalog could not be loaded.");
-  expect(screen.queryByRole("heading", { name: "People" })).toBeNull();
-  expect(screen.getByText(/catalog unavailable/)).toBeTruthy();
+  await screen.findByText(/current catalog could not be refreshed.*catalog unavailable/);
+  expect(screen.queryByRole("region", { name: "People management" })).toBeNull();
 });
-test("workspace wording states existence, uses browser hostname and retains setup/removal actions", async () => {
-  await ready();
-  expect(screen.getByText("Workspace account exists")).toBeTruthy();
-  expect(screen.getByText("ssh soda-w-abc@soda.lan")).toBeTruthy();
-  expect(screen.getByRole("button", { name: "Set up for me" })).toBeTruthy();
-  expect(screen.getByRole("button", { name: "Remove my workspace" })).toBeTruthy();
+
+test("quiet list never equates account existence with readiness; inspection supplies connection details", async () => {
+  const invoke = await ready();
+  expect(screen.getByText("Setup not confirmed")).toBeTruthy();
+  expect(screen.queryByText(project.canonical_url)).toBeNull();
+  expect(screen.queryByText("ssh soda-w-abc@soda.lan")).toBeNull();
+  expect(invoke).toHaveBeenCalledTimes(1);
+  const dialog = await open("Review setup — Site");
+  await waitFor(() => expect(dialog.getByLabelText("SSH command")).toBeTruthy());
+  expect((dialog.getByLabelText("SSH command") as HTMLInputElement).value).toBe(
+    "ssh soda-w-abc@soda.lan",
+  );
+  expect(dialog.getByText(inspection.checkout_path)).toBeTruthy();
+  expect(invoke).toHaveBeenCalledWith("inspect", { id: "site" });
+  expect(invoke).not.toHaveBeenCalledWith("setup", expect.anything());
+  fireEvent.click(dialog.getAllByRole("button", { name: "Close" }).at(-1)!);
+  expect(screen.getByText("Ready")).toBeTruthy();
+  expect(screen.getByRole("button", { name: "Connection details — Site" })).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
+  await screen.findByText("Setup not confirmed");
 });
-test("People leaves account creation, listing and administrator promotion to Cockpit Accounts", async () => {
-  await ready();
-  expect(
-    screen.getByText(
-      /Stock Cockpit Accounts creates and lists primary Linux users and owns administrator status/,
-    ),
-  ).toBeTruthy();
-});
-test("ordinary humans cannot see administrator deletion actions", async () => {
+
+test("Accounts owns people management while Soda-aware deletion stays administrator-only", async () => {
+  const jump = vi.fn();
+  vi.stubGlobal("cockpit", { jump });
   await ready(
     mockInvoke({ ...catalog, current_user: { username: "alice", administrator: false } }),
   );
-  expect(screen.queryByRole("button", { name: "Remove project" })).toBeNull();
-  expect(screen.queryByRole("button", { name: "Remove person…" })).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "Manage people in Accounts" }));
+  expect(jump).toHaveBeenCalledWith("/users");
+  expect(screen.queryByRole("button", { name: "People actions" })).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "Actions — Site" }));
+  expect(screen.queryByRole("menuitem", { name: "Remove project" })).toBeNull();
+  expect(screen.getByRole("menuitem", { name: "Remove my workspace" })).toBeTruthy();
 });
-test("edit explains immutable replacement, exposes readonly URL, and preserves arbitrary metadata", async () => {
+
+test("edit keeps immutable fields readonly and preserves arbitrary metadata even while collapsed", async () => {
   const invoke = await ready();
-  const dialog = await open("Edit");
-  expect((dialog.getByLabelText("Canonical Git URL") as HTMLInputElement).readOnly).toBe(true);
-  expect(
-    dialog.getByText(
-      /administrator must remove the project and its local workspaces, then add the project again/,
-    ),
-  ).toBeTruthy();
-  fireEvent.change(dialog.getByLabelText("Display name", { exact: false }), {
-    target: { value: "Renamed" },
+  const dialog = await open("Edit project");
+  expect((dialog.getByLabelText("Repository SSH address") as HTMLInputElement).readOnly).toBe(true);
+  expect((dialog.getByLabelText("Project ID") as HTMLInputElement).readOnly).toBe(true);
+  expect(dialog.getByText(/Replacing the address requires administrator removal/)).toBeTruthy();
+  fireEvent.change(dialog.getByLabelText(/Project name/), { target: { value: "Renamed" } });
+  fireEvent.click(dialog.getByRole("button", { name: "Additional metadata (optional)" }));
+  fireEvent.change(dialog.getByLabelText("Metadata JSON"), {
+    target: { value: '{"labels":["web"],"custom":{"enabled":true}}' },
   });
-  fireEvent.change(dialog.getByLabelText("Additional metadata"), {
-    target: { value: '{"labels":["web"]}' },
-  });
+  fireEvent.click(dialog.getByRole("button", { name: "Additional metadata (optional)" }));
   invoke.mockResolvedValueOnce({ ok: true, project: { ...project, display_name: "Renamed" } });
   fireEvent.click(dialog.getByRole("button", { name: "Save changes" }));
-  await waitFor(() =>
-    expect(invoke).toHaveBeenCalledWith("edit", {
-      id: "site",
-      display_name: "Renamed",
-      labels: ["web"],
-    }),
-  );
   await screen.findByText("Renamed was updated. Existing workspaces were not changed.");
+  expect(invoke).toHaveBeenCalledWith("edit", {
+    id: "site",
+    display_name: "Renamed",
+    labels: ["web"],
+    custom: { enabled: true },
+  });
 });
-test("setup keeps manual Git key guidance and refreshes account existence after failure inside its dialog", async () => {
+
+test("metadata validation opens the field, focuses it, and stays out of background alerts", async () => {
+  const invoke = await ready();
+  const dialog = await open("Edit project");
+  fireEvent.click(dialog.getByRole("button", { name: "Additional metadata (optional)" }));
+  const metadata = dialog.getByLabelText("Metadata JSON");
+  fireEvent.change(metadata, { target: { value: "{invalid}" } });
+  fireEvent.click(dialog.getByRole("button", { name: "Additional metadata (optional)" }));
+  fireEvent.click(dialog.getByRole("button", { name: "Save changes" }));
+  await waitFor(() => expect(document.activeElement).toBe(metadata));
+  expect(dialog.getByRole("alert").textContent).toContain(
+    "Additional metadata must be a valid JSON object.",
+  );
+  expect(screen.getAllByText(/Additional metadata must be a valid JSON object/)).toHaveLength(1);
+  fireEvent.click(dialog.getByRole("button", { name: "Additional metadata (optional)" }));
+  fireEvent.click(dialog.getByRole("button", { name: "Save changes" }));
+  await waitFor(() =>
+    expect(
+      dialog
+        .getByRole("button", { name: "Additional metadata (optional)" })
+        .getAttribute("aria-expanded"),
+    ).toBe("true"),
+  );
+  await waitFor(() => expect(document.activeElement).toBe(metadata));
+  expect(invoke).toHaveBeenCalledTimes(1);
+});
+
+test("a missing personal key is checked before mutation; Check setup never creates a workspace", async () => {
+  const invoke = await ready(
+    mockInvoke(
+      { ...catalog, projects: [{ ...project, workspace_exists: false }] },
+      { ...absent, primary_key_problem: "authorized_keys missing" },
+    ),
+  );
+  const dialog = await open("Set up for me — Site");
+  await waitFor(() => expect(dialog.getByText("Add or check your SSH public key")).toBeTruthy());
+  expect(invoke).not.toHaveBeenCalledWith("setup", expect.anything());
+  invoke.mockResolvedValueOnce({ ok: true, workspace: absent });
+  fireEvent.click(dialog.getByRole("button", { name: "Check setup" }));
+  await waitFor(() => expect(dialog.getByRole("button", { name: "Set up for me" })).toBeTruthy());
+  expect(invoke).not.toHaveBeenCalledWith("setup", expect.anything());
+});
+
+test("explicit setup checks prerequisites, prevents duplicates, refreshes facts and reaches connection guidance", async () => {
   const invoke = await ready(
     mockInvoke({ ...catalog, projects: [{ ...project, workspace_exists: false }] }),
   );
-  const dialog = await open("Set up for me");
-  expect(
-    dialog.getByText(/reports the public key for you to register with that host before retrying/),
-  ).toBeTruthy();
-  invoke.mockRejectedValueOnce(new Error("Register ssh-ed25519 AAA-test before retrying"));
-  invoke.mockResolvedValueOnce(catalog);
-  fireEvent.click(dialog.getByRole("button", { name: "Set up for me" }));
-  await waitFor(() => expect(invoke).toHaveBeenCalledWith("setup", { id: "site" }));
-  await waitFor(() =>
-    expect(within(screen.getByRole("dialog")).getByRole("alert").textContent).toContain(
-      "Register ssh-ed25519",
-    ),
+  let finish!: (value: { ok: true; workspace_username: string }) => void;
+  invoke.mockResolvedValueOnce({ ok: true, workspace: absent });
+  invoke.mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
   );
-  expect(screen.getByText("Workspace account exists")).toBeTruthy();
+  invoke.mockResolvedValueOnce(catalog);
+  invoke.mockResolvedValueOnce({ ok: true, workspace: inspection });
+  const dialog = await open("Set up for me — Site");
+  await waitFor(() => expect(invoke).toHaveBeenCalledWith("setup", { id: "site" }));
+  expect(dialog.getByText("Setting up your workspace…")).toBeTruthy();
+  expect((dialog.getByRole("button", { name: "Close" }) as HTMLButtonElement).disabled).toBe(true);
+  finish({ ok: true, workspace_username: inspection.username });
+  await waitFor(() => expect(dialog.getByLabelText("SSH command")).toBeTruthy());
+  expect(invoke.mock.calls.filter(([action]) => action === "setup")).toHaveLength(1);
 });
+
+test("clone failure shows the retained native public key without diagnosing every failure as authorization", async () => {
+  const invoke = await ready(
+    mockInvoke({ ...catalog, projects: [{ ...project, workspace_exists: false }] }),
+  );
+  invoke.mockResolvedValueOnce({ ok: true, workspace: absent });
+  invoke.mockRejectedValueOnce(new Error("repository host unavailable"));
+  invoke.mockResolvedValueOnce(catalog);
+  invoke.mockResolvedValueOnce({ ok: true, workspace: { ...inspection, checkout_ready: false } });
+  const dialog = await open("Set up for me — Site");
+  await waitFor(() =>
+    expect(dialog.getByRole("button", { name: "Copy workspace public key" })).toBeTruthy(),
+  );
+  expect((dialog.getByLabelText("Workspace public key") as HTMLInputElement).value).toBe(
+    inspection.public_key,
+  );
+  expect(dialog.getByText(/If this workspace key is not registered/)).toBeTruthy();
+  expect(dialog.getByText(/check the repository address and connection/)).toBeTruthy();
+  expect(dialog.getByRole("button", { name: "Retry setup" })).toBeTruthy();
+  fireEvent.click(dialog.getByRole("button", { name: "Technical details" }));
+  expect(dialog.getByText("repository host unavailable")).toBeTruthy();
+});
+
+test("unknown setup outcomes require a successful inspection before retry; refresh can recover readiness", async () => {
+  const invoke = await ready(
+    mockInvoke({ ...catalog, projects: [{ ...project, workspace_exists: false }] }),
+  );
+  invoke.mockResolvedValueOnce({ ok: true, workspace: absent });
+  invoke.mockRejectedValueOnce(new Error("connection closed"));
+  invoke.mockResolvedValueOnce(catalog);
+  invoke.mockRejectedValueOnce(new Error("inspection unavailable"));
+  const dialog = await open("Set up for me — Site");
+  await waitFor(() => expect(dialog.getByText("Workspace status is not confirmed")).toBeTruthy());
+  expect(dialog.queryByRole("button", { name: "Retry setup" })).toBeNull();
+  expect(dialog.queryByRole("button", { name: "Copy SSH command" })).toBeNull();
+  invoke.mockResolvedValueOnce({ ok: true, workspace: inspection });
+  fireEvent.click(dialog.getByRole("button", { name: "Check setup" }));
+  await waitFor(() =>
+    expect(dialog.getByRole("button", { name: "Copy SSH command" })).toBeTruthy(),
+  );
+  expect(dialog.queryByRole("button", { name: "Technical details" })).toBeNull();
+  expect(invoke.mock.calls.filter(([action]) => action === "setup")).toHaveLength(1);
+});
+
 test.each([
-  ["Remove my workspace", "remove-workspace", "Remove my workspace"],
-  ["Remove project", "remove", "Remove project"],
-] as const)(
-  "%s requires exact confirmation and sends only the project ID",
-  async (label, action, submit) => {
-    const invoke = await ready();
-    const dialog = await open(label);
-    fireEvent.change(dialog.getByRole("textbox"), { target: { value: "SITE" } });
-    fireEvent.click(dialog.getByRole("button", { name: submit }));
-    expect(invoke).toHaveBeenCalledTimes(1);
-    fireEvent.change(dialog.getByRole("textbox"), { target: { value: "site" } });
-    invoke.mockResolvedValueOnce({ ok: true });
-    fireEvent.click(dialog.getByRole("button", { name: submit }));
-    await waitFor(() => expect(invoke).toHaveBeenCalledWith(action, { id: "site" }));
-  },
-);
-test("human deletion remains separate from Forgejo and submits only an exactly confirmed username", async () => {
-  const invoke = await ready(),
-    dialog = await open("Remove person…");
+  ["Remove my workspace", "remove-workspace"],
+  ["Remove project", "remove"],
+] as const)("%s still requires exact confirmation and sends only the ID", async (label, action) => {
+  const invoke = await ready();
+  const dialog = await open(label);
+  fireEvent.change(dialog.getByRole("textbox"), { target: { value: "SITE" } });
+  fireEvent.click(dialog.getByRole("button", { name: label }));
+  expect(invoke).toHaveBeenCalledTimes(1);
+  fireEvent.change(dialog.getByRole("textbox"), { target: { value: "site" } });
+  invoke.mockResolvedValueOnce({ ok: true });
+  fireEvent.click(dialog.getByRole("button", { name: label }));
+  await waitFor(() => expect(invoke).toHaveBeenCalledWith(action, { id: "site" }));
+});
+
+test("human deletion remains a separate Soda-aware action preserving Forgejo", async () => {
+  const invoke = await ready();
+  const dialog = await open("Remove person…");
   expect(dialog.getByText(/Forgejo account and repository data are unchanged/)).toBeTruthy();
   expect(dialog.getByText(/Delete a Forgejo account separately in Forgejo/)).toBeTruthy();
   fireEvent.change(dialog.getByLabelText(/Primary username/), { target: { value: "bob" } });
@@ -151,67 +277,31 @@ test("human deletion remains separate from Forgejo and submits only an exactly c
   fireEvent.click(dialog.getByRole("button", { name: "Remove person" }));
   await waitFor(() => expect(invoke).toHaveBeenCalledWith("delete-human", { username: "bob" }));
 });
-test("add form sends catalog fields, blocks duplicate submissions and refreshes after success", async () => {
-  const invoke = await ready(),
-    dialog = await open("Add repository");
-  fireEvent.change(dialog.getByLabelText(/Project ID/), { target: { value: "new" } });
-  fireEvent.change(dialog.getByLabelText(/Display name/), { target: { value: "New" } });
-  fireEvent.change(dialog.getByLabelText(/Canonical Git URL/), {
-    target: { value: "git@example.test:team/new.git" },
-  });
-  let finish!: (value: { ok: true; project: Project }) => void;
-  invoke.mockImplementationOnce(
-    () =>
-      new Promise((resolve) => {
-        finish = resolve;
-      }),
+
+test("failed removal refreshes facts and retains its partial outcome after closing", async () => {
+  const invoke = await ready();
+  const dialog = await open("Remove project");
+  fireEvent.change(dialog.getByRole("textbox"), { target: { value: "site" } });
+  invoke.mockRejectedValueOnce(
+    new Error("Alice’s workspace was deleted; Bob’s workspace remains."),
   );
-  const submit = dialog.getByRole("button", { name: "Add repository" });
-  fireEvent.click(submit);
-  fireEvent.click(submit);
-  expect(invoke).toHaveBeenCalledTimes(2);
-  expect(submit.hasAttribute("disabled")).toBe(true);
-  expect(invoke).toHaveBeenLastCalledWith("add-existing", {
-    id: "new",
-    display_name: "New",
-    canonical_url: "git@example.test:team/new.git",
-  });
-  finish({ ok: true, project });
-  await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
-});
-test("dialog cancellation resets fields and restores keyboard focus", async () => {
-  await ready();
-  const user = userEvent.setup();
-  const button = screen.getByRole("button", { name: "Add repository" });
-  await user.click(button);
-  const dialog = within(screen.getByRole("dialog"));
-  await user.type(dialog.getByLabelText(/Project ID/), "scratch");
-  await user.keyboard("{Escape}");
-  await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
-  expect(document.activeElement).toBe(button);
-  await user.click(button);
-  expect(
-    (within(screen.getByRole("dialog")).getByLabelText(/Project ID/) as HTMLInputElement).value,
-  ).toBe("");
+  invoke.mockResolvedValueOnce({ ...catalog, projects: [{ ...project, workspace_exists: false }] });
+  fireEvent.click(dialog.getByRole("button", { name: "Remove project" }));
+  await waitFor(() =>
+    expect(dialog.getByRole("alert").textContent).toContain("Bob’s workspace remains"),
+  );
+  expect(screen.getByText("Not set up")).toBeTruthy();
+  expect(screen.getAllByText(/Bob’s workspace remains/)).toHaveLength(1);
+  fireEvent.click(dialog.getAllByRole("button", { name: "Close" }).at(-1)!);
+  expect(screen.getByText(/Bob’s workspace remains/)).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
+  await screen.findByText("1 project available to alice.");
+  expect(screen.getByText(/Bob’s workspace remains/)).toBeTruthy();
 });
 
-test("metadata validation is visible only inside the dialog and focuses the invalid field", async () => {
+test("successful catalog mutation does not hide failed refresh, and recovered reads retire only the read error", async () => {
   const invoke = await ready();
-  const dialog = await open("Edit");
-  const metadata = dialog.getByLabelText("Additional metadata");
-  fireEvent.change(metadata, { target: { value: "{invalid}" } });
-  fireEvent.click(dialog.getByRole("button", { name: "Save changes" }));
-  expect(dialog.getByRole("alert").textContent).toContain(
-    "Additional metadata must be a valid JSON object.",
-  );
-  expect(screen.getAllByText("Additional metadata must be a valid JSON object.")).toHaveLength(1);
-  expect(document.activeElement).toBe(metadata);
-  expect(invoke).toHaveBeenCalledTimes(1);
-});
-
-test("successful edit and failed refresh remain separate; recovered reads clear only the read error", async () => {
-  const invoke = await ready();
-  const dialog = await open("Edit");
+  const dialog = await open("Edit project");
   invoke.mockResolvedValueOnce({ ok: true, project });
   invoke.mockRejectedValueOnce(new Error("catalog unavailable"));
   fireEvent.click(dialog.getByRole("button", { name: "Save changes" }));
@@ -225,24 +315,145 @@ test("successful edit and failed refresh remain separate; recovered reads clear 
   expect(screen.getByText("Site was updated. Existing workspaces were not changed.")).toBeTruthy();
 });
 
-test("failed removal reconciles native facts and preserves its unresolved outcome after closing", async () => {
-  const invoke = await ready();
-  const dialog = await open("Remove project");
-  fireEvent.change(dialog.getByRole("textbox"), { target: { value: "site" } });
-  invoke.mockRejectedValueOnce(
-    new Error("Bob’s workspace remains; Alice’s workspace was deleted."),
-  );
-  invoke.mockResolvedValueOnce({ ...catalog, projects: [{ ...project, workspace_exists: false }] });
-  fireEvent.click(dialog.getByRole("button", { name: "Remove project" }));
-  await waitFor(() =>
-    expect(dialog.getByRole("alert").textContent).toContain("Bob’s workspace remains"),
-  );
-  expect(invoke).toHaveBeenLastCalledWith("list", {});
-  expect(screen.queryByText("Workspace account exists")).toBeNull();
-  expect(screen.getAllByText(/Bob’s workspace remains/)).toHaveLength(1);
+test("inspecting one project never marks a sibling project ready", async () => {
+  const second = { ...project, id: "api", display_name: "API", workspace_username: "soda-w-api" };
+  const invoke = mockInvoke({ ...catalog, projects: [project, second] });
+  render(<ProjectsPage invoke={invoke as Invoke} hostname="soda.lan" />);
+  await screen.findByText("2 projects available to alice.");
+  const dialog = await open("Review setup — Site");
+  await waitFor(() => expect(dialog.getByLabelText("SSH command")).toBeTruthy());
   fireEvent.click(dialog.getAllByRole("button", { name: "Close" }).at(-1)!);
-  expect(screen.getByText(/Bob’s workspace remains/)).toBeTruthy();
-  fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
+  expect(screen.getAllByText("Ready")).toHaveLength(1);
+  expect(screen.getByRole("button", { name: "Review setup — API" })).toBeTruthy();
+  expect(invoke).not.toHaveBeenCalledWith("inspect", { id: "api" });
+});
+
+test("a checkout inspection problem blocks setup instead of overwriting work", async () => {
+  const invoke = await ready(
+    mockInvoke(catalog, {
+      ...inspection,
+      checkout_ready: false,
+      checkout_problem: "Git metadata unreadable",
+    }),
+  );
+  const dialog = await open("Review setup — Site");
+  await waitFor(() => expect(dialog.getByText("Your checkout needs inspection")).toBeTruthy());
+  expect(dialog.queryByRole("button", { name: "Retry setup" })).toBeNull();
+  expect(invoke).not.toHaveBeenCalledWith("setup", expect.anything());
+});
+
+test("add still sends native catalog fields and prevents duplicate submissions", async () => {
+  const invoke = await ready();
+  const dialog = await open("Add repository");
+  fireEvent.change(dialog.getByLabelText(/Project name/), { target: { value: "New" } });
+  fireEvent.change(dialog.getByLabelText(/Project ID/), { target: { value: "new" } });
+  fireEvent.change(dialog.getByLabelText(/Repository SSH address/), {
+    target: { value: "git@example.test:team/new.git" },
+  });
+  let finish!: (value: { ok: true; project: Project }) => void;
+  invoke.mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+  );
+  const submit = dialog.getByRole("button", { name: "Add repository" });
+  fireEvent.click(submit);
+  fireEvent.click(submit);
+  expect(submit.hasAttribute("disabled")).toBe(true);
+  expect(invoke).toHaveBeenCalledTimes(2);
+  expect(invoke).toHaveBeenLastCalledWith("add-existing", {
+    id: "new",
+    display_name: "New",
+    canonical_url: "git@example.test:team/new.git",
+  });
+  finish({ ok: true, project: { ...project, display_name: "New" } });
+  await screen.findByText("New was added to the catalog.");
+});
+
+test("failed setup with no account has visible failure feedback, not just hidden diagnostics", async () => {
+  const invoke = await ready(
+    mockInvoke({ ...catalog, projects: [{ ...project, workspace_exists: false }] }),
+  );
+  invoke.mockResolvedValueOnce({ ok: true, workspace: absent });
+  invoke.mockRejectedValueOnce(new Error("account creation failed"));
+  invoke.mockResolvedValueOnce(catalog);
+  invoke.mockResolvedValueOnce({ ok: true, workspace: absent });
+  const dialog = await open("Set up for me — Site");
+  await waitFor(() =>
+    expect(dialog.getByRole("alert").textContent).toContain("Setup did not finish"),
+  );
+  expect(dialog.getByRole("button", { name: "Set up for me" })).toBeTruthy();
+});
+
+test("a completed setup command is distinguished from failed verification", async () => {
+  const invoke = await ready(
+    mockInvoke({ ...catalog, projects: [{ ...project, workspace_exists: false }] }),
+  );
+  invoke.mockResolvedValueOnce({ ok: true, workspace: absent });
+  invoke.mockResolvedValueOnce({ ok: true, workspace_username: inspection.username });
+  invoke.mockResolvedValueOnce(catalog);
+  invoke.mockRejectedValueOnce(new Error("inspection unavailable"));
+  const dialog = await open("Set up for me — Site");
+  await waitFor(() =>
+    expect(
+      dialog.getByText(/Setup completed, but the current workspace could not be checked/),
+    ).toBeTruthy(),
+  );
+  expect(dialog.queryByRole("button", { name: "Retry setup" })).toBeNull();
+});
+
+test("verified workspace readiness does not hide a failed catalog refresh", async () => {
+  const invoke = await ready(
+    mockInvoke({ ...catalog, projects: [{ ...project, workspace_exists: false }] }),
+  );
+  invoke.mockResolvedValueOnce({ ok: true, workspace: absent });
+  invoke.mockResolvedValueOnce({ ok: true, workspace_username: inspection.username });
+  invoke.mockRejectedValueOnce(new Error("catalog unavailable"));
+  invoke.mockResolvedValueOnce({ ok: true, workspace: inspection });
+  const dialog = await open("Set up for me — Site");
+  await waitFor(() => expect(dialog.getByLabelText("SSH command")).toBeTruthy());
+  expect(dialog.getByRole("alert").textContent).toContain(
+    "The project list could not be refreshed",
+  );
+  fireEvent.click(dialog.getAllByRole("button", { name: "Close" }).at(-1)!);
+  expect(
+    screen.getByText(/current catalog could not be refreshed.*catalog unavailable/),
+  ).toBeTruthy();
+});
+
+test("leaving Projects during setup does not start later native reads", async () => {
+  const invoke = mockInvoke({ ...catalog, projects: [{ ...project, workspace_exists: false }] });
+  const page = render(<ProjectsPage invoke={invoke as Invoke} />);
   await screen.findByText("1 project available to alice.");
-  expect(screen.getByText(/Bob’s workspace remains/)).toBeTruthy();
+  let finish!: (value: { ok: true; workspace_username: string }) => void;
+  invoke.mockResolvedValueOnce({ ok: true, workspace: absent });
+  invoke.mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+  );
+  await open("Set up for me — Site");
+  await waitFor(() => expect(invoke).toHaveBeenCalledWith("setup", { id: "site" }));
+  page.unmount();
+  await act(async () => {
+    finish({ ok: true, workspace_username: inspection.username });
+  });
+  expect(invoke.mock.calls.map(([action]) => action)).toEqual(["list", "inspect", "setup"]);
+});
+
+test("cancel discards draft input and restores keyboard focus", async () => {
+  await ready();
+  const user = userEvent.setup();
+  const trigger = screen.getByRole("button", { name: "Add repository" });
+  await user.click(trigger);
+  await user.type(within(screen.getByRole("dialog")).getByLabelText(/Project name/), "Draft");
+  await user.keyboard("{Escape}");
+  await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  expect(document.activeElement).toBe(trigger);
+  await user.click(trigger);
+  expect(
+    (within(screen.getByRole("dialog")).getByLabelText(/Project name/) as HTMLInputElement).value,
+  ).toBe("");
 });

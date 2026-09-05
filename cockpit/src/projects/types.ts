@@ -53,5 +53,6 @@ export interface Responses {
   "delete-human": { ok: true };
 }
 export type Action = keyof Requests;
-export type FormAction = Exclude<Action, "list" | "inspect">;
+export type ProjectAction = Exclude<Action, "list">;
+export type FormAction = Exclude<ProjectAction, "setup" | "inspect">;
 export type Invoke = <A extends Action>(action: A, payload: Requests[A]) => Promise<Responses[A]>;

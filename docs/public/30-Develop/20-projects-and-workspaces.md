@@ -33,20 +33,21 @@ owned by the Git host.
 
 To add an existing repository:
 
-1. Select **Add existing project**.
+1. Select **Add repository**.
 2. Enter the project information requested by the interface.
 3. Use the credential-free SSH clone URL from the authoritative Git host.
 4. Save the project and confirm it appears in the shared list.
 
 The project ID and canonical URL are fixed when the project is added. Editing a
-project changes its display information or additional metadata, not its URL.
+project through **Actions → Edit project** changes its name or optional additional
+metadata, not its ID or address.
 
 To create a repository in bundled Forgejo or an external Git host:
 
 1. Sign in to the authoritative Git host and create the repository through its
    native interface.
 2. Copy its credential-free SSH clone URL.
-3. Return to **Projects** and select **Add existing project**.
+3. Return to **Projects** and select **Add repository**.
 4. Enter the project information and clone URL, then save it.
 5. Confirm that the native Git host contains the repository and **Projects**
    displays it.
@@ -62,14 +63,19 @@ repository is not deleted.
 
 ## Set up your workspace
 
-1. Select a project.
-2. Select **Set up for me** and wait for the synchronous result.
-3. If setup reports that it retained the workspace and shows its outbound Git
-   public key, add that key to your account through the Git host's native user
-   interface.
-4. Retry **Set up for me** to complete the clone.
-5. Record the derived workspace username and connection guidance from the
-   successful result.
+1. Select **Set up for me** beside the project. Soda checks your SSH prerequisites
+   before creating the workspace. If a workspace account already exists, select
+   **Review setup** to inspect it without changing it.
+2. Follow any personal-key guidance in **Accounts**, then use **Check setup**.
+   Checking never creates an account or downloads a repository.
+3. If the workspace exists but the repository is not downloaded, register the
+   displayed workspace public key with the Git host if it is not already there.
+   Other failures may require checking the repository address or connection;
+   expand **Technical details** for the native diagnostic.
+4. Choose **Retry setup** to complete the clone, or **Set up for me** if no
+   workspace account exists yet.
+5. Once the workspace is verified, copy the SSH command from the connection
+   dialog. The dialog also shows the actual repository path.
 
 Projects listing and setup work without Tailscale once Cockpit is reachable on
 an approved network path. The page builds the displayed SSH command from the
@@ -86,10 +92,14 @@ the workspace, while its public half is registered manually with the Git host.
 Setup does not copy private keys or Tea, GitHub CLI, coding assistant, or other
 credentials from the primary account.
 
-**Workspace account exists** means that the derived Linux account exists. A
-failed clone may retain that account and its outbound key, so this label does
-not claim that the repository clone is complete. Register the reported key and
-retry **Set up for me**; the existing workspace can also be removed explicitly.
+**Setup not confirmed** means the derived Linux account exists but this page has
+not inspected its checkout and keys. **Ready** follows a native inspection; it
+is not inferred from account existence or a remembered completion flag. Refreshing
+the list clears earlier inspection results. Inspection does not prove that the
+Git host is reachable or that its repository permissions are correct.
+
+If setup's outcome cannot be checked, use **Check setup** before retrying. Do not
+assume that a failed or disconnected request left the workspace unchanged.
 
 ## Add tools later
 
@@ -99,14 +109,14 @@ and develop](30-connect-and-develop.md#manage-development-tools).
 
 ## Remove your workspace
 
-Select **Remove my workspace** only after committing, pushing, or otherwise
+Select **Actions → Remove my workspace** only after committing, pushing, or otherwise
 copying anything you need. This permanently deletes your local workspace and
 all uncommitted files in it. It preserves the shared project entry, every other
 person's workspace, and the canonical repository.
 
 ## Remove an entire project
 
-Only an administrator can remove a project. The operation permanently deletes
+Only an administrator can use **Actions → Remove project**. The operation permanently deletes
 the shared Soda entry and every local workspace for every person, including
 uncommitted files. The canonical Forgejo or external repository remains
 intact.

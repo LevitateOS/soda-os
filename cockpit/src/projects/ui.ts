@@ -1,9 +1,8 @@
-import type { FormAction, Requests, Responses, CurrentUser } from "./types";
+import type { FormAction, Requests, Responses, CurrentUser, WorkspaceInspection } from "./types";
 type FormValues = { get(name: string): FormDataEntryValue | null | undefined };
 export const formActions = Object.freeze([
   "add-existing",
   "edit",
-  "setup",
   "remove-workspace",
   "remove",
   "delete-human",
@@ -31,9 +30,6 @@ export function payloadFor(
   }
   if (action === "add-existing" || action === "edit") {
     return catalogPayload(action, data, reportInvalid);
-  }
-  if (action === "setup") {
-    return { id: data.get("id") as string | null };
   }
   if (action === "remove" || action === "remove-workspace") {
     const id = data.get("id") as string | null;
@@ -97,9 +93,6 @@ export function successMessage(
   if (action === "edit") {
     return `${(result as Responses["edit"]).project.display_name} was updated. Existing workspaces were not changed.`;
   }
-  if (action === "setup") {
-    return `Workspace ${(result as Responses["setup"]).workspace_username} is ready for ${(payload as { id: string }).id}.`;
-  }
   if (action === "remove") {
     return `${(payload as { id: string }).id} and its local workspaces were removed. The canonical repository was not deleted.`;
   }
@@ -107,6 +100,20 @@ export function successMessage(
     return `Your ${(payload as { id: string }).id} workspace was removed. The shared project and canonical repository were not deleted.`;
   }
   return `${(payload as { username: string }).username} and their local Soda workspaces were removed. Their Forgejo account was unchanged.`;
+}
+
+export function workspaceReady(workspace?: WorkspaceInspection | null) {
+  return Boolean(workspace?.exists && workspace.checkout_ready && !workspace.workspace_key_problem);
+}
+
+export function workspaceCanSetup(workspace?: WorkspaceInspection | null) {
+  return Boolean(
+    workspace &&
+    !workspaceReady(workspace) &&
+    !workspace.workspace_key_problem &&
+    !workspace.checkout_problem &&
+    (workspace.exists || !workspace.primary_key_problem),
+  );
 }
 
 export function humanDeletionHidden(currentUser: Partial<CurrentUser>) {
@@ -131,21 +138,6 @@ export function errorMessage(error: unknown) {
 }
 
 export const dialogCopy = {
-  "add-existing": [
-    "Add an existing repository",
-    "The repository URL is stored without credentials.",
-    "Add repository",
-  ],
-  edit: [
-    "Edit project",
-    "The project ID and canonical Git URL remain unchanged. Display-name and metadata edits affect future setup only.",
-    "Save changes",
-  ],
-  setup: [
-    "Set up for me",
-    "Creates your derived workspace and clones the repository through native SSH.",
-    "Set up for me",
-  ],
   "remove-workspace": [
     "Remove my workspace",
     "This permanently removes your workspace account, home, independent clone, dependencies, processes, project state, and uncommitted work. The shared project, other workspaces, and canonical repository are not deleted.",

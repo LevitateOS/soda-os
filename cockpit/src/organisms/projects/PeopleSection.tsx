@@ -1,23 +1,64 @@
-import { Button, PageSection, Stack, StackItem, Title } from "@patternfly/react-core";
-export function PeopleSection({ busy, onRemove }: { busy: boolean; onRemove: () => void }) {
+import { useState } from "react";
+import {
+  Button,
+  Dropdown,
+  DropdownItem,
+  DropdownList,
+  Flex,
+  MenuToggle,
+  PageSection,
+} from "@patternfly/react-core";
+
+export function PeopleSection({
+  busy,
+  administrator,
+  onRemove,
+}: {
+  busy: boolean;
+  administrator: boolean;
+  onRemove: () => void;
+}) {
+  const [open, setOpen] = useState(false);
   return (
-    <PageSection aria-labelledby="people-title">
-      <Stack hasGutter>
-        <Title headingLevel="h2" id="people-title">
-          People
-        </Title>
-        <p>
-          Stock Cockpit Accounts creates and lists primary Linux users and owns administrator
-          status. Administrators can use this Soda-aware action to remove one: it deletes local Soda
-          workspaces, then the primary Linux account. Forgejo account deletion remains separate
-          inside Forgejo.
-        </p>
-        <StackItem>
-          <Button variant="danger" isDisabled={busy} onClick={onRemove}>
-            Remove person…
-          </Button>
-        </StackItem>
-      </Stack>
+    <PageSection aria-label="People management">
+      <Flex alignItems={{ default: "alignItemsCenter" }}>
+        <Button
+          variant="link"
+          isInline
+          isDisabled={busy}
+          onClick={() => window.cockpit.jump("/users")}
+        >
+          Manage people in Accounts
+        </Button>
+        {administrator && (
+          <Dropdown
+            isOpen={open}
+            onOpenChange={setOpen}
+            toggle={(ref) => (
+              <MenuToggle
+                ref={ref}
+                variant="plainText"
+                isExpanded={open}
+                isDisabled={busy}
+                onClick={() => setOpen(!open)}
+              >
+                People actions
+              </MenuToggle>
+            )}
+          >
+            <DropdownList>
+              <DropdownItem
+                onClick={() => {
+                  setOpen(false);
+                  onRemove();
+                }}
+              >
+                Remove person…
+              </DropdownItem>
+            </DropdownList>
+          </Dropdown>
+        )}
+      </Flex>
     </PageSection>
   );
 }

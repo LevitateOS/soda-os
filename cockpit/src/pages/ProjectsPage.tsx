@@ -5,7 +5,7 @@ import { DiagnosticAlert } from "../molecules/DiagnosticAlert";
 import { ProjectCatalog } from "../organisms/projects/ProjectCatalog";
 import { PeopleSection } from "../organisms/projects/PeopleSection";
 import { CatalogProjectDialog } from "../organisms/projects/CatalogProjectDialog";
-import { WorkspaceSetupDialog } from "../organisms/projects/WorkspaceSetupDialog";
+import { ProjectsWorkspaceDialog } from "./ProjectsWorkspaceDialog";
 import { RemoveProjectDialog } from "../organisms/projects/RemoveProjectDialog";
 import { RemoveHumanDialog } from "../organisms/projects/RemoveHumanDialog";
 import type { Invoke } from "../projects/types";
@@ -20,6 +20,8 @@ export function ProjectsPage({
 }) {
   const {
     data,
+    inspections,
+    inspected,
     busy,
     loading,
     notice,
@@ -34,7 +36,9 @@ export function ProjectsPage({
   const refreshError = readError ? `The current catalog could not be refreshed. ${readError}` : "";
   const dialogProps = {
     busy,
-    error: [formError, refreshError].filter(Boolean).join("\n\n"),
+    error: [formError?.field === "additional_metadata" ? "" : formError?.message, refreshError]
+      .filter(Boolean)
+      .join("\n\n"),
     onClose: close,
     onSubmit: submit,
   };
@@ -47,6 +51,7 @@ export function ProjectsPage({
         dialogView = (
           <CatalogProjectDialog
             key={key}
+            metadataError={formError?.field === "additional_metadata" ? formError : null}
             action={dialog.action}
             project={dialog.project}
             {...dialogProps}
@@ -54,7 +59,21 @@ export function ProjectsPage({
         );
         break;
       case "setup":
-        dialogView = <WorkspaceSetupDialog key={key} project={dialog.project} {...dialogProps} />;
+      case "inspect":
+        if (dialog.project)
+          dialogView = (
+            <ProjectsWorkspaceDialog
+              key={key}
+              project={dialog.project}
+              invoke={invoke}
+              hostname={hostname}
+              startSetup={dialog.action === "setup"}
+              catalogReadError={readError}
+              onClose={close}
+              onChanged={refresh}
+              onInspected={inspected}
+            />
+          );
         break;
       case "remove":
       case "remove-workspace":
@@ -75,7 +94,7 @@ export function ProjectsPage({
   return (
     <CockpitPageTemplate
       title="Projects"
-      description="Catalog repositories and create an isolated Linux workspace for each person."
+      description="Choose a project and set up your own workspace."
       busy={busy}
       actions={
         <Toolbar>
@@ -105,13 +124,17 @@ export function ProjectsPage({
     >
       <ProjectCatalog
         data={data}
+        inspections={inspections}
         loading={loading}
         busy={busy}
-        hostname={hostname}
         onAction={open}
       />
-      {data && !humanDeletionHidden(data.current_user) && (
-        <PeopleSection busy={busy} onRemove={() => open("delete-human")} />
+      {data && (
+        <PeopleSection
+          busy={busy}
+          administrator={!humanDeletionHidden(data.current_user)}
+          onRemove={() => open("delete-human")}
+        />
       )}
     </CockpitPageTemplate>
   );

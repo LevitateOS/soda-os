@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
-import type { FormAction, Invoke, ListResponse, Project } from "./types";
+import type { ProjectAction, Invoke, ListResponse, Project, WorkspaceInspection } from "./types";
 import { errorMessage, payloadFor, successMessage } from "./ui";
-type Dialog = { action: FormAction; project?: Project };
+type Dialog = { action: ProjectAction; project?: Project };
 type Notice = { message: string; kind: "danger" | "success" };
 export function useProjects(invoke: Invoke) {
   const [data, setData] = useState<ListResponse | null>(null);
@@ -9,13 +9,25 @@ export function useProjects(invoke: Invoke) {
   const [loading, setLoading] = useState(true);
   const [notice, setNotice] = useState<Notice | null>(null);
   const [dialog, setDialog] = useState<Dialog | null>(null);
-  const [formError, setFormError] = useState("");
+  const [formError, setFormError] = useState<{ message: string; field?: string } | null>(null);
   const [readError, setReadError] = useState("");
+  const [inspections, setInspections] = useState<Record<string, WorkspaceInspection>>({});
+  // These are native read snapshots, discarded on refresh—not completion flags.
+  const inspected = useCallback((id: string, inspection: WorkspaceInspection | null) => {
+    if (!active.current) return;
+    setInspections((previous) => {
+      const next = { ...previous };
+      if (inspection) next[id] = inspection;
+      else delete next[id];
+      return next;
+    });
+  }, []);
   const pending = useRef(false);
   const active = useRef(true);
   const load = useCallback(async () => {
     if (!active.current) return;
     setLoading(true);
+    setInspections({});
     try {
       const result = await invoke("list", {});
       if (active.current) {
@@ -49,22 +61,29 @@ export function useProjects(invoke: Invoke) {
       active.current = false;
     };
   }, [refresh]);
-  function open(action: FormAction, project?: Project) {
+  function open(action: ProjectAction, project?: Project) {
     if (pending.current) return;
-    setFormError("");
+    setFormError(null);
     setDialog({ action, project });
   }
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!dialog || pending.current || !event.currentTarget.reportValidity()) return;
+    if (
+      !dialog ||
+      dialog.action === "setup" ||
+      dialog.action === "inspect" ||
+      pending.current ||
+      !event.currentTarget.reportValidity()
+    )
+      return;
     const { action } = dialog;
     const form = event.currentTarget;
-    setFormError("");
+    setFormError(null);
     const payload = payloadFor(action, new FormData(form), (message) => {
-      setFormError(message);
       const field =
         action === "add-existing" || action === "edit" ? "additional_metadata" : "confirmation";
-      (form.elements.namedItem(field) as HTMLElement | null)?.focus();
+      setFormError({ message, field });
+      if (field === "confirmation") (form.elements.namedItem(field) as HTMLElement | null)?.focus();
     });
     if (!payload) return;
     pending.current = true;
@@ -81,7 +100,7 @@ export function useProjects(invoke: Invoke) {
       const message = errorMessage(error);
       await load();
       if (active.current) {
-        setFormError(message);
+        setFormError({ message });
         setNotice({ message, kind: "danger" });
       }
     } finally {
@@ -94,6 +113,8 @@ export function useProjects(invoke: Invoke) {
   }
   return {
     data,
+    inspections,
+    inspected,
     busy,
     loading,
     notice,

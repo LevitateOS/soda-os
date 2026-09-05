@@ -2,36 +2,40 @@ import { Button, Form, Modal, ModalHeader, ModalBody, ModalFooter } from "@patte
 import { DiagnosticAlert } from "../../molecules/DiagnosticAlert";
 import { CatalogFields } from "../../molecules/projects/CatalogFields";
 import type { Project } from "../../projects/types";
-import { dialogCopy } from "../../projects/ui";
 import type { ProjectDialogProps } from "./dialogTypes";
 export function CatalogProjectDialog({
   action,
   project,
   busy,
   error,
+  metadataError,
   onClose,
   onSubmit,
-}: ProjectDialogProps & { action: "add-existing" | "edit"; project?: Project }) {
-  const [title, description, button] = dialogCopy[action];
+}: ProjectDialogProps & {
+  action: "add-existing" | "edit";
+  project?: Project;
+  metadataError: { message: string } | null;
+}) {
+  const title = action === "add-existing" ? "Add repository" : "Edit project";
+  const button = action === "add-existing" ? "Add repository" : "Save changes";
   return (
     <Modal
       isOpen
       variant="medium"
       aria-labelledby="project-dialog-title"
-      aria-describedby="project-dialog-description"
       onClose={busy ? undefined : onClose}
       onEscapePress={onClose}
     >
-      <ModalHeader
-        title={title}
-        labelId="project-dialog-title"
-        description={description}
-        descriptorId="project-dialog-description"
-      />
+      <ModalHeader title={title} labelId="project-dialog-title" />
       <ModalBody>
         <Form id="project-action" onSubmit={onSubmit}>
           {action === "edit" && <input type="hidden" name="id" value={project?.id ?? ""} />}
-          <CatalogFields action={action} project={project} busy={busy} />
+          <CatalogFields
+            action={action}
+            project={project}
+            busy={busy}
+            metadataError={metadataError}
+          />
           {error && <DiagnosticAlert message={error} role="alert" />}
         </Form>
       </ModalBody>

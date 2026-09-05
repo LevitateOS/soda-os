@@ -142,9 +142,7 @@ interaction foundations across the existing pages:
   readback. Missing data does not diagnose administrative permissions.
 
 These changes preserve native authorization, Git ownership, exact destructive
-confirmation, credential clearing, and explicit update activation. They do not
-yet integrate the approved Projects composition. Keep the review prototype
-separate until that integration replaces it.
+confirmation, credential clearing, and explicit update activation.
 
 The native `inspect` action now provides on-demand facts through the existing
 Projects helper: validated account existence, actual checkout path, local Git
@@ -161,9 +159,37 @@ object integrity. They neither refresh the index nor run working-tree filters.
 Malformed checkout metadata is reported for review, never overwritten by setup.
 A read problem is not treated as evidence that a file is absent.
 
+The production Projects page now uses the approved compact list, contextual
+workspace task, management menus, and short catalog forms. Optional metadata
+remains arbitrary JSON; invalid metadata is revealed and focused. Native read
+snapshots can show Ready within the current page, but are discarded on refresh.
+Account existence alone still shows Setup not confirmed. Workspace orchestration
+belongs to the page-level `ProjectsWorkspaceDialog` and `useWorkspace`; passive
+catalog and removal dialogs remain in the presentation layer.
+
+Set up for me performs read-only prerequisite inspection before mutation.
+Review setup, Connection details, and Check setup perform inspection only.
+Failed setup is reconciled through native reads: the actual retained public key
+is shown without assuming every Git failure is an authorization failure. An
+unavailable inspection blocks mutation retries. A completed command and failed
+verification remain distinct. Connection guidance uses the inspected username
+and path and the Cockpit browser hostname. Accounts handoffs use Cockpit's
+native navigation; administrator-only Soda-aware human deletion remains separate.
+
+Source checks and 44 rendered production-bundle states passed on x86-64,
+including 1440px/390px light/dark layouts, clipboard contents, changing-dialog
+focus, repeated metadata-error focus, unknown outcomes, separate catalog-read
+failures, and no external requests. Browser
+responses were simulated, not installed native acceptance. Local evidence is in
+`.artifacts/projects-native-ux/`. AArch64 must reproduce
+matching-native runtime and installed acceptance; both architectures still need
+authorized disposable installation targets. No deployment was performed.
+
 ## Remaining implementation milestones
 
-1. Implement approved Projects setup, connection, removal, and Accounts handoffs.
+1. Complete native-backed affected-account removal summaries and partial-result
+   presentation. Retire the separate prototype after production replaces those
+   remaining approved journeys.
 2. Apply the design to Runners, Tailscale, and Updates, one focused milestone at
    a time. Keep routing optional, provider jobs provider-owned, and download
    separate from confirmed restart.
