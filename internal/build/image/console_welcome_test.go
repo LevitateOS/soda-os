@@ -27,7 +27,7 @@ func TestConsoleWelcomeDisplaysNativeLANAndCurrentUser(t *testing.T) {
 	command.Env = append(os.Environ(), "PATH="+tools+":"+os.Getenv("PATH"))
 	output, err := command.Output()
 	require.NoError(t, err)
-	for _, expected := range []string{"Welcome to Soda OS", "Hostname: atlas", "Cockpit: https://192.168.1.10:9090", "Forgejo: http://192.168.1.10:30000/", "ssh alice@192.168.1.10", "https://10.0.0.2:9090", "Firewall: disabled by default.", "Cockpit: Networking > Firewall.", "Tailscale: disconnected.", "/etc/profile.d/soda-console-welcome.sh"} {
+	for _, expected := range []string{"Welcome to Soda OS", "Hostname: atlas", "Cockpit: https://192.168.1.10:9090", "Forgejo: http://192.168.1.10:30000/", "ssh alice@192.168.1.10", "https://10.0.0.2:9090", "Firewall: enabled by default.", "Cockpit TCP port 9090 is allowed.", "Administrators must allow Forgejo and development ports for LAN access", "Cockpit: Networking > Firewall.", "Tailscale: disconnected.", "/etc/profile.d/soda-console-welcome.sh"} {
 		require.Contains(t, string(output), expected)
 	}
 	require.NotContains(t, string(output), "100.64.0.1")
@@ -45,7 +45,7 @@ func TestWelcomeSurvivesMissingNetworkAndTailnetTools(t *testing.T) {
 	command.Env = append(os.Environ(), "PATH="+tools+":"+os.Getenv("PATH"))
 	output, err := command.Output()
 	require.NoError(t, err)
-	for _, expected := range []string{"Welcome to Soda OS", "Hostname: atlas", "No local IPv4 address", "ssh alice@atlas", "Firewall: disabled by default.", "Cockpit: Networking > Firewall.", "/etc/profile.d/soda-console-welcome.sh"} {
+	for _, expected := range []string{"Welcome to Soda OS", "Hostname: atlas", "No local IPv4 address", "ssh alice@atlas", "Firewall: enabled by default.", "Cockpit TCP port 9090 is allowed.", "Cockpit: Networking > Firewall.", "/etc/profile.d/soda-console-welcome.sh"} {
 		require.Contains(t, string(output), expected)
 	}
 }

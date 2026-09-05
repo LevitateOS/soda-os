@@ -31,11 +31,12 @@ func TestTailscalePageShipsThroughRuntimeWithoutSetup(t *testing.T) {
 	require.Contains(t, string(spec), "%config(noreplace) %{_sysconfdir}/profile.d/soda-console-welcome.sh")
 }
 
-func TestNativeFirewallRemainsAvailableWithoutDefaultEnablement(t *testing.T) {
+func TestNativeFirewallKeepsFedoraDefaultsAndAllowsCockpit(t *testing.T) {
 	root := filepath.Join("..", "..", "..")
 	container, err := os.ReadFile(filepath.Join(root, "packaging/bootc/Containerfile"))
 	require.NoError(t, err)
-	require.Contains(t, string(container), "systemctl disable firewalld.service")
+	require.Contains(t, string(container), "firewall-offline-cmd --add-port=9090/tcp")
+	require.NotContains(t, string(container), "systemctl disable firewalld")
 	require.NotContains(t, string(container), "set-default-zone")
 	require.NotContains(t, string(container), "mask firewalld")
 	for _, line := range strings.Split(string(container), "\n") {
@@ -45,7 +46,7 @@ func TestNativeFirewallRemainsAvailableWithoutDefaultEnablement(t *testing.T) {
 	}
 	preset, err := os.ReadFile(filepath.Join(root, "packaging/rpm/runtime/sources/systemd/89-soda.preset"))
 	require.NoError(t, err)
-	require.Contains(t, string(preset), "disable firewalld.service")
+	require.NotContains(t, string(preset), "firewalld.service")
 	require.Less(t, "89-soda.preset", "90-default.preset")
 	forwarding, err := os.ReadFile(filepath.Join(root, "packaging/rpm/runtime/sources/sysctl/60-soda-tailscale.conf"))
 	require.NoError(t, err)

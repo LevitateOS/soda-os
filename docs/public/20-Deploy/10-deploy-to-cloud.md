@@ -151,7 +151,8 @@ Tailscale starts unenrolled. Access Cockpit through the trusted private network
 and use its separate Tailscale page for native browser sign-in. The page applies
 Forgejo's native conditional Tailnet-address refresh after observing connection.
 The provider's network boundary remains responsible for keeping public ingress
-closed; the host firewall is installed but disabled by default.
+closed; the host firewall keeps Fedora defaults with Cockpit TCP 9090 allowed.
+The host allowance must not be mirrored into public provider ingress.
 
 ## Expected result
 

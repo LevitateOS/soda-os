@@ -8,10 +8,10 @@ message in `/etc/profile.d/soda-console-welcome.sh`.
 
 ## Local-network access
 
-SSH, Cockpit, Forgejo and project-selected development ports are available on
-the trusted LAN. Firewalld is installed but disabled by default, not masked.
-Administrators can enable and configure it through stock Cockpit's
-**Networking → Firewall** page.
+SSH retains the Anaconda/Fedora allowance, and Soda allows Cockpit TCP 9090.
+Firewalld remains enabled with native defaults. Administrators must open Forgejo
+TCP 30000/2222 and project-selected development ports for LAN access through
+stock Cockpit's **Networking → Firewall** page.
 
 Open the local Cockpit URL shown in the welcome message. Use the Linux account
 created by Anaconda or cloud-init. A supplied SSH key enables SSH authentication;

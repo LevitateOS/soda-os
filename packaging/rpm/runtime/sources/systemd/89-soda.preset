@@ -2,4 +2,3 @@ enable sshd.service
 enable forgejo.service
 enable cockpit.socket
 enable tailscaled.service
-disable firewalld.service

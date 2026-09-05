@@ -16,12 +16,14 @@ handles storage, networking, bootloader, firmware, bootc deployment and Linux
 administrator creation. Reusable QCOW2 systems use standard Fedora cloud-init.
 Normal interactive login shows mandatory, stateless connection guidance.
 Tailscale is initially unenrolled; its separate Cockpit page uses native browser
-sign-in. Firewalld is installed but disabled by default; administrators may
-configure it through stock Cockpit Networking → Firewall.
+sign-in. Firewalld keeps Anaconda/Fedora defaults, enabled with Cockpit TCP 9090
+allowed. Administrators open Forgejo TCP 30000/2222 and development ports through
+stock Cockpit Networking → Firewall.
 
 On a trusted LAN, OpenSSH, Cockpit, Forgejo, and project development servers are
-directly reachable over the LAN. In cloud environments, OpenSSH, Cockpit, and
-Forgejo use Tailscale and are never exposed to the public Internet.
+directly reachable once their ports are allowed by the administrator. In cloud
+environments, OpenSSH, Cockpit, and Forgejo use Tailscale and are never exposed
+to the public Internet.
 
 Each person has one primary Linux account. Linux `wheel` membership is the only
 administrator fact, and stock Cockpit Accounts owns user listing and promotion.

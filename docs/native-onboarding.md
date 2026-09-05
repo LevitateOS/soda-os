@@ -17,8 +17,9 @@ Tailscale status. It has no completion or dismissal state. Administrators can
 customize the native `/etc/profile.d/soda-console-welcome.sh` entry point.
 Non-interactive commands, SCP, and SFTP keep their ordinary output.
 
-Soda runs on a trusted network. Firewalld is installed but disabled by default,
-not masked. Administrators can enable and configure it through stock Cockpit's
+Soda preserves Anaconda/Fedora firewall defaults, with firewalld enabled and
+TCP 9090 allowed for Cockpit. Administrators must allow Forgejo TCP 30000/2222
+and selected development ports for LAN access through stock Cockpit's
 **Networking → Firewall** page. Soda supplies no default-drop override, custom
 zone, or connection-selection trust workflow. Enrolling Tailscale does not
 change LAN access or an administrator's firewall choices.
@@ -104,9 +105,10 @@ After separately authorized builds, run on both matching architectures:
 9. Exercise exit-node selection and its LAN-access setting. Advertise this machine
    as an exit node, observe pending approval, approve in the native Tailnet admin
    surface, and verify real routed traffic from another device.
-10. Verify firewalld starts disabled, not masked; enable/configure it through stock
-    Cockpit, reboot and verify the administrator choice persists. Restore the
-    fixture's original firewall configuration before unrelated access scenarios.
+10. Verify firewalld starts enabled and active, with TCP 9090 allowed. Verify
+    Cockpit access before opening Forgejo TCP 30000/2222 and development ports
+    through stock Cockpit, then reboot and verify the administrator choice persists.
+    Restore the fixture's original firewall configuration before unrelated access scenarios.
 11. Check actual local login, SSH login and interactive terminal welcome output,
     and unchanged non-interactive SSH, SCP and SFTP output. Confirm explicit LAN
     and Tailnet Cockpit/Forgejo URLs, including MagicDNS-disabled enrollment.

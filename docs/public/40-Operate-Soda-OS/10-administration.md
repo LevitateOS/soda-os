@@ -55,7 +55,8 @@ connection state, device identity and addresses, peers, exit-node selection,
 LAN access while using an exit node, and exit-node advertisement and approval.
 It links to native Tailscale administration and the official CLI documentation.
 
-Firewalld is disabled by default, not masked. Enable or configure it through
+Firewalld keeps Anaconda/Fedora defaults, enabled with Cockpit TCP 9090 allowed.
+Open Forgejo TCP 30000/2222 and development ports for LAN access through
 stock Cockpit **Networking → Firewall** when needed. Soda does not overwrite
 that administrator choice on later boots.
 

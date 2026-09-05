@@ -67,8 +67,11 @@ machinery, or architecture that only its authors can understand.
   invariant. The automatic update timer is disabled, and Soda has no runtime
   update service or shadow deployment state.
 - Firewalld stays installed and available through stock Cockpit Networking →
-  Firewall, but is disabled by default, not masked. Preserve administrator choices.
-  Soda adds no selected-LAN trust workflow or custom firewall zone.
+  Firewall. Preserve Anaconda/Fedora defaults, including enabled firewalld and
+  native SSH access; Soda adds only the TCP 9090 allowance for Cockpit.
+  Administrators open Forgejo and development ports for LAN access themselves.
+  Preserve administrator choices. Soda adds no selected-LAN trust workflow or
+  custom firewall zone.
 - AArch64 and x86-64 are equal sibling architectures. Neither is a default,
   fallback, experimental, or second-class target.
 - ISO installation uses graphical Anaconda including Linux account creation,

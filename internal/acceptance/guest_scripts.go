@@ -23,8 +23,8 @@ command -v mise
 test ! -e "$HOME/.config/tea/config.yml"
 test ! -e "$HOME/.config/gh/hosts.yml"
 test "$(systemctl is-enabled bootc-fetch-apply-updates.timer 2>/dev/null || true)" = masked
-test "$(systemctl is-enabled firewalld.service)" = disabled
-test "$(systemctl is-active firewalld.service || true)" = inactive
+test "$(systemctl is-enabled firewalld.service)" = enabled
+test "$(systemctl is-active firewalld.service)" = active
 for unit in soda-authd.service soda-cockpit.service sodad.service avahi-daemon.service var-srv-soda-projects.mount soda-tailscale-enroll.service soda-setup.service; do
   ! systemctl cat "$unit" >/dev/null 2>&1
 done
@@ -54,6 +54,20 @@ for path in \
   test ! -e "$path"
 done
 printf 'core-product-boundaries=pass\n'
+`
+
+// Explicit administrator configuration in disposable acceptance guests, not image defaults.
+const acceptanceForgejoFirewall = `set -euo pipefail
+test "$(systemctl is-enabled firewalld.service)" = enabled
+test "$(systemctl is-active firewalld.service)" = active
+firewall-cmd --query-port=9090/tcp
+firewall-cmd --permanent --query-port=9090/tcp
+for port in 30000/tcp 2222/tcp; do
+  test "$(firewall-cmd --query-port="$port" || true)" = no
+  test "$(firewall-cmd --permanent --query-port="$port" || true)" = no
+done
+firewall-cmd --permanent --add-port=30000/tcp --add-port=2222/tcp
+firewall-cmd --add-port=30000/tcp --add-port=2222/tcp
 `
 
 const qcow2GuestChecks = `set -euo pipefail

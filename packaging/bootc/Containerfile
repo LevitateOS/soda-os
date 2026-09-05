@@ -60,7 +60,7 @@ RUN dnf -y --setopt=install_weak_deps=False --enablerepo=updates-testing install
     && restorecon -F /etc/pam.d/cockpit \
     && systemctl preset sshd.service cockpit.socket forgejo.service tailscaled.service firewalld.service \
     && systemctl enable sshd.service cockpit.socket forgejo.service tailscaled.service \
-    && systemctl disable firewalld.service \
+    && firewall-offline-cmd --add-port=9090/tcp \
     && systemctl enable cloud-init-main.service cloud-init-local.service cloud-config.service cloud-final.service \
     && getent passwd git \
     && systemctl mask bootc-fetch-apply-updates.timer \

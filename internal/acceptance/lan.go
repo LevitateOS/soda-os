@@ -28,11 +28,17 @@ rpm -q firewalld
 firewall_enabled=$(systemctl is-enabled firewalld.service || true)
 firewall_active=$(systemctl is-active firewalld.service || true)
 printf 'firewalld.service is-enabled=%s\nfirewalld.service is-active=%s\n' "$firewall_enabled" "$firewall_active"
-test "$firewall_enabled" = disabled
-test "$firewall_active" = inactive
-/usr/libexec/soda/soda-console-welcome | grep -F 'Firewall: disabled by default. Administrators can enable and configure it in Cockpit: Networking > Firewall.'
+test "$firewall_enabled" = enabled
+test "$firewall_active" = active
+firewall-cmd --query-port=9090/tcp
+firewall-cmd --permanent --query-port=9090/tcp
+/usr/libexec/soda/soda-console-welcome | grep -F 'Firewall: enabled by default. Cockpit TCP port 9090 is allowed.'
 tailscale status --json | jq -e '.BackendState != "Running"' >/dev/null
 `, "iso/lan-before-enrollment"); err != nil {
+		return err
+	}
+	// The suite administrator opens Forgejo only after checking first-boot defaults.
+	if err := local.Sudo(ctx, password, acceptanceForgejoFirewall, "iso/administrator-allows-forgejo"); err != nil {
 		return err
 	}
 	output, err := CommandOutput(ctx, CommandSpec{Name: "curl", Args: []string{

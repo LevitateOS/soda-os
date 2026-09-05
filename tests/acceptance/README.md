@@ -36,12 +36,16 @@ After separately authorized builds, run on both matching architectures:
 1. Complete graphical Anaconda account creation, reboot, and verify normal login,
    home ownership, administrator privilege, and cloud-init-disabled ISO startup.
    Before firewall changes or Tailscale enrollment, require
-   `systemctl is-enabled firewalld.service` → `disabled` and
-   `systemctl is-active firewalld.service` → `inactive`. Both commands normally
-   exit nonzero for these expected states; compare their output. Keep firewalld
-   installed, not masked, and confirm the welcome warns it is disabled by default
-   and points to Cockpit → Networking → Firewall. The runner records these states
-   in `iso/lan-before-enrollment` and checks the cloud-init disabled file.
+   `systemctl is-enabled firewalld.service` → `enabled` and
+   `systemctl is-active firewalld.service` → `active`. Require TCP 9090 in both
+   runtime and permanent firewall configuration and confirm Cockpit is reachable.
+   Confirm the welcome explains that administrators must open Forgejo and
+   development ports through Cockpit → Networking → Firewall. The runner records
+   these states in `iso/lan-before-enrollment` and checks the cloud-init disabled
+   file. Only then does the suite administrator explicitly open Forgejo TCP
+   30000/2222 in the disposable guest for subsequent LAN tests; QCOW2 uses the same
+   explicit fixture configuration, recorded as `administrator-allows-forgejo`.
+   Those additional ports are not Soda image or installer defaults.
 2. Provision QCOW2 through VM tooling; check key/password behavior, network
    access, persistence, and mandatory stateless welcome after
    administrator console login.
@@ -76,25 +80,37 @@ mode is specified. `modules/boss/installation.py` schedules that configuration
 before `%post`. This explicitly enables the service, independently of presets.
 Replaying that command in a disposable x86-64 0.6.3 image container changed
 `disabled` to `enabled`, creating both the multi-user startup link and the
-D-Bus activation alias. The new `%post` action,
+D-Bus activation alias. The earlier disable-default fix's `%post` action,
 `systemctl --root=/ disable firewalld.service`, removed both links and restored
 `disabled`; subsequent explicit enablement succeeded. It operates offline in
 Anaconda's target chroot, not on the installer's running systemd, so it does
 not use `--now` or mask the unit. No runtime hook overrides later admin choices.
 
 That reproduction is image-container evidence, not a newly installed boot.
-The reported guest was not accessed or modified. First-boot `inactive` and
-Cockpit interaction must still be observed through disposable native ISO
-acceptance on **both x86-64 and AArch64**. The investigation host lacked native
+The reported guest was not accessed or modified. With the subsequent product
+decision to retain Anaconda/Fedora defaults, the current `%post` only adds
+TCP 9090 and disables cloud-init. The image no longer
+overrides firewalld enablement or its native preset. First-boot `enabled`/`active`,
+Cockpit access, and administrator-controlled Forgejo access must be observed
+through disposable native ISO acceptance on **both x86-64 and AArch64**. The investigation host lacked native
 host `qemu-system-x86_64`, `cloud-localds`, and candidate/fallback release records
 required by the existing full acceptance runner; no new ISO guest was run.
 The sibling AArch64 run must reproduce image and installed-system checks on
 AArch64 hardware. Source tests alone do not qualify either installation path.
 
+The revised native-default behavior was replayed in a disposable x86-64 0.6.3
+image container using the updated Soda preset: Fedora's preset enabled
+firewalld, and adding TCP 9090 before and after Anaconda's firewall command
+preserved enablement and the native SSH allowance. The default zone stayed
+`public`; its only explicit port was `9090/tcp`, with neither `30000/tcp` nor
+`2222/tcp` allowed. This checks offline configuration and idempotence, not a
+running firewall or a newly built image.
+
 ### Access
 
-- On a trusted LAN, SSH, Cockpit, Forgejo, and a normal project development
-  server are directly reachable.
+- On a trusted LAN, SSH and Cockpit are initially reachable. Verify Forgejo and
+  development ports are not allowed by default, then explicitly allow them as
+  the administrator and verify direct access.
 - In a cloud topology, SSH, Cockpit, and Forgejo are reachable through
   Tailscale and rejected from public ingress.
 - Tailscale does not block LAN access.

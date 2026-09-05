@@ -45,8 +45,9 @@ Tailscale status. It has no completion or dismissal state. Administrators can
 customize the native `/etc/profile.d/soda-console-welcome.sh` entry point.
 Non-interactive commands, SCP, and SFTP keep their ordinary output.
 
-Soda runs on a trusted network. Firewalld is installed but disabled by default,
-not masked. Administrators can enable and configure it through stock Cockpit's
+Soda preserves Anaconda/Fedora firewall defaults, with firewalld enabled and
+TCP 9090 allowed for Cockpit. Administrators must allow Forgejo TCP 30000/2222
+and selected development ports for LAN access through stock Cockpit's
 **Networking → Firewall** page. Soda supplies no default-drop override, custom
 zone, or connection-selection trust workflow. Enrolling Tailscale does not
 change LAN access or an administrator's firewall choices.

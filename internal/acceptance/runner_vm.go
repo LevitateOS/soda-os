@@ -200,7 +200,7 @@ func (state *runnerState) exerciseReusableQCOW2(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	fmt.Fprintf(state.output, "Cloud-init is provisioning reusable QCOW2 administrator %q using the protected password at %s and public key at %s. The disposable guest uses ordinary LAN access with firewalld disabled by default.\n", state.options.Administrator.Username, state.paths.password, state.paths.adminPublicKey)
+	fmt.Fprintf(state.output, "Cloud-init is provisioning reusable QCOW2 administrator %q using the protected password at %s and public key at %s. The disposable guest keeps Fedora firewall defaults with Cockpit TCP 9090 allowed; the suite administrator will open Forgejo ports for testing.\n", state.options.Administrator.Username, state.paths.password, state.paths.adminPublicKey)
 	knownHosts := filepath.Join(state.paths.work, "qcow-known-hosts")
 	remote := Remote{
 		Username: state.options.Administrator.Username, Host: "127.0.0.1", Port: state.options.Ports.SSH,
@@ -209,6 +209,9 @@ func (state *runnerState) exerciseReusableQCOW2(ctx context.Context) error {
 	waitCtx, cancel := context.WithTimeout(ctx, 20*time.Minute)
 	defer cancel()
 	if err = remote.WaitReady(waitCtx); err != nil {
+		return err
+	}
+	if err = remote.Sudo(ctx, state.secret("administrator-password"), acceptanceForgejoFirewall, "qcow2/administrator-allows-forgejo"); err != nil {
 		return err
 	}
 	if err = state.verifyNativeOwner(ctx, remote, fmt.Sprintf("http://127.0.0.1:%d", state.options.Ports.Forgejo)); err != nil {

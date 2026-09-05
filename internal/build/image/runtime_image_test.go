@@ -25,7 +25,7 @@ func TestRuntimeImageBootcContainerContract(t *testing.T) {
 		"COPY --from=lock-inputs /fedora-packages.txt /var/tmp/soda-lock/fedora-packages.txt",
 		"COPY --from=lock-inputs /expected-packages.txt /var/tmp/soda-lock/expected-packages.txt",
 		"dnf -y remove avahi", "! rpm -q avahi", "! test -e /usr/lib/systemd/system/avahi-daemon.service",
-		"systemctl disable firewalld.service",
+		"firewall-offline-cmd --add-port=9090/tcp",
 		"getent group soda-workspaces",
 		"install -o root -g root -m 0644 /usr/lib/soda/pam/cockpit /etc/pam.d/cockpit",
 		"systemctl enable sshd.service cockpit.socket forgejo.service tailscaled.service",
@@ -326,7 +326,7 @@ func TestRuntimeImageSystemdHostCompositionContract(t *testing.T) {
 	_, err = os.Stat(filepath.Join(runtimeSources, "systemd", "soda-tailscale-enroll.service"))
 	require.ErrorIs(t, err, os.ErrNotExist)
 
-	require.Contains(t, string(preset), "disable firewalld.service")
+	require.NotContains(t, string(preset), "firewalld.service")
 	_, err = os.Stat(filepath.Join(runtimeSources, "firewalld", "zones", "soda-tailnet.xml"))
 	require.ErrorIs(t, err, os.ErrNotExist)
 	_, err = os.Stat(filepath.Join(runtimeSources, "firewalld", "firewalld.conf"))

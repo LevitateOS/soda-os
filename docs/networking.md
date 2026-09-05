@@ -33,8 +33,9 @@ state with `ss`, `systemctl`, and `journalctl`.
 
 ## Current implementation
 
-Firewalld is installed and disabled by default, not masked. Administrators may
-enable and configure it through stock Cockpit **Networking → Firewall**.
+Firewalld keeps Anaconda/Fedora defaults, enabled with Cockpit TCP 9090 allowed.
+Administrators open Forgejo TCP 30000/2222 and development ports for LAN access
+through stock Cockpit **Networking → Firewall**.
 There is no Soda default zone override, custom Tailnet zone, selected-network
 trust action, or service that changes an administrator's firewall choices.
 Tailscale keeps its native netfilter behavior. Forgejo listens on IPv4 on LAN
