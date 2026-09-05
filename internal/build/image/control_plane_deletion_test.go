@@ -59,7 +59,7 @@ func TestAcceptanceRequiresZeroResidualControlPlane(t *testing.T) {
 	}
 	require.NotContains(t, string(checks), "sodactl health")
 
-	runner, err := os.ReadFile(filepath.Join(root, "internal", "acceptance", "scenarios.go"))
+	itinerary, err := os.ReadFile(filepath.Join(root, "internal", "acceptance", "itinerary.go"))
 	require.NoError(t, err)
-	require.Contains(t, string(runner), `captureCore(ctx, scenario.remote, "final")`)
+	require.Contains(t, string(itinerary), `captureCore(ctx, admin, "final")`)
 }
