@@ -29,7 +29,11 @@ func (state *runnerState) verifyNativeOwner(ctx context.Context, remote Remote, 
 	if user.Login != remote.Username || !user.IsAdmin {
 		return errors.New("native first owner is not the expected Forgejo administrator")
 	}
-	if _, err = forgejoAuthenticatedUser(ctx, remote, remote.Username, state.secret("administrator-password")); err == nil {
+	result, err := requestForgejoUser(ctx, remote, remote.Username, state.secret("administrator-password"))
+	if err != nil {
+		return err
+	}
+	if result.Err == nil {
 		return errors.New("Forgejo owner unexpectedly accepts the independent Linux password")
 	}
 	return nil

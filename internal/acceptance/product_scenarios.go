@@ -132,14 +132,18 @@ func cockpitLoginStatus(ctx context.Context, remote Remote, username string, pas
 	return strings.TrimSpace(string(output)), err
 }
 
-func forgejoAuthenticatedUser(ctx context.Context, remote Remote, username string, password []byte) (forgejoUser, error) {
+func requestForgejoUser(ctx context.Context, remote Remote, username string, password []byte) (CommandResult, error) {
 	config := fmt.Sprintf("user = %s\nsilent\nshow-error\nfail-with-body\nurl = %s\n", curlConfigQuote(username+":"+string(bytes.TrimSpace(password))), curlConfigQuote(forgejoLoopbackEndpoint+"/api/v1/user"))
-	output, err := remote.Exchange(ctx, "product/"+username+"-forgejo-user", []byte(config), "curl", "--config", "-")
-	if err != nil {
+	return remote.Exchange(ctx, "product/"+username+"-forgejo-user", []byte(config), "curl", "--config", "-")
+}
+
+func forgejoAuthenticatedUser(ctx context.Context, remote Remote, username string, password []byte) (forgejoUser, error) {
+	result, err := requestForgejoUser(ctx, remote, username, password)
+	if err = errors.Join(result.Err, err); err != nil {
 		return forgejoUser{}, err
 	}
 	var user forgejoUser
-	err = json.Unmarshal(output, &user)
+	err = json.Unmarshal(result.Stdout, &user)
 	return user, err
 }
 
@@ -255,8 +259,11 @@ func (state *runnerState) verifyWorkspaceRemoval(ctx context.Context, scenario *
 		return err
 	}
 	contents, _ := json.Marshal(map[string]any{"id": "kept", "expected": "reviewed"})
-	err = alice.Capture(ctx, "product/nonadmin-project-remove", append(contents, '\n'), "/usr/libexec/soda/soda-projects", "remove")
-	if err == nil {
+	result, err := alice.Exchange(ctx, "product/nonadmin-project-remove", append(contents, '\n'), "/usr/libexec/soda/soda-projects", "remove")
+	if err != nil {
+		return err
+	}
+	if result.Err == nil {
 		return errors.New("non-administrator removed an entire project")
 	}
 	return nil

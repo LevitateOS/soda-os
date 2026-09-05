@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
 )
 
 type projectResponse struct {
@@ -53,7 +52,11 @@ func (state *runnerState) rejectCatalogURLEdit(ctx context.Context, alice Remote
 	}
 	replacementURL := "git@git.example.test:team/replacement.git"
 	injected := map[string]any{"id": "kept", "display_name": "Kept project", "canonical_url": replacementURL, "team": "web"}
-	if _, err = state.projectCall(ctx, alice, "edit", injected, "seed/catalog-url-edit-rejected"); err == nil {
+	result, err := invokeProject(ctx, alice, "edit", injected, "seed/catalog-url-edit-rejected")
+	if err != nil {
+		return "", err
+	}
+	if result.Err == nil {
 		return "", errors.New("Projects accepted a canonical URL in an edit request")
 	}
 	projects, err = state.catalogProjects(ctx, alice, "seed/catalog-after-url-edit-rejection")
@@ -95,7 +98,7 @@ func (state *runnerState) verifyCatalogMetadataEdit(ctx context.Context, scenari
 }
 
 func (state *runnerState) catalogProjects(ctx context.Context, remote Remote, evidence string) ([]projectRecord, error) {
-	output, err := remote.Exchange(ctx, evidence, []byte("{}\n"), "/usr/libexec/soda/soda-projects", "list")
+	output, err := remote.CaptureOutput(ctx, evidence, []byte("{}\n"), "/usr/libexec/soda/soda-projects", "list")
 	if err != nil {
 		return nil, err
 	}
@@ -140,7 +143,7 @@ func (state *runnerState) createNativeForgejoRepository(ctx context.Context, rem
 	if err != nil {
 		return "", err
 	}
-	output, err := remote.Exchange(ctx, evidence, []byte(config), "curl", "--config", "-", "--json", string(payload))
+	output, err := remote.CaptureOutput(ctx, evidence, []byte(config), "curl", "--config", "-", "--json", string(payload))
 	if err != nil {
 		return "", err
 	}
@@ -156,18 +159,21 @@ func (state *runnerState) createNativeForgejoRepository(ctx context.Context, rem
 	return repository.SSHURL, nil
 }
 
-func (state *runnerState) projectCall(ctx context.Context, remote Remote, action string, payload any, evidence string) (projectResponse, error) {
+func invokeProject(ctx context.Context, remote Remote, action string, payload any, evidence string) (CommandResult, error) {
 	contents, err := json.Marshal(payload)
 	if err != nil {
-		return projectResponse{}, err
+		return CommandResult{}, err
 	}
-	contents = append(contents, '\n')
-	output, err := remote.Exchange(ctx, evidence, contents, "/usr/libexec/soda/soda-projects", action)
-	if err != nil {
+	return remote.Exchange(ctx, evidence, append(contents, '\n'), "/usr/libexec/soda/soda-projects", action)
+}
+
+func (state *runnerState) projectCall(ctx context.Context, remote Remote, action string, payload any, evidence string) (projectResponse, error) {
+	result, err := invokeProject(ctx, remote, action, payload, evidence)
+	if err = errors.Join(result.Err, err); err != nil {
 		return projectResponse{}, err
 	}
 	var response projectResponse
-	if err = json.Unmarshal(output, &response); err != nil {
+	if err = json.Unmarshal(result.Stdout, &response); err != nil {
 		return projectResponse{}, fmt.Errorf("decode %s response: %w", action, err)
 	}
 	if !response.OK {
@@ -211,13 +217,14 @@ type retainedWorkspace struct {
 
 func (state *runnerState) requireRetainedWorkspace(ctx context.Context, remote Remote, projectID, evidence string) (retainedWorkspace, error) {
 	payload := map[string]any{"id": projectID}
-	if _, err := state.projectCall(ctx, remote, "setup", payload, evidence+"-key-required"); err == nil {
-		return retainedWorkspace{}, errors.New("workspace setup completed before its outbound Git key was registered")
-	}
-	diagnostic, err := workspaceSetupDiagnostic(remote, evidence)
+	result, err := invokeProject(ctx, remote, "setup", payload, evidence+"-key-required")
 	if err != nil {
 		return retainedWorkspace{}, err
 	}
+	if result.Err == nil {
+		return retainedWorkspace{}, errors.New("workspace setup completed before its outbound Git key was registered")
+	}
+	diagnostic := result.Stderr
 	if err = validateRetainedWorkspaceDiagnostic(diagnostic); err != nil {
 		return retainedWorkspace{}, err
 	}
@@ -233,18 +240,6 @@ func (state *runnerState) requireRetainedWorkspace(ctx context.Context, remote R
 		return retainedWorkspace{}, err
 	}
 	return retainedWorkspace{Username: project.WorkspaceUsername, PublicKey: publicKey, Diagnostic: diagnostic}, nil
-}
-
-func workspaceSetupDiagnostic(remote Remote, evidence string) ([]byte, error) {
-	diagnosticPath, err := remote.Evidence.path(evidence + "-key-required.stderr")
-	if err != nil {
-		return nil, err
-	}
-	diagnostic, err := os.ReadFile(diagnosticPath)
-	if err != nil {
-		return nil, fmt.Errorf("read retained workspace-key diagnostic: %w", err)
-	}
-	return diagnostic, nil
 }
 
 func validateRetainedWorkspaceDiagnostic(diagnostic []byte) error {

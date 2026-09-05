@@ -6,8 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -24,7 +22,8 @@ type bootcStatus struct {
 }
 
 func (state *runnerState) exerciseFallback(ctx context.Context, scenario *scenarioState, vm **VM) error {
-	if err := state.captureManifest(ctx, scenario.remote, "fallback/b-before"); err != nil {
+	before, err := state.captureManifest(ctx, scenario.remote, "fallback/b-before")
+	if err != nil {
 		return err
 	}
 	if err := state.enableGuestRegistry(ctx, *scenario); err != nil {
@@ -33,41 +32,33 @@ func (state *runnerState) exerciseFallback(ctx context.Context, scenario *scenar
 	if err := state.switchImage(ctx, scenario, vm, "fallback"); err != nil {
 		return err
 	}
-	if err := state.captureManifest(ctx, scenario.remote, "fallback/a-selected"); err != nil {
+	selected, err := state.captureManifest(ctx, scenario.remote, "fallback/a-selected")
+	if err != nil {
 		return err
 	}
-	if err := state.compareManifests("fallback/b-before", "fallback/a-selected"); err != nil {
+	if err := compareManifests(before, selected, "fallback/a-selected"); err != nil {
 		return err
 	}
 	if err := state.switchImage(ctx, scenario, vm, "candidate"); err != nil {
 		return err
 	}
-	if err := state.captureManifest(ctx, scenario.remote, "fallback/b-restored"); err != nil {
+	restored, err := state.captureManifest(ctx, scenario.remote, "fallback/b-restored")
+	if err != nil {
 		return err
 	}
-	if err := state.compareManifests("fallback/b-before", "fallback/b-restored"); err != nil {
+	if err := compareManifests(before, restored, "fallback/b-restored"); err != nil {
 		return err
 	}
 	return state.disableGuestRegistry(ctx, *scenario)
 }
 
-func (state *runnerState) captureManifest(ctx context.Context, remote Remote, relative string) error {
-	return remote.Sudo(ctx, state.secret("administrator-password"), stableManifestScript, relative)
+func (state *runnerState) captureManifest(ctx context.Context, remote Remote, relative string) ([]byte, error) {
+	return remote.SudoOutput(ctx, state.secret("administrator-password"), stableManifestScript, relative)
 }
 
-func (state *runnerState) compareManifests(expected, actual string) error {
-	expectedPath := filepath.Join(state.evidence.Root, expected+".stdout")
-	actualPath := filepath.Join(state.evidence.Root, actual+".stdout")
-	expectedContents, err := os.ReadFile(expectedPath)
-	if err != nil {
-		return err
-	}
-	actualContents, err := os.ReadFile(actualPath)
-	if err != nil {
-		return err
-	}
-	if !bytes.Equal(expectedContents, actualContents) {
-		return fmt.Errorf("normalized preservation manifests differ: %s and %s", expected, actual)
+func compareManifests(expected, actual []byte, label string) error {
+	if !bytes.Equal(expected, actual) {
+		return fmt.Errorf("normalized preservation manifests differ: fallback/b-before and %s", label)
 	}
 	return nil
 }
@@ -91,12 +82,12 @@ func (state *runnerState) switchImage(ctx context.Context, scenario *scenarioSta
 		return err
 	}
 	stageInput := append(bytes.TrimRight(scenario.password, "\r\n"), '\n')
-	_, err = scenario.remote.Exchange(ctx, "fallback/"+target+"-download", stageInput,
+	_, err = scenario.remote.CaptureOutput(ctx, "fallback/"+target+"-download", stageInput,
 		"sudo", "-k", "-S", "-p", "", "/usr/bin/bootc", "switch", "--download-only", reference)
 	if err != nil {
 		return err
 	}
-	_, err = scenario.remote.Exchange(ctx, "fallback/"+target+"-activate", stageInput,
+	_, err = scenario.remote.CaptureOutput(ctx, "fallback/"+target+"-activate", stageInput,
 		"sudo", "-k", "-S", "-p", "", "/usr/bin/bootc", "switch", "--from-downloaded")
 	if err != nil {
 		return err
@@ -119,7 +110,7 @@ func (state *runnerState) switchImage(ctx context.Context, scenario *scenarioSta
 
 func (state *runnerState) assertBootedDigest(ctx context.Context, remote Remote, password []byte, target, digest string) error {
 	input := append(bytes.TrimRight(password, "\r\n"), '\n')
-	output, err := remote.Exchange(ctx, "fallback/"+target+"-bootc-status", input,
+	output, err := remote.CaptureOutput(ctx, "fallback/"+target+"-bootc-status", input,
 		"sudo", "-k", "-S", "-p", "", "/usr/bin/bootc", "status", "--format=json")
 	if err != nil {
 		return err

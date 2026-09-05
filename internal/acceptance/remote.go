@@ -82,11 +82,24 @@ func (remote Remote) Output(ctx context.Context, input []byte, command ...string
 }
 
 func (remote Remote) Capture(ctx context.Context, relative string, input []byte, command ...string) error {
-	_, err := remote.Exchange(ctx, relative, input, command...)
+	_, err := remote.CaptureOutput(ctx, relative, input, command...)
 	return err
 }
 
-func (remote Remote) Exchange(ctx context.Context, relative string, input []byte, command ...string) ([]byte, error) {
+// CommandResult keeps execution failure separate from failure to retain evidence.
+// Expected-failure checks must inspect Err only after checking the evidence error.
+type CommandResult struct {
+	Stdout []byte
+	Stderr []byte
+	Err    error
+}
+
+func (remote Remote) CaptureOutput(ctx context.Context, relative string, input []byte, command ...string) ([]byte, error) {
+	result, err := remote.Exchange(ctx, relative, input, command...)
+	return result.Stdout, errors.Join(result.Err, err)
+}
+
+func (remote Remote) Exchange(ctx context.Context, relative string, input []byte, command ...string) (CommandResult, error) {
 	var stdout, stderr bytes.Buffer
 	var stdin io.Reader
 	if input != nil {
@@ -95,15 +108,20 @@ func (remote Remote) Exchange(ctx context.Context, relative string, input []byte
 	spec := CommandSpec{Name: "ssh", Args: append(remote.sshArgs(), command...), Stdin: stdin, Stdout: &stdout, Stderr: &stderr}
 	runErr := RunCommand(ctx, spec)
 	writeErr := errors.Join(remote.Evidence.Write(relative+".stdout", stdout.Bytes()), remote.Evidence.Write(relative+".stderr", stderr.Bytes()))
-	return stdout.Bytes(), errors.Join(runErr, writeErr)
+	return CommandResult{Stdout: stdout.Bytes(), Stderr: stderr.Bytes(), Err: runErr}, writeErr
 }
 
 func (remote Remote) Sudo(ctx context.Context, password []byte, script string, relative string) error {
+	_, err := remote.SudoOutput(ctx, password, script, relative)
+	return err
+}
+
+func (remote Remote) SudoOutput(ctx context.Context, password []byte, script string, relative string) ([]byte, error) {
 	input := make([]byte, 0, len(password)+len(script)+2)
 	input = append(input, bytes.TrimRight(password, "\r\n")...)
 	input = append(input, '\n')
 	input = append(input, script...)
-	return remote.Capture(ctx, relative, input, sudoScriptCommand()...)
+	return remote.CaptureOutput(ctx, relative, input, sudoScriptCommand()...)
 }
 
 func sudoScriptCommand() []string {
