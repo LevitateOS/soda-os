@@ -70,54 +70,55 @@ test ! -e "$home"
 printf 'local-guest-external-ssh-fixture=removed\n'
 `
 
-func (state *runnerState) verifyExternalSSHRepository(ctx context.Context, scenario *scenarioState) error {
-	if err := scenario.remote.Sudo(ctx, scenario.password, createExternalGitFixtureScript, "product/local-guest-external-ssh-fixture-create"); err != nil {
+func verifyExternalSSHRepository(ctx context.Context, admin personFixture) error {
+	if err := admin.Remote.Sudo(ctx, admin.LinuxPassword, createExternalGitFixtureScript, "product/local-guest-external-ssh-fixture-create"); err != nil {
 		return err
 	}
-	scenarioErr := state.exerciseExternalSSHRepository(ctx, scenario)
-	teardownErr := scenario.remote.Sudo(ctx, scenario.password, teardownExternalGitFixtureScript, "product/local-guest-external-ssh-fixture-teardown")
+	scenarioErr := exerciseExternalSSHRepository(ctx, admin)
+	teardownErr := admin.Remote.Sudo(ctx, admin.LinuxPassword, teardownExternalGitFixtureScript, "product/local-guest-external-ssh-fixture-teardown")
 	return errors.Join(scenarioErr, teardownErr)
 }
 
-func (state *runnerState) exerciseExternalSSHRepository(ctx context.Context, scenario *scenarioState) error {
-	workspace, err := state.setupExternalSSHWorkspace(ctx, scenario)
+func exerciseExternalSSHRepository(ctx context.Context, admin personFixture) error {
+	workspace, err := setupExternalSSHWorkspace(ctx, admin)
 	if err != nil {
 		return err
 	}
-	return state.removeExternalSSHProject(ctx, scenario, workspace.WorkspaceUsername)
+	return removeExternalSSHProject(ctx, admin, workspace.Remote.Username)
 }
 
-func (state *runnerState) setupExternalSSHWorkspace(ctx context.Context, scenario *scenarioState) (projectResponse, error) {
-	payload := map[string]any{
-		"id": externalGitFixtureProjectID, "display_name": "Local guest external SSH fixture", "canonical_url": externalGitFixtureURL,
+func setupExternalSSHWorkspace(ctx context.Context, admin personFixture) (workspaceFixture, error) {
+	payload := map[string]any{"id": externalGitFixtureProjectID, "display_name": "Local guest external SSH fixture", "canonical_url": externalGitFixtureURL}
+	if _, err := projectCall(ctx, admin.Remote, "add-existing", payload, "product/external-ssh-add-existing"); err != nil {
+		return workspaceFixture{}, err
 	}
-	if _, err := state.projectCall(ctx, scenario.remote, "add-existing", payload, "product/external-ssh-add-existing"); err != nil {
-		return projectResponse{}, err
+	if err := requireWorkspaceAbsent(ctx, admin.Remote, externalGitFixtureProjectID, "product/external-ssh-no-workspace"); err != nil {
+		return workspaceFixture{}, err
 	}
-	if err := state.requireWorkspaceAbsent(ctx, scenario.remote, externalGitFixtureProjectID, "product/external-ssh-no-workspace"); err != nil {
-		return projectResponse{}, err
-	}
-	retained, err := state.requireRetainedWorkspace(ctx, scenario.remote, externalGitFixtureProjectID, "product/external-ssh-setup")
+	retained, err := requireRetainedWorkspace(ctx, admin.Remote, externalGitFixtureProjectID, "product/external-ssh-setup")
 	if err != nil {
-		return projectResponse{}, err
+		return workspaceFixture{}, err
 	}
 	if err = requireExternalSSHAuthenticationFailure(retained.Diagnostic); err != nil {
-		return projectResponse{}, err
+		return workspaceFixture{}, err
 	}
-	if err = state.verifyRetainedExternalWorkspace(ctx, scenario, retained); err != nil {
-		return projectResponse{}, err
+	if err = verifyRetainedExternalWorkspace(ctx, admin, retained); err != nil {
+		return workspaceFixture{}, err
 	}
-	if err = state.installExternalGitFixtureKey(ctx, scenario, retained.PublicKey); err != nil {
-		return projectResponse{}, err
+	if err = installExternalGitFixtureKey(ctx, admin, retained.PublicKey); err != nil {
+		return workspaceFixture{}, err
 	}
-	response, err := state.retryWorkspaceSetup(ctx, scenario.remote, externalGitFixtureProjectID, "product/external-ssh-setup")
+	workspace, err := retryWorkspaceSetup(ctx, admin, externalGitFixtureProjectID, "product/external-ssh-setup")
 	if err != nil {
-		return projectResponse{}, err
+		return workspaceFixture{}, err
 	}
-	if response.WorkspaceUsername != retained.Username {
-		return projectResponse{}, errors.New("external SSH setup retry changed the retained workspace account")
+	if workspace.Remote.Username != retained.Username {
+		return workspaceFixture{}, errors.New("external SSH setup retry changed the retained workspace account")
 	}
-	return response, state.verifyExternalSSHClone(ctx, scenario, response.WorkspaceUsername)
+	if err = verifyExternalSSHClone(ctx, workspace.Remote); err != nil {
+		return workspaceFixture{}, err
+	}
+	return workspace, nil
 }
 
 func requireExternalSSHAuthenticationFailure(diagnostic []byte) error {
@@ -127,7 +128,7 @@ func requireExternalSSHAuthenticationFailure(diagnostic []byte) error {
 	return nil
 }
 
-func (state *runnerState) verifyRetainedExternalWorkspace(ctx context.Context, scenario *scenarioState, retained retainedWorkspace) error {
+func verifyRetainedExternalWorkspace(ctx context.Context, admin personFixture, retained retainedWorkspace) error {
 	expectedKey := string(retained.PublicKey)
 	script := fmt.Sprintf(`workspace=%q
 expected_key=%q
@@ -139,10 +140,10 @@ test -s "$home/.ssh/id_ed25519_soda.pub"
 actual_key=$(awk '{print $1 " " $2}' "$home/.ssh/id_ed25519_soda.pub")
 test "$actual_key" = "$expected_key"
 `, retained.Username, expectedKey)
-	return scenario.remote.Sudo(ctx, scenario.password, script, "product/external-ssh-retained-account-key")
+	return admin.Remote.Sudo(ctx, admin.LinuxPassword, script, "product/external-ssh-retained-account-key")
 }
 
-func (state *runnerState) installExternalGitFixtureKey(ctx context.Context, scenario *scenarioState, publicKey []byte) error {
+func installExternalGitFixtureKey(ctx context.Context, admin personFixture, publicKey []byte) error {
 	key64 := base64.StdEncoding.EncodeToString(publicKey)
 	script := fmt.Sprintf(`username=%q
 expected_home=/home/soda-git-fixture
@@ -157,11 +158,10 @@ printf '%%s\n' %q | /usr/bin/base64 --decode >"$home/.ssh/authorized_keys"
 /usr/bin/chmod 0600 "$home/.ssh/authorized_keys"
 /usr/sbin/restorecon -RF "$home/.ssh"
 `, externalGitFixtureUsername, key64)
-	return scenario.remote.Sudo(ctx, scenario.password, script, "product/external-ssh-native-key-install")
+	return admin.Remote.Sudo(ctx, admin.LinuxPassword, script, "product/external-ssh-native-key-install")
 }
 
-func (state *runnerState) verifyExternalSSHClone(ctx context.Context, scenario *scenarioState, workspaceUsername string) error {
-	workspace := scenario.remote.As(workspaceUsername, state.paths.adminKey)
+func verifyExternalSSHClone(ctx context.Context, workspace Remote) error {
 	script := fmt.Sprintf(`set -euo pipefail
 repository="$HOME/Projects/%s"
 test -d "$repository/.git"
@@ -172,11 +172,11 @@ test "$(git -C "$repository" rev-parse --is-inside-work-tree)" = true
 	return workspace.Capture(ctx, "product/external-ssh-complete-clone", []byte(script), "/bin/bash", "-s")
 }
 
-func (state *runnerState) removeExternalSSHProject(ctx context.Context, scenario *scenarioState, workspaceUsername string) error {
-	if _, err := state.projectRemoval(ctx, scenario.remote, "remove", externalGitFixtureProjectID, "product/external-ssh-project-remove"); err != nil {
+func removeExternalSSHProject(ctx context.Context, admin personFixture, workspaceUsername string) error {
+	if _, err := projectRemoval(ctx, admin.Remote, "remove", externalGitFixtureProjectID, "product/external-ssh-project-remove"); err != nil {
 		return err
 	}
-	if err := state.requireProjectAbsent(ctx, scenario.remote, externalGitFixtureProjectID, "product/external-ssh-catalog-removed"); err != nil {
+	if err := requireProjectAbsent(ctx, admin.Remote, externalGitFixtureProjectID, "product/external-ssh-catalog-removed"); err != nil {
 		return err
 	}
 	script := fmt.Sprintf(`workspace=%q
@@ -187,11 +187,11 @@ getent passwd "$fixture_user" >/dev/null
 test "$(/usr/sbin/runuser --user "$fixture_user" -- /usr/bin/git --git-dir="$fixture_repository" rev-parse --is-bare-repository)" = true
 test "$(/usr/sbin/runuser --user "$fixture_user" -- /usr/bin/git --git-dir="$fixture_repository" show main:fixture.txt)" = external-ssh-fixture
 `, workspaceUsername, externalGitFixtureUsername, externalGitFixtureRepository)
-	return scenario.remote.Sudo(ctx, scenario.password, script, "product/external-ssh-canonical-repository-preserved")
+	return admin.Remote.Sudo(ctx, admin.LinuxPassword, script, "product/external-ssh-canonical-repository-preserved")
 }
 
-func (state *runnerState) requireProjectAbsent(ctx context.Context, remote Remote, projectID, evidence string) error {
-	projects, err := state.catalogProjects(ctx, remote, evidence)
+func requireProjectAbsent(ctx context.Context, remote Remote, projectID, evidence string) error {
+	projects, err := catalogProjects(ctx, remote, evidence)
 	if err != nil {
 		return err
 	}

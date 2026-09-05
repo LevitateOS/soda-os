@@ -1,47 +1,31 @@
 package acceptance
 
 import (
-	"bytes"
 	"context"
-	"encoding/base64"
 	"errors"
 	"fmt"
-	"os"
-	"path/filepath"
 	"time"
 )
 
-type scenarioState struct {
-	remote      Remote
-	tailnetHost string
-	password    []byte
-	adminSpace  string
-	aliceSpace  string
-	bobSpace    string
-}
-
-func (state *runnerState) exerciseInstalledSystem(ctx context.Context, scenario *scenarioState, vm **VM) error {
-	password, err := os.ReadFile(state.paths.password)
-	if err != nil {
+func (state *runnerState) exerciseInstalledSystem(ctx context.Context, inputs runInputs, tailnetHost string, vm **VM) error {
+	admin := inputs.Admin
+	if err := state.verifyNativeOwner(ctx, admin, "http://"+urlHost(tailnetHost)+":30000", inputs.OwnerPasswordFile); err != nil {
 		return err
 	}
-	scenario.password = password
-	if err = state.verifyNativeOwner(ctx, scenario.remote, "http://"+urlHost(scenario.tailnetHost)+":30000"); err != nil {
-		return err
-	}
-	if err = state.captureCore(ctx, scenario.remote, "iso"); err != nil {
+	if err := captureCore(ctx, admin, "iso"); err != nil {
 		return fmt.Errorf("installed product boundaries: %w", err)
 	}
-	if err = state.seedPreservationState(ctx, scenario); err != nil {
+	project, err := seedPreservationState(ctx, admin, inputs.Keys)
+	if err != nil {
 		return fmt.Errorf("seed update and fallback state: %w", err)
 	}
-	if err = state.checks.record("update-and-fallback", state.exerciseFallback(ctx, scenario, vm)); err != nil {
+	if err = state.checks.record("update-and-fallback", state.exerciseFallback(ctx, admin, vm)); err != nil {
 		return fmt.Errorf("manual update and fallback: %w", err)
 	}
-	if err = state.exerciseProductScenarios(ctx, scenario); err != nil {
+	if err = state.exerciseProductScenarios(ctx, project, inputs.Keys, tailnetHost); err != nil {
 		return fmt.Errorf("product scenarios: %w", err)
 	}
-	if err = state.checks.record("packaged-boundaries", state.captureCore(ctx, scenario.remote, "final")); err != nil {
+	if err = state.checks.record("packaged-boundaries", captureCore(ctx, admin, "final")); err != nil {
 		return fmt.Errorf("final product capture: %w", err)
 	}
 	if state.logout == nil {
@@ -53,22 +37,21 @@ func (state *runnerState) exerciseInstalledSystem(ctx context.Context, scenario 
 	return (*vm).PowerDown(ctx)
 }
 
-func (state *runnerState) captureCore(ctx context.Context, remote Remote, prefix string) error {
-	password := state.secret("administrator-password")
-	if err := remote.Capture(ctx, prefix+"/core", []byte(coreGuestChecks), "/bin/bash", "-s"); err != nil {
+func captureCore(ctx context.Context, admin personFixture, prefix string) error {
+	if err := admin.Remote.Capture(ctx, prefix+"/core", []byte(coreGuestChecks), "/bin/bash", "-s"); err != nil {
 		return err
 	}
-	if err := remote.Sudo(ctx, password, tailscaleAccessCheck, prefix+"/tailscale-access"); err != nil {
+	if err := admin.Remote.Sudo(ctx, admin.LinuxPassword, tailscaleAccessCheck, prefix+"/tailscale-access"); err != nil {
 		return err
 	}
-	return remote.Sudo(ctx, password, stableManifestScript, prefix+"/system-manifest")
+	return admin.Remote.Sudo(ctx, admin.LinuxPassword, stableManifestScript, prefix+"/system-manifest")
 }
 
-func (state *runnerState) runQCOW2Checks(ctx context.Context, remote Remote, originalVirtualSize int64) error {
+func runQCOW2Checks(ctx context.Context, admin personFixture, originalVirtualSize int64) error {
+	remote, password := admin.Remote, admin.LinuxPassword
 	if err := remote.Capture(ctx, "qcow2/core", []byte(coreGuestChecks), "/bin/bash", "-s"); err != nil {
 		return err
 	}
-	password := state.secret("administrator-password")
 	if err := remote.Sudo(ctx, password, qcow2GuestChecks, "qcow2/cloud-init"); err != nil {
 		return err
 	}
@@ -76,143 +59,77 @@ func (state *runnerState) runQCOW2Checks(ctx context.Context, remote Remote, ori
 	if err := remote.Sudo(ctx, password, growthCheck, "qcow2/volume-growth"); err != nil {
 		return fmt.Errorf("verify reusable QCOW2 guest volume growth: %w", err)
 	}
-	if err := state.verifyLocalProjectsWithoutTailscale(ctx, remote); err != nil {
+	if err := verifyLocalProjectsWithoutTailscale(ctx, admin); err != nil {
 		return err
 	}
 	return remote.Sudo(ctx, password, nativeServiceChecks, "qcow2/native-service-state")
 }
 
-func (state *runnerState) verifyLocalProjectsWithoutTailscale(ctx context.Context, remote Remote) error {
-	projects, err := state.catalogProjects(ctx, remote, "qcow2/projects-list-without-tailscale")
+func verifyLocalProjectsWithoutTailscale(ctx context.Context, admin personFixture) error {
+	projects, err := catalogProjects(ctx, admin.Remote, "qcow2/projects-list-without-tailscale")
 	if err != nil {
 		return err
 	}
 	if len(projects) != 0 {
 		return errors.New("reusable QCOW2 project catalog is not empty before local-only setup")
 	}
-	if _, err = state.createCatalogedForgejoProject(ctx, remote, state.secret("administrator-password"), forgejoProject{
-		ID: "local-only", Name: "Local-only project", Evidence: "qcow2/local-project-create",
-	}); err != nil {
+	if _, err = createCatalogedForgejoProject(ctx, admin, forgejoProject{ID: "local-only", Name: "Local-only project", Evidence: "qcow2/local-project-create"}); err != nil {
 		return err
 	}
-	response, err := state.setupWorkspace(ctx, remote, state.secret("administrator-password"), "local-only", "qcow2/local-project-setup")
-	if err != nil {
+	if _, err = setupWorkspace(ctx, admin, "local-only", "qcow2/local-project-setup"); err != nil {
 		return err
 	}
-	if response.WorkspaceUsername == "" {
-		return errors.New("local-only workspace setup returned no workspace username")
-	}
-	return remote.Sudo(ctx, state.secret("administrator-password"), `set -euo pipefail
+	return admin.Remote.Sudo(ctx, admin.LinuxPassword, `set -euo pipefail
 tailscale status --json | jq -e '.BackendState != "Running"' >/dev/null
 `, "qcow2/projects-setup-without-tailscale")
 }
 
-func (state *runnerState) seedPreservationState(ctx context.Context, scenario *scenarioState) error {
-	response, err := state.createCatalogedForgejoProject(ctx, scenario.remote, scenario.password, forgejoProject{"kept", "Kept project", "seed/kept-create"})
-	if err != nil {
-		return err
+func seedPreservationState(ctx context.Context, admin personFixture, keys fixtureKeys) (projectFixture, error) {
+	if _, err := createCatalogedForgejoProject(ctx, admin, forgejoProject{"kept", "Kept project", "seed/kept-create"}); err != nil {
+		return projectFixture{}, err
 	}
-	response, err = state.setupWorkspace(ctx, scenario.remote, scenario.password, "kept", "seed/admin-setup")
+	adminSpace, err := setupWorkspace(ctx, admin, "kept", "seed/admin-setup")
 	if err != nil {
-		return err
+		return projectFixture{}, err
 	}
-	scenario.adminSpace = response.WorkspaceUsername
-	for _, username := range []string{"alice", "bob"} {
-		if err = state.addNativePerson(ctx, scenario.remote, username, scenario.password, "seed/"+username+"-add"); err != nil {
+	alice, err := addNativePerson(ctx, admin, "alice", keys, "seed/alice-add")
+	if err != nil {
+		return projectFixture{}, err
+	}
+	aliceSpace, err := setupWorkspace(ctx, alice, "kept", "seed/alice-setup")
+	if err != nil {
+		return projectFixture{}, err
+	}
+	bob, err := addNativePerson(ctx, admin, "bob", keys, "seed/bob-add")
+	if err != nil {
+		return projectFixture{}, err
+	}
+	bobSpace, err := setupWorkspace(ctx, bob, "kept", "seed/bob-setup")
+	if err != nil {
+		return projectFixture{}, err
+	}
+	if err = editCatalogMetadata(ctx, alice.Remote, bob.Remote); err != nil {
+		return projectFixture{}, err
+	}
+	project := projectFixture{Admin: adminSpace, Alice: aliceSpace, Bob: bobSpace}
+	if err = seedWorkspaceFiles(ctx, project); err != nil {
+		return projectFixture{}, err
+	}
+	return project, nil
+}
+
+func seedWorkspaceFiles(ctx context.Context, project projectFixture) error {
+	for _, item := range []struct {
+		label     string
+		workspace workspaceFixture
+	}{{"admin", project.Admin}, {"alice", project.Alice}, {"bob", project.Bob}} {
+		script := "set -eu; printf '%s-private\\n' " + item.label + " >\"$HOME/Projects/" + item.workspace.ProjectID + "/" + item.label + "-private.txt\"; printf 'preserved\\n' >\"$HOME/soda-acceptance-state.txt\""
+		if err := item.workspace.Remote.Capture(ctx, "seed/"+item.label+"-workspace-state", []byte(script), "/bin/bash", "-s"); err != nil {
 			return err
 		}
-		person := scenario.remote.As(username, state.personKeyPath(username))
-		response, err = state.setupWorkspace(ctx, person, scenario.password, "kept", "seed/"+username+"-setup")
-		if err != nil {
-			return err
-		}
-		if username == "alice" {
-			scenario.aliceSpace = response.WorkspaceUsername
-		} else {
-			scenario.bobSpace = response.WorkspaceUsername
-		}
 	}
-	if err = state.editCatalogMetadata(ctx, scenario); err != nil {
-		return err
-	}
-	return state.seedWorkspaceFiles(ctx, scenario)
-}
-
-func (state *runnerState) seedWorkspaceFiles(ctx context.Context, scenario *scenarioState) error {
-	for label, workspace := range map[string]string{"admin": scenario.adminSpace, "alice": scenario.aliceSpace, "bob": scenario.bobSpace} {
-		remote := scenario.remote.As(workspace, state.personKeyForLabel(label))
-		script := "set -eu; printf '%s-private\\n' " + label + " >\"$HOME/Projects/kept/" + label + "-private.txt\"; printf 'preserved\\n' >\"$HOME/soda-acceptance-state.txt\""
-		if err := remote.Capture(ctx, "seed/"+label+"-workspace-state", []byte(script), "/bin/bash", "-s"); err != nil {
-			return err
-		}
-	}
-	return scenario.remote.Sudo(ctx, scenario.password, workspaceCheckScript(state.options.Administrator.Username, "kept", scenario.adminSpace), "seed/workspace-boundary")
-}
-
-func (state *runnerState) addNativePerson(ctx context.Context, remote Remote, username string, password []byte, evidence string) error {
-	publicKey, err := state.ensurePersonKey(ctx, username)
-	if err != nil {
-		return err
-	}
-	password64 := base64.StdEncoding.EncodeToString(bytes.TrimSpace(password))
-	key64 := base64.StdEncoding.EncodeToString(bytes.TrimSpace(publicKey))
-	script := fmt.Sprintf(`username=%q
-/usr/sbin/useradd --create-home --user-group --shell /bin/bash --home-dir "/home/$username" -- "$username"
-printf '%%s' %q | base64 --decode | /usr/bin/passwd --stdin -- "$username"
-/usr/bin/install -d -m 0700 -o "$username" -g "$username" "/home/$username/.ssh"
-printf '%%s' %q | base64 --decode >"/home/$username/.ssh/authorized_keys"
-/usr/bin/chown "$username:$username" "/home/$username/.ssh/authorized_keys"
-/usr/bin/chmod 0600 "/home/$username/.ssh/authorized_keys"
-/usr/sbin/restorecon -RF "/home/$username/.ssh"
-`, username, password64, key64)
-	if err = remote.Sudo(ctx, password, script, evidence+"-linux"); err != nil {
-		return err
-	}
-	person := remote.As(username, state.personKeyPath(username))
-	user, err := forgejoAuthenticatedUser(ctx, person, username, password)
-	if err != nil {
-		return err
-	}
-	if user.Login != username || user.IsAdmin {
-		return fmt.Errorf("native Forgejo PAM created unexpected person %q", user.Login)
-	}
-	return nil
-}
-
-func (state *runnerState) ensurePersonKey(ctx context.Context, username string) ([]byte, error) {
-	path := state.personKeyPath(username)
-	if _, err := os.Stat(path); err == nil {
-		return os.ReadFile(path + ".pub")
-	}
-	if err := RunCommand(ctx, CommandSpec{Name: "ssh-keygen", Args: []string{"-q", "-t", "ed25519", "-N", "", "-C", username + "@soda-acceptance", "-f", path}}); err != nil {
-		return nil, err
-	}
-	privateKey, err := os.ReadFile(path)
-	if err != nil {
-		return nil, err
-	}
-	state.secrets = append(state.secrets, Secret{Label: username + "-private-key", Value: privateKey})
-	return os.ReadFile(path + ".pub")
-}
-
-func (state *runnerState) personKeyPath(username string) string {
-	return filepath.Join(state.paths.people, username)
-}
-
-func (state *runnerState) personKeyForLabel(label string) string {
-	if label == "admin" {
-		return state.paths.adminKey
-	}
-	return state.personKeyPath(label)
-}
-
-func (state *runnerState) secret(label string) []byte {
-	for _, secret := range state.secrets {
-		if secret.Label == label {
-			return secret.Value
-		}
-	}
-	return nil
+	admin := project.Admin.Person
+	return admin.Remote.Sudo(ctx, admin.LinuxPassword, workspaceCheckScript(admin.Remote.Username, project.Admin.ProjectID, project.Admin.Remote.Username), "seed/workspace-boundary")
 }
 
 func workspaceCheckScript(primary, project, workspace string) string {

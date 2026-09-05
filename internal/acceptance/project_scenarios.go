@@ -32,17 +32,16 @@ type forgejoProject struct {
 	Evidence string
 }
 
-func (state *runnerState) editCatalogMetadata(ctx context.Context, scenario *scenarioState) error {
-	alice := scenario.remote.As("alice", state.personKeyPath("alice"))
-	canonicalURL, err := state.rejectCatalogURLEdit(ctx, alice)
+func editCatalogMetadata(ctx context.Context, alice, bob Remote) error {
+	canonicalURL, err := rejectCatalogURLEdit(ctx, alice)
 	if err != nil {
 		return err
 	}
-	return state.verifyCatalogMetadataEdit(ctx, scenario, alice, canonicalURL)
+	return verifyCatalogMetadataEdit(ctx, alice, bob, canonicalURL)
 }
 
-func (state *runnerState) rejectCatalogURLEdit(ctx context.Context, alice Remote) (string, error) {
-	projects, err := state.catalogProjects(ctx, alice, "seed/catalog-before-edit")
+func rejectCatalogURLEdit(ctx context.Context, alice Remote) (string, error) {
+	projects, err := catalogProjects(ctx, alice, "seed/catalog-before-edit")
 	if err != nil {
 		return "", err
 	}
@@ -59,7 +58,7 @@ func (state *runnerState) rejectCatalogURLEdit(ctx context.Context, alice Remote
 	if result.Err == nil {
 		return "", errors.New("Projects accepted a canonical URL in an edit request")
 	}
-	projects, err = state.catalogProjects(ctx, alice, "seed/catalog-after-url-edit-rejection")
+	projects, err = catalogProjects(ctx, alice, "seed/catalog-after-url-edit-rejection")
 	if err != nil {
 		return "", err
 	}
@@ -73,13 +72,12 @@ func (state *runnerState) rejectCatalogURLEdit(ctx context.Context, alice Remote
 	return kept.CanonicalURL, nil
 }
 
-func (state *runnerState) verifyCatalogMetadataEdit(ctx context.Context, scenario *scenarioState, alice Remote, canonicalURL string) error {
+func verifyCatalogMetadataEdit(ctx context.Context, alice, bob Remote, canonicalURL string) error {
 	payload := map[string]any{"id": "kept", "display_name": "Kept project", "team": "web", "future": map[string]any{"shape": true}}
-	if _, err := state.projectCall(ctx, alice, "edit", payload, "seed/catalog-edit"); err != nil {
+	if _, err := projectCall(ctx, alice, "edit", payload, "seed/catalog-edit"); err != nil {
 		return err
 	}
-	bob := scenario.remote.As("bob", state.personKeyPath("bob"))
-	projects, err := state.catalogProjects(ctx, bob, "seed/catalog-metadata")
+	projects, err := catalogProjects(ctx, bob, "seed/catalog-metadata")
 	if err != nil {
 		return err
 	}
@@ -97,7 +95,7 @@ func (state *runnerState) verifyCatalogMetadataEdit(ctx context.Context, scenari
 	return nil
 }
 
-func (state *runnerState) catalogProjects(ctx context.Context, remote Remote, evidence string) ([]projectRecord, error) {
+func catalogProjects(ctx context.Context, remote Remote, evidence string) ([]projectRecord, error) {
 	output, err := remote.CaptureOutput(ctx, evidence, []byte("{}\n"), "/usr/libexec/soda/soda-projects", "list")
 	if err != nil {
 		return nil, err
@@ -120,30 +118,29 @@ func catalogProject(projects []projectRecord, id string) (projectRecord, error) 
 	return projectRecord{}, fmt.Errorf("catalog does not contain project %s", id)
 }
 
-func (state *runnerState) createCatalogedForgejoProject(ctx context.Context, remote Remote, password []byte, project forgejoProject) (projectResponse, error) {
-	canonicalURL, err := state.createNativeForgejoRepository(ctx, remote, password, project.ID, project.Evidence+"-forgejo")
+func createCatalogedForgejoProject(ctx context.Context, person personFixture, project forgejoProject) (projectResponse, error) {
+	canonicalURL, err := createNativeForgejoRepository(ctx, person, project.ID, project.Evidence+"-forgejo")
 	if err != nil {
 		return projectResponse{}, err
 	}
 	payload := map[string]any{"id": project.ID, "display_name": project.Name, "canonical_url": canonicalURL}
-	response, err := state.projectCall(ctx, remote, "add-existing", payload, project.Evidence+"-catalog")
+	response, err := projectCall(ctx, person.Remote, "add-existing", payload, project.Evidence+"-catalog")
 	if err != nil {
 		return projectResponse{}, err
 	}
-	if err = state.requireWorkspaceAbsent(ctx, remote, project.ID, project.Evidence+"-catalog-no-workspace"); err != nil {
+	if err = requireWorkspaceAbsent(ctx, person.Remote, project.ID, project.Evidence+"-catalog-no-workspace"); err != nil {
 		return projectResponse{}, err
 	}
 	return response, nil
 }
 
-func (state *runnerState) createNativeForgejoRepository(ctx context.Context, remote Remote, password []byte, id, evidence string) (string, error) {
-	password = state.forgejoPassword(remote.Username, password)
-	config := fmt.Sprintf("user = %s\nsilent\nshow-error\nfail-with-body\nurl = %s\n", curlConfigQuote(remote.Username+":"+string(bytes.TrimSpace(password))), curlConfigQuote(forgejoLoopbackEndpoint+"/api/v1/user/repos"))
+func createNativeForgejoRepository(ctx context.Context, person personFixture, id, evidence string) (string, error) {
+	config := fmt.Sprintf("user = %s\nsilent\nshow-error\nfail-with-body\nurl = %s\n", curlConfigQuote(person.Remote.Username+":"+string(bytes.TrimSpace(person.ForgejoPassword))), curlConfigQuote(forgejoLoopbackEndpoint+"/api/v1/user/repos"))
 	payload, err := json.Marshal(map[string]any{"name": id, "auto_init": false})
 	if err != nil {
 		return "", err
 	}
-	output, err := remote.CaptureOutput(ctx, evidence, []byte(config), "curl", "--config", "-", "--json", string(payload))
+	output, err := person.Remote.CaptureOutput(ctx, evidence, []byte(config), "curl", "--config", "-", "--json", string(payload))
 	if err != nil {
 		return "", err
 	}
@@ -167,7 +164,7 @@ func invokeProject(ctx context.Context, remote Remote, action string, payload an
 	return remote.Exchange(ctx, evidence, append(contents, '\n'), "/usr/libexec/soda/soda-projects", action)
 }
 
-func (state *runnerState) projectCall(ctx context.Context, remote Remote, action string, payload any, evidence string) (projectResponse, error) {
+func projectCall(ctx context.Context, remote Remote, action string, payload any, evidence string) (projectResponse, error) {
 	result, err := invokeProject(ctx, remote, action, payload, evidence)
 	if err = errors.Join(result.Err, err); err != nil {
 		return projectResponse{}, err
@@ -182,8 +179,8 @@ func (state *runnerState) projectCall(ctx context.Context, remote Remote, action
 	return response, nil
 }
 
-func (state *runnerState) projectRemoval(ctx context.Context, remote Remote, action, target, evidence string) (projectResponse, error) {
-	inspected, err := state.projectCall(ctx, remote, "removal-inspect", map[string]string{"action": action, "target": target}, evidence+"-inspect")
+func projectRemoval(ctx context.Context, remote Remote, action, target, evidence string) (projectResponse, error) {
+	inspected, err := projectCall(ctx, remote, "removal-inspect", map[string]string{"action": action, "target": target}, evidence+"-inspect")
 	if err != nil {
 		return projectResponse{}, err
 	}
@@ -195,18 +192,18 @@ func (state *runnerState) projectRemoval(ctx context.Context, remote Remote, act
 		delete(payload, "id")
 		payload["username"] = target
 	}
-	return state.projectCall(ctx, remote, action, payload, evidence)
+	return projectCall(ctx, remote, action, payload, evidence)
 }
 
-func (state *runnerState) setupWorkspace(ctx context.Context, remote Remote, password []byte, projectID, evidence string) (projectResponse, error) {
-	retained, err := state.requireRetainedWorkspace(ctx, remote, projectID, evidence)
+func setupWorkspace(ctx context.Context, person personFixture, projectID, evidence string) (workspaceFixture, error) {
+	retained, err := requireRetainedWorkspace(ctx, person.Remote, projectID, evidence)
 	if err != nil {
-		return projectResponse{}, err
+		return workspaceFixture{}, err
 	}
-	if err = state.registerForgejoKey(ctx, remote, password, retained.PublicKey, evidence+"-register-key"); err != nil {
-		return projectResponse{}, err
+	if err = registerForgejoKey(ctx, person, retained.PublicKey, evidence+"-register-key"); err != nil {
+		return workspaceFixture{}, err
 	}
-	return state.retryWorkspaceSetup(ctx, remote, projectID, evidence)
+	return retryWorkspaceSetup(ctx, person, projectID, evidence)
 }
 
 type retainedWorkspace struct {
@@ -215,7 +212,7 @@ type retainedWorkspace struct {
 	Diagnostic []byte
 }
 
-func (state *runnerState) requireRetainedWorkspace(ctx context.Context, remote Remote, projectID, evidence string) (retainedWorkspace, error) {
+func requireRetainedWorkspace(ctx context.Context, remote Remote, projectID, evidence string) (retainedWorkspace, error) {
 	payload := map[string]any{"id": projectID}
 	result, err := invokeProject(ctx, remote, "setup", payload, evidence+"-key-required")
 	if err != nil {
@@ -228,7 +225,7 @@ func (state *runnerState) requireRetainedWorkspace(ctx context.Context, remote R
 	if err = validateRetainedWorkspaceDiagnostic(diagnostic); err != nil {
 		return retainedWorkspace{}, err
 	}
-	project, err := state.workspaceRecord(ctx, remote, projectID, evidence+"-retained-account")
+	project, err := workspaceRecord(ctx, remote, projectID, evidence+"-retained-account")
 	if err != nil {
 		return retainedWorkspace{}, err
 	}
@@ -249,28 +246,30 @@ func validateRetainedWorkspaceDiagnostic(diagnostic []byte) error {
 	return nil
 }
 
-func (state *runnerState) retryWorkspaceSetup(ctx context.Context, remote Remote, projectID, evidence string) (projectResponse, error) {
-	payload := map[string]any{"id": projectID}
-	response, err := state.projectCall(ctx, remote, "setup", payload, evidence+"-retry")
+func retryWorkspaceSetup(ctx context.Context, person personFixture, projectID, evidence string) (workspaceFixture, error) {
+	response, err := projectCall(ctx, person.Remote, "setup", map[string]any{"id": projectID}, evidence+"-retry")
 	if err != nil {
-		return projectResponse{}, err
+		return workspaceFixture{}, err
 	}
-	if err = state.requireWorkspaceExists(ctx, remote, projectID, evidence+"-complete-account"); err != nil {
-		return projectResponse{}, err
+	if err = requireWorkspaceExists(ctx, person.Remote, projectID, evidence+"-complete-account"); err != nil {
+		return workspaceFixture{}, err
 	}
-	return response, nil
+	if response.WorkspaceUsername == "" {
+		return workspaceFixture{}, errors.New("workspace setup returned no workspace username")
+	}
+	return workspaceFixture{Person: person, Remote: person.Remote.As(response.WorkspaceUsername, person.Remote.Key), ProjectID: projectID}, nil
 }
 
-func (state *runnerState) workspaceRecord(ctx context.Context, remote Remote, projectID, evidence string) (projectRecord, error) {
-	projects, err := state.catalogProjects(ctx, remote, evidence)
+func workspaceRecord(ctx context.Context, remote Remote, projectID, evidence string) (projectRecord, error) {
+	projects, err := catalogProjects(ctx, remote, evidence)
 	if err != nil {
 		return projectRecord{}, err
 	}
 	return catalogProject(projects, projectID)
 }
 
-func (state *runnerState) requireWorkspaceExists(ctx context.Context, remote Remote, projectID, evidence string) error {
-	project, err := state.workspaceRecord(ctx, remote, projectID, evidence)
+func requireWorkspaceExists(ctx context.Context, remote Remote, projectID, evidence string) error {
+	project, err := workspaceRecord(ctx, remote, projectID, evidence)
 	if err != nil {
 		return err
 	}
@@ -280,8 +279,8 @@ func (state *runnerState) requireWorkspaceExists(ctx context.Context, remote Rem
 	return nil
 }
 
-func (state *runnerState) requireWorkspaceAbsent(ctx context.Context, remote Remote, projectID, evidence string) error {
-	project, err := state.workspaceRecord(ctx, remote, projectID, evidence)
+func requireWorkspaceAbsent(ctx context.Context, remote Remote, projectID, evidence string) error {
+	project, err := workspaceRecord(ctx, remote, projectID, evidence)
 	if err != nil {
 		return err
 	}

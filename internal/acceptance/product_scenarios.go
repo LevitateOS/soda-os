@@ -11,78 +11,77 @@ import (
 	"strings"
 )
 
-func (state *runnerState) exerciseProductScenarios(ctx context.Context, scenario *scenarioState) error {
-	if err := state.checks.record("workspace-boundaries-and-git-keys", state.verifyWorkspaceBoundaries(ctx, scenario)); err != nil {
+func (state *runnerState) exerciseProductScenarios(ctx context.Context, project projectFixture, keys fixtureKeys, tailnetHost string) error {
+	if err := state.checks.record("workspace-boundaries-and-git-keys", verifyWorkspaceBoundaries(ctx, project, keys)); err != nil {
 		return err
 	}
-	if err := state.checks.record("ssh-transports", state.verifySSHTransports(ctx, scenario)); err != nil {
+	if err := state.checks.record("ssh-transports", verifySSHTransports(ctx, project.Alice.Remote)); err != nil {
 		return err
 	}
-	if err := state.checks.record("development-server-access", state.verifyDevelopmentServer(ctx, scenario)); err != nil {
+	if err := state.checks.record("development-server-access", verifyDevelopmentServer(ctx, project.Alice, project.Bob, tailnetHost)); err != nil {
 		return err
 	}
-	if err := state.checks.record("native-mise-ownership", state.verifyMiseOwnership(ctx, scenario)); err != nil {
+	if err := state.checks.record("native-mise-ownership", verifyMiseOwnership(ctx, project)); err != nil {
 		return err
 	}
-	if err := state.checks.record("workspace-removal", state.verifyWorkspaceRemoval(ctx, scenario)); err != nil {
+	// Alice must still be non-administrative here. Her workspace is removed before promotion.
+	if err := state.checks.record("workspace-removal", verifyWorkspaceRemoval(ctx, project)); err != nil {
 		return err
 	}
-	if err := state.checks.record("cockpit-auth-and-independent-roles", state.verifyCockpitAndRoles(ctx, scenario)); err != nil {
+	if err := state.checks.record("cockpit-auth-and-independent-roles", verifyCockpitAndRoles(ctx, project.Admin, project.Alice.Person)); err != nil {
 		return err
 	}
-	if err := state.checks.record("external-ssh-repository", state.verifyExternalSSHRepository(ctx, scenario)); err != nil {
+	if err := state.checks.record("external-ssh-repository", verifyExternalSSHRepository(ctx, project.Admin.Person)); err != nil {
 		return err
 	}
-	if err := state.checks.record("project-removal", state.verifyProjectRemoval(ctx, scenario)); err != nil {
+	if err := state.checks.record("project-removal", verifyProjectRemoval(ctx, project.Admin.Person, project.Bob.Person)); err != nil {
 		return err
 	}
-	return state.checks.record("human-removal-preserves-forgejo", state.verifyIndependentPersonDeletion(ctx, scenario))
+	return state.checks.record("human-removal-preserves-forgejo", verifyIndependentPersonDeletion(ctx, project.Admin.Person, keys))
 }
 
-func (state *runnerState) verifyWorkspaceBoundaries(ctx context.Context, scenario *scenarioState) error {
-	identities := []struct{ label, primary, workspace string }{
-		{"admin", state.options.Administrator.Username, scenario.adminSpace},
-		{"alice", "alice", scenario.aliceSpace},
-		{"bob", "bob", scenario.bobSpace},
-	}
-	for _, identity := range identities {
-		script := workspaceCheckScript(identity.primary, "kept", identity.workspace)
-		if err := scenario.remote.Sudo(ctx, scenario.password, script, "product/"+identity.label+"-workspace-boundary"); err != nil {
+func verifyWorkspaceBoundaries(ctx context.Context, project projectFixture, keys fixtureKeys) error {
+	admin := project.Admin.Person
+	for _, item := range []struct {
+		label     string
+		workspace workspaceFixture
+	}{{"admin", project.Admin}, {"alice", project.Alice}, {"bob", project.Bob}} {
+		script := workspaceCheckScript(item.workspace.Person.Remote.Username, item.workspace.ProjectID, item.workspace.Remote.Username)
+		if err := admin.Remote.Sudo(ctx, admin.LinuxPassword, script, "product/"+item.label+"-workspace-boundary"); err != nil {
 			return err
 		}
 	}
-	if err := state.verifyIndependentWorkspaceUIDs(ctx, scenario); err != nil {
+	if err := verifyIndependentWorkspaceUIDs(ctx, project); err != nil {
 		return err
 	}
-	if err := state.verifyWorkspaceGitKeys(ctx, scenario); err != nil {
+	if err := verifyWorkspaceGitKeys(ctx, project); err != nil {
 		return err
 	}
-	if err := state.verifyWorkspaceForgejoAbsence(ctx, scenario); err != nil {
+	if err := verifyWorkspaceForgejoAbsence(ctx, project); err != nil {
 		return err
 	}
-	return state.verifyOneTimeAuthorizedKeys(ctx, scenario)
+	return verifyOneTimeAuthorizedKeys(ctx, project.Alice, keys)
 }
 
-func (state *runnerState) verifyIndependentWorkspaceUIDs(ctx context.Context, scenario *scenarioState) error {
-	script := fmt.Sprintf("test \"$(printf '%%s\\n' $(id -u %s) $(id -u %s) $(id -u %s) | sort -u | wc -l)\" -eq 3", scenario.adminSpace, scenario.aliceSpace, scenario.bobSpace)
-	return scenario.remote.Sudo(ctx, scenario.password, script, "product/workspace-uids")
+func verifyIndependentWorkspaceUIDs(ctx context.Context, project projectFixture) error {
+	script := fmt.Sprintf("test \"$(printf '%%s\\n' $(id -u %s) $(id -u %s) $(id -u %s) | sort -u | wc -l)\" -eq 3", project.Admin.Remote.Username, project.Alice.Remote.Username, project.Bob.Remote.Username)
+	return project.Admin.Person.Remote.Sudo(ctx, project.Admin.Person.LinuxPassword, script, "product/workspace-uids")
 }
 
-func (state *runnerState) verifyWorkspaceForgejoAbsence(ctx context.Context, scenario *scenarioState) error {
-	script := "set -eu; url=" + forgejoLoopbackEndpoint + "; for user in " + scenario.adminSpace + " " + scenario.aliceSpace + " " + scenario.bobSpace + "; do test \"$(curl --silent --output /dev/null --write-out '%{http_code}' \"$url/api/v1/users/$user\")\" = 404; done"
-	return scenario.remote.Capture(ctx, "product/workspace-forgejo-absence", []byte(script), "/bin/bash", "-s")
+func verifyWorkspaceForgejoAbsence(ctx context.Context, project projectFixture) error {
+	script := "set -eu; url=" + forgejoLoopbackEndpoint + "; for user in " + project.Admin.Remote.Username + " " + project.Alice.Remote.Username + " " + project.Bob.Remote.Username + "; do test \"$(curl --silent --output /dev/null --write-out '%{http_code}' \"$url/api/v1/users/$user\")\" = 404; done"
+	return project.Admin.Person.Remote.Capture(ctx, "product/workspace-forgejo-absence", []byte(script), "/bin/bash", "-s")
 }
 
-func (state *runnerState) verifySSHTransports(ctx context.Context, scenario *scenarioState) error {
-	workspace := scenario.remote.As(scenario.aliceSpace, state.personKeyPath("alice"))
+func verifySSHTransports(ctx context.Context, workspace Remote) error {
 	if err := workspace.Capture(ctx, "product/direct-command", nil, "id"); err != nil {
 		return err
 	}
-	source := filepath.Join(state.evidence.Root, "product", "scp-input.txt")
-	if err := state.evidence.Write("product/scp-input.txt", []byte("scp-product-evidence\n")); err != nil {
+	source := filepath.Join(workspace.Evidence.Root, "product", "scp-input.txt")
+	if err := workspace.Evidence.Write("product/scp-input.txt", []byte("scp-product-evidence\n")); err != nil {
 		return err
 	}
-	args := append(scpArgs(workspace), source, scenario.aliceSpace+"@"+workspace.Host+":scp-input.txt")
+	args := append(scpArgs(workspace), source, workspace.Username+"@"+workspace.Host+":scp-input.txt")
 	if err := RunCommand(ctx, CommandSpec{Name: "scp", Args: args}); err != nil {
 		return err
 	}
@@ -94,29 +93,30 @@ func (state *runnerState) verifySSHTransports(ctx context.Context, scenario *sce
 	if err != nil {
 		return err
 	}
-	return state.evidence.Write("product/sftp.txt", output)
+	return workspace.Evidence.Write("product/sftp.txt", output)
 }
 
-func (state *runnerState) verifyCockpitAndRoles(ctx context.Context, scenario *scenarioState) error {
-	status, err := cockpitLoginStatus(ctx, scenario.remote, state.options.Administrator.Username, scenario.password)
+func verifyCockpitAndRoles(ctx context.Context, adminWorkspace workspaceFixture, alice personFixture) error {
+	admin := adminWorkspace.Person
+	status, err := cockpitLoginStatus(ctx, admin.Remote, admin.Remote.Username, admin.LinuxPassword)
 	if err != nil || status != "200" {
 		return fmt.Errorf("primary Cockpit authentication returned %s: %w", status, err)
 	}
-	status, err = cockpitLoginStatus(ctx, scenario.remote, scenario.adminSpace, []byte("locked-workspace-password"))
+	status, err = cockpitLoginStatus(ctx, admin.Remote, adminWorkspace.Remote.Username, []byte("locked-workspace-password"))
 	if err != nil || status != "401" {
 		return fmt.Errorf("workspace Cockpit authentication returned %s: %w", status, err)
 	}
-	if err = scenario.remote.Sudo(ctx, scenario.password, "/usr/sbin/usermod --append --groups wheel -- alice\n", "product/alice-wheel-promotion"); err != nil {
+	if err = admin.Remote.Sudo(ctx, admin.LinuxPassword, "/usr/sbin/usermod --append --groups wheel -- "+alice.Remote.Username+"\n", "product/alice-wheel-promotion"); err != nil {
 		return err
 	}
-	response, err := forgejoAuthenticatedUser(ctx, scenario.remote.As("alice", state.personKeyPath("alice")), "alice", scenario.password)
+	response, err := forgejoAuthenticatedUser(ctx, alice.Remote, alice.Remote.Username, alice.ForgejoPassword)
 	if err != nil {
 		return err
 	}
-	if response.Login != "alice" || response.IsAdmin {
+	if response.Login != alice.Remote.Username || response.IsAdmin {
 		return errors.New("Linux wheel promotion changed native Forgejo administration")
 	}
-	return state.evidence.Write("product/cockpit-status.txt", []byte("primary=200\nworkspace=401\n"))
+	return admin.Remote.Evidence.Write("product/cockpit-status.txt", []byte("primary=200\nworkspace=401\n"))
 }
 
 type forgejoUser struct {
@@ -147,50 +147,49 @@ func forgejoAuthenticatedUser(ctx context.Context, remote Remote, username strin
 	return user, err
 }
 
-func (state *runnerState) verifyDevelopmentServer(ctx context.Context, scenario *scenarioState) error {
-	alice := scenario.remote.As(scenario.aliceSpace, state.personKeyPath("alice"))
-	bob := scenario.remote.As(scenario.bobSpace, state.personKeyPath("bob"))
+func verifyDevelopmentServer(ctx context.Context, alice, bob workspaceFixture, tailnetHost string) error {
+	if tailnetHost == "" {
+		return errors.New("development-server endpoint host is unavailable")
+	}
 	if err := startDevelopmentServer(ctx, alice, 18080, "first", "product/alice-development-server"); err != nil {
 		return err
 	}
 	if err := startDevelopmentServer(ctx, bob, 18081, "bob", "product/bob-development-server"); err != nil {
 		return err
 	}
-	if err := state.waitForDevelopmentServer(ctx, "127.0.0.1", 18080, "first\n", "product/alice-development-server-local-forwarded-first"); err != nil {
+	evidence := alice.Remote.Evidence
+	if err := waitForDevelopmentServer(ctx, urlHost(alice.Remote.Host)+":18080", "first\n", "product/alice-development-server-local-forwarded-first", evidence); err != nil {
 		return err
 	}
-	if err := state.waitForDevelopmentServer(ctx, scenario.tailnetHost, 18080, "first\n", "product/alice-development-server-tailnet-first"); err != nil {
+	if err := waitForDevelopmentServer(ctx, urlHost(tailnetHost)+":18080", "first\n", "product/alice-development-server-tailnet-first", evidence); err != nil {
 		return err
 	}
-	if err := state.waitForDevelopmentServer(ctx, "127.0.0.1", 18081, "bob\n", "product/bob-development-server-local-forwarded"); err != nil {
+	if err := waitForDevelopmentServer(ctx, urlHost(bob.Remote.Host)+":18081", "bob\n", "product/bob-development-server-local-forwarded", evidence); err != nil {
 		return err
 	}
-	if err := state.waitForDevelopmentServer(ctx, scenario.tailnetHost, 18081, "bob\n", "product/bob-development-server-tailnet"); err != nil {
+	if err := waitForDevelopmentServer(ctx, urlHost(tailnetHost)+":18081", "bob\n", "product/bob-development-server-tailnet", evidence); err != nil {
 		return err
 	}
-	if err := alice.Capture(ctx, "product/hot-reload-write", []byte("printf 'second\\n' >\"$HOME/Projects/kept/hot-reload.txt\"\n"), "/bin/bash", "-s"); err != nil {
+	if err := alice.Remote.Capture(ctx, "product/hot-reload-write", []byte("printf 'second\\n' >\"$HOME/Projects/"+alice.ProjectID+"/hot-reload.txt\"\n"), "/bin/bash", "-s"); err != nil {
 		return err
 	}
-	if err := state.waitForDevelopmentServer(ctx, "127.0.0.1", 18080, "second\n", "product/alice-hot-reload-local-forwarded"); err != nil {
+	if err := waitForDevelopmentServer(ctx, urlHost(alice.Remote.Host)+":18080", "second\n", "product/alice-hot-reload-local-forwarded", evidence); err != nil {
 		return err
 	}
-	return state.waitForDevelopmentServer(ctx, scenario.tailnetHost, 18080, "second\n", "product/alice-hot-reload-tailnet")
+	return waitForDevelopmentServer(ctx, urlHost(tailnetHost)+":18080", "second\n", "product/alice-hot-reload-tailnet", evidence)
 }
 
-func startDevelopmentServer(ctx context.Context, remote Remote, port int, value, evidence string) error {
-	script := fmt.Sprintf("set -eu; cd \"$HOME/Projects/kept\"; printf '%%s\\n' %s > hot-reload.txt; nohup python3 -m http.server %d </dev/null >\"$HOME/development-server.log\" 2>&1 & pid=$!; test \"$(ps -o user= -p \"$pid\" | xargs)\" = \"$(id -un)\"", strconv.Quote(value), port)
-	return remote.Capture(ctx, evidence, []byte(script), "/bin/bash", "-s")
+func startDevelopmentServer(ctx context.Context, workspace workspaceFixture, port int, value, evidence string) error {
+	script := fmt.Sprintf("set -eu; cd \"$HOME/Projects/%s\"; printf '%%s\\n' %s > hot-reload.txt; nohup python3 -m http.server %d </dev/null >\"$HOME/development-server.log\" 2>&1 & pid=$!; test \"$(ps -o user= -p \"$pid\" | xargs)\" = \"$(id -un)\"", workspace.ProjectID, strconv.Quote(value), port)
+	return workspace.Remote.Capture(ctx, evidence, []byte(script), "/bin/bash", "-s")
 }
 
-func (state *runnerState) waitForDevelopmentServer(ctx context.Context, host string, port int, expected, evidence string) error {
-	if host == "" {
-		return errors.New("development-server endpoint host is unavailable")
-	}
-	url := "http://" + urlHost(host) + ":" + strconv.Itoa(port) + "/hot-reload.txt"
+func waitForDevelopmentServer(ctx context.Context, address, expected, label string, evidence Evidence) error {
+	url := "http://" + address + "/hot-reload.txt"
 	for attempt := 0; attempt < 20; attempt++ {
 		output, err := CommandOutput(ctx, CommandSpec{Name: "curl", Args: []string{"--fail", "--silent", "--show-error", url}})
 		if err == nil && string(output) == expected {
-			return state.evidence.Write(evidence+".txt", output)
+			return evidence.Write(label+".txt", output)
 		}
 		if err = waitBriefly(ctx); err != nil {
 			return err
@@ -199,16 +198,35 @@ func (state *runnerState) waitForDevelopmentServer(ctx context.Context, host str
 	return errors.New("project development server did not expose the expected hot-reload content")
 }
 
-func (state *runnerState) verifyMiseOwnership(ctx context.Context, scenario *scenarioState) error {
+func verifyMiseOwnership(ctx context.Context, project projectFixture) error {
 	workspaces := []struct {
-		label  string
-		remote Remote
-	}{
-		{label: "admin", remote: scenario.remote.As(scenario.adminSpace, state.paths.adminKey)},
-		{label: "bob", remote: scenario.remote.As(scenario.bobSpace, state.personKeyPath("bob"))},
+		label     string
+		workspace workspaceFixture
+	}{{"admin", project.Admin}, {"bob", project.Bob}}
+	errorsByWorkspace := make(chan error, len(workspaces))
+	for _, item := range workspaces {
+		go func() {
+			errorsByWorkspace <- item.workspace.Remote.Capture(ctx, "product/mise-native-"+item.label, []byte(miseCheckScript(item.workspace.ProjectID)), "/bin/bash", "-s")
+		}()
 	}
-	script := `set -euo pipefail
-cd "$HOME/Projects/kept"
+	var result error
+	for range workspaces {
+		result = errors.Join(result, <-errorsByWorkspace)
+	}
+	if result != nil {
+		return fmt.Errorf("concurrent native mise use: %w", result)
+	}
+	privacy := "set -euo pipefail\ntest ! -r /home/" + project.Bob.Remote.Username + "/Projects/" + project.Bob.ProjectID + "/mise.toml\ntest ! -r /home/" + project.Bob.Remote.Username + "/.local/share/mise/installs/node/22.14.0/bin/node\n"
+	if err := project.Alice.Remote.Capture(ctx, "product/mise-workspace-privacy", []byte(privacy), "/bin/bash", "-s"); err != nil {
+		return err
+	}
+	boundary := "set -euo pipefail; test ! -e /var/lib/soda/mise; test ! -e /opt/soda/toolchains; command -v tea; command -v gh\n"
+	return project.Admin.Person.Remote.Sudo(ctx, project.Admin.Person.LinuxPassword, boundary, "product/cli-ownership-boundaries")
+}
+
+func miseCheckScript(project string) string {
+	return `set -euo pipefail
+cd "$HOME/Projects/` + project + `"
 cat >mise.toml <<'EOF'
 [tools]
 node = "22.14.0"
@@ -225,41 +243,19 @@ printf 'workspace=%s\n' "$(id -un)"
 printf 'mise_data=%s\n' "$HOME/.local/share/mise"
 printf 'mise_cache=%s\n' "$HOME/.cache/mise"
 `
-	errorsByWorkspace := make(chan error, len(workspaces))
-	for _, workspace := range workspaces {
-		workspace := workspace
-		go func() {
-			errorsByWorkspace <- workspace.remote.Capture(ctx, "product/mise-native-"+workspace.label, []byte(script), "/bin/bash", "-s")
-		}()
-	}
-	var result error
-	for range workspaces {
-		result = errors.Join(result, <-errorsByWorkspace)
-	}
-	if result != nil {
-		return fmt.Errorf("concurrent native mise use: %w", result)
-	}
-	alice := scenario.remote.As(scenario.aliceSpace, state.personKeyPath("alice"))
-	privacy := "set -euo pipefail\ntest ! -r /home/" + scenario.bobSpace + "/Projects/kept/mise.toml\ntest ! -r /home/" + scenario.bobSpace + "/.local/share/mise/installs/node/22.14.0/bin/node\n"
-	if err := alice.Capture(ctx, "product/mise-workspace-privacy", []byte(privacy), "/bin/bash", "-s"); err != nil {
-		return err
-	}
-	boundary := "set -euo pipefail; test ! -e /var/lib/soda/mise; test ! -e /opt/soda/toolchains; command -v tea; command -v gh\n"
-	return scenario.remote.Sudo(ctx, scenario.password, boundary, "product/cli-ownership-boundaries")
 }
 
-func (state *runnerState) verifyWorkspaceRemoval(ctx context.Context, scenario *scenarioState) error {
-	alice := scenario.remote.As("alice", state.personKeyPath("alice"))
-	_, err := state.projectRemoval(ctx, alice, "remove-workspace", "kept", "product/alice-remove-workspace")
+func verifyWorkspaceRemoval(ctx context.Context, project projectFixture) error {
+	alice := project.Alice.Person.Remote
+	_, err := projectRemoval(ctx, alice, "remove-workspace", project.Alice.ProjectID, "product/alice-remove-workspace")
 	if err != nil {
 		return err
 	}
-	check := "! getent passwd " + scenario.aliceSpace + " >/dev/null; getent passwd " + scenario.adminSpace + " >/dev/null; getent passwd " + scenario.bobSpace + " >/dev/null"
-	if err = scenario.remote.Sudo(ctx, scenario.password, check, "product/own-workspace-removal"); err != nil {
+	check := "! getent passwd " + project.Alice.Remote.Username + " >/dev/null; getent passwd " + project.Admin.Remote.Username + " >/dev/null; getent passwd " + project.Bob.Remote.Username + " >/dev/null"
+	if err = project.Admin.Person.Remote.Sudo(ctx, project.Admin.Person.LinuxPassword, check, "product/own-workspace-removal"); err != nil {
 		return err
 	}
-	contents, _ := json.Marshal(map[string]any{"id": "kept", "expected": "reviewed"})
-	result, err := alice.Exchange(ctx, "product/nonadmin-project-remove", append(contents, '\n'), "/usr/libexec/soda/soda-projects", "remove")
+	result, err := invokeProject(ctx, alice, "remove", map[string]any{"id": project.Alice.ProjectID, "expected": "reviewed"}, "product/nonadmin-project-remove")
 	if err != nil {
 		return err
 	}
@@ -269,45 +265,43 @@ func (state *runnerState) verifyWorkspaceRemoval(ctx context.Context, scenario *
 	return nil
 }
 
-func (state *runnerState) verifyProjectRemoval(ctx context.Context, scenario *scenarioState) error {
-	if _, err := state.createCatalogedForgejoProject(ctx, scenario.remote, scenario.password, forgejoProject{"removable", "Removal fixture", "product/removable-create"}); err != nil {
+func verifyProjectRemoval(ctx context.Context, admin, bob personFixture) error {
+	if _, err := createCatalogedForgejoProject(ctx, admin, forgejoProject{"removable", "Removal fixture", "product/removable-create"}); err != nil {
 		return err
 	}
-	adminSetup, err := state.setupWorkspace(ctx, scenario.remote, scenario.password, "removable", "product/removable-admin-setup")
+	adminSetup, err := setupWorkspace(ctx, admin, "removable", "product/removable-admin-setup")
 	if err != nil {
 		return err
 	}
-	bob := scenario.remote.As("bob", state.personKeyPath("bob"))
-	bobSetup, err := state.setupWorkspace(ctx, bob, scenario.password, "removable", "product/removable-bob-setup")
+	bobSetup, err := setupWorkspace(ctx, bob, "removable", "product/removable-bob-setup")
 	if err != nil {
 		return err
 	}
-	_, err = state.projectRemoval(ctx, scenario.remote, "remove", "removable", "product/removable-remove")
-	if err != nil {
+	if _, err = projectRemoval(ctx, admin.Remote, "remove", "removable", "product/removable-remove"); err != nil {
 		return err
 	}
-	script := "! getent passwd " + adminSetup.WorkspaceUsername + " >/dev/null; ! getent passwd " + bobSetup.WorkspaceUsername + " >/dev/null; curl --fail --silent \"" + forgejoLoopbackEndpoint + "/api/v1/repos/" + state.options.Administrator.Username + "/removable\" >/dev/null"
-	return scenario.remote.Capture(ctx, "product/project-removal-preserves-forgejo", []byte(script), "/bin/bash", "-s")
+	script := "! getent passwd " + adminSetup.Remote.Username + " >/dev/null; ! getent passwd " + bobSetup.Remote.Username + " >/dev/null; curl --fail --silent \"" + forgejoLoopbackEndpoint + "/api/v1/repos/" + admin.Remote.Username + "/removable\" >/dev/null"
+	return admin.Remote.Capture(ctx, "product/project-removal-preserves-forgejo", []byte(script), "/bin/bash", "-s")
 }
 
-func (state *runnerState) verifyIndependentPersonDeletion(ctx context.Context, scenario *scenarioState) error {
-	if err := state.addNativePerson(ctx, scenario.remote, "obsolete", scenario.password, "product/obsolete-add"); err != nil {
+func verifyIndependentPersonDeletion(ctx context.Context, admin personFixture, keys fixtureKeys) error {
+	obsolete, err := addNativePerson(ctx, admin, "obsolete", keys, "product/obsolete-add")
+	if err != nil {
 		return err
 	}
-	obsolete := scenario.remote.As("obsolete", state.personKeyPath("obsolete"))
-	if _, err := state.setupWorkspace(ctx, obsolete, scenario.password, "kept", "product/obsolete-setup"); err != nil {
+	if _, err = setupWorkspace(ctx, obsolete, "kept", "product/obsolete-setup"); err != nil {
 		return err
 	}
-	if _, err := state.createNativeForgejoRepository(ctx, obsolete, scenario.password, "owned", "product/owned-create"); err != nil {
+	if _, err = createNativeForgejoRepository(ctx, obsolete, "owned", "product/owned-create"); err != nil {
 		return err
 	}
-	if _, err := state.projectRemoval(ctx, scenario.remote, "delete-human", "obsolete", "product/obsolete-delete"); err != nil {
+	if _, err = projectRemoval(ctx, admin.Remote, "delete-human", "obsolete", "product/obsolete-delete"); err != nil {
 		return err
 	}
 	script := "! getent passwd obsolete >/dev/null\n" +
 		"curl --fail --silent " + forgejoLoopbackEndpoint + "/api/v1/users/obsolete >/dev/null\n" +
 		"curl --fail --silent " + forgejoLoopbackEndpoint + "/api/v1/repos/obsolete/owned >/dev/null\n"
-	return scenario.remote.Sudo(ctx, scenario.password, script, "product/linux-deletion-preserves-forgejo")
+	return admin.Remote.Sudo(ctx, admin.LinuxPassword, script, "product/linux-deletion-preserves-forgejo")
 }
 
 func scpArgs(remote Remote) []string {

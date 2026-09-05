@@ -70,9 +70,9 @@ func Run(ctx context.Context, options RunOptions, output io.Writer) (RunResult, 
 	if err != nil {
 		return RunResult{}, err
 	}
-	runErr := state.prepareInputs(ctx)
+	inputs, runErr := state.prepareInputs(ctx)
 	if runErr == nil {
-		runErr = state.execute(ctx)
+		runErr = state.execute(ctx, inputs)
 	}
 	return state.finish(ctx, runErr)
 }
@@ -103,21 +103,21 @@ func (state *runnerState) finish(ctx context.Context, runErr error) (RunResult, 
 	return result, errors.Join(resultErr, finalizeErr, reportErr)
 }
 
-func (state *runnerState) execute(ctx context.Context) error {
+func (state *runnerState) execute(ctx context.Context, inputs runInputs) error {
 	if err := state.verifyFallbackPublication(ctx); err != nil {
 		return fmt.Errorf("previous published fallback: %w", err)
 	}
 	if err := state.prepareRegistry(ctx); err != nil {
 		return fmt.Errorf("registry: %w", err)
 	}
-	scenario, vm, err := state.installAndOnboard(ctx)
+	tailnetHost, vm, err := state.installAndOnboard(ctx, inputs.Admin)
 	if err != nil {
 		return fmt.Errorf("network ISO and first boot: %w", err)
 	}
-	if err = state.exerciseInstalledSystem(ctx, &scenario, &vm); err != nil {
+	if err = state.exerciseInstalledSystem(ctx, inputs, tailnetHost, &vm); err != nil {
 		return err
 	}
-	if err = state.checks.record("qcow2-cloud-init-local", state.exerciseReusableQCOW2(ctx)); err != nil {
+	if err = state.checks.record("qcow2-cloud-init-local", state.exerciseReusableQCOW2(ctx, inputs)); err != nil {
 		return fmt.Errorf("reusable QCOW2: %w", err)
 	}
 	return nil

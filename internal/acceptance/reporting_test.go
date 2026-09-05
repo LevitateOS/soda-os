@@ -21,8 +21,8 @@ test "$(wc -l <"$COMMAND_LOG")" -lt 2
 	evidence, err := CreateEvidence(filepath.Join(t.TempDir(), "evidence"))
 	require.NoError(t, err)
 	state := runnerState{evidence: evidence, checks: checkResults{"update-and-fallback": "pass"}}
-	scenario := scenarioState{remote: Remote{Evidence: evidence}}
-	err = state.exerciseProductScenarios(context.Background(), &scenario)
+	project := projectFixture{Admin: workspaceFixture{Person: personFixture{Remote: Remote{Evidence: evidence}}}}
+	err = state.exerciseProductScenarios(context.Background(), project, fixtureKeys{}, "")
 	require.ErrorContains(t, err, "workspace-boundaries-and-git-keys")
 	require.Equal(t, checkResults{"update-and-fallback": "pass"}, state.checks)
 	contents, err := os.ReadFile(commands)

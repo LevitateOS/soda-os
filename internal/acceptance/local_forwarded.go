@@ -16,8 +16,8 @@ func (state *runnerState) localForwardedRemote() Remote {
 	}
 }
 
-func (state *runnerState) verifyInitialLocalForwardedAccess(ctx context.Context, password []byte) error {
-	local := state.localForwardedRemote()
+func verifyInitialLocalForwardedAccess(ctx context.Context, admin personFixture, forgejoPort int) error {
+	local, password := admin.Remote, admin.LinuxPassword
 	waitCtx, cancel := context.WithTimeout(ctx, 20*time.Minute)
 	defer cancel()
 	if err := local.WaitReady(waitCtx); err != nil {
@@ -44,10 +44,10 @@ tailscale status --json | jq -e '.BackendState != "Running"' >/dev/null
 	}
 	output, err := CommandOutput(ctx, CommandSpec{Name: "curl", Args: []string{
 		"--fail", "--silent", "--show-error", "--max-time", "10",
-		fmt.Sprintf("http://127.0.0.1:%d/api/healthz", state.options.Ports.Forgejo),
+		fmt.Sprintf("http://%s:%d/api/healthz", urlHost(local.Host), forgejoPort),
 	}})
 	if err != nil {
 		return fmt.Errorf("verify local-forwarded Forgejo before enrollment: %w", err)
 	}
-	return state.evidence.Write("iso/local-forwarded-forgejo-before-enrollment.txt", output)
+	return local.Evidence.Write("iso/local-forwarded-forgejo-before-enrollment.txt", output)
 }

@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
 	"strings"
 
 	"golang.org/x/crypto/ssh"
@@ -16,49 +15,29 @@ type forgejoKey struct {
 	Key string `json:"key"`
 }
 
-type scenarioIdentity struct {
-	primary       string
-	workspace     string
-	key           string
-	primaryPublic string
-}
-
-func (state *runnerState) verifyWorkspaceGitKeys(ctx context.Context, scenario *scenarioState) error {
-	identities := []scenarioIdentity{
-		{state.options.Administrator.Username, scenario.adminSpace, state.paths.adminKey, state.paths.adminPublicKey},
-		{"alice", scenario.aliceSpace, state.personKeyPath("alice"), state.personKeyPath("alice") + ".pub"},
-		{"bob", scenario.bobSpace, state.personKeyPath("bob"), state.personKeyPath("bob") + ".pub"},
-	}
-	for _, identity := range identities {
-		if err := state.verifyForgejoKeys(ctx, scenario, identity); err != nil {
+func verifyWorkspaceGitKeys(ctx context.Context, project projectFixture) error {
+	for _, workspace := range []workspaceFixture{project.Admin, project.Alice, project.Bob} {
+		if err := verifyForgejoKeys(ctx, workspace); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (state *runnerState) verifyForgejoKeys(
-	ctx context.Context,
-	scenario *scenarioState,
-	identity scenarioIdentity,
-) error {
-	workspaceRemote := scenario.remote.As(identity.workspace, identity.key)
-	workspacePublic, err := workspaceRemote.Output(ctx, nil, "cat", ".ssh/id_ed25519_soda.pub")
+func verifyForgejoKeys(ctx context.Context, workspace workspaceFixture) error {
+	workspacePublic, err := workspace.Remote.Output(ctx, nil, "cat", ".ssh/id_ed25519_soda.pub")
 	if err != nil {
 		return err
 	}
-	primaryPublic, err := os.ReadFile(identity.primaryPublic)
+	person := workspace.Person
+	keys, err := forgejoKeys(ctx, person.Remote, person.Remote.Username, person.ForgejoPassword)
 	if err != nil {
 		return err
 	}
-	keys, err := forgejoKeys(ctx, scenario.remote.As(identity.primary, identity.key), identity.primary, state.forgejoPassword(identity.primary, scenario.password))
-	if err != nil {
+	if err = requireForgejoKey(keys, workspacePublic, "manually registered workspace", person.Remote.Username); err != nil {
 		return err
 	}
-	if err = requireForgejoKey(keys, workspacePublic, "manually registered workspace", identity.primary); err != nil {
-		return err
-	}
-	return rejectForgejoKey(keys, primaryPublic, "Linux", identity.primary)
+	return rejectForgejoKey(keys, person.PublicKey, "Linux", person.Remote.Username)
 }
 
 func requireForgejoKey(keys []forgejoKey, expected []byte, label, username string) error {
@@ -85,8 +64,8 @@ func rejectForgejoKey(keys []forgejoKey, rejected []byte, label, username string
 
 const forgejoLoopbackEndpoint = "http://127.0.0.1:30000"
 
-func (state *runnerState) registerForgejoKey(ctx context.Context, remote Remote, password, publicKey []byte, evidence string) error {
-	password = state.forgejoPassword(remote.Username, password)
+func registerForgejoKey(ctx context.Context, person personFixture, publicKey []byte, evidence string) error {
+	remote, password := person.Remote, person.ForgejoPassword
 	payload, err := json.Marshal(map[string]string{
 		"key":   strings.TrimSpace(string(publicKey)),
 		"title": "Soda OS acceptance " + evidence,
@@ -164,16 +143,14 @@ func canonicalPublicKey(contents []byte) (string, error) {
 	return strings.TrimSpace(string(ssh.MarshalAuthorizedKey(key))), nil
 }
 
-func (state *runnerState) verifyOneTimeAuthorizedKeys(ctx context.Context, scenario *scenarioState) error {
-	newPublicKey, err := state.ensurePersonKey(ctx, "alice-later")
+func verifyOneTimeAuthorizedKeys(ctx context.Context, alice workspaceFixture, keys fixtureKeys) error {
+	key, err := keys.generate(ctx, "alice-later")
 	if err != nil {
 		return err
 	}
-	alice := scenario.remote.As("alice", state.personKeyPath("alice"))
-	if err = alice.Capture(ctx, "product/alice-new-authorized-key", newPublicKey, "tee", "-a", ".ssh/authorized_keys"); err != nil {
+	if err = alice.Person.Remote.Capture(ctx, "product/alice-new-authorized-key", key.Public, "tee", "-a", ".ssh/authorized_keys"); err != nil {
 		return err
 	}
-	workspace := scenario.remote.As(scenario.aliceSpace, state.personKeyPath("alice"))
 	script := `if grep --fixed-strings --line-regexp --file=- "$HOME/.ssh/authorized_keys"; then exit 1; fi`
-	return workspace.Capture(ctx, "product/workspace-key-copy-once", newPublicKey, "/bin/bash", "-c", script)
+	return alice.Remote.Capture(ctx, "product/workspace-key-copy-once", key.Public, "/bin/bash", "-c", script)
 }

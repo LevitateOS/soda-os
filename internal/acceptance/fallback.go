@@ -21,39 +21,39 @@ type bootcStatus struct {
 	} `json:"status"`
 }
 
-func (state *runnerState) exerciseFallback(ctx context.Context, scenario *scenarioState, vm **VM) error {
-	before, err := state.captureManifest(ctx, scenario.remote, "fallback/b-before")
+func (state *runnerState) exerciseFallback(ctx context.Context, admin personFixture, vm **VM) error {
+	before, err := captureManifest(ctx, admin, "fallback/b-before")
 	if err != nil {
 		return err
 	}
-	if err := state.enableGuestRegistry(ctx, *scenario); err != nil {
+	if err := state.enableGuestRegistry(ctx, admin); err != nil {
 		return err
 	}
-	if err := state.switchImage(ctx, scenario, vm, "fallback"); err != nil {
+	if err := state.switchImage(ctx, admin, vm, "fallback"); err != nil {
 		return err
 	}
-	selected, err := state.captureManifest(ctx, scenario.remote, "fallback/a-selected")
+	selected, err := captureManifest(ctx, admin, "fallback/a-selected")
 	if err != nil {
 		return err
 	}
 	if err := compareManifests(before, selected, "fallback/a-selected"); err != nil {
 		return err
 	}
-	if err := state.switchImage(ctx, scenario, vm, "candidate"); err != nil {
+	if err := state.switchImage(ctx, admin, vm, "candidate"); err != nil {
 		return err
 	}
-	restored, err := state.captureManifest(ctx, scenario.remote, "fallback/b-restored")
+	restored, err := captureManifest(ctx, admin, "fallback/b-restored")
 	if err != nil {
 		return err
 	}
 	if err := compareManifests(before, restored, "fallback/b-restored"); err != nil {
 		return err
 	}
-	return state.disableGuestRegistry(ctx, *scenario)
+	return disableGuestRegistry(ctx, admin)
 }
 
-func (state *runnerState) captureManifest(ctx context.Context, remote Remote, relative string) ([]byte, error) {
-	return remote.SudoOutput(ctx, state.secret("administrator-password"), stableManifestScript, relative)
+func captureManifest(ctx context.Context, admin personFixture, relative string) ([]byte, error) {
+	return admin.Remote.SudoOutput(ctx, admin.LinuxPassword, stableManifestScript, relative)
 }
 
 func compareManifests(expected, actual []byte, label string) error {
@@ -63,31 +63,31 @@ func compareManifests(expected, actual []byte, label string) error {
 	return nil
 }
 
-func (state *runnerState) enableGuestRegistry(ctx context.Context, scenario scenarioState) error {
+func (state *runnerState) enableGuestRegistry(ctx context.Context, admin personFixture) error {
 	registry := "10.0.2.2:" + strconv.Itoa(state.options.Ports.Registry)
 	script := "install -d -m 0755 /etc/containers/registries.conf.d\n" +
 		"printf '%s\\n' '[[registry]]' 'location = \"" + registry + "\"' 'insecure = true' > /etc/containers/registries.conf.d/99-soda-acceptance.conf\n" +
 		"chmod 0644 /etc/containers/registries.conf.d/99-soda-acceptance.conf\n"
-	return scenario.remote.Sudo(ctx, scenario.password, script, "fallback/registry-enable")
+	return admin.Remote.Sudo(ctx, admin.LinuxPassword, script, "fallback/registry-enable")
 }
 
-func (state *runnerState) disableGuestRegistry(ctx context.Context, scenario scenarioState) error {
+func disableGuestRegistry(ctx context.Context, admin personFixture) error {
 	script := "test -f /etc/containers/registries.conf.d/99-soda-acceptance.conf\nrm -- /etc/containers/registries.conf.d/99-soda-acceptance.conf\n"
-	return scenario.remote.Sudo(ctx, scenario.password, script, "fallback/registry-disable")
+	return admin.Remote.Sudo(ctx, admin.LinuxPassword, script, "fallback/registry-disable")
 }
 
-func (state *runnerState) switchImage(ctx context.Context, scenario *scenarioState, vm **VM, target string) error {
+func (state *runnerState) switchImage(ctx context.Context, admin personFixture, vm **VM, target string) error {
 	reference, digest, err := state.localImageReference(target)
 	if err != nil {
 		return err
 	}
-	stageInput := append(bytes.TrimRight(scenario.password, "\r\n"), '\n')
-	_, err = scenario.remote.CaptureOutput(ctx, "fallback/"+target+"-download", stageInput,
+	stageInput := append(bytes.TrimRight(admin.LinuxPassword, "\r\n"), '\n')
+	_, err = admin.Remote.CaptureOutput(ctx, "fallback/"+target+"-download", stageInput,
 		"sudo", "-k", "-S", "-p", "", "/usr/bin/bootc", "switch", "--download-only", reference)
 	if err != nil {
 		return err
 	}
-	_, err = scenario.remote.CaptureOutput(ctx, "fallback/"+target+"-activate", stageInput,
+	_, err = admin.Remote.CaptureOutput(ctx, "fallback/"+target+"-activate", stageInput,
 		"sudo", "-k", "-S", "-p", "", "/usr/bin/bootc", "switch", "--from-downloaded")
 	if err != nil {
 		return err
@@ -102,15 +102,15 @@ func (state *runnerState) switchImage(ctx context.Context, scenario *scenarioSta
 	}
 	waitCtx, cancel := context.WithTimeout(ctx, 20*time.Minute)
 	defer cancel()
-	if err = scenario.remote.WaitReady(waitCtx); err != nil {
+	if err = admin.Remote.WaitReady(waitCtx); err != nil {
 		return err
 	}
-	return state.assertBootedDigest(ctx, scenario.remote, scenario.password, target, digest)
+	return assertBootedDigest(ctx, admin, target, digest)
 }
 
-func (state *runnerState) assertBootedDigest(ctx context.Context, remote Remote, password []byte, target, digest string) error {
-	input := append(bytes.TrimRight(password, "\r\n"), '\n')
-	output, err := remote.CaptureOutput(ctx, "fallback/"+target+"-bootc-status", input,
+func assertBootedDigest(ctx context.Context, admin personFixture, target, digest string) error {
+	input := append(bytes.TrimRight(admin.LinuxPassword, "\r\n"), '\n')
+	output, err := admin.Remote.CaptureOutput(ctx, "fallback/"+target+"-bootc-status", input,
 		"sudo", "-k", "-S", "-p", "", "/usr/bin/bootc", "status", "--format=json")
 	if err != nil {
 		return err

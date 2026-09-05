@@ -163,10 +163,10 @@ func requireCleanSource(ctx context.Context, root, revision string) error {
 	return nil
 }
 
-func (state *runnerState) prepareInputs(ctx context.Context) error {
+func (state *runnerState) prepareInputs(ctx context.Context) (runInputs, error) {
 	work, err := os.MkdirTemp(state.options.TempDir, "soda-acceptance-")
 	if err != nil {
-		return err
+		return runInputs{}, err
 	}
 	state.paths = runPaths{
 		work: work, adminKey: state.options.Administrator.PrivateKey, adminPublicKey: state.options.Administrator.PublicKey,
@@ -175,19 +175,19 @@ func (state *runnerState) prepareInputs(ctx context.Context) error {
 		knownHosts: filepath.Join(work, "known-hosts"),
 	}
 	if err = state.cleanup.Add(CleanupAction{Name: "generated work directory " + work, Run: func(context.Context) error { return os.RemoveAll(work) }}); err != nil {
-		return err
+		return runInputs{}, err
 	}
 	if err = os.Mkdir(state.paths.people, 0o700); err != nil {
-		return err
+		return runInputs{}, err
 	}
 	password, err := readSecretLine(state.paths.password)
 	if err != nil {
-		return err
+		return runInputs{}, err
 	}
 	if err = validateAdministratorKeyPair(ctx, state.paths.adminKey, state.paths.adminPublicKey); err != nil {
-		return err
+		return runInputs{}, err
 	}
-	return state.loadSecrets(password)
+	return state.loadInputs(password)
 }
 
 func validateAdministratorKeyPair(ctx context.Context, privatePath, publicPath string) error {
@@ -213,21 +213,30 @@ func validateAdministratorKeyPair(ctx context.Context, privatePath, publicPath s
 	return nil
 }
 
-func (state *runnerState) loadSecrets(password []byte) error {
+func (state *runnerState) loadInputs(password []byte) (runInputs, error) {
 	privateKey, err := os.ReadFile(state.paths.adminKey)
 	if err != nil {
-		return err
+		return runInputs{}, err
+	}
+	publicKey, err := os.ReadFile(state.paths.adminPublicKey)
+	if err != nil {
+		return runInputs{}, err
 	}
 	ownerPassword := []byte(rand.Text())
-	if err = os.WriteFile(filepath.Join(state.paths.work, "forgejo-owner-password"), ownerPassword, 0600); err != nil {
-		return err
-	}
 	state.secrets = []Secret{
 		{Label: "forgejo-owner-password", Value: ownerPassword},
 		{Label: "administrator-password", Value: password},
 		{Label: "administrator-private-key", Value: privateKey},
 	}
-	return nil
+	ownerPath := filepath.Join(state.paths.work, "forgejo-owner-password")
+	if err = os.WriteFile(ownerPath, ownerPassword, 0600); err != nil {
+		return runInputs{}, err
+	}
+	return runInputs{
+		Admin:             personFixture{Remote: state.localForwardedRemote(), PublicKey: publicKey, LinuxPassword: password, ForgejoPassword: ownerPassword},
+		Keys:              fixtureKeys{Directory: state.paths.people, Secrets: &state.secrets},
+		OwnerPasswordFile: ownerPath,
+	}, nil
 }
 
 func (state *runnerState) prepareRegistry(ctx context.Context) error {

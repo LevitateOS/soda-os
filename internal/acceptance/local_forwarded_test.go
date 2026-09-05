@@ -22,11 +22,12 @@ func TestLocalForwardedChecksKeepTransportAndEvidenceExplicit(t *testing.T) {
 	require.Equal(t, "127.0.0.1", local.Host)
 	require.Equal(t, state.options.Ports.SSH, local.Port)
 	require.Equal(t, state.options.Ports.Cockpit, local.CockpitPort)
-	require.NoError(t, state.verifyInitialLocalForwardedAccess(context.Background(), []byte("fixture-password")))
+	admin := personFixture{Remote: local, LinuxPassword: []byte("fixture-password")}
+	require.NoError(t, verifyInitialLocalForwardedAccess(context.Background(), admin, state.options.Ports.Forgejo))
 	tailnet := local
 	tailnet.Host = "100.64.0.1"
 	tailnet.KnownHosts = filepath.Join(state.paths.work, "tailnet-known-hosts")
-	_, err = state.verifyLocalForwardedAccess(context.Background(), tailnet, []byte("fixture-password"))
+	err = state.verifyLocalForwardedAccess(context.Background(), admin, tailnet)
 	require.NoError(t, err)
 	for _, name := range []string{
 		"iso/local-forwarded-before-enrollment.stdout",

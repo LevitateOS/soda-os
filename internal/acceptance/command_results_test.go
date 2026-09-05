@@ -36,8 +36,7 @@ func TestExpectedSetupFailureCannotConsumeEvidenceFailure(t *testing.T) {
 	evidence, err := CreateEvidence(filepath.Join(t.TempDir(), "evidence"))
 	require.NoError(t, err)
 	require.NoError(t, os.Mkdir(filepath.Join(evidence.Root, "setup-key-required.stdout"), 0o700))
-	state := runnerState{}
-	_, err = state.requireRetainedWorkspace(context.Background(), Remote{Evidence: evidence}, "kept", "setup")
+	_, err = requireRetainedWorkspace(context.Background(), Remote{Evidence: evidence}, "kept", "setup")
 	require.ErrorContains(t, err, "write evidence")
 }
 
@@ -50,8 +49,7 @@ esac
 `)
 	evidence, err := CreateEvidence(filepath.Join(t.TempDir(), "evidence"))
 	require.NoError(t, err)
-	state := runnerState{}
-	retained, err := state.requireRetainedWorkspace(context.Background(), Remote{Evidence: evidence}, "kept", "setup")
+	retained, err := requireRetainedWorkspace(context.Background(), Remote{Evidence: evidence}, "kept", "setup")
 	require.NoError(t, err)
 	require.Equal(t, "workspace", retained.Username)
 	require.Equal(t, testPublicKey, string(retained.PublicKey))
