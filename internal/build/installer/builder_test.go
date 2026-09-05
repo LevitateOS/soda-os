@@ -194,10 +194,10 @@ func TestInstallerEnvironmentUsesCurrentSodaAnacondaBranding(t *testing.T) {
 	require.NoError(t, err)
 	require.Contains(t, string(release), "VERSION=\"0.6\"")
 	require.Contains(t, string(release), "VERSION_ID=\"0.6\"")
-	require.Contains(t, string(release), "PRETTY_NAME=\"Soda OS 0.6.2\"")
+	require.Contains(t, string(release), "PRETTY_NAME=\"Soda OS 0.6.3\"")
 	buildstamp, err := os.ReadFile(filepath.Join(root, "packaging", "installer", "branding", "buildstamp"))
 	require.NoError(t, err)
-	require.Contains(t, string(buildstamp), "Product=Soda OS\nVersion=0.6.2\n")
+	require.Contains(t, string(buildstamp), "Product=Soda OS\nVersion=0.6.3\n")
 
 	containerfile, err := os.ReadFile(filepath.Join(root, "packaging", "installer", "Containerfile"))
 	require.NoError(t, err)

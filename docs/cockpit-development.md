@@ -103,7 +103,7 @@ build and absolute paths for its RPM and evidence directories:
 
 ```sh
 SODA_COCKPIT_RPM_DIRECTORY=/absolute/path/.artifacts/rpms \
-SODA_COCKPIT_RPM_BUILDER=soda-os-rpm-builder:0.6.2-aarch64 \
+SODA_COCKPIT_RPM_BUILDER=soda-os-rpm-builder:0.6.3-aarch64 \
 SODA_COCKPIT_EVIDENCE_DIRECTORY=/absolute/path/evidence \
   vp -C cockpit test tests/rpm.test.ts
 ```

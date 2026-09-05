@@ -584,27 +584,27 @@ source = "fedora"
 
 [[package]]
 name = "soda-release"
-nevra = "soda-release-0:0.6.2-1.fc44.noarch"
+nevra = "soda-release-0:0.6.3-1.fc44.noarch"
 source = "local-rpm"
-file = "soda-release-0.6.2-1.fc44.noarch.rpm"
+file = "soda-release-0.6.3-1.fc44.noarch.rpm"
 
 [[package]]
 name = "soda-runtime"
-nevra = "soda-runtime-0:0.6.2-1.fc44.aarch64"
+nevra = "soda-runtime-0:0.6.3-1.fc44.aarch64"
 source = "local-rpm"
-file = "soda-runtime-0.6.2-1.fc44.aarch64.rpm"
+file = "soda-runtime-0.6.3-1.fc44.aarch64.rpm"
 
 [[package]]
 name = "soda-projects"
-nevra = "soda-projects-0:0.6.2-2.fc44.aarch64"
+nevra = "soda-projects-0:0.6.3-2.fc44.aarch64"
 source = "local-rpm"
-file = "soda-projects-0.6.2-2.fc44.aarch64.rpm"
+file = "soda-projects-0.6.3-2.fc44.aarch64.rpm"
 
 [[package]]
 name = "soda-runners"
-nevra = "soda-runners-0:0.6.2-1.fc44.aarch64"
+nevra = "soda-runners-0:0.6.3-1.fc44.aarch64"
 source = "local-rpm"
-file = "soda-runners-0.6.2-1.fc44.aarch64.rpm"
+file = "soda-runners-0.6.3-1.fc44.aarch64.rpm"
 
 [[package]]
 name = "soda-forgejo"
