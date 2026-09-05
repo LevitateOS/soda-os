@@ -35,6 +35,8 @@ type runInputs struct {
 	Admin             personFixture
 	Keys              fixtureKeys
 	OwnerPasswordFile string
+	PasswordFile      string
+	PublicKeyFile     string
 }
 
 // fixtureKeys owns only generated personal SSH keys and their redaction registration.

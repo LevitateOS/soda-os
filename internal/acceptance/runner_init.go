@@ -169,22 +169,21 @@ func (state *runnerState) prepareInputs(ctx context.Context) (runInputs, error) 
 		return runInputs{}, err
 	}
 	state.paths = runPaths{
-		work: work, adminKey: state.options.Administrator.PrivateKey, adminPublicKey: state.options.Administrator.PublicKey,
-		password: state.options.Administrator.Password, people: filepath.Join(work, "people"),
+		work:          work,
 		installedDisk: filepath.Join(work, "installed.qcow2"), qcowDisk: filepath.Join(work, "reusable.qcow2"),
 		knownHosts: filepath.Join(work, "known-hosts"),
 	}
 	if err = state.cleanup.Add(CleanupAction{Name: "generated work directory " + work, Run: func(context.Context) error { return os.RemoveAll(work) }}); err != nil {
 		return runInputs{}, err
 	}
-	if err = os.Mkdir(state.paths.people, 0o700); err != nil {
+	if err = os.Mkdir(filepath.Join(work, "people"), 0o700); err != nil {
 		return runInputs{}, err
 	}
-	password, err := readSecretLine(state.paths.password)
+	password, err := readSecretLine(state.options.Administrator.Password)
 	if err != nil {
 		return runInputs{}, err
 	}
-	if err = validateAdministratorKeyPair(ctx, state.paths.adminKey, state.paths.adminPublicKey); err != nil {
+	if err = validateAdministratorKeyPair(ctx, state.options.Administrator.PrivateKey, state.options.Administrator.PublicKey); err != nil {
 		return runInputs{}, err
 	}
 	return state.loadInputs(password)
@@ -214,11 +213,12 @@ func validateAdministratorKeyPair(ctx context.Context, privatePath, publicPath s
 }
 
 func (state *runnerState) loadInputs(password []byte) (runInputs, error) {
-	privateKey, err := os.ReadFile(state.paths.adminKey)
+	input := state.options.Administrator
+	privateKey, err := os.ReadFile(input.PrivateKey)
 	if err != nil {
 		return runInputs{}, err
 	}
-	publicKey, err := os.ReadFile(state.paths.adminPublicKey)
+	publicKey, err := os.ReadFile(input.PublicKey)
 	if err != nil {
 		return runInputs{}, err
 	}
@@ -233,9 +233,12 @@ func (state *runnerState) loadInputs(password []byte) (runInputs, error) {
 		return runInputs{}, err
 	}
 	return runInputs{
-		Admin:             personFixture{Remote: state.localForwardedRemote(), PublicKey: publicKey, LinuxPassword: password, ForgejoPassword: ownerPassword},
-		Keys:              fixtureKeys{Directory: state.paths.people, Secrets: &state.secrets},
-		OwnerPasswordFile: ownerPath,
+		Admin: personFixture{
+			Remote:    localForwardedRemote(input, state.options.Ports, state.paths.work, state.evidence),
+			PublicKey: publicKey, LinuxPassword: password, ForgejoPassword: ownerPassword,
+		},
+		Keys:              fixtureKeys{Directory: filepath.Join(state.paths.work, "people"), Secrets: &state.secrets},
+		OwnerPasswordFile: ownerPath, PasswordFile: input.Password, PublicKeyFile: input.PublicKey,
 	}, nil
 }
 

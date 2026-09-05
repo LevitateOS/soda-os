@@ -24,12 +24,16 @@ func TestRunInputsDoNotRequireAnUnusedEnrollmentSecret(t *testing.T) {
 		Administrator: AdministratorInput{PrivateKey: private, PublicKey: public, Password: password},
 	})
 	require.NoError(t, validateRunOptions(options))
-	state := runnerState{paths: runPaths{work: work, adminKey: private, adminPublicKey: public}}
+	state := runnerState{options: options, paths: runPaths{work: work}}
 	inputs, err := state.loadInputs([]byte("fixture-password"))
 	require.NoError(t, err)
 	require.Equal(t, []byte("fixture-password"), inputs.Admin.LinuxPassword)
 	require.NotEqual(t, inputs.Admin.LinuxPassword, inputs.Admin.ForgejoPassword)
 	require.Equal(t, []byte(testPublicKey), inputs.Admin.PublicKey)
+	require.Equal(t, public, inputs.PublicKeyFile)
+	require.Equal(t, password, inputs.PasswordFile)
+	require.Equal(t, filepath.Join(work, "forgejo-owner-password"), inputs.OwnerPasswordFile)
+	require.Equal(t, private, inputs.Admin.Remote.Key)
 	labels := []string{}
 	for _, secret := range state.secrets {
 		labels = append(labels, secret.Label)

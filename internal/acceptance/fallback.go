@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -21,15 +20,16 @@ type bootcStatus struct {
 	} `json:"status"`
 }
 
-func (state *runnerState) exerciseFallback(ctx context.Context, admin personFixture, guest *guest) error {
+func exerciseFallback(ctx context.Context, admin personFixture, guest *guest, candidate, fallback string) error {
 	before, err := captureManifest(ctx, admin, "fallback/b-before")
 	if err != nil {
 		return err
 	}
-	if err := state.enableGuestRegistry(ctx, admin); err != nil {
+	registry, _, _ := strings.Cut(fallback, "/")
+	if err := enableGuestRegistry(ctx, admin, registry); err != nil {
 		return err
 	}
-	if err := state.switchImage(ctx, admin, guest, "fallback"); err != nil {
+	if err := switchImage(ctx, admin, guest, "fallback", fallback); err != nil {
 		return err
 	}
 	selected, err := captureManifest(ctx, admin, "fallback/a-selected")
@@ -39,7 +39,7 @@ func (state *runnerState) exerciseFallback(ctx context.Context, admin personFixt
 	if err := compareManifests(before, selected, "fallback/a-selected"); err != nil {
 		return err
 	}
-	if err := state.switchImage(ctx, admin, guest, "candidate"); err != nil {
+	if err := switchImage(ctx, admin, guest, "candidate", candidate); err != nil {
 		return err
 	}
 	restored, err := captureManifest(ctx, admin, "fallback/b-restored")
@@ -63,8 +63,7 @@ func compareManifests(expected, actual []byte, label string) error {
 	return nil
 }
 
-func (state *runnerState) enableGuestRegistry(ctx context.Context, admin personFixture) error {
-	registry := "10.0.2.2:" + strconv.Itoa(state.options.Ports.Registry)
+func enableGuestRegistry(ctx context.Context, admin personFixture, registry string) error {
 	script := "install -d -m 0755 /etc/containers/registries.conf.d\n" +
 		"printf '%s\\n' '[[registry]]' 'location = \"" + registry + "\"' 'insecure = true' > /etc/containers/registries.conf.d/99-soda-acceptance.conf\n" +
 		"chmod 0644 /etc/containers/registries.conf.d/99-soda-acceptance.conf\n"
@@ -76,13 +75,10 @@ func disableGuestRegistry(ctx context.Context, admin personFixture) error {
 	return admin.Remote.Sudo(ctx, admin.LinuxPassword, script, "fallback/registry-disable")
 }
 
-func (state *runnerState) switchImage(ctx context.Context, admin personFixture, guest *guest, target string) error {
-	reference, digest, err := state.localImageReference(target)
-	if err != nil {
-		return err
-	}
+func switchImage(ctx context.Context, admin personFixture, guest *guest, target, reference string) error {
+	_, digest, _ := strings.Cut(reference, "@")
 	stageInput := append(bytes.TrimRight(admin.LinuxPassword, "\r\n"), '\n')
-	_, err = admin.Remote.CaptureOutput(ctx, "fallback/"+target+"-download", stageInput,
+	_, err := admin.Remote.CaptureOutput(ctx, "fallback/"+target+"-download", stageInput,
 		"sudo", "-k", "-S", "-p", "", "/usr/bin/bootc", "switch", "--download-only", reference)
 	if err != nil {
 		return err
@@ -120,19 +116,7 @@ func assertBootedDigest(ctx context.Context, admin personFixture, target, digest
 	return nil
 }
 
-func (state *runnerState) localImageReference(target string) (string, string, error) {
-	var digest string
-	switch target {
-	case "candidate":
-		digest = imageDigest(state.artifacts.Candidate)
-	case "fallback":
-		digest = imageDigest(state.artifacts.Fallback)
-	default:
-		return "", "", errors.New("fallback target must be candidate or fallback")
-	}
-	reference := "10.0.2.2:" + strconv.Itoa(state.options.Ports.Registry) + "/soda-os@" + digest
-	if strings.ContainsAny(reference, "'\"\\ ") {
-		return "", "", errors.New("generated registry reference is unsafe")
-	}
-	return reference, digest, nil
+// The port and release record have already passed input validation.
+func guestImageReference(port int, image releaseRecord) string {
+	return "10.0.2.2:" + strconv.Itoa(port) + "/soda-os@" + imageDigest(image)
 }

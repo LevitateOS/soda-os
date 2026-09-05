@@ -18,7 +18,7 @@ func TestLocalForwardedChecksKeepTransportAndEvidenceExplicit(t *testing.T) {
 		options: defaultRunOptions(RunOptions{}), paths: runPaths{work: t.TempDir()},
 		evidence: evidence, checks: checkResults{},
 	}
-	local := state.localForwardedRemote()
+	local := localForwardedRemote(state.options.Administrator, state.options.Ports, state.paths.work, evidence)
 	require.Equal(t, "127.0.0.1", local.Host)
 	require.Equal(t, state.options.Ports.SSH, local.Port)
 	require.Equal(t, state.options.Ports.Cockpit, local.CockpitPort)
@@ -27,7 +27,7 @@ func TestLocalForwardedChecksKeepTransportAndEvidenceExplicit(t *testing.T) {
 	tailnet := local
 	tailnet.Host = "100.64.0.1"
 	tailnet.KnownHosts = filepath.Join(state.paths.work, "tailnet-known-hosts")
-	err = state.verifyLocalForwardedAccess(context.Background(), admin, tailnet)
+	err = verifyLocalForwardedAccess(context.Background(), admin, tailnet, state.checks)
 	require.NoError(t, err)
 	for _, name := range []string{
 		"iso/local-forwarded-before-enrollment.stdout",

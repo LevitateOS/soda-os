@@ -87,6 +87,83 @@ replace those requirements with a new product contract.
 | `runner-completion` | Complete input preparation and implemented itinerary without error | All preceding itinerary operations returned successfully; does not imply the missing observations above |
 | `evidence-and-cleanup` | Exact-resource cleanup, cleanup-log write, then credential scan | `cleanup.txt`, `secret-absence.txt`; any cleanup or sanitization failure leaves this check absent |
 
+## Runner ownership and itinerary
+
+Start reading at `internal/acceptance/runner.go`: `Run` prepares inputs, executes
+`itinerary.go`, and always finalizes an initialized run. The itinerary is ordinary
+ordered Go calls, not a scenario registry or resumable workflow. Read `execute`,
+then `exerciseInstalledSystem`, then `exerciseProductScenarios` in that file.
+The order is intentional:
+
+1. Verify the published fallback signature and prepare the disposable registry.
+2. Install through Anaconda; observe local-forwarded defaults before opening
+   fixture Forgejo ports; discover native browser enrollment; recheck both paths.
+3. Verify native first-owner signup, capture initial boundaries, and seed the
+   kept project with administrator, Alice, and Bob workspaces and private files.
+4. Switch B→A→B and compare returned preservation snapshots. Enrollment stays
+   intact across both replacement VM processes.
+5. Run product checks in their written order. Inspect workspace keys and append
+   Alice's later personal key; exercise SSH, development servers, and concurrent
+   mise use; remove Alice's workspace while she is still non-administrative;
+   then promote her primary account to wheel and check independent Forgejo roles.
+   Subsequent checks use her primary account, never the deleted workspace.
+   Exercise the external SSH fixture, project removal, and human deletion last.
+6. Capture final boundaries, log out of the ISO guest's Tailnet enrollment, and
+   power it down. Only then start the separate reusable QCOW2 guest, provision
+   cloud-init, verify its local-only project setup, and power it down.
+7. Finalize exact-resource cleanup, sanitize evidence, and write the partial
+   schema-2 report. Qualification remains a separate operation.
+
+### Data ownership
+
+- `runner_init.go` returns `runInputs`: usable administrator credentials and
+  connection, a personal-key generator, and protected paths for operator prompts.
+  Paths are not a second source of operational passwords. The secret collection
+  is only a redaction input; checks never retrieve credentials by label.
+- `fixtures.go` defines concrete person, workspace, and seeded-project values.
+  A person carries its incoming SSH connection/public key and explicit Linux and
+  Forgejo credentials. The first owner's passwords are independent; ordinary
+  teammate fixtures intentionally use their Linux password through native PAM.
+  Workspace setup returns its actual connection and project identity only after
+  successful retry and account checks. Linux, not these values, owns current
+  account existence and roles.
+- `scenarios.go` seeds preservation state and returns the three concrete
+  workspaces. Product, identity, external-Git, and fallback checks receive the
+  fixtures, remotes, image references, or evidence they use—not the whole runner.
+  The sequential itinerary owns which fixtures remain usable after mutations.
+- `remote.go` returns `CommandResult` with stdout, stderr, and the execution error.
+  `Exchange` separately returns evidence-retention errors. Expected-failure
+  assertions must check that retention error before accepting a command failure;
+  `Capture` and `Sudo` propagate both. Evidence files are outputs for people,
+  never an internal result bus. Setup diagnostics and preservation comparisons
+  consume returned bytes, not reopened `.stderr` or snapshot files.
+
+### Guest ownership
+
+`guest.go` owns one guest lifetime: its disk/boot configuration, active VM, and
+optional discovered-enrollment cleanup obligation. ISO and QCOW2 have separate
+owners, each registered once with `Cleanup`:
+
+- `restart` powers down and replaces a VM without logging out. Failed powerdown
+  retains the old process for emergency stop; `LaunchVM` cleans up partial launch
+  failures. No `**VM` or run-wide logout callback crosses phase boundaries.
+- `shutdown` attempts logout before normal powerdown, even when logout fails.
+- `cleanup` attempts logout once and stops the exact remaining process. Both
+  attempts have independent bounded contexts, unaffected by itinerary cancellation.
+  Repeated guest cleanup retains failures without repeating operations. A failed
+  replacement can leave enrollment unreachable; that is reported as a cleanup
+  failure, not treated as a successful logout or repaired by a new recovery VM.
+
+The run-level finalizer separately owns the disposable registry and work-directory
+cleanup. It preserves operator-owned credential files and retains sanitized run
+evidence. The lifecycle tests use native test subprocesses speaking QMP, not real
+QEMU guests; they verify ownership, ordering, cancellation, replacement failures,
+and ISO/QCOW2 independence without claiming installed-system coverage.
+
+This refactoring changes no qualification requirement, schema-2 check name,
+installed-browser coverage, or network-topology claim. See the coverage map and
+qualification blocker above.
+
 ## Required scenarios
 
 ### Installation and native onboarding

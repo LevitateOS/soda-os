@@ -22,7 +22,7 @@ test "$(wc -l <"$COMMAND_LOG")" -lt 2
 	require.NoError(t, err)
 	state := runnerState{evidence: evidence, checks: checkResults{"update-and-fallback": "pass"}}
 	project := projectFixture{Admin: workspaceFixture{Person: personFixture{Remote: Remote{Evidence: evidence}}}}
-	err = state.exerciseProductScenarios(context.Background(), project, fixtureKeys{}, "")
+	err = exerciseProductScenarios(context.Background(), project, fixtureKeys{}, "", state.checks)
 	require.ErrorContains(t, err, "workspace-boundaries-and-git-keys")
 	require.Equal(t, checkResults{"update-and-fallback": "pass"}, state.checks)
 	contents, err := os.ReadFile(commands)

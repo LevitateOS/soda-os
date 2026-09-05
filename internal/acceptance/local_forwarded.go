@@ -8,11 +8,11 @@ import (
 )
 
 // localForwardedRemote reaches the guest through QEMU loopback forwards, not a LAN client.
-func (state *runnerState) localForwardedRemote() Remote {
+func localForwardedRemote(input AdministratorInput, ports HostPorts, work string, evidence Evidence) Remote {
 	return Remote{
-		Username: state.options.Administrator.Username, Host: "127.0.0.1", Port: state.options.Ports.SSH,
-		CockpitPort: state.options.Ports.Cockpit, Key: state.paths.adminKey,
-		KnownHosts: filepath.Join(state.paths.work, "iso-local-forwarded-known-hosts"), Evidence: state.evidence,
+		Username: input.Username, Host: "127.0.0.1", Port: ports.SSH,
+		CockpitPort: ports.Cockpit, Key: input.PrivateKey,
+		KnownHosts: filepath.Join(work, "iso-local-forwarded-known-hosts"), Evidence: evidence,
 	}
 }
 

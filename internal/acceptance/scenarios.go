@@ -7,33 +7,6 @@ import (
 	"time"
 )
 
-func (state *runnerState) exerciseInstalledSystem(ctx context.Context, inputs runInputs, tailnetHost string, guest *guest) error {
-	admin := inputs.Admin
-	if err := state.verifyNativeOwner(ctx, admin, "http://"+urlHost(tailnetHost)+":30000", inputs.OwnerPasswordFile); err != nil {
-		return err
-	}
-	if err := captureCore(ctx, admin, "iso"); err != nil {
-		return fmt.Errorf("installed product boundaries: %w", err)
-	}
-	project, err := seedPreservationState(ctx, admin, inputs.Keys)
-	if err != nil {
-		return fmt.Errorf("seed update and fallback state: %w", err)
-	}
-	if err = state.checks.record("update-and-fallback", state.exerciseFallback(ctx, admin, guest)); err != nil {
-		return fmt.Errorf("manual update and fallback: %w", err)
-	}
-	if err = state.exerciseProductScenarios(ctx, project, inputs.Keys, tailnetHost); err != nil {
-		return fmt.Errorf("product scenarios: %w", err)
-	}
-	if err = state.checks.record("packaged-boundaries", captureCore(ctx, admin, "final")); err != nil {
-		return fmt.Errorf("final product capture: %w", err)
-	}
-	if guest.enrollment == nil {
-		return errors.New("installed Tailnet cleanup was not registered")
-	}
-	return guest.shutdown(ctx)
-}
-
 func captureCore(ctx context.Context, admin personFixture, prefix string) error {
 	if err := admin.Remote.Capture(ctx, prefix+"/core", []byte(coreGuestChecks), "/bin/bash", "-s"); err != nil {
 		return err

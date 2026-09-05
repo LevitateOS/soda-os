@@ -11,7 +11,7 @@ import (
 	"time"
 )
 
-func (state *runnerState) installAndOnboard(ctx context.Context, admin personFixture) (string, *guest, error) {
+func (state *runnerState) installAndOnboard(ctx context.Context, inputs runInputs) (string, *guest, error) {
 	tailnet, err := NewTailnet()
 	if err != nil {
 		return "", nil, err
@@ -23,46 +23,47 @@ func (state *runnerState) installAndOnboard(ctx context.Context, admin personFix
 	if err = state.evidence.Write("iso/host-tailnet-before.json", raw); err != nil {
 		return "", nil, err
 	}
-	return state.completeISOFlow(ctx, before, tailnet, admin)
+	return state.completeISOFlow(ctx, before, tailnet, inputs)
 }
 
-func (state *runnerState) completeISOFlow(ctx context.Context, before tailnetStatus, tailnet Tailnet, admin personFixture) (string, *guest, error) {
-	vm, err := state.launch(ctx, "iso/install", "install", state.paths.installedDisk, state.artifacts.CandidateISO)
+func (state *runnerState) completeISOFlow(ctx context.Context, before tailnetStatus, tailnet Tailnet, inputs runInputs) (string, *guest, error) {
+	installed, err := state.launch(ctx, "iso/install", "install", state.paths.installedDisk, state.artifacts.CandidateISO)
 	if err != nil {
 		return "", nil, err
 	}
-	fmt.Fprintf(state.output, "Create Linux administrator %q through graphical Anaconda, reboot, and log in normally. Add the personal public key through Cockpit Accounts before continuing. Protected input paths:\n  password: %s\n  SSH public key: %s\n\n", admin.Remote.Username, state.paths.password, state.paths.adminPublicKey)
+	admin := inputs.Admin
+	fmt.Fprintf(state.output, "Create Linux administrator %q through graphical Anaconda, reboot, and log in normally. Add the personal public key through Cockpit Accounts before continuing. Protected input paths:\n  password: %s\n  SSH public key: %s\n\n", admin.Remote.Username, inputs.PasswordFile, inputs.PublicKeyFile)
 	if err = state.checks.record("iso-first-boot-defaults", verifyInitialLocalForwardedAccess(ctx, admin, state.options.Ports.Forgejo)); err != nil {
-		return "", vm, err
+		return "", installed, err
 	}
 	fmt.Fprintln(state.output, "Local-forwarded access through QEMU is verified (not independent LAN evidence). Open Cockpit → Tailscale and sign in through its native browser authentication URL.")
-	host, raw, err := state.resolveGuest(ctx, before, tailnet)
+	host, raw, err := resolveGuest(ctx, before, tailnet)
 	if err != nil {
-		return "", vm, err
+		return "", installed, err
 	}
 	remote := admin.Remote
 	remote.Host, remote.Port, remote.CockpitPort = host, 22, 9090
 	remote.KnownHosts = state.paths.knownHosts
 	// Own the discovered enrollment before retaining evidence can fail.
-	vm.enrollment = &guestEnrollment{remote: remote, password: admin.LinuxPassword}
+	installed.enrollment = &guestEnrollment{remote: remote, password: admin.LinuxPassword}
 	if err = state.evidence.Write("iso/host-tailnet-enrolled.json", raw); err != nil {
-		return "", vm, err
+		return "", installed, err
 	}
 	if err = state.evidence.Write("iso/tailnet-address.txt", []byte(host+"\n")); err != nil {
-		return "", vm, err
+		return "", installed, err
 	}
 	waitCtx, cancel := context.WithTimeout(ctx, 20*time.Minute)
 	defer cancel()
 	if err = remote.WaitReady(waitCtx); err != nil {
-		return "", vm, err
+		return "", installed, err
 	}
-	if err = state.checks.record("local-forwarded-access", state.verifyLocalForwardedAccess(ctx, admin, remote)); err != nil {
-		return "", vm, err
+	if err = state.checks.record("local-forwarded-access", verifyLocalForwardedAccess(ctx, admin, remote, state.checks)); err != nil {
+		return "", installed, err
 	}
-	return host, vm, vm.captureQMP(ctx, "iso/qmp-running.json")
+	return host, installed, installed.captureQMP(ctx, "iso/qmp-running.json")
 }
 
-func (state *runnerState) verifyLocalForwardedAccess(ctx context.Context, admin personFixture, tailnet Remote) error {
+func verifyLocalForwardedAccess(ctx context.Context, admin personFixture, tailnet Remote, checks checkResults) error {
 	waitCtx, cancel := context.WithTimeout(ctx, 5*time.Minute)
 	defer cancel()
 	if err := admin.Remote.WaitReady(waitCtx); err != nil {
@@ -71,7 +72,7 @@ func (state *runnerState) verifyLocalForwardedAccess(ctx context.Context, admin 
 	if err := admin.Remote.Sudo(ctx, admin.LinuxPassword, nativeServiceChecks, "iso/local-forwarded-after-tailscale"); err != nil {
 		return err
 	}
-	return state.checks.record("tailnet-access", verifyTailnetAfterLocalAccess(ctx, tailnet, admin.LinuxPassword))
+	return checks.record("tailnet-access", verifyTailnetAfterLocalAccess(ctx, tailnet, admin.LinuxPassword))
 }
 
 func verifyTailnetAfterLocalAccess(ctx context.Context, tailnet Remote, password []byte) error {
@@ -109,7 +110,7 @@ func (state *runnerState) launch(ctx context.Context, relative, mode, disk, iso 
 	return launchGuest(ctx, config, state.evidence, state.cleanup)
 }
 
-func (state *runnerState) resolveGuest(ctx context.Context, before tailnetStatus, tailnet Tailnet) (string, []byte, error) {
+func resolveGuest(ctx context.Context, before tailnetStatus, tailnet Tailnet) (string, []byte, error) {
 	discoveryCtx, cancel := context.WithTimeout(ctx, 20*time.Minute)
 	defer cancel()
 	return tailnet.Discover(discoveryCtx, before)
@@ -127,11 +128,11 @@ func (state *runnerState) exerciseReusableQCOW2(ctx context.Context, inputs runI
 	if err != nil {
 		return err
 	}
-	vm, err := state.launch(ctx, "qcow2/first-boot", "qcow2", state.paths.qcowDisk, seed)
+	qcow, err := state.launch(ctx, "qcow2/first-boot", "qcow2", state.paths.qcowDisk, seed)
 	if err != nil {
 		return err
 	}
-	fmt.Fprintf(state.output, "Cloud-init is provisioning reusable QCOW2 administrator %q using the protected password at %s and public key at %s. The disposable guest keeps Fedora firewall defaults with Cockpit TCP 9090 allowed; the suite administrator will open Forgejo ports for testing.\n", state.options.Administrator.Username, state.paths.password, state.paths.adminPublicKey)
+	fmt.Fprintf(state.output, "Cloud-init is provisioning reusable QCOW2 administrator %q using the protected password at %s and public key at %s. The disposable guest keeps Fedora firewall defaults with Cockpit TCP 9090 allowed; the suite administrator will open Forgejo ports for testing.\n", inputs.Admin.Remote.Username, inputs.PasswordFile, inputs.PublicKeyFile)
 	admin := inputs.Admin
 	admin.Remote.KnownHosts = filepath.Join(state.paths.work, "qcow-known-hosts")
 	remote := admin.Remote
@@ -143,16 +144,16 @@ func (state *runnerState) exerciseReusableQCOW2(ctx context.Context, inputs runI
 	if err = remote.Sudo(ctx, admin.LinuxPassword, acceptanceForgejoFirewall, "qcow2/administrator-allows-forgejo"); err != nil {
 		return err
 	}
-	if err = state.verifyNativeOwner(ctx, admin, fmt.Sprintf("http://127.0.0.1:%d", state.options.Ports.Forgejo), inputs.OwnerPasswordFile); err != nil {
+	if err = verifyNativeOwner(ctx, admin, fmt.Sprintf("http://127.0.0.1:%d", state.options.Ports.Forgejo), inputs.OwnerPasswordFile, state.output); err != nil {
 		return err
 	}
 	if err = runQCOW2Checks(ctx, admin, originalSize); err != nil {
 		return err
 	}
-	if err = vm.captureQMP(ctx, "qcow2/qmp-running.json"); err != nil {
+	if err = qcow.captureQMP(ctx, "qcow2/qmp-running.json"); err != nil {
 		return err
 	}
-	return vm.shutdown(ctx)
+	return qcow.shutdown(ctx)
 }
 
 type qemuImageInfo struct {

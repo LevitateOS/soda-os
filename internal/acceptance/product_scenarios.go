@@ -11,35 +11,6 @@ import (
 	"strings"
 )
 
-func (state *runnerState) exerciseProductScenarios(ctx context.Context, project projectFixture, keys fixtureKeys, tailnetHost string) error {
-	if err := state.checks.record("workspace-boundaries-and-git-keys", verifyWorkspaceBoundaries(ctx, project, keys)); err != nil {
-		return err
-	}
-	if err := state.checks.record("ssh-transports", verifySSHTransports(ctx, project.Alice.Remote)); err != nil {
-		return err
-	}
-	if err := state.checks.record("development-server-access", verifyDevelopmentServer(ctx, project.Alice, project.Bob, tailnetHost)); err != nil {
-		return err
-	}
-	if err := state.checks.record("native-mise-ownership", verifyMiseOwnership(ctx, project)); err != nil {
-		return err
-	}
-	// Alice must still be non-administrative here. Her workspace is removed before promotion.
-	if err := state.checks.record("workspace-removal", verifyWorkspaceRemoval(ctx, project)); err != nil {
-		return err
-	}
-	if err := state.checks.record("cockpit-auth-and-independent-roles", verifyCockpitAndRoles(ctx, project.Admin, project.Alice.Person)); err != nil {
-		return err
-	}
-	if err := state.checks.record("external-ssh-repository", verifyExternalSSHRepository(ctx, project.Admin.Person)); err != nil {
-		return err
-	}
-	if err := state.checks.record("project-removal", verifyProjectRemoval(ctx, project.Admin.Person, project.Bob.Person)); err != nil {
-		return err
-	}
-	return state.checks.record("human-removal-preserves-forgejo", verifyIndependentPersonDeletion(ctx, project.Admin.Person, keys))
-}
-
 func verifyWorkspaceBoundaries(ctx context.Context, project projectFixture, keys fixtureKeys) error {
 	admin := project.Admin.Person
 	for _, item := range []struct {

@@ -42,14 +42,10 @@ type RunResult struct {
 }
 
 type runPaths struct {
-	work           string
-	adminKey       string
-	adminPublicKey string
-	password       string
-	people         string
-	installedDisk  string
-	qcowDisk       string
-	knownHosts     string
+	work          string
+	installedDisk string
+	qcowDisk      string
+	knownHosts    string
 }
 
 type runnerState struct {
@@ -100,26 +96,6 @@ func (state *runnerState) finish(ctx context.Context, runErr error) (RunResult, 
 		result.SummaryPath = filepath.Join(state.evidence.Root, "summary.json")
 	}
 	return result, errors.Join(resultErr, finalizeErr, reportErr)
-}
-
-func (state *runnerState) execute(ctx context.Context, inputs runInputs) error {
-	if err := state.verifyFallbackPublication(ctx); err != nil {
-		return fmt.Errorf("previous published fallback: %w", err)
-	}
-	if err := state.prepareRegistry(ctx); err != nil {
-		return fmt.Errorf("registry: %w", err)
-	}
-	tailnetHost, guest, err := state.installAndOnboard(ctx, inputs.Admin)
-	if err != nil {
-		return fmt.Errorf("network ISO and first boot: %w", err)
-	}
-	if err = state.exerciseInstalledSystem(ctx, inputs, tailnetHost, guest); err != nil {
-		return err
-	}
-	if err = state.checks.record("qcow2-cloud-init-local", state.exerciseReusableQCOW2(ctx, inputs)); err != nil {
-		return fmt.Errorf("reusable QCOW2: %w", err)
-	}
-	return nil
 }
 
 func (state *runnerState) verifyFallbackPublication(ctx context.Context) error {
