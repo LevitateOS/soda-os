@@ -121,10 +121,10 @@ func (registry Registry) publishNative(ctx context.Context, archive, tag string)
 		"copy", "--preserve-digests", "--src-no-creds", "--dest-no-creds", "--dest-tls-verify=false",
 		"oci-archive:" + archive, "docker://" + repository + ":" + tag,
 	}})
-	if err != nil {
+	writeErr := registry.Evidence.Write(filepath.Join("registry", tag+"-copy.txt"), copyOutput)
+	if err = errors.Join(err, writeErr); err != nil {
 		return "", err
 	}
-	_ = registry.Evidence.Write(filepath.Join("registry", tag+"-copy.txt"), copyOutput)
 	return registry.inspectNative(ctx, repository, tag)
 }
 
@@ -148,7 +148,9 @@ func (registry Registry) publishContainer(ctx context.Context, archive, tag, ima
 	base = append(base, network...)
 	base = append(base, "--volume", archive+":/input/archive.tar:ro", "--entrypoint", "/usr/bin/skopeo", image)
 	copyArgs := append(append([]string(nil), base...), "copy", "--preserve-digests", "--src-no-creds", "--dest-no-creds", "--dest-tls-verify=false", "oci-archive:/input/archive.tar", "docker://"+repository+":"+tag)
-	if _, err = registry.Docker.Output(ctx, copyArgs...); err != nil {
+	copyOutput, err := registry.Docker.Output(ctx, copyArgs...)
+	writeErr := registry.Evidence.Write(filepath.Join("registry", tag+"-copy.txt"), copyOutput)
+	if err = errors.Join(err, writeErr); err != nil {
 		return "", err
 	}
 	inspectArgs := append(append([]string(nil), base...), "inspect", "--no-creds", "--tls-verify=false", "--format", "{{.Digest}}", "docker://"+repository+":"+tag)

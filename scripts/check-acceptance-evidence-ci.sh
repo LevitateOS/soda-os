@@ -15,6 +15,7 @@ require 'workflow_dispatch:'
 require 'x86_summary_b64:'
 require 'aarch64_summary_b64:'
 require 'aarch64_release_record_b64:'
+require 'x86_release_record_b64:'
 require "github.repository == 'LevitateOS/soda-os'"
 require "github.ref == 'refs/heads/main'"
 require 'permissions:'
@@ -26,12 +27,13 @@ require '-le 12288'
 require 'go run ./cmd/soda-acceptance record'
 require '--expected-revision "$GITHUB_SHA"'
 require '--aarch64-release-record'
+require '--x86-release-record'
 require 'https://github.com/LevitateOS/soda-os/.github/workflows/native-acceptance-evidence.yml@refs/heads/main'
 require 'https://token.actions.githubusercontent.com'
 require 'retention-days: 1'
 
-if [ "$(grep -Ec '^      [a-z0-9_]+:$' "$workflow")" -ne 3 ]; then
-    echo 'native acceptance workflow must accept exactly three record inputs' >&2
+if [ "$(grep -Ec '^      [a-z0-9_]+:$' "$workflow")" -ne 4 ]; then
+    echo 'native acceptance workflow must accept both run summaries and both candidate records' >&2
     exit 1
 fi
 

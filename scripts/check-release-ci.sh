@@ -31,7 +31,11 @@ grep -Fq 'mktemp -d "$(dirname "$SODA_RELEASE_ROOT")/t.XXXXXX"' scripts/soda-rel
 grep -Fq 'ln -s "$temp" "$run/tmp"' scripts/soda-release-executor
 grep -Fq 'export RUNNER_TEMP=$temp TMPDIR=$temp GOCACHE=$run/go-cache' scripts/soda-release-executor
 
-if grep -Eq 'acceptance|guest[_-]key|NoCloud|ConfigDrive|cloud-input|installer-input|OEMDRV' "$workflow" scripts/soda-release-executor; then
+grep -Fq 'soda-acceptance verify --record' "$workflow"
+grep -Fq -- '--expected-revision "$GITHUB_SHA"' "$workflow"
+grep -Fq 'needs: validate' "$workflow"
+
+if grep -Eq 'soda-acceptance[[:space:]]+(run|record)([[:space:]]|$)|guest[_-]key|NoCloud|ConfigDrive|cloud-input|installer-input|OEMDRV' "$workflow" scripts/soda-release-executor; then
     echo 'release CI must verify pre-release evidence, not run matching-native acceptance' >&2
     exit 1
 fi

@@ -416,22 +416,37 @@ the same source and suite revisions, the signing interface is:
 ```text
 go run ./cmd/soda-acceptance record \
   --x86-summary PATH --aarch64-summary PATH \
-  --aarch64-release-record PATH \
+  --x86-release-record PATH --aarch64-release-record PATH \
   --expected-revision EXACT_MAIN_SHA \
   --output PATH \
   --approved-signer SIGSTORE_CERTIFICATE_IDENTITY \
   --oidc-issuer SIGSTORE_OIDC_ISSUER
 ```
 
-The AArch64 release record is parsed with the strict schema-3 decoder and must
-bind the AArch64 run's candidate digest, `linux/arm64` platform, and exact main
-revision. Both summaries must name that same revision as their source and suite
-revision. The maintained `Native acceptance evidence` workflow accepts only
-base64-encoded copies of those three credential-free records, invokes this
-command with its exact `main` SHA, signs and immediately verifies the combined
-record, and retains only the five small record files for one day. It does not
+Both candidate release records use the strict schema-3 decoder and must bind
+the corresponding run's candidate digest, native platform, and exact main
+revision. Both summaries must name that revision as their source and suite.
+The maintained `Native acceptance evidence` workflow accepts base64-encoded
+copies of those four credential-free inputs, invokes this command with its exact
+`main` SHA, signs and verifies the combined record, and retains the six small
+files for one day. It does not
 run QEMU, receive a guest Tailscale credential, publish an image, or create a
 release.
+
+Release CI consumes that artifact before native preparation:
+
+```text
+go run ./cmd/soda-acceptance verify --record PATH --expected-revision EXACT_PRODUCTION_SHA
+```
+
+The adjacent `PATH.sigstore.json` bundle is required. Trust is fixed to the
+maintained main signing workflow, not supplied by the record or a CLI override.
+Both siblings must qualify at the exact production SHA; a merge commit or merely
+equivalent source tree is not accepted as a substitute. Duplicate report/check
+fields, unknown fields, mismatched identities and signature failures are errors.
+Capture writes are exclusive: an accidentally reused label fails rather than
+overwriting an earlier observation. Returned error text is redacted as well as
+retained files; error identity remains available to programmatic callers.
 
 The runner QCOW2 fixture covers cloud-init through QEMU loopback-forwarded
 access, not an independent trusted-LAN client. The late-enrollment Tailnet, native Cockpit key UI, first-signup, registration

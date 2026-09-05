@@ -1,6 +1,7 @@
 package acceptance
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -8,6 +9,8 @@ import (
 	"slices"
 	"strings"
 	"time"
+
+	"github.com/LevitateOS/soda-os/internal/strictjson"
 )
 
 // Qualification requires observations, not merely completion of the runner.
@@ -45,6 +48,25 @@ type RunSummary struct {
 	FallbackDigest  string            `json:"fallback_digest"`
 	Scenarios       map[string]string `json:"scenarios"`
 	CompletedAt     string            `json:"completed_at"`
+}
+
+// UnmarshalJSON rejects ambiguous duplicate fields both in the report and its
+// check map. Use a distinct wire type to avoid recursively invoking this method.
+func (summary *RunSummary) UnmarshalJSON(contents []byte) error {
+	type wireSummary RunSummary
+	var decoded wireSummary
+	if err := strictjson.Decode(bytes.NewReader(contents), &decoded); err != nil {
+		return err
+	}
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(contents, &fields); err != nil {
+		return err
+	}
+	if err := strictjson.Decode(bytes.NewReader(fields["scenarios"]), &decoded.Scenarios); err != nil {
+		return fmt.Errorf("decode check results: %w", err)
+	}
+	*summary = RunSummary(decoded)
+	return nil
 }
 
 // Validate accepts partial reports. Missing checks are not established.
@@ -123,6 +145,9 @@ func digest(value string) bool {
 func WriteRunSummary(path string, summary RunSummary) error {
 	if err := summary.Validate(); err != nil {
 		return err
+	}
+	if summary.Scenarios == nil {
+		summary.Scenarios = map[string]string{}
 	}
 	contents, err := json.MarshalIndent(summary, "", "  ")
 	if err != nil {

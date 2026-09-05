@@ -20,7 +20,7 @@ func main() {
 		SilenceUsage:  true,
 		SilenceErrors: true,
 	}
-	root.AddCommand(runCommand(), recordCommand())
+	root.AddCommand(runCommand(), recordCommand(), verifyCommand())
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	if err := root.ExecuteContext(ctx); err != nil {
@@ -88,6 +88,10 @@ func recordCommand() *cobra.Command {
 				return err
 			}
 			options.ARM64Spec = spec
+			options.X86Spec, err = config.LoadDistro(specPath, "x86_64")
+			if err != nil {
+				return err
+			}
 			runner := process.OSRunner{Stdout: os.Stdout, Stderr: os.Stderr}
 			result, err := acceptance.CreateSignedRecord(command.Context(), options, runner)
 			if err == nil {
@@ -97,15 +101,16 @@ func recordCommand() *cobra.Command {
 		},
 	}
 	flags := command.Flags()
-	flags.StringVar(&specPath, "spec", "distro/soda.toml", "Soda distribution specification for the AArch64 record")
+	flags.StringVar(&specPath, "spec", "distro/soda.toml", "Soda distribution specification for both candidate records")
 	flags.StringVar(&options.X86Summary, "x86-summary", "", "schema-2 x86-64 run report with complete qualification evidence")
 	flags.StringVar(&options.ARM64Summary, "aarch64-summary", "", "schema-2 AArch64 run report with complete qualification evidence")
+	flags.StringVar(&options.X86ReleaseRecord, "x86-release-record", "", "strict x86-64 candidate release record")
 	flags.StringVar(&options.ARM64ReleaseRecord, "aarch64-release-record", "", "strict AArch64 candidate release record")
 	flags.StringVar(&options.ExpectedRevision, "expected-revision", "", "exact main revision named by both runs")
 	flags.StringVar(&options.Output, "output", "", "new strict JSON acceptance record")
 	flags.StringVar(&options.ApprovedSigner, "approved-signer", "", "expected Sigstore certificate identity")
 	flags.StringVar(&options.OIDCIssuer, "oidc-issuer", "", "expected Sigstore certificate OIDC issuer")
-	for _, name := range []string{"x86-summary", "aarch64-summary", "aarch64-release-record", "expected-revision", "output", "approved-signer", "oidc-issuer"} {
+	for _, name := range []string{"x86-summary", "aarch64-summary", "x86-release-record", "aarch64-release-record", "expected-revision", "output", "approved-signer", "oidc-issuer"} {
 		_ = command.MarkFlagRequired(name)
 	}
 	return command

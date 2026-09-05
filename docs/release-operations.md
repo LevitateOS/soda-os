@@ -48,10 +48,10 @@ A separate implementation must supply the missing evidence path; do not invent
 passes or weaken the requirements to sign a report.
 
 The qualified sibling runs are submitted to the maintained `Native acceptance
-evidence` workflow on exact `main`, together with the strict AArch64 candidate
-release record. Each decoded input is limited to 12 KiB. The workflow requires
-both summaries' source and suite revisions to equal its own source SHA, binds
-the AArch64 candidate digest to its schema-3 release record, and produces one
+evidence` workflow on exact `main`, together with both strict candidate release
+records. Each decoded input is limited to 12 KiB. The workflow requires both
+summaries' source and suite revisions to equal its own source SHA, binds each
+candidate digest/platform to its schema-3 release record, and produces one
 strict JSON acceptance record containing:
 
 - schema;
@@ -65,11 +65,20 @@ strict JSON acceptance record containing:
 
 The record is signed and verified through Cosign/Sigstore with the fixed
 `native-acceptance-evidence.yml@refs/heads/main` workflow identity. The two
-summaries, AArch64 release record, combined record, and signature bundle remain
+summaries, both candidate records, combined record, and signature bundle remain
 available as a one-day Actions artifact. The workflow receives no credentials,
 runs no VM, publishes no image, and creates no release. Its record authenticates
 the claim about the pre-release runs; it does not claim that any later CI-built
 bytes were boot-tested. Soda creates no attestation service.
+
+The production `validate` job downloads the successful maintained signing
+workflow's artifact for its exact `GITHUB_SHA`, then invokes `soda-acceptance
+verify`. Verification requires full sibling qualification and a Cosign signature
+from the fixed main workflow identity; missing, expired, mismatched or invalid
+evidence stops the job before native preparation. There is no signer override or
+ancestor/tree-equivalence fallback. Promote the accepted **same commit SHA** to
+production; a new merge commit needs its own exact-source acceptance. This is a
+source-level gate, not a claim that later rebuilt artifacts were exercised.
 
 ## Build-once production workflow
 

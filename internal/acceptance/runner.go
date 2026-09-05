@@ -95,7 +95,7 @@ func (state *runnerState) finish(ctx context.Context, runErr error) (RunResult, 
 	if reportErr == nil {
 		result.SummaryPath = filepath.Join(state.evidence.Root, "summary.json")
 	}
-	return result, errors.Join(resultErr, finalizeErr, reportErr)
+	return result, redactError(errors.Join(resultErr, finalizeErr, reportErr), state.secrets)
 }
 
 func (state *runnerState) verifyFallbackPublication(ctx context.Context) error {

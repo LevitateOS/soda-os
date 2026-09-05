@@ -11,6 +11,10 @@ on:
         description: Base64-encoded credential-free schema-2 AArch64 report with complete coverage
         required: true
         type: string
+      x86_release_record_b64:
+        description: Base64-encoded strict x86-64 candidate release record
+        required: true
+        type: string
       aarch64_release_record_b64:
         description: Base64-encoded strict AArch64 candidate release record
         required: true
@@ -44,6 +48,7 @@ jobs:
         env:
           X86_SUMMARY_B64: ${{ inputs.x86_summary_b64 }}
           AARCH64_SUMMARY_B64: ${{ inputs.aarch64_summary_b64 }}
+          X86_RELEASE_RECORD_B64: ${{ inputs.x86_release_record_b64 }}
           AARCH64_RELEASE_RECORD_B64: ${{ inputs.aarch64_release_record_b64 }}
         run: |
           set -eu
@@ -64,6 +69,7 @@ jobs:
           }
           decode_record "$X86_SUMMARY_B64" x86_64.summary.json
           decode_record "$AARCH64_SUMMARY_B64" aarch64.summary.json
+          decode_record "$X86_RELEASE_RECORD_B64" x86_64.release.json
           decode_record "$AARCH64_RELEASE_RECORD_B64" aarch64.release.json
       - name: Qualify complete coverage, combine, sign, and verify exact-main evidence
         env:
@@ -75,6 +81,7 @@ jobs:
           go run ./cmd/soda-acceptance record \
             --x86-summary "$evidence/x86_64.summary.json" \
             --aarch64-summary "$evidence/aarch64.summary.json" \
+            --x86-release-record "$evidence/x86_64.release.json" \
             --aarch64-release-record "$evidence/aarch64.release.json" \
             --expected-revision "$GITHUB_SHA" \
             --output "$evidence/acceptance.json" \
@@ -86,6 +93,7 @@ jobs:
           path: |
             ${{ runner.temp }}/native-acceptance/x86_64.summary.json
             ${{ runner.temp }}/native-acceptance/aarch64.summary.json
+            ${{ runner.temp }}/native-acceptance/x86_64.release.json
             ${{ runner.temp }}/native-acceptance/aarch64.release.json
             ${{ runner.temp }}/native-acceptance/acceptance.json
             ${{ runner.temp }}/native-acceptance/acceptance.json.sigstore.json

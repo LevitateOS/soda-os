@@ -28,6 +28,8 @@ type RecordOptions struct {
 	X86Summary         string
 	ARM64Summary       string
 	ARM64ReleaseRecord string
+	X86ReleaseRecord   string
+	X86Spec            config.DistroSpec
 	ARM64Spec          config.DistroSpec
 	ExpectedRevision   string
 	Output             string
@@ -66,8 +68,8 @@ func CreateSignedRecord(ctx context.Context, options RecordOptions, runner proce
 }
 
 func (options RecordOptions) validate() error {
-	if options.Output == "" || options.ApprovedSigner == "" || options.OIDCIssuer == "" || options.ARM64ReleaseRecord == "" {
-		return errors.New("record output, AArch64 release record, approved signer, and OIDC issuer are required")
+	if options.Output == "" || options.ApprovedSigner == "" || options.OIDCIssuer == "" || options.ARM64ReleaseRecord == "" || options.X86ReleaseRecord == "" {
+		return errors.New("record output, both candidate release records, approved signer, and OIDC issuer are required")
 	}
 	if !gitRevision(options.ExpectedRevision) {
 		return errors.New("expected source revision must be a full Git SHA")
@@ -76,20 +78,20 @@ func (options RecordOptions) validate() error {
 }
 
 func validateRecordInputs(runs []RunSummary, options RecordOptions) error {
-	for _, run := range runs {
-		if err := run.Qualify(); err != nil {
-			return fmt.Errorf("qualify %s: %w", run.Architecture, err)
-		}
-		if run.SourceRevision != options.ExpectedRevision || run.SuiteRevision != options.ExpectedRevision {
-			return errors.New("sibling source and suite revisions must equal the expected workflow revision")
-		}
+	if err := qualifySiblingRuns(runs, options.ExpectedRevision); err != nil {
+		return err
 	}
-	armRecord, err := release.ValidateStrictRecord(options.ARM64ReleaseRecord, options.ARM64Spec, options.ExpectedRevision)
-	if err != nil {
-		return fmt.Errorf("validate AArch64 release record: %w", err)
-	}
-	if armRecord.SodaImageReference != release.Repository+"@"+runs[1].CandidateDigest {
-		return errors.New("AArch64 release record image digest differs from the AArch64 run summary")
+	for i, candidate := range []struct {
+		path string
+		spec config.DistroSpec
+	}{{options.X86ReleaseRecord, options.X86Spec}, {options.ARM64ReleaseRecord, options.ARM64Spec}} {
+		record, err := release.ValidateStrictRecord(candidate.path, candidate.spec, options.ExpectedRevision)
+		if err != nil {
+			return fmt.Errorf("validate %s release record: %w", runs[i].Architecture, err)
+		}
+		if record.SodaImageReference != release.Repository+"@"+runs[i].CandidateDigest || record.Platform != runs[i].Platform {
+			return fmt.Errorf("%s release record image digest differs from the run summary or platform", runs[i].Architecture)
+		}
 	}
 	return nil
 }
@@ -147,10 +149,7 @@ func requireJSONEOF(decoder *json.Decoder) error {
 
 func combinedRecord(runs []RunSummary, signer string) AcceptanceRecord {
 	sort.Slice(runs, func(left, right int) bool { return runs[left].Architecture < runs[right].Architecture })
-	completed := runs[0].CompletedAt
-	if runs[1].CompletedAt > completed {
-		completed = runs[1].CompletedAt
-	}
+	completed := SummaryTime(latestCompletion(runs))
 	return AcceptanceRecord{
 		SchemaVersion:  2,
 		SourceRevision: runs[0].SourceRevision,

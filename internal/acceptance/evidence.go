@@ -20,6 +20,30 @@ type Evidence struct {
 	Root string
 }
 
+// Preserve errors.Is/As for callers without exposing credential bytes through
+// the error's printable representation (files are sanitized separately).
+type redactedError struct {
+	cause   error
+	message string
+}
+
+func (err redactedError) Error() string { return err.message }
+func (err redactedError) Unwrap() error { return err.cause }
+
+func redactError(err error, secrets []Secret) error {
+	if err == nil {
+		return nil
+	}
+	message := err.Error()
+	for _, secret := range secrets {
+		value := strings.TrimRight(string(secret.Value), "\r\n")
+		if value != "" {
+			message = strings.ReplaceAll(message, value, "[REDACTED]")
+		}
+	}
+	return redactedError{cause: err, message: message}
+}
+
 func CreateEvidence(path string) (Evidence, error) {
 	if path == "" {
 		return Evidence{}, errors.New("evidence directory is required")
@@ -44,7 +68,12 @@ func (evidence Evidence) Write(relative string, contents []byte) error {
 	if err = os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return fmt.Errorf("create evidence parent: %w", err)
 	}
-	if err = os.WriteFile(path, contents, 0o600); err != nil {
+	file, err := newPrivateFile(path)
+	if err != nil {
+		return fmt.Errorf("write evidence %s: %w", relative, err)
+	}
+	_, writeErr := file.Write(contents)
+	if err = errors.Join(writeErr, file.Close()); err != nil {
 		return fmt.Errorf("write evidence %s: %w", relative, err)
 	}
 	return nil
