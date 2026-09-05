@@ -12,12 +12,12 @@
   display: block;
   overflow-wrap: anywhere;
 }
-.soda-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-}
+
 .soda-page {
   min-height: 100vh;
   background: var(--pf-t--global--background--color--primary--default);
+}
+
+.soda-external-link {
+  overflow-wrap: anywhere;
 }

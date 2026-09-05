@@ -13,7 +13,6 @@ export function ExitNodeApprovalGuidance({
     status = snapshot?.status;
   return (
     <>
-      {" "}
       <p role="status">
         {snapshot
           ? exitNodeApproval(snapshot.status, snapshot.prefs)

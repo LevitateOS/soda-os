@@ -5,7 +5,6 @@ import { statusText } from "../../runners/ui";
 export function RunnerServiceStatus({ service }: { service: Service }) {
   return (
     <>
-      {" "}
       <Label
         color={
           service.active === "failed"

@@ -1,4 +1,4 @@
-import { Button, PageSection, Spinner, Stack, Title } from "@patternfly/react-core";
+import { Button, PageSection, Spinner, Stack, StackItem, Title } from "@patternfly/react-core";
 import { DiagnosticAlert } from "../../molecules/DiagnosticAlert";
 import { DeviceIdentity } from "../../molecules/tailscale/DeviceIdentity";
 import { AuthenticationGuidance } from "../../molecules/tailscale/AuthenticationGuidance";
@@ -40,18 +40,20 @@ export function TailscaleConnection({
           <DiagnosticAlert variant="warning" message={status.Health.join("\n")} />
         )}
         {!connected && status?.BackendState !== "NeedsMachineAuth" && (
-          <Button
-            isDisabled={
-              busy || !status || ["Starting", "NoState"].includes(status.BackendState ?? "")
-            }
-            onClick={onSignIn}
-          >
-            {status?.BackendState === "Stopped"
-              ? "Connect"
-              : status?.HaveNodeKey
-                ? "Sign in again"
-                : "Sign in"}
-          </Button>
+          <StackItem>
+            <Button
+              isDisabled={
+                busy || !status || ["Starting", "NoState"].includes(status.BackendState ?? "")
+              }
+              onClick={onSignIn}
+            >
+              {status?.BackendState === "Stopped"
+                ? "Connect"
+                : status?.HaveNodeKey
+                  ? "Sign in again"
+                  : "Sign in"}
+            </Button>
+          </StackItem>
         )}
         <AuthenticationGuidance status={status} authURL={authURL} />
         <DeviceIdentity status={status} />

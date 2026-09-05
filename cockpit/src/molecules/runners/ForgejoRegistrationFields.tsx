@@ -1,3 +1,4 @@
+import { HelperText, HelperTextItem } from "@patternfly/react-core";
 import { FormGroup, Stack, TextInput } from "@patternfly/react-core";
 import { ExternalLink } from "../../atoms/ExternalLink";
 import { forgejoBrowserURL } from "../../runners/ui";
@@ -13,13 +14,15 @@ export function ForgejoRegistrationFields({
   return (
     <div hidden={!active}>
       <Stack hasGutter>
-        <p>
-          Create a system runner in{" "}
-          <ExternalLink href={`${forgejoBrowserURL(hostname)}/admin/actions/runners`}>
-            Forgejo runner administration
-          </ExternalLink>
-          , then copy its UUID and confidential token here.
-        </p>
+        <HelperText>
+          <HelperTextItem>
+            Create a system runner in{" "}
+            <ExternalLink href={`${forgejoBrowserURL(hostname)}/admin/actions/runners`}>
+              Forgejo runner administration
+            </ExternalLink>
+            , then copy its UUID and confidential token here.
+          </HelperTextItem>
+        </HelperText>
         <FormGroup label="Forgejo runner UUID" fieldId="registration-id" isRequired={active}>
           <TextInput
             id="registration-id"
@@ -40,10 +43,12 @@ export function ForgejoRegistrationFields({
             pattern="[A-Za-z0-9][A-Za-z0-9._-]{0,63}:host(,[A-Za-z0-9][A-Za-z0-9._-]{0,63}:host)*"
             autoComplete="off"
           />
-          <p>
-            Use comma-separated <code>name:host</code> labels. Host jobs run directly as this
-            runner's isolated Linux account.
-          </p>
+          <HelperText>
+            <HelperTextItem>
+              Use comma-separated <code>name:host</code> labels. Host jobs run directly as this
+              runner's isolated Linux account.
+            </HelperTextItem>
+          </HelperText>
         </FormGroup>
       </Stack>
     </div>

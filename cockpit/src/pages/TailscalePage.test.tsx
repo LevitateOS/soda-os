@@ -50,6 +50,42 @@ const flush = async () => {
   });
 };
 afterEach(() => vi.useRealTimers());
+test.each([
+  [{ BackendState: "NeedsLogin" }, "Not signed in", "Sign in", false],
+  [
+    { BackendState: "NeedsLogin", HaveNodeKey: true },
+    "Authentication required",
+    "Sign in again",
+    false,
+  ],
+  [{ BackendState: "NeedsMachineAuth" }, "Waiting for Tailnet administrator approval", null, true],
+  [{ BackendState: "Stopped" }, "Disconnected", "Connect", false],
+  [{ BackendState: "Starting" }, "Connecting", "Sign in", true],
+  [
+    { BackendState: "Running", Self: { Expired: true }, HaveNodeKey: true },
+    "Authentication expired",
+    "Sign in again",
+    false,
+  ],
+] as const)(
+  "connection section preserves native state %s",
+  async (status, message, action, disabled) => {
+    const app = setup({ status, prefs: {} });
+    await flush();
+    const connection = within(screen.getByRole("region", { name: "Connection" }));
+    expect(connection.getByText(message)).toBeTruthy();
+    expect((screen.getByLabelText("Exit node") as HTMLSelectElement).disabled).toBe(true);
+    expect(app.native.refreshForgejo).not.toHaveBeenCalled();
+    if (action) {
+      expect((connection.getByRole("button", { name: action }) as HTMLButtonElement).disabled).toBe(
+        disabled,
+      );
+    } else {
+      expect(connection.queryByRole("button")).toBeNull();
+      expect(connection.getByRole("link", { name: "Tailscale administration" })).toBeTruthy();
+    }
+  },
+);
 test("opening connected page refreshes Forgejo once and polling preserves native-setting edits", async () => {
   const { native } = setup();
   await flush();

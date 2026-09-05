@@ -20,12 +20,14 @@ export function RemoveRunnerDialog({
       isOpen
       variant="medium"
       aria-labelledby="remove-title"
+      aria-describedby="remove-description"
       onClose={busy ? undefined : onClose}
       onEscapePress={onClose}
     >
       <ModalHeader
         title="Remove local runner"
         labelId="remove-title"
+        descriptorId="remove-description"
         description="This permanently stops the listener and deletes its Linux account, provider client state, working files, dependencies, and uncommitted job changes. Its provider record and CI history remain with Forgejo or GitHub; remove the offline record there."
       />
       <ModalBody>

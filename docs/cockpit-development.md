@@ -38,17 +38,51 @@ assets and compare file hashes. Generated output and dependencies are untracked.
 
 ## Source and package ownership
 
-| Previous authored MJS | TypeScript owner |
-| --- | --- |
-| Projects app, protocol, ui, and two tests | `cockpit/src/projects/` |
-| Runners app, protocol, ui, and two tests | `cockpit/src/runners/` |
-| Tailscale app, native, status, stream, and four tests | `cockpit/src/tailscale/` |
+The source uses atomic layers first. PatternFly supplies most primitives and
+larger compositions: import its buttons, inputs, forms, modals, tables, alerts,
+and layouts directly instead of wrapping them merely to populate an atomic layer.
 
-This accounts for all 18 authored modules at source revision
-`415f9bd3d1df01e6f8da6b2b4a9d443d6e979545`. Imperative UI source assertions have
-become interaction tests of real components; framework-independent assertions
-remain pure. Removed onboarding Setup code is not restored. The workspace
-**Set up for me** action remains in Projects.
+| Source owner | Responsibility |
+| --- | --- |
+| `src/atoms/` | Soda eyebrow, wrapping code values, and external links |
+| `src/molecules/` | Shared heading, diagnostic and confirmation compositions; feature-specific field groups and summaries |
+| `src/organisms/{projects,runners,tailscale}/` | Complete sections and dialogs with explicit data and callbacks |
+| `src/templates/` | Sidebar-free Cockpit page layout with content, actions, feedback, and dialog slots |
+| `src/pages/` | Feature hook and component composition for each registered page |
+| `src/{projects,runners,tailscale}/` | Stable entrypoints, feature hooks, native adapters, protocols, types, and pure presentation helpers |
+| `src/cockpit/` | Shared Cockpit API types and minimal Soda CSS |
+
+`ProjectsPage`, `RunnersPage`, and `TailscalePage` replace the former `App.tsx`
+components. Their interaction tests live beside the pages. Native protocol,
+status, and stream tests remain with their feature owners.
+
+Visual components never invoke Cockpit or import native adapters. Feature
+organisms and molecules may use their own types and pure presentation helpers;
+shared components have no feature dependencies. Pages connect their own feature
+hook to the template and organisms. Hooks own transient requests, refresh, and
+lifecycle handling; there is no shared application store or generic operation
+controller. Layers may skip levels and use PatternFly directly. For example,
+`ProjectActions` composes PatternFly `Button` and `Flex`; `CatalogProjectDialog`
+uses PatternFly `Modal` and `Form` with Soda's `CatalogFields`.
+
+Use direct imports, keep feature-specific components under their feature within
+an atomic layer, and do not import sibling features or higher layers. The
+source-boundary test parses the actual TypeScript/TSX imports (including type
+imports and re-exports) through the locked TypeScript API and resolves relative
+paths. It checks these boundaries and each entrypoint's own page/native wiring.
+
+React state remains transient. Runner registration secrets stay in the native
+input, are cleared immediately after synchronous request serialization, and
+are cleared on teardown. Tailscale's feature hook retains streaming auth URLs,
+non-overlapping reads, unsaved form edits, hidden-page cancellation, native state
+recovery on reopening, and conditional Forgejo refresh. Component composition
+adds no completion state, daemon, or privileged bridge.
+
+PatternFly owns spacing, typography, responsive layouts, modal focus, and theme
+behavior. Soda CSS is limited to identity, long values/diagnostics, and the page
+surface. Keep sections, native guidance, and product actions in their existing
+order. Removed onboarding Setup code stays removed; the workspace **Set up for
+me** action remains in Projects.
 
 One build configuration runs three isolated browser environments. Vite's emitted
 HTML is relocated from its source subdirectory to each installed package root;

@@ -12,7 +12,7 @@ import { DiagnosticAlert } from "../../molecules/DiagnosticAlert";
 import { ConfirmationField } from "../../molecules/ConfirmationField";
 import { dialogCopy } from "../../projects/ui";
 import type { ProjectDialogProps } from "./dialogTypes";
-export function RemoveHumanDialog({ busy, error, onClose, onSubmit }: ProjectDialogProps & {}) {
+export function RemoveHumanDialog({ busy, error, onClose, onSubmit }: ProjectDialogProps) {
   const action = "delete-human";
   const [title, description, button] = dialogCopy[action];
   return (

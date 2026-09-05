@@ -1,4 +1,4 @@
-import { Button, PageSection, Stack, Title } from "@patternfly/react-core";
+import { Button, PageSection, Stack, StackItem, Title } from "@patternfly/react-core";
 export function PeopleSection({ busy, onRemove }: { busy: boolean; onRemove: () => void }) {
   return (
     <PageSection aria-labelledby="people-title">
@@ -12,9 +12,11 @@ export function PeopleSection({ busy, onRemove }: { busy: boolean; onRemove: () 
           workspaces, then the primary Linux account. Forgejo account deletion remains separate
           inside Forgejo.
         </p>
-        <Button variant="danger" isDisabled={busy} onClick={onRemove}>
-          Remove person…
-        </Button>
+        <StackItem>
+          <Button variant="danger" isDisabled={busy} onClick={onRemove}>
+            Remove person…
+          </Button>
+        </StackItem>
       </Stack>
     </PageSection>
   );

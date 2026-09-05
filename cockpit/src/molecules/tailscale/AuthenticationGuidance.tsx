@@ -11,7 +11,6 @@ export function AuthenticationGuidance({
 }) {
   return (
     <>
-      {" "}
       {authURL && (
         <Alert isInline variant="info" title="Continue in Tailscale">
           <ExternalLink href={authURL}>{authURL}</ExternalLink>

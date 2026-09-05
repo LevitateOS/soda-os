@@ -1,3 +1,4 @@
+import { HelperText, HelperTextItem } from "@patternfly/react-core";
 import { useCallback, useRef, useState, type FormEvent } from "react";
 import {
   Button,
@@ -39,12 +40,14 @@ export function RegisterRunnerDialog({
       isOpen
       variant="medium"
       aria-labelledby="registration-title"
+      aria-describedby="registration-description"
       onClose={busy ? undefined : onClose}
       onEscapePress={onClose}
     >
       <ModalHeader
         title="Create local runner"
         labelId="registration-title"
+        descriptorId="registration-description"
         description="The provider creates the registration input. Soda passes it only to that provider's runner."
       />
       <ModalBody>
@@ -60,9 +63,11 @@ export function RegisterRunnerDialog({
               autoComplete="off"
               aria-describedby="runner-id-help"
             />
-            <p id="runner-id-help">
-              A stable lowercase local name. It is also the provider runner name for GitHub.
-            </p>
+            <HelperText>
+              <HelperTextItem id="runner-id-help">
+                A stable lowercase local name. It is also the provider runner name for GitHub.
+              </HelperTextItem>
+            </HelperText>
           </FormGroup>
           <FormGroup label="Provider" role="group" fieldId="provider">
             <Radio
@@ -100,11 +105,13 @@ export function RegisterRunnerDialog({
               isDisabled={busy}
               autoComplete="off"
             />
-            <p>
-              Used only through the provider's native registration input. Soda descriptors, command
-              arguments, environment, and logs never contain it. The provider runner retains the
-              credential it needs to reconnect.
-            </p>
+            <HelperText>
+              <HelperTextItem>
+                Used only through the provider's native registration input. Soda descriptors,
+                command arguments, environment, and logs never contain it. The provider runner
+                retains the credential it needs to reconnect.
+              </HelperTextItem>
+            </HelperText>
           </FormGroup>
           {error && <DiagnosticAlert message={error} role="alert" />}
         </Form>
