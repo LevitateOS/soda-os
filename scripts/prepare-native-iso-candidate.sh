@@ -56,11 +56,17 @@ derive_version() {
 }
 
 require_runtime_identity() {
-    local archive=$1 version=$2 architecture=$3 image_id
-    image_id=$(skopeo inspect --raw oci-archive:"$archive" | jq -er '.config.digest')
-    [[ "$image_id" =~ ^sha256:[0-9a-f]{64}$ ]] || fail "OCI archive has no exact image config digest"
+    local archive=$1 version=$2 architecture=$3 image_id config_digest manifest_digest
+    config_digest=$(skopeo inspect --raw oci-archive:"$archive" | jq -er '.config.digest')
+    manifest_digest=$(skopeo inspect --format '{{.Digest}}' oci-archive:"$archive")
+    [[ "$config_digest" =~ ^sha256:[0-9a-f]{64}$ && "$manifest_digest" =~ ^sha256:[0-9a-f]{64}$ ]] \
+        || fail "OCI archive has no exact config and manifest digests"
     docker load --input "$archive" >/dev/null
-    [[ $(docker image inspect --format '{{.Id}}' "$image_id") == "$image_id" ]] || fail "loaded image ID differs from archive config digest"
+    # Classic Docker uses a config ID; the containerd store uses a manifest ID.
+    # Resolve the loaded tag once, require its exact archive identity, then run by ID.
+    image_id=$(docker image inspect --format '{{.Id}}' "$registry:$version")
+    [[ "$image_id" == "$config_digest" || "$image_id" == "$manifest_digest" ]] \
+        || fail "loaded image ID differs from archive config and manifest digests"
     docker run --rm --pull=never --platform "$native_docker_platform" --entrypoint /bin/sh "$image_id" -eu -c '
         test "$(uname -s)" = Linux
         test "$(uname -m)" = "$2"
@@ -150,4 +156,6 @@ installation source: docker://$digest_reference
 SUMMARY
 }
 
-main "$@"
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+    main "$@"
+fi

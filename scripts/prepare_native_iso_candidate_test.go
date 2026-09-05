@@ -45,6 +45,25 @@ func TestPrepareNativeISOSequence(t *testing.T) {
 	}
 }
 
+func TestPrepareNativeISOUsesExactContainerdManifestID(t *testing.T) {
+	fixture := prepareNativeScriptTest(t, "aarch64", "Linux")
+	cmd := fixture.command(t, "prepare-native-iso-candidate.sh", fixture.arch)
+	cmd.Env = append(cmd.Env, "SODA_TEST_IMAGE_STORE=containerd")
+	runScriptOK(t, cmd)
+	commands := readFile(t, fixture.log)
+	require.Contains(t, commands, "image inspect --format {{.Id}} ghcr.io/levitateos/soda-os:0.6.3")
+	require.Contains(t, commands, "--entrypoint /bin/sh "+testDigest)
+	require.NotContains(t, commands, "--entrypoint /bin/sh ghcr.io/")
+}
+
+func TestPrepareNativeISOCanBeSourcedWithoutPublication(t *testing.T) {
+	fixture := prepareNativeScriptTest(t, "aarch64", "Linux")
+	writeTestFile(t, filepath.Join(fixture.root, "scripts", "source-only.sh"), "#!/usr/bin/env bash\nsource scripts/prepare-native-iso-candidate.sh\n", 0o755)
+	runScriptOK(t, fixture.command(t, "source-only.sh"))
+	_, err := os.Stat(fixture.log)
+	require.ErrorIs(t, err, os.ErrNotExist)
+}
+
 func TestPrepareNativeISORefusesCollisions(t *testing.T) {
 	for _, suffix := range []string{"soda-os-0.6.3-aarch64.oci.tar", "SodaOS-0.6.3-aarch64.iso", "SodaOS-0.6.3-aarch64.iso.sha256"} {
 		t.Run(suffix, func(t *testing.T) {
@@ -62,7 +81,7 @@ func TestPrepareNativeISORefusesCollisions(t *testing.T) {
 }
 
 func TestPrepareNativeISOPrepublicationFailures(t *testing.T) {
-	for _, failure := range []string{"dirty", "git-status", "status-after-check", "origin", "tag", "tag-network", "check", "oci", "metadata", "image-id", "runtime", "drift-check", "drift-oci"} {
+	for _, failure := range []string{"dirty", "git-status", "status-after-check", "origin", "tag", "tag-network", "check", "oci", "metadata", "config-digest", "manifest-digest", "image-id", "runtime", "drift-check", "drift-oci"} {
 		t.Run(failure, func(t *testing.T) {
 			fixture := prepareNativeScriptTest(t, "aarch64", "Linux")
 			cmd := fixture.command(t, "prepare-native-iso-candidate.sh", fixture.arch)
@@ -259,7 +278,9 @@ case "$*" in
   printf '{"Current":true,"Name":"native","Driver":"%s","Nodes":[{"Status":"%s","Endpoint":"%s","Platforms":["linux/amd64","linux/arm64"]}]}\n' "$driver" "$status" "$endpoint" ;;
 'load --input '*) ;;
 'image inspect --format {{.Id}} '*)
-  if [[ ${SODA_TEST_FAIL:-} == image-id ]]; then echo wrong; else echo '` + testImageID + `'; fi ;;
+  if [[ ${SODA_TEST_FAIL:-} == image-id ]]; then echo wrong
+  elif [[ ${SODA_TEST_IMAGE_STORE:-} == containerd ]]; then echo '` + testDigest + `'
+  else echo '` + testImageID + `'; fi ;;
 'build --platform '*) [[ ${SODA_TEST_FAIL:-} != check-image ]] ;;
 'run --rm --pull=never --platform '*)
   [[ ${SODA_TEST_FAIL:-} != runtime && ${SODA_TEST_FAIL:-} != check-container ]] ;;
@@ -274,7 +295,11 @@ const skopeoStub = `case "$*" in
   arch=arm64; [[ $SODA_TEST_ARCH != x86_64 ]] || arch=amd64
   [[ ${SODA_TEST_FAIL:-} != metadata ]] || arch=wrong
   printf '{"Os":"linux","Architecture":"%s","Digest":"` + testDigest + `","Labels":{"org.opencontainers.image.version":"0.6.3","org.opencontainers.image.revision":"` + testRevision + `"}}\n' "$arch" ;;
-'inspect --raw oci-archive:'*) echo '{"config":{"digest":"` + testImageID + `"}}' ;;
+'inspect --raw oci-archive:'*)
+  if [[ ${SODA_TEST_FAIL:-} == config-digest ]]; then echo '{"config":{"digest":"bad"}}'
+  else echo '{"config":{"digest":"` + testImageID + `"}}'; fi ;;
+'inspect --format {{.Digest}} oci-archive:'*)
+  if [[ ${SODA_TEST_FAIL:-} == manifest-digest ]]; then echo bad; else echo '` + testDigest + `'; fi ;;
 'inspect --no-creds --format {{.Digest}} docker://'* )
   [[ ${SODA_TEST_FAIL:-} != remote-network ]] || exit 1
   if [[ ${SODA_TEST_FAIL:-} == remote-digest ]]; then echo wrong; else echo '` + testDigest + `'; fi ;;

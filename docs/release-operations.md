@@ -255,9 +255,13 @@ scratch paths.
 
 It runs the complete Linux gate, then `just oci` once, which already builds the
 RPMs. It checks OCI OS, architecture, version and source labels, loads the
-archive, verifies its image ID against the manifest's config digest, and runs
-that exact image without pulling. Linux runtime architecture, `os-release`, and
-Soda RPM versions must pass before publication.
+archive, verifies its image ID against the archive's config or manifest digest,
+and runs that exact image without pulling. Linux runtime architecture, `os-release`, and
+Soda RPM versions must pass before publication. Docker's classic image store
+reports the config digest as the image ID; its containerd store reports the
+manifest digest. The runtime check accepts only these two identities derived
+from the archive, then executes the verified ID with `--pull=never`, never the
+mutable tag. The script can be sourced to run this check without publication.
 
 Next, `soda-release image-stage` publishes
 `ghcr.io/levitateos/soda-os:sha-<full-source-revision>-<architecture>` without
@@ -315,6 +319,19 @@ Initial failure evidence is retained under `.artifacts/native-oci.iGvZss/`.
 The clean rebased source at `bf4ea45` had passed the unchanged Linux `just check`
 gate in `.artifacts/rebased-native-check.XXXXXX.log`; those source checks did
 not prove that an image dependency transaction would succeed.
+
+At `b027b4e`, the real AArch64 OCI rebuild succeeded, including the native Cosign
+RPM, the locked package inventory, and `bootc container lint` (11 checks passed,
+one skipped). Lint reported two warnings: content in `/run`/`/tmp`, and `/var`
+paths without tmpfiles entries. They are retained in `build-fix.log`, not
+suppressed. Installed-system behavior is still unverified. Direct execution
+confirmed Linux/AArch64, Soda OS 0.6.3, matching OpenSSL 3.5.8 packages, Cosign's
+pinned upstream version/commit, and an unchanged RPM inventory.
+
+That image also reproduced the containerd manifest-ID distinction above; the
+corrected runtime verifier passed against the actual archive. Subsequent loop
+logs and cleanup evidence remain in `.artifacts/native-oci.iGvZss/`. Checks and
+local OCI construction do not imply GHCR publication or installation approval.
 
 ### Installation evidence remains separate
 
