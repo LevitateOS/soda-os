@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"strings"
 
 	"github.com/LevitateOS/soda-os/internal/linuxhost"
 	"github.com/LevitateOS/soda-os/internal/projects/catalog"
@@ -22,6 +21,7 @@ type Helper struct {
 	workspaces     workspace.Accounts
 	repository     workspace.Repository
 	remover        workspace.Remover
+	deletion       linuxhost.AccountDeleter
 	people         people.Deletion
 	operationLocks OperationLocker
 }
@@ -33,6 +33,7 @@ func NewSystemHelper(host *linuxhost.Native) Helper {
 		workspaces:     workspace.NewAccounts(host, host, host, host),
 		repository:     workspace.NewRepository(host, host),
 		remover:        workspace.NewRemover(host, host),
+		deletion:       host,
 		people:         people.Deletion{Host: host},
 		operationLocks: NewSystemOperationLocker(),
 	}
@@ -65,6 +66,8 @@ func (helper Helper) dispatch(ctx context.Context, actor linuxhost.PKExecIdentit
 		return helper.catalogAdd(ctx, actor, input)
 	case "catalog-edit":
 		return helper.catalogEdit(ctx, actor, input)
+	case "removal-inspect":
+		return helper.removalInspect(ctx, actor, input)
 	case "workspace-inspect":
 		return helper.workspaceInspect(ctx, actor, input)
 	case "workspace-prepare":
@@ -194,93 +197,26 @@ func (helper Helper) workspaceEntry(request HelperWorkspaceRequest) (catalog.Ent
 	return entry, nil
 }
 
-func (helper Helper) workspaceRemove(ctx context.Context, actor linuxhost.PKExecIdentity, input io.Reader) (SuccessResponse, error) {
-	var request ProjectRequest
+func (helper Helper) workspaceRemove(ctx context.Context, actor linuxhost.PKExecIdentity, input io.Reader) (RemovalResponse, error) {
+	var request RemoveProjectRequest
 	if err := strictjson.Decode(input, &request); err != nil {
-		return SuccessResponse{}, err
+		return RemovalResponse{}, err
 	}
-	lock, err := helper.operationLocks.Exclusive()
-	if err != nil {
-		return SuccessResponse{}, fmt.Errorf("lock workspace operations: %w", err)
-	}
-	primary, _, err := helper.authorizeActor(ctx, actor)
-	if err == nil {
-		err = helper.remover.Remove(ctx, primary, request.ID)
-	}
-	if err = closeLockWithError(lock, err, "workspace operations"); err != nil {
-		return SuccessResponse{}, err
-	}
-	return SuccessResponse{OK: true}, nil
+	return helper.executeRemoval(ctx, actor, RemovalInspectionRequest{Action: "remove-workspace", Target: request.ID}, request.Expected)
 }
 
-func (helper Helper) projectRemove(ctx context.Context, actor linuxhost.PKExecIdentity, input io.Reader) (SuccessResponse, error) {
-	var request ProjectRequest
+func (helper Helper) projectRemove(ctx context.Context, actor linuxhost.PKExecIdentity, input io.Reader) (RemovalResponse, error) {
+	var request RemoveProjectRequest
 	if err := strictjson.Decode(input, &request); err != nil {
-		return SuccessResponse{}, err
+		return RemovalResponse{}, err
 	}
-	lock, err := helper.operationLocks.Exclusive()
-	if err != nil {
-		return SuccessResponse{}, fmt.Errorf("lock workspace operations: %w", err)
-	}
-	operationErr := helper.removeProjectLocked(ctx, actor, request.ID)
-	if err = closeLockWithError(lock, operationErr, "workspace operations"); err != nil {
-		return SuccessResponse{}, err
-	}
-	return SuccessResponse{OK: true}, nil
+	return helper.executeRemoval(ctx, actor, RemovalInspectionRequest{Action: "remove", Target: request.ID}, request.Expected)
 }
 
-func (helper Helper) removeProjectLocked(ctx context.Context, identity linuxhost.PKExecIdentity, projectID string) error {
-	locked, err := helper.store.Lock()
-	if err != nil {
-		return err
-	}
-	actor, uidMin, operationErr := helper.authorizeActor(ctx, identity)
-	if operationErr == nil && !people.IsAdministrator(actor, uidMin) {
-		operationErr = errors.New("administrator status is required")
-	}
-	if operationErr == nil {
-		operationErr = helper.removeProjectWithCatalogLock(ctx, locked, projectID, uidMin)
-	}
-	return errors.Join(operationErr, locked.Close())
-}
-
-func (helper Helper) removeProjectWithCatalogLock(ctx context.Context, locked *catalog.LockedStore, projectID string, uidMin int) error {
-	entry, err := locked.Get(projectID)
-	if err != nil {
-		return err
-	}
-	removed, err := helper.remover.RemoveProjectWorkspaces(ctx, entry, uidMin)
-	if err != nil {
-		return err
-	}
-	if err = locked.Remove(projectID); err != nil {
-		return fmt.Errorf("%s; shared catalog entry and canonical repository remain: %w", removedProjectWorkspaceDescription(removed), err)
-	}
-	return nil
-}
-
-func removedProjectWorkspaceDescription(workspaces []string) string {
-	if len(workspaces) == 0 {
-		return "no local workspaces were removed"
-	}
-	return "removed local workspaces " + strings.Join(workspaces, ", ")
-}
-
-func (helper Helper) humanDelete(ctx context.Context, identity linuxhost.PKExecIdentity, input io.Reader) (SuccessResponse, error) {
-	var request HelperHumanRequest
+func (helper Helper) humanDelete(ctx context.Context, actor linuxhost.PKExecIdentity, input io.Reader) (RemovalResponse, error) {
+	var request DeleteHumanRequest
 	if err := strictjson.Decode(input, &request); err != nil {
-		return SuccessResponse{}, err
+		return RemovalResponse{}, err
 	}
-	lock, err := helper.operationLocks.Exclusive()
-	if err != nil {
-		return SuccessResponse{}, fmt.Errorf("lock workspace operations: %w", err)
-	}
-	actor, uidMin, operationErr := helper.authorizeActor(ctx, identity)
-	if operationErr == nil {
-		operationErr = helper.people.Delete(ctx, actor, uidMin, request.Username)
-	}
-	if err = closeLockWithError(lock, operationErr, "workspace operations"); err != nil {
-		return SuccessResponse{}, err
-	}
-	return SuccessResponse{OK: true}, nil
+	return helper.executeRemoval(ctx, actor, RemovalInspectionRequest{Action: "delete-human", Target: request.Username}, request.Expected)
 }

@@ -6,6 +6,7 @@ export const actions = Object.freeze([
   "add-existing",
   "edit",
   "inspect",
+  "removal-inspect",
   "setup",
   "remove-workspace",
   "remove",
@@ -42,6 +43,11 @@ export function decodeResponse(action: Action, output: string): unknown {
     return response;
   }
 
+  if (["remove", "remove-workspace", "delete-human"].includes(action)) {
+    assertRemovalResponse(response);
+    return response;
+  }
+  if (action === "removal-inspect") assertRemovalPreview(response.preview);
   if (response.ok !== true) {
     throw new TypeError("coordinator mutation did not report success");
   }
@@ -53,6 +59,49 @@ export function decodeResponse(action: Action, output: string): unknown {
     throw new TypeError("setup response is missing workspace_username");
   }
   return response;
+}
+
+function assertRemovalPreview(value: unknown) {
+  assertObject(value, "removal preview");
+  if (
+    !["remove", "remove-workspace", "delete-human"].includes(String(value.action)) ||
+    typeof value.target !== "string" ||
+    typeof value.revision !== "string" ||
+    !/^[a-f0-9]{64}$/.test(value.revision) ||
+    typeof value.catalog_present !== "boolean" ||
+    !Array.isArray(value.accounts)
+  )
+    throw new TypeError("invalid removal preview");
+  for (const account of value.accounts) {
+    assertObject(account, "removal account");
+    if (typeof account.uid !== "number" || !Number.isSafeInteger(account.uid) || account.uid < 0)
+      throw new TypeError("invalid removal account UID");
+    for (const field of ["username", "primary_username", "project_id", "home"])
+      if (typeof account[field] !== "string") throw new TypeError("invalid removal account");
+  }
+}
+
+function assertRemovalResponse(value: Record<string, unknown>) {
+  if (
+    typeof value.ok !== "boolean" ||
+    typeof value.problem !== "string" ||
+    !["unchanged", "not_attempted", "removed", "uncertain"].includes(String(value.catalog))
+  )
+    throw new TypeError("invalid removal receipt");
+  assertObject(value.result, "removal result");
+  const result = value.result;
+  for (const field of ["removed", "not_attempted"])
+    if (!Array.isArray(result[field]) || !result[field].every((item) => typeof item === "string"))
+      throw new TypeError("incomplete removal receipt");
+  if (typeof result.uncertain !== "string" || typeof result.diagnostic !== "string")
+    throw new TypeError("incomplete removal receipt");
+  const problems = value.problem || result.uncertain || result.diagnostic;
+  if (
+    value.ok &&
+    (problems || (result.not_attempted as string[]).length || value.catalog === "uncertain")
+  )
+    throw new TypeError("removal success contains unresolved outcomes");
+  if (!value.ok && !problems) throw new TypeError("failed removal has no diagnostic");
 }
 
 function assertWorkspaceInspection(value: unknown) {

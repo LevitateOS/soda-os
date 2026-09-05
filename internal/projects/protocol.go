@@ -26,6 +26,7 @@ type ProjectRequest struct {
 
 type DeleteHumanRequest struct {
 	Username string `json:"username"`
+	Expected string `json:"expected"`
 }
 
 type ProjectView struct {
@@ -77,10 +78,6 @@ type SetupResponse struct {
 	WorkspaceUsername string `json:"workspace_username"`
 }
 
-type SuccessResponse struct {
-	OK bool `json:"ok"`
-}
-
 type WorkspacePreparationResponse struct {
 	OK                 bool   `json:"ok"`
 	WorkspaceUsername  string `json:"workspace_username"`
@@ -99,8 +96,4 @@ type HelperEditRequest = catalog.Edit
 type HelperWorkspaceRequest struct {
 	ID           string `json:"id"`
 	CanonicalURL string `json:"canonical_url"`
-}
-
-type HelperHumanRequest struct {
-	Username string `json:"username"`
 }

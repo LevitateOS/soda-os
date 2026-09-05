@@ -113,7 +113,15 @@ func humanDeletion(t *testing.T, projects ...string) deletionFixture {
 }
 
 func deleteAlice(deletion Deletion, host *deletionHost) error {
-	return deletion.Delete(context.Background(), host.accounts["admin"], host.uidMin, "alice")
+	targets, err := deletion.Targets(context.Background(), host.accounts["admin"], host.uidMin, "alice")
+	if err != nil {
+		return err
+	}
+	result := linuxhost.DeleteAccounts(context.Background(), host, targets)
+	if result.Diagnostic != "" {
+		return errors.New(result.Diagnostic)
+	}
+	return nil
 }
 
 func TestHumanDeletionRemovesWorkspacesThenLinuxPrimary(t *testing.T) {
@@ -144,9 +152,12 @@ func TestHumanDeletionReportsPartialWorkspaceProgress(t *testing.T) {
 	sort.Slice(fixture.workspaces, func(i, j int) bool { return fixture.workspaces[i].Username < fixture.workspaces[j].Username })
 	fixture.host.deleteErr[fixture.workspaces[1].Username] = errors.New("workspace process cannot terminate")
 
-	err := deleteAlice(fixture.deletion, fixture.host)
-	require.ErrorContains(t, err, "removed Soda workspaces "+fixture.workspaces[0].Username)
-	require.ErrorContains(t, err, "workspaces "+fixture.workspaces[1].Username+", "+fixture.workspaces[2].Username+" and primary Linux account remain")
+	targets, err := fixture.deletion.Targets(context.Background(), fixture.host.accounts["admin"], fixture.host.uidMin, "alice")
+	require.NoError(t, err)
+	result := linuxhost.DeleteAccounts(context.Background(), fixture.host, targets)
+	require.Equal(t, []string{fixture.workspaces[0].Username}, result.Removed)
+	require.Equal(t, fixture.workspaces[1].Username, result.Uncertain)
+	require.Equal(t, []string{fixture.workspaces[2].Username, "alice"}, result.NotAttempted)
 	require.Contains(t, fixture.host.accounts, fixture.workspaces[2].Username)
 	require.Contains(t, fixture.host.accounts, "alice")
 }
@@ -154,8 +165,12 @@ func TestHumanDeletionReportsPartialWorkspaceProgress(t *testing.T) {
 func TestHumanDeletionReportsPrimaryFailureAfterWorkspaceRemoval(t *testing.T) {
 	fixture := humanDeletion(t, "site")
 	fixture.host.deleteErr["alice"] = errors.New("Linux deletion failed")
-	err := deleteAlice(fixture.deletion, fixture.host)
-	require.ErrorContains(t, err, "removed Soda workspaces "+fixture.workspaces[0].Username+"; primary Linux account alice remains")
+	targets, err := fixture.deletion.Targets(context.Background(), fixture.host.accounts["admin"], fixture.host.uidMin, "alice")
+	require.NoError(t, err)
+	result := linuxhost.DeleteAccounts(context.Background(), fixture.host, targets)
+	require.Equal(t, []string{fixture.workspaces[0].Username}, result.Removed)
+	require.Equal(t, "alice", result.Uncertain)
+	require.Empty(t, result.NotAttempted)
 	require.Contains(t, fixture.host.accounts, "alice")
 	require.NotContains(t, fixture.host.accounts, fixture.workspaces[0].Username)
 }

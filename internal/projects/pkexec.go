@@ -96,27 +96,22 @@ func (invoker PKExecInvoker) WorkspacePublish(ctx context.Context, request Helpe
 	return response, nil
 }
 
-func (invoker PKExecInvoker) WorkspaceRemove(ctx context.Context, request ProjectRequest) error {
-	return invoker.success(ctx, "workspace-remove", request)
+func (invoker PKExecInvoker) WorkspaceRemove(ctx context.Context, request RemoveProjectRequest) (RemovalResponse, error) {
+	var response RemovalResponse
+	err := invoker.invoke(ctx, "workspace-remove", request, &response)
+	return response, err
 }
 
-func (invoker PKExecInvoker) ProjectRemove(ctx context.Context, request ProjectRequest) error {
-	return invoker.success(ctx, "project-remove", request)
+func (invoker PKExecInvoker) ProjectRemove(ctx context.Context, request RemoveProjectRequest) (RemovalResponse, error) {
+	var response RemovalResponse
+	err := invoker.invoke(ctx, "project-remove", request, &response)
+	return response, err
 }
 
-func (invoker PKExecInvoker) HumanDelete(ctx context.Context, request HelperHumanRequest) error {
-	return invoker.success(ctx, "human-delete", request)
-}
-
-func (invoker PKExecInvoker) success(ctx context.Context, action string, request any) error {
-	var response SuccessResponse
-	if err := invoker.invoke(ctx, action, request, &response); err != nil {
-		return err
-	}
-	if !response.OK {
-		return privilegedIncomplete(action)
-	}
-	return nil
+func (invoker PKExecInvoker) HumanDelete(ctx context.Context, request DeleteHumanRequest) (RemovalResponse, error) {
+	var response RemovalResponse
+	err := invoker.invoke(ctx, "human-delete", request, &response)
+	return response, err
 }
 
 func privilegedIncomplete(action string) error {
@@ -149,6 +144,9 @@ func (invoker PKExecInvoker) invoke(ctx context.Context, action string, request,
 	}
 	if err = decoder.Decode(&struct{}{}); err != io.EOF {
 		return fmt.Errorf("decode privileged %s result: response must contain exactly one JSON value", action)
+	}
+	if removal, ok := response.(*RemovalResponse); ok {
+		return removal.Validate()
 	}
 	return nil
 }

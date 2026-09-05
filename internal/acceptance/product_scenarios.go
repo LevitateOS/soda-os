@@ -238,7 +238,7 @@ printf 'mise_cache=%s\n' "$HOME/.cache/mise"
 
 func (state *runnerState) verifyWorkspaceRemoval(ctx context.Context, scenario *scenarioState) error {
 	alice := scenario.remote.As("alice", state.personKeyPath("alice"))
-	_, err := state.projectCall(ctx, alice, "remove-workspace", map[string]any{"id": "kept"}, "product/alice-remove-workspace")
+	_, err := state.projectRemoval(ctx, alice, "remove-workspace", "kept", "product/alice-remove-workspace")
 	if err != nil {
 		return err
 	}
@@ -246,7 +246,7 @@ func (state *runnerState) verifyWorkspaceRemoval(ctx context.Context, scenario *
 	if err = scenario.remote.Sudo(ctx, scenario.password, check, "product/own-workspace-removal"); err != nil {
 		return err
 	}
-	contents, _ := json.Marshal(map[string]any{"id": "kept"})
+	contents, _ := json.Marshal(map[string]any{"id": "kept", "expected": "reviewed"})
 	err = alice.Capture(ctx, "product/nonadmin-project-remove", append(contents, '\n'), "/usr/libexec/soda/soda-projects", "remove")
 	if err == nil {
 		return errors.New("non-administrator removed an entire project")
@@ -267,7 +267,7 @@ func (state *runnerState) verifyProjectRemoval(ctx context.Context, scenario *sc
 	if err != nil {
 		return err
 	}
-	_, err = state.projectCall(ctx, scenario.remote, "remove", map[string]any{"id": "removable"}, "product/removable-remove")
+	_, err = state.projectRemoval(ctx, scenario.remote, "remove", "removable", "product/removable-remove")
 	if err != nil {
 		return err
 	}
@@ -286,7 +286,7 @@ func (state *runnerState) verifyIndependentPersonDeletion(ctx context.Context, s
 	if _, err := state.createNativeForgejoRepository(ctx, obsolete, scenario.password, "owned", "product/owned-create"); err != nil {
 		return err
 	}
-	if _, err := state.projectCall(ctx, scenario.remote, "delete-human", map[string]any{"username": "obsolete"}, "product/obsolete-delete"); err != nil {
+	if _, err := state.projectRemoval(ctx, scenario.remote, "delete-human", "obsolete", "product/obsolete-delete"); err != nil {
 		return err
 	}
 	script := "! getent passwd obsolete >/dev/null\n" +

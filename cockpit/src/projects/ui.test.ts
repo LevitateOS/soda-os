@@ -7,7 +7,6 @@ import {
   payloadFor,
   projectRemovalHidden,
   sshCommand,
-  successMessage,
   workspaceReady,
   workspaceCanSetup,
 } from "./ui";
@@ -104,48 +103,6 @@ test("SSH guidance follows the browser hostname and brackets IPv6", () => {
   assert.equal(sshCommand(username, "[2001:db8::10]"), `ssh ${username}@[2001:db8::10]`);
 });
 
-test("destructive actions require exact confirmation", () => {
-  const messages: string[] = [];
-  assert.equal(
-    payloadFor(
-      "remove",
-      new Map([
-        ["id", "site"],
-        ["confirmation", "SITE"],
-      ]),
-      (message) => messages.push(message),
-    ),
-    null,
-  );
-  assert.equal(
-    payloadFor(
-      "delete-human",
-      new Map([
-        ["username", "alice"],
-        ["confirmation", "bob"],
-      ]),
-      (message) => messages.push(message),
-    ),
-    null,
-  );
-  assert.equal(
-    payloadFor(
-      "remove-workspace",
-      new Map([
-        ["id", "site"],
-        ["confirmation", "wrong"],
-      ]),
-      (message) => messages.push(message),
-    ),
-    null,
-  );
-  assert.deepEqual(messages, [
-    "Type site exactly to confirm project removal.",
-    "The confirmation username does not match.",
-    "Type site exactly to confirm workspace removal.",
-  ]);
-});
-
 test("human deletion presentation is wheel-status driven", () => {
   assert.equal(humanDeletionHidden({ administrator: true }), false);
   assert.equal(humanDeletionHidden({ administrator: false }), true);
@@ -163,12 +120,4 @@ test("native synchronous diagnostics and outcomes remain visible", () => {
     "native Git authentication failed",
   );
   assert.equal(errorMessage({}), "The operation failed without a diagnostic message.");
-  assert.equal(
-    successMessage("remove", { id: "site" }, { ok: true }),
-    "site and its local workspaces were removed. The canonical repository was not deleted.",
-  );
-  assert.equal(
-    successMessage("delete-human", { username: "bob" }, { ok: true }),
-    "bob and their local Soda workspaces were removed. Their Forgejo account was unchanged.",
-  );
 });

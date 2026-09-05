@@ -25,6 +25,12 @@ approval, archive, transfer, preservation, or recovery workflow.
 Deletion is permanent for local files. A canonical repository cannot recover a
 change that was never committed and pushed.
 
+Projects checks affected accounts before enabling confirmation. Review the people
+listed; expand **Affected accounts and local folders** for account names, projects,
+and home paths. Type the exact project ID or primary username to enable removal.
+Soda rechecks the selection and permissions before mutation. If the selection
+changed, review the fresh selection and confirm again.
+
 ## Before removing your workspace
 
 1. Stop your workspace processes.
@@ -56,7 +62,11 @@ The canonical Forgejo or external repository remains intact.
 
 1. Ask the person to preserve needed local data and stop workspace processes.
 2. Review the Linux account and local workspaces selected in Projects.
-3. Start the administrator-only person removal.
+3. In **Projects → People actions → Remove person…**, enter the primary username
+   and select **Check affected accounts**, then review and confirm the selection.
+
+Removing your signed-in account may end Cockpit before a result arrives. Arrange
+for another administrator to check the result if the session closes.
 
 Soda's administrator-only person removal deletes local workspaces first and the
 primary Linux account last. It neither inspects nor deletes a same-named
@@ -67,17 +77,29 @@ non-cascading Cockpit/Linux deletion remain unchanged.
 
 ## Partial failure
 
-Soda stops at the first failed deletion and shows exactly which steps succeeded
-and which objects remain. It does not hide the partial result or recreate
-already deleted data.
+Soda stops at the first failed deletion. It reports confirmed removals, the
+account whose deletion is uncertain, and accounts it did not attempt. A failed
+command can already have stopped processes or deleted account/home data; failure
+does **not** mean that account or its files remain intact. Shared catalog removal
+is reported separately.
 
 Before retrying:
 
-1. Read the full result.
-2. Inspect the remaining objects through Projects, Cockpit, and Linux.
-3. Correct only the reported cause.
-4. Repeat the same supported action. Completed steps are recognized; ambiguous
-   or conflicting state stops for explicit inspection.
+1. Read the result; expand **Account removal results** or **Technical details**
+   when needed. A refreshed list does not erase the previous failure.
+2. Use **Review remaining removal**, or **Check current state** after a lost
+   response. These are read-only checks, not deletion retries.
+3. Ask an administrator to inspect and correct the reported account or file
+   problem. If a failed account is absent or has a changed UID or home, its
+   previous files cannot be assumed gone. Finish native inspection and cleanup
+   outside this task before closing it and starting a fresh removal, if needed.
+4. Review a successfully inspected selection and enter the confirmation again.
+   No deletion retries automatically, and no deleted data is recreated.
+
+Inspection does not clean up orphaned homes or cascade through a missing primary
+account. Use native administration for those unresolved cases. No deletion
+history is persisted by Soda; retain important operation output before closing
+or leaving the page.
 
 ## Expected result
 

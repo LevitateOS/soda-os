@@ -54,6 +54,8 @@ func (coordinator Coordinator) dispatch(ctx context.Context, primary linuxhost.A
 		return coordinator.executeAddExisting(ctx, input)
 	case "edit":
 		return coordinator.executeEdit(ctx, input)
+	case "removal-inspect":
+		return coordinator.executeRemovalInspect(ctx, input)
 	case "inspect":
 		return coordinator.executeInspect(ctx, input)
 	case "setup":
@@ -69,15 +71,12 @@ func (coordinator Coordinator) dispatch(ctx context.Context, primary linuxhost.A
 	}
 }
 
-func (coordinator Coordinator) executeRemoveWorkspace(ctx context.Context, input io.Reader) (SuccessResponse, error) {
-	var request ProjectRequest
+func (coordinator Coordinator) executeRemoveWorkspace(ctx context.Context, input io.Reader) (RemovalResponse, error) {
+	var request RemoveProjectRequest
 	if err := strictjson.Decode(input, &request); err != nil {
-		return SuccessResponse{}, err
+		return RemovalResponse{}, err
 	}
-	if err := coordinator.privileged.WorkspaceRemove(ctx, request); err != nil {
-		return SuccessResponse{}, err
-	}
-	return SuccessResponse{OK: true}, nil
+	return coordinator.privileged.WorkspaceRemove(ctx, request)
 }
 
 func (coordinator Coordinator) executeList(ctx context.Context, primary linuxhost.Account, uidMin int, input io.Reader) (ListResponse, error) {
@@ -118,26 +117,20 @@ func (coordinator Coordinator) executeSetup(ctx context.Context, primary linuxho
 	return coordinator.setup(ctx, primary, request)
 }
 
-func (coordinator Coordinator) executeRemove(ctx context.Context, input io.Reader) (SuccessResponse, error) {
-	var request ProjectRequest
+func (coordinator Coordinator) executeRemove(ctx context.Context, input io.Reader) (RemovalResponse, error) {
+	var request RemoveProjectRequest
 	if err := strictjson.Decode(input, &request); err != nil {
-		return SuccessResponse{}, err
+		return RemovalResponse{}, err
 	}
-	if err := coordinator.privileged.ProjectRemove(ctx, request); err != nil {
-		return SuccessResponse{}, err
-	}
-	return SuccessResponse{OK: true}, nil
+	return coordinator.privileged.ProjectRemove(ctx, request)
 }
 
-func (coordinator Coordinator) executeDeleteHuman(ctx context.Context, input io.Reader) (SuccessResponse, error) {
+func (coordinator Coordinator) executeDeleteHuman(ctx context.Context, input io.Reader) (RemovalResponse, error) {
 	var request DeleteHumanRequest
 	if err := strictjson.Decode(input, &request); err != nil {
-		return SuccessResponse{}, err
+		return RemovalResponse{}, err
 	}
-	if err := coordinator.privileged.HumanDelete(ctx, HelperHumanRequest(request)); err != nil {
-		return SuccessResponse{}, err
-	}
-	return SuccessResponse{OK: true}, nil
+	return coordinator.privileged.HumanDelete(ctx, request)
 }
 
 func (coordinator Coordinator) list(ctx context.Context, primary linuxhost.Account, uidMin int) (ListResponse, error) {

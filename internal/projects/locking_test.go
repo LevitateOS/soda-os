@@ -72,9 +72,9 @@ func TestHelperSetupStepsUseSharedOperationLock(t *testing.T) {
 
 func TestHelperDestructiveActionsUseExclusiveOperationLock(t *testing.T) {
 	tests := []helperLockCase{
-		{name: "own removal", action: "workspace-remove", request: `{"id":"site"}`, prepare: addSite},
-		{name: "project removal", action: "project-remove", request: `{"id":"site"}`, prepare: addSite},
-		{name: "human deletion", action: "human-delete", request: `{"username":"target"}`, prepare: func(_ *testing.T, fixture *helperFixture) {
+		{name: "own removal", action: "workspace-remove", request: `{"id":"site","expected":"reviewed"}`, prepare: addSite},
+		{name: "project removal", action: "project-remove", request: `{"id":"site","expected":"reviewed"}`, prepare: addSite},
+		{name: "human deletion", action: "human-delete", request: `{"username":"target","expected":"reviewed"}`, prepare: func(_ *testing.T, fixture *helperFixture) {
 			fixture.host.accounts["target"] = rootPrimary("target")
 		}},
 	}

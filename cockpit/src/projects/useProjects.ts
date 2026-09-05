@@ -70,8 +70,7 @@ export function useProjects(invoke: Invoke) {
     event.preventDefault();
     if (
       !dialog ||
-      dialog.action === "setup" ||
-      dialog.action === "inspect" ||
+      (dialog.action !== "add-existing" && dialog.action !== "edit") ||
       pending.current ||
       !event.currentTarget.reportValidity()
     )
@@ -80,10 +79,7 @@ export function useProjects(invoke: Invoke) {
     const form = event.currentTarget;
     setFormError(null);
     const payload = payloadFor(action, new FormData(form), (message) => {
-      const field =
-        action === "add-existing" || action === "edit" ? "additional_metadata" : "confirmation";
-      setFormError({ message, field });
-      if (field === "confirmation") (form.elements.namedItem(field) as HTMLElement | null)?.focus();
+      setFormError({ message, field: "additional_metadata" });
     });
     if (!payload) return;
     pending.current = true;
@@ -93,7 +89,7 @@ export function useProjects(invoke: Invoke) {
       const result = await invoke(action, payload);
       if (!active.current) return;
       setDialog(null);
-      const message = successMessage(action, payload, result);
+      const message = successMessage(action, result);
       await load();
       if (active.current) setNotice({ message, kind: "success" });
     } catch (error) {
@@ -111,6 +107,9 @@ export function useProjects(invoke: Invoke) {
   function close() {
     if (!pending.current) setDialog(null);
   }
+  const reportRemoval = useCallback((message: string, success: boolean) => {
+    if (active.current) setNotice({ message, kind: success ? "success" : "danger" });
+  }, []);
   return {
     data,
     inspections,
@@ -122,6 +121,7 @@ export function useProjects(invoke: Invoke) {
     dialog,
     formError,
     refresh,
+    reportRemoval,
     open,
     close,
     submit,

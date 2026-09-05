@@ -13,6 +13,9 @@ type projectResponse struct {
 	OK                bool          `json:"ok"`
 	WorkspaceUsername string        `json:"workspace_username"`
 	Project           projectRecord `json:"project"`
+	Preview           struct {
+		Revision string `json:"revision"`
+	} `json:"preview"`
 }
 
 type projectRecord struct {
@@ -171,6 +174,22 @@ func (state *runnerState) projectCall(ctx context.Context, remote Remote, action
 		return projectResponse{}, fmt.Errorf("%s did not report success", action)
 	}
 	return response, nil
+}
+
+func (state *runnerState) projectRemoval(ctx context.Context, remote Remote, action, target, evidence string) (projectResponse, error) {
+	inspected, err := state.projectCall(ctx, remote, "removal-inspect", map[string]string{"action": action, "target": target}, evidence+"-inspect")
+	if err != nil {
+		return projectResponse{}, err
+	}
+	if len(inspected.Preview.Revision) != 64 {
+		return projectResponse{}, errors.New("removal inspection has no scope revision")
+	}
+	payload := map[string]string{"id": target, "expected": inspected.Preview.Revision}
+	if action == "delete-human" {
+		delete(payload, "id")
+		payload["username"] = target
+	}
+	return state.projectCall(ctx, remote, action, payload, evidence)
 }
 
 func (state *runnerState) setupWorkspace(ctx context.Context, remote Remote, password []byte, projectID, evidence string) (projectResponse, error) {

@@ -5,7 +5,14 @@ import userEvent from "@testing-library/user-event";
 import { ProjectsPage } from "./ProjectsPage";
 import { coordinator } from "../projects/native";
 import { pendingProcess } from "../../tests/process";
-import type { Invoke, ListResponse, Project, WorkspaceInspection } from "../projects/types";
+import type {
+  Invoke,
+  ListResponse,
+  Project,
+  WorkspaceInspection,
+  Requests,
+  RemovalResponse,
+} from "../projects/types";
 
 const project: Project = {
   id: "site",
@@ -38,10 +45,30 @@ const absent: WorkspaceInspection = {
   public_key: "",
 };
 function mockInvoke(data = catalog, workspace = inspection) {
-  return vi
-    .fn<Invoke>()
-    .mockImplementation((async (action) =>
-      action === "inspect" ? { ok: true, workspace } : data) as Invoke);
+  return vi.fn<Invoke>().mockImplementation((async (action, payload) => {
+    if (action === "inspect") return { ok: true, workspace };
+    if (action === "removal-inspect") {
+      const request = payload as Requests["removal-inspect"];
+      return {
+        ok: true,
+        preview: {
+          ...request,
+          revision: "a".repeat(64),
+          catalog_present: action === "removal-inspect",
+          accounts: [
+            {
+              username: inspection.username,
+              uid: 2000,
+              primary_username: "alice",
+              project_id: "site",
+              home: "/home/" + inspection.username,
+            },
+          ],
+        },
+      };
+    }
+    return data;
+  }) as Invoke);
 }
 async function ready(invoke = mockInvoke()) {
   render(<ProjectsPage invoke={invoke as Invoke} hostname="soda.lan" />);
@@ -56,9 +83,18 @@ async function open(name: string) {
     fireEvent.click(screen.getByRole("button", { name: "People actions" }));
     fireEvent.click(screen.getByRole("menuitem", { name }));
   } else fireEvent.click(screen.getByRole("button", { name }));
-  return within(await screen.findByRole("dialog"));
+  const dialog = within(await screen.findByRole("dialog"));
+  if (["Remove project", "Remove my workspace"].includes(name))
+    await waitFor(() => expect(dialog.getByLabelText(/Type site to confirm/)).toBeTruthy());
+  return dialog;
 }
 afterEach(() => vi.unstubAllGlobals());
+const removed: RemovalResponse = {
+  ok: true,
+  result: { removed: [inspection.username], uncertain: "", not_attempted: [], diagnostic: "" },
+  catalog: "unchanged",
+  problem: "",
+};
 
 test("catalog loading, failed read and recovery use the unprivileged native list", async () => {
   const call = pendingProcess();
@@ -256,26 +292,34 @@ test.each([
   const dialog = await open(label);
   fireEvent.change(dialog.getByRole("textbox"), { target: { value: "SITE" } });
   fireEvent.click(dialog.getByRole("button", { name: label }));
-  expect(invoke).toHaveBeenCalledTimes(1);
+  expect(invoke).toHaveBeenCalledTimes(2);
   fireEvent.change(dialog.getByRole("textbox"), { target: { value: "site" } });
-  invoke.mockResolvedValueOnce({ ok: true });
+  invoke.mockResolvedValueOnce(removed);
   fireEvent.click(dialog.getByRole("button", { name: label }));
-  await waitFor(() => expect(invoke).toHaveBeenCalledWith(action, { id: "site" }));
+  await waitFor(() =>
+    expect(invoke).toHaveBeenCalledWith(action, { id: "site", expected: "a".repeat(64) }),
+  );
 });
 
 test("human deletion remains a separate Soda-aware action preserving Forgejo", async () => {
   const invoke = await ready();
   const dialog = await open("Remove person…");
-  expect(dialog.getByText(/Forgejo account and repository data are unchanged/)).toBeTruthy();
-  expect(dialog.getByText(/Delete a Forgejo account separately in Forgejo/)).toBeTruthy();
   fireEvent.change(dialog.getByLabelText(/Primary username/), { target: { value: "bob" } });
-  fireEvent.change(dialog.getByLabelText(/Re-enter the username/), { target: { value: "wrong" } });
+  fireEvent.click(dialog.getByRole("button", { name: "Check affected accounts" }));
+  await waitFor(() => expect(dialog.getByLabelText(/Type bob to confirm/)).toBeTruthy());
+  expect(dialog.getByText(/Forgejo account deletion is separate/)).toBeTruthy();
+  fireEvent.change(dialog.getByLabelText(/Type bob to confirm/), { target: { value: "wrong" } });
   fireEvent.click(dialog.getByRole("button", { name: "Remove person" }));
-  expect(invoke).toHaveBeenCalledTimes(1);
-  fireEvent.change(dialog.getByLabelText(/Re-enter the username/), { target: { value: "bob" } });
-  invoke.mockResolvedValueOnce({ ok: true });
+  expect(invoke).toHaveBeenCalledTimes(2);
+  fireEvent.change(dialog.getByLabelText(/Type bob to confirm/), { target: { value: "bob" } });
+  invoke.mockResolvedValueOnce(removed);
   fireEvent.click(dialog.getByRole("button", { name: "Remove person" }));
-  await waitFor(() => expect(invoke).toHaveBeenCalledWith("delete-human", { username: "bob" }));
+  await waitFor(() =>
+    expect(invoke).toHaveBeenCalledWith("delete-human", {
+      username: "bob",
+      expected: "a".repeat(64),
+    }),
+  );
 });
 
 test("failed removal refreshes facts and retains its partial outcome after closing", async () => {
@@ -287,9 +331,8 @@ test("failed removal refreshes facts and retains its partial outcome after closi
   );
   invoke.mockResolvedValueOnce({ ...catalog, projects: [{ ...project, workspace_exists: false }] });
   fireEvent.click(dialog.getByRole("button", { name: "Remove project" }));
-  await waitFor(() =>
-    expect(dialog.getByRole("alert").textContent).toContain("Bob’s workspace remains"),
-  );
+  await waitFor(() => expect(dialog.getByText("Removal outcome is not confirmed")).toBeTruthy());
+  fireEvent.click(dialog.getByRole("button", { name: "Technical details" }));
   expect(screen.getByText("Not set up")).toBeTruthy();
   expect(screen.getAllByText(/Bob’s workspace remains/)).toHaveLength(1);
   fireEvent.click(dialog.getAllByRole("button", { name: "Close" }).at(-1)!);

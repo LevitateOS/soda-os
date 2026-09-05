@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/LevitateOS/soda-os/internal/linuxhost"
 	"github.com/LevitateOS/soda-os/internal/projects/catalog"
 	"github.com/LevitateOS/soda-os/internal/strictjson"
 	"github.com/stretchr/testify/require"
@@ -121,7 +122,7 @@ func TestActionSpecificResponsesExposeOnlyTheirContract(t *testing.T) {
 	}{
 		{name: "project mutation", response: ProjectMutationResponse{OK: true, Project: view}, expected: `{"ok":true,"project":{"id":"site","display_name":"Site","canonical_url":"git@git.example.test:team/site.git","catalog_metadata":{},"workspace_username":"","workspace_exists":false}}`},
 		{name: "setup", response: SetupResponse{OK: true, WorkspaceUsername: "soda-w-example"}, expected: `{"ok":true,"workspace_username":"soda-w-example"}`},
-		{name: "success", response: SuccessResponse{OK: true}, expected: `{"ok":true}`},
+		{name: "removal", response: RemovalResponse{OK: true, Catalog: "unchanged", Result: linuxhost.DeletionResult{Removed: []string{}, NotAttempted: []string{}}}, expected: `{"ok":true,"result":{"removed":[],"uncertain":"","not_attempted":[],"diagnostic":""},"catalog":"unchanged","problem":""}`},
 		{name: "workspace preparation", response: WorkspacePreparationResponse{OK: true, WorkspaceUsername: "soda-w-example", WorkspacePublicKey: "ssh-ed25519 AAAA"}, expected: `{"ok":true,"workspace_username":"soda-w-example","workspace_public_key":"ssh-ed25519 AAAA"}`},
 		{name: "workspace publication", response: WorkspacePublicationResponse{OK: true, WorkspaceUsername: "soda-w-example"}, expected: `{"ok":true,"workspace_username":"soda-w-example"}`},
 	}

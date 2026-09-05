@@ -1,12 +1,14 @@
-import type { FormAction, Requests, Responses, CurrentUser, WorkspaceInspection } from "./types";
+import type {
+  FormAction,
+  Requests,
+  Responses,
+  CurrentUser,
+  WorkspaceInspection,
+  RemovalAccount,
+  RemovalResponse,
+} from "./types";
 type FormValues = { get(name: string): FormDataEntryValue | null | undefined };
-export const formActions = Object.freeze([
-  "add-existing",
-  "edit",
-  "remove-workspace",
-  "remove",
-  "delete-human",
-]);
+export const formActions = Object.freeze(["add-existing", "edit"]);
 
 const formActionSet = new Set(formActions);
 
@@ -28,24 +30,7 @@ export function payloadFor(
   if (!formActionSet.has(action)) {
     throw new TypeError(`unsupported form action: ${action}`);
   }
-  if (action === "add-existing" || action === "edit") {
-    return catalogPayload(action, data, reportInvalid);
-  }
-  if (action === "remove" || action === "remove-workspace") {
-    const id = data.get("id") as string | null;
-    if ((data.get("confirmation") as string | null) !== id) {
-      const target = action === "remove" ? "project" : "workspace";
-      reportInvalid(`Type ${id} exactly to confirm ${target} removal.`);
-      return null;
-    }
-    return { id };
-  }
-  const username = data.get("username") as string | null;
-  if ((data.get("confirmation") as string | null) !== username) {
-    reportInvalid("The confirmation username does not match.");
-    return null;
-  }
-  return { username };
+  return catalogPayload(action, data, reportInvalid);
 }
 
 function catalogPayload(
@@ -82,24 +67,25 @@ function catalogPayload(
   return payload;
 }
 
-export function successMessage(
-  action: FormAction,
-  payload: Requests[FormAction],
-  result: Responses[FormAction],
-) {
+export function successMessage(action: FormAction, result: Responses[FormAction]) {
   if (action === "add-existing") {
-    return `${(result as Responses["edit"]).project.display_name} was added to the catalog.`;
+    return `${result.project.display_name} was added to the catalog.`;
   }
-  if (action === "edit") {
-    return `${(result as Responses["edit"]).project.display_name} was updated. Existing workspaces were not changed.`;
-  }
-  if (action === "remove") {
-    return `${(payload as { id: string }).id} and its local workspaces were removed. The canonical repository was not deleted.`;
-  }
-  if (action === "remove-workspace") {
-    return `Your ${(payload as { id: string }).id} workspace was removed. The shared project and canonical repository were not deleted.`;
-  }
-  return `${(payload as { username: string }).username} and their local Soda workspaces were removed. Their Forgejo account was unchanged.`;
+  return `${result.project.display_name} was updated. Existing workspaces were not changed.`;
+}
+
+export function removalCatalogMessage(state: RemovalResponse["catalog"]) {
+  if (state === "removed") return "The shared project entry was removed.";
+  if (state === "uncertain") return "The shared project entry’s removal is not confirmed.";
+  return "The shared project entry was not removed by this operation.";
+}
+
+export function removalAccountLabel(username: string, accounts: RemovalAccount[]) {
+  const account = accounts.find((item) => item.username === username);
+  if (!account) return username;
+  return account.project_id
+    ? `${account.primary_username} / ${account.project_id}`
+    : `${account.username} (primary account)`;
 }
 
 export function workspaceReady(workspace?: WorkspaceInspection | null) {
@@ -136,21 +122,3 @@ export function errorMessage(error: unknown) {
   }
   return "The operation failed without a diagnostic message.";
 }
-
-export const dialogCopy = {
-  "remove-workspace": [
-    "Remove my workspace",
-    "This permanently removes your workspace account, home, independent clone, dependencies, processes, project state, and uncommitted work. The shared project, other workspaces, and canonical repository are not deleted.",
-    "Remove my workspace",
-  ],
-  remove: [
-    "Remove project from Soda",
-    "This permanently removes all local workspace accounts, homes, clones, dependencies, and uncommitted work for this project. The canonical repository is not deleted.",
-    "Remove project",
-  ],
-  "delete-human": [
-    "Remove person from Soda OS",
-    "This permanently removes the person’s local Soda workspaces, then their primary Linux account. Their Forgejo account and repository data are unchanged. Delete a Forgejo account separately in Forgejo.",
-    "Remove person",
-  ],
-} as const;

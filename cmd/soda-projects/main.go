@@ -13,7 +13,7 @@ import (
 
 func main() {
 	if len(os.Args) != 2 {
-		fmt.Fprintln(os.Stderr, "usage: soda-projects <list|add-existing|edit|inspect|setup|remove-workspace|remove|delete-human>")
+		fmt.Fprintln(os.Stderr, "usage: soda-projects <list|add-existing|edit|inspect|removal-inspect|setup|remove-workspace|remove|delete-human>")
 		os.Exit(2)
 	}
 	current, err := user.Current()
@@ -32,6 +32,10 @@ func main() {
 	encoder.SetEscapeHTML(false)
 	if err = encoder.Encode(response); err != nil {
 		fmt.Fprintln(os.Stderr, "encode result:", err)
+		os.Exit(1)
+	}
+	if removal, ok := response.(projects.RemovalResponse); ok && !removal.OK {
+		fmt.Fprintln(os.Stderr, "Removal did not complete; see the structured result on stdout.")
 		os.Exit(1)
 	}
 }

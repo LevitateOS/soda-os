@@ -2,7 +2,6 @@ package projects
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"os"
 	"sort"
@@ -53,6 +52,7 @@ func newHelperFixture(t *testing.T) helperFixture {
 			authorizer:     NewAuthorizer(host),
 			workspaces:     workspace.NewAccounts(host, host, host, host),
 			remover:        workspace.NewRemover(host, host),
+			deletion:       host,
 			people:         people.Deletion{Host: host},
 			operationLocks: rootTestOperationLocker(t),
 		},
@@ -142,9 +142,9 @@ func TestHelperOwnWorkspaceRemovalLeavesCatalogAndOtherWorkspaces(t *testing.T) 
 	fixture.host.accounts[aliceWorkspace.Username] = aliceWorkspace
 	fixture.host.accounts[bobWorkspace.Username] = bobWorkspace
 
-	response, err := fixture.helper.Execute(context.Background(), helperAlice(), "workspace-remove", strings.NewReader(`{"id":"site"}`))
+	response, err := fixture.helper.Execute(context.Background(), helperAlice(), "workspace-remove", strings.NewReader(confirmedRemovalInput(t, fixture, "remove-workspace", "site")))
 	require.NoError(t, err)
-	require.Equal(t, SuccessResponse{OK: true}, response)
+	require.True(t, response.(RemovalResponse).OK)
 	require.NotContains(t, fixture.host.accounts, aliceWorkspace.Username)
 	require.Contains(t, fixture.host.accounts, bobWorkspace.Username)
 	_, err = fixture.store.Get(entry.ID)
@@ -156,9 +156,9 @@ func TestHelperOwnWorkspaceRemovalDoesNotRequireCatalogEntry(t *testing.T) {
 	aliceWorkspace := rootWorkspace(t, "alice", "retired", 2000)
 	fixture.host.accounts[aliceWorkspace.Username] = aliceWorkspace
 
-	response, err := fixture.helper.Execute(context.Background(), helperAlice(), "workspace-remove", strings.NewReader(`{"id":"retired"}`))
+	response, err := fixture.helper.Execute(context.Background(), helperAlice(), "workspace-remove", strings.NewReader(confirmedRemovalInput(t, fixture, "remove-workspace", "retired")))
 	require.NoError(t, err)
-	require.Equal(t, SuccessResponse{OK: true}, response)
+	require.True(t, response.(RemovalResponse).OK)
 	require.NotContains(t, fixture.host.accounts, aliceWorkspace.Username)
 }
 
@@ -172,17 +172,16 @@ func TestHelperProjectRemovalDeletesWorkspacesBeforeCatalog(t *testing.T) {
 	fixture.host.accounts[second.Username] = second
 	fixture.host.candidates = []linuxhost.Account{second, first}
 
-	response, err := fixture.helper.Execute(context.Background(), helperAlice(), "project-remove", strings.NewReader(`{"id":"site"}`))
+	response, err := fixture.helper.Execute(context.Background(), helperAlice(), "project-remove", strings.NewReader(confirmedRemovalInput(t, fixture, "remove", "site")))
 	require.NoError(t, err)
-	require.Equal(t, SuccessResponse{OK: true}, response)
+	require.True(t, response.(RemovalResponse).OK)
+	require.Equal(t, "removed", response.(RemovalResponse).Catalog)
 	_, err = fixture.store.Get(entry.ID)
 	require.ErrorContains(t, err, "does not exist")
 	require.NotContains(t, fixture.host.accounts, first.Username)
 	require.NotContains(t, fixture.host.accounts, second.Username)
 
-	encoded, err := json.Marshal(response)
-	require.NoError(t, err)
-	require.JSONEq(t, `{"ok":true}`, string(encoded))
+	require.Len(t, response.(RemovalResponse).Result.Removed, 2)
 }
 
 func TestHelperProjectRemovalRetainsCatalogAfterPartialFailure(t *testing.T) {
@@ -200,9 +199,13 @@ func TestHelperProjectRemovalRetainsCatalogAfterPartialFailure(t *testing.T) {
 	fixture.host.candidates = []linuxhost.Account{workspaces[1], workspaces[0]}
 	fixture.host.deleteErr[workspaces[1].Username] = errors.New("workspace process cannot terminate")
 
-	_, err := fixture.helper.Execute(context.Background(), helperAlice(), "project-remove", strings.NewReader(`{"id":"site"}`))
-	require.ErrorContains(t, err, "removed local workspaces "+workspaces[0].Username)
-	require.ErrorContains(t, err, "shared catalog entry, and canonical repository remain")
+	response, err := fixture.helper.Execute(context.Background(), helperAlice(), "project-remove", strings.NewReader(confirmedRemovalInput(t, fixture, "remove", "site")))
+	require.NoError(t, err)
+	receipt := response.(RemovalResponse)
+	require.False(t, receipt.OK)
+	require.Equal(t, []string{workspaces[0].Username}, receipt.Result.Removed)
+	require.Equal(t, workspaces[1].Username, receipt.Result.Uncertain)
+	require.Equal(t, "not_attempted", receipt.Catalog)
 	_, getErr := fixture.store.Get(entry.ID)
 	require.NoError(t, getErr)
 	require.NotContains(t, fixture.host.accounts, workspaces[0].Username)
@@ -222,8 +225,9 @@ func TestHelperReauthorizesAdministratorInsideProjectRemovalLocks(t *testing.T) 
 	}
 	fixture.helper.authorizer = NewAuthorizer(sequence)
 
-	_, err := fixture.helper.Execute(context.Background(), helperAlice(), "project-remove", strings.NewReader(`{"id":"site"}`))
-	require.ErrorContains(t, err, "administrator status is required")
+	response, err := fixture.helper.Execute(context.Background(), helperAlice(), "project-remove", strings.NewReader(`{"id":"site","expected":"reviewed"}`))
+	require.NoError(t, err)
+	require.Contains(t, response.(RemovalResponse).Problem, "administrator status is required")
 	require.Equal(t, 2, sequence.lookups)
 	_, err = fixture.store.Get(entry.ID)
 	require.NoError(t, err)
@@ -236,11 +240,12 @@ func TestHelperHumanDeletionUsesNoCatalogLock(t *testing.T) {
 	fixture.host.accounts[workspaceAccount.Username] = workspaceAccount
 	fixture.host.candidates = []linuxhost.Account{workspaceAccount}
 
+	request := confirmedRemovalInput(t, fixture, "delete-human", "target")
 	locked, err := fixture.store.Lock()
 	require.NoError(t, err)
 	result := make(chan error, 1)
 	go func() {
-		_, executeErr := fixture.helper.Execute(context.Background(), helperAlice(), "human-delete", strings.NewReader(`{"username":"target"}`))
+		_, executeErr := fixture.helper.Execute(context.Background(), helperAlice(), "human-delete", strings.NewReader(request))
 		result <- executeErr
 	}()
 	require.NoError(t, requireResult(t, result), "human deletion must not wait for the catalog lock")

@@ -173,7 +173,7 @@ test "$(git -C "$repository" rev-parse --is-inside-work-tree)" = true
 }
 
 func (state *runnerState) removeExternalSSHProject(ctx context.Context, scenario *scenarioState, workspaceUsername string) error {
-	if _, err := state.projectCall(ctx, scenario.remote, "remove", map[string]any{"id": externalGitFixtureProjectID}, "product/external-ssh-project-remove"); err != nil {
+	if _, err := state.projectRemoval(ctx, scenario.remote, "remove", externalGitFixtureProjectID, "product/external-ssh-project-remove"); err != nil {
 		return err
 	}
 	if err := state.requireProjectAbsent(ctx, scenario.remote, externalGitFixtureProjectID, "product/external-ssh-catalog-removed"); err != nil {

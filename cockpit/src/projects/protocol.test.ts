@@ -31,6 +31,7 @@ test("coordinator command contains only the executable and allow-listed action",
     "add-existing",
     "edit",
     "inspect",
+    "removal-inspect",
     "setup",
     "remove-workspace",
     "remove",
@@ -147,6 +148,21 @@ test("mutation responses contain the action-specific result", () => {
     decodeResponse("setup", '{"ok":true,"workspace_username":"soda-w-0123456789abcdef01234567"}'),
     { ok: true, workspace_username: "soda-w-0123456789abcdef01234567" },
   );
-  assert.deepEqual(decodeResponse("remove", '{"ok":true}'), { ok: true });
-  assert.throws(() => decodeResponse("remove", '{"ok":false}'), /did not report success/);
+  const partial = {
+    ok: false,
+    result: {
+      removed: ["alice-space"],
+      uncertain: "bob-space",
+      not_attempted: ["carol-space"],
+      diagnostic: "native deletion failed",
+    },
+    catalog: "not_attempted",
+    problem: "",
+  };
+  assert.deepEqual(decodeResponse("remove", JSON.stringify(partial)), partial);
+  assert.throws(() => decodeResponse("remove", '{"ok":true}'), /invalid removal receipt/);
+  assert.throws(
+    () => decodeResponse("remove", JSON.stringify({ ...partial, ok: true })),
+    /unresolved outcomes/,
+  );
 });

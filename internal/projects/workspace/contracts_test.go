@@ -8,7 +8,7 @@ var (
 	_ PasswordReader        = (*linuxhost.Native)(nil)
 	_ AuthorizedKeys        = (*linuxhost.Native)(nil)
 	_ AccountHomes          = (*linuxhost.Native)(nil)
-	_ DeletionHost          = (*linuxhost.Native)(nil)
+	_ DeletionPreflight     = (*linuxhost.Native)(nil)
 	_ OutboundKeyGenerator  = Repository{}
 	_ RepositoryPublication = Repository{}
 )

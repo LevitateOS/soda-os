@@ -6,8 +6,7 @@ import { ProjectCatalog } from "../organisms/projects/ProjectCatalog";
 import { PeopleSection } from "../organisms/projects/PeopleSection";
 import { CatalogProjectDialog } from "../organisms/projects/CatalogProjectDialog";
 import { ProjectsWorkspaceDialog } from "./ProjectsWorkspaceDialog";
-import { RemoveProjectDialog } from "../organisms/projects/RemoveProjectDialog";
-import { RemoveHumanDialog } from "../organisms/projects/RemoveHumanDialog";
+import { ProjectsRemovalDialog } from "./ProjectsRemovalDialog";
 import type { Invoke } from "../projects/types";
 import { humanDeletionHidden } from "../projects/ui";
 import { useProjects } from "../projects/useProjects";
@@ -29,6 +28,7 @@ export function ProjectsPage({
     dialog,
     formError,
     refresh,
+    reportRemoval,
     open,
     close,
     submit,
@@ -77,17 +77,20 @@ export function ProjectsPage({
         break;
       case "remove":
       case "remove-workspace":
+      case "delete-human":
         dialogView = (
-          <RemoveProjectDialog
+          <ProjectsRemovalDialog
             key={key}
             action={dialog.action}
-            project={dialog.project}
-            {...dialogProps}
+            initialTarget={dialog.project?.id ?? ""}
+            viewer={data?.current_user.username ?? ""}
+            invoke={invoke}
+            catalogReadError={readError}
+            onChanged={refresh}
+            onOutcome={reportRemoval}
+            onClose={close}
           />
         );
-        break;
-      case "delete-human":
-        dialogView = <RemoveHumanDialog key={key} {...dialogProps} />;
         break;
     }
   }

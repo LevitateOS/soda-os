@@ -161,6 +161,12 @@ case "$action" in
   catalog-edit)
     printf '{"ok":true,"project":{"id":"site","display_name":"Renamed","canonical_url":"git@git.example.test:site.git","catalog_metadata":{"owner":"new-owner","labels":["public"]},"workspace_username":"soda-w-example","workspace_exists":false}}\n'
     ;;
+  removal-inspect)
+    printf '{"ok":true,"preview":{"action":"remove","target":"site","revision":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","accounts":[],"catalog_present":true}}\n'
+    ;;
+  workspace-remove|project-remove|human-delete)
+    printf '{"ok":true,"result":{"removed":[],"uncertain":"","not_attempted":[],"diagnostic":""},"catalog":"unchanged","problem":""}\n'
+    ;;
   workspace-inspect)
     printf '{"ok":true,"workspace":{"username":"soda-w-example","exists":false,"checkout_ready":false,"checkout_path":"","public_key":"","primary_key_problem":"","workspace_key_problem":"","checkout_problem":"","git_key_problem":""}}\n'
     ;;
