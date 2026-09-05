@@ -1,98 +1,84 @@
-import type { ReactNode } from "react";
+import { useEffect, type FormEvent, type ReactNode } from "react";
+import { useStore } from "zustand";
 import { Button, Toolbar, ToolbarContent, ToolbarItem } from "@patternfly/react-core";
 import { CockpitPageTemplate } from "../templates/CockpitPageTemplate";
 import { DiagnosticAlert } from "../molecules/DiagnosticAlert";
 import { ProjectCatalog } from "../organisms/projects/ProjectCatalog";
 import { PeopleSection } from "../organisms/projects/PeopleSection";
 import { CatalogProjectDialog } from "../organisms/projects/CatalogProjectDialog";
-import { ProjectsWorkspaceDialog } from "./ProjectsWorkspaceDialog";
-import { ProjectsRemovalDialog } from "./ProjectsRemovalDialog";
-import type { Invoke } from "../projects/types";
+import { WorkspaceDialog } from "../organisms/projects/WorkspaceDialog";
+import { RemovalDialog } from "../organisms/projects/RemovalDialog";
 import { humanDeletionHidden } from "../projects/ui";
-import { useProjects } from "../projects/useProjects";
+import type { ProjectsStore } from "../projects/store";
+
 export function ProjectsPage({
-  invoke,
+  store,
   hostname = window.location.hostname,
 }: {
-  invoke: Invoke;
+  store: ProjectsStore;
   hostname?: string;
 }) {
-  const {
-    data,
-    inspections,
-    inspected,
-    busy,
-    loading,
-    notice,
-    readError,
-    dialog,
-    formError,
-    refresh,
-    reportRemoval,
-    open,
-    close,
-    submit,
-  } = useProjects(invoke);
+  const state = useStore(store);
+  useEffect(() => store.getState().start(), [store]);
+  const { data, inspections, loading, notice, readError, task, operation, refresh, open, close } =
+    state;
+  const busy = operation !== null;
   const refreshError = readError ? `The current catalog could not be refreshed. ${readError}` : "";
-  const dialogProps = {
-    busy,
-    error: [formError?.field === "additional_metadata" ? "" : formError?.message, refreshError]
-      .filter(Boolean)
-      .join("\n\n"),
-    onClose: close,
-    onSubmit: submit,
-  };
+  function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!event.currentTarget.reportValidity()) return;
+    const values: Record<string, string> = {};
+    for (const [name, value] of new FormData(event.currentTarget))
+      if (typeof value === "string") values[name] = value;
+    void state.submitCatalog(values);
+  }
   let dialogView: ReactNode;
-  if (dialog) {
-    const key = dialog.action + (dialog.project?.id ?? "");
-    switch (dialog.action) {
-      case "add-existing":
-      case "edit":
-        dialogView = (
-          <CatalogProjectDialog
-            key={key}
-            metadataError={formError?.field === "additional_metadata" ? formError : null}
-            action={dialog.action}
-            project={dialog.project}
-            {...dialogProps}
-          />
-        );
-        break;
-      case "setup":
-      case "inspect":
-        if (dialog.project)
-          dialogView = (
-            <ProjectsWorkspaceDialog
-              key={key}
-              project={dialog.project}
-              invoke={invoke}
-              hostname={hostname}
-              startSetup={dialog.action === "setup"}
-              catalogReadError={readError}
-              onClose={close}
-              onChanged={refresh}
-              onInspected={inspected}
-            />
-          );
-        break;
-      case "remove":
-      case "remove-workspace":
-      case "delete-human":
-        dialogView = (
-          <ProjectsRemovalDialog
-            key={key}
-            action={dialog.action}
-            initialTarget={dialog.project?.id ?? ""}
-            viewer={data?.current_user.username ?? ""}
-            invoke={invoke}
-            catalogReadError={readError}
-            onChanged={refresh}
-            onOutcome={reportRemoval}
-            onClose={close}
-          />
-        );
-        break;
-    }
+  if (task?.kind === "catalog") {
+    dialogView = (
+      <CatalogProjectDialog
+        key={task.action + (task.project?.id ?? "")}
+        action={task.action}
+        project={task.project}
+        busy={busy}
+        metadataError={task.error?.field === "additional_metadata" ? task.error : null}
+        error={[
+          task.error?.field === "additional_metadata" ? "" : task.error?.message,
+          refreshError,
+        ]
+          .filter(Boolean)
+          .join("\n\n")}
+        onClose={close}
+        onSubmit={submit}
+      />
+    );
+  } else if (task?.kind === "workspace") {
+    dialogView = (
+      <WorkspaceDialog
+        key={task.project.id}
+        task={task}
+        inspection={inspections[task.project.id] ?? null}
+        operation={operation === null ? null : operation === "setup" ? "setup" : "inspect"}
+        hostname={hostname}
+        catalogReadError={readError}
+        onClose={close}
+        refresh={state.checkWorkspace}
+        setup={state.setupWorkspace}
+      />
+    );
+  } else if (task?.kind === "removal") {
+    dialogView = (
+      <RemovalDialog
+        task={task}
+        viewer={data?.current_user.username ?? ""}
+        operation={operation === null ? null : operation === "remove" ? "remove" : "inspect"}
+        catalogReadError={readError}
+        onClose={close}
+        changeTarget={state.changeRemovalTarget}
+        changeConfirmation={state.changeConfirmation}
+        inspect={state.checkRemoval}
+        remove={state.remove}
+      />
+    );
   }
   return (
     <CockpitPageTemplate
@@ -116,7 +102,7 @@ export function ProjectsPage({
         </Toolbar>
       }
       feedback={
-        !dialog && (
+        !task && (
           <>
             {notice && <DiagnosticAlert message={notice.message} variant={notice.kind} />}
             {readError && <DiagnosticAlert message={refreshError} />}

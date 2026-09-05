@@ -79,3 +79,30 @@ export type Action = keyof Requests;
 export type ProjectAction = Exclude<Action, "list" | "removal-inspect">;
 export type FormAction = "add-existing" | "edit";
 export type Invoke = <A extends Action>(action: A, payload: Requests[A]) => Promise<Responses[A]>;
+
+export interface CatalogTask {
+  kind: "catalog";
+  action: FormAction;
+  project?: Project;
+  error: { message: string; field?: string } | null;
+}
+export interface WorkspaceTask {
+  kind: "workspace";
+  project: Project;
+  readError: string;
+  setupError: string;
+  completed: boolean;
+}
+export interface RemovalTask {
+  kind: "removal";
+  action: RemovalAction;
+  target: string;
+  confirmation: string;
+  reviewing: boolean;
+  preview: RemovalPreview | null;
+  receipt: RemovalResponse | null;
+  selectedAccounts: RemovalAccount[];
+  readError: string;
+  unknown: string;
+}
+export type ProjectsTask = CatalogTask | WorkspaceTask | RemovalTask;

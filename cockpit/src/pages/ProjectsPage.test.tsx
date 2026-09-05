@@ -3,6 +3,7 @@ import { afterEach, test, expect, vi } from "vite-plus/test";
 import { act, render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ProjectsPage } from "./ProjectsPage";
+import { createProjectsStore } from "../projects/store";
 import { coordinator } from "../projects/native";
 import { pendingProcess } from "../../tests/process";
 import type {
@@ -71,7 +72,7 @@ function mockInvoke(data = catalog, workspace = inspection) {
   }) as Invoke);
 }
 async function ready(invoke = mockInvoke()) {
-  render(<ProjectsPage invoke={invoke as Invoke} hostname="soda.lan" />);
+  render(<ProjectsPage store={createProjectsStore(invoke as Invoke)} hostname="soda.lan" />);
   await screen.findByText("1 project available to alice.");
   return invoke;
 }
@@ -99,7 +100,7 @@ const removed: RemovalResponse = {
 test("catalog loading, failed read and recovery use the unprivileged native list", async () => {
   const call = pendingProcess();
   const spawn = vi.fn(() => call.process);
-  render(<ProjectsPage invoke={coordinator({ spawn })} />);
+  render(<ProjectsPage store={createProjectsStore(coordinator({ spawn }))} />);
   expect(spawn).toHaveBeenCalledWith(["/usr/libexec/soda/soda-projects", "list"], {
     err: "message",
   });
@@ -361,7 +362,7 @@ test("successful catalog mutation does not hide failed refresh, and recovered re
 test("inspecting one project never marks a sibling project ready", async () => {
   const second = { ...project, id: "api", display_name: "API", workspace_username: "soda-w-api" };
   const invoke = mockInvoke({ ...catalog, projects: [project, second] });
-  render(<ProjectsPage invoke={invoke as Invoke} hostname="soda.lan" />);
+  render(<ProjectsPage store={createProjectsStore(invoke as Invoke)} hostname="soda.lan" />);
   await screen.findByText("2 projects available to alice.");
   const dialog = await open("Review setup — Site");
   await waitFor(() => expect(dialog.getByLabelText("SSH command")).toBeTruthy());
@@ -467,7 +468,7 @@ test("verified workspace readiness does not hide a failed catalog refresh", asyn
 
 test("leaving Projects during setup does not start later native reads", async () => {
   const invoke = mockInvoke({ ...catalog, projects: [{ ...project, workspace_exists: false }] });
-  const page = render(<ProjectsPage invoke={invoke as Invoke} />);
+  const page = render(<ProjectsPage store={createProjectsStore(invoke as Invoke)} />);
   await screen.findByText("1 project available to alice.");
   let finish!: (value: { ok: true; workspace_username: string }) => void;
   invoke.mockResolvedValueOnce({ ok: true, workspace: absent });

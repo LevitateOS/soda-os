@@ -84,11 +84,11 @@ command/check outcomes; focus refresh never erases an unrelated failure. Long im
 Passive organisms and molecules never invoke Cockpit or import native adapters.
 Feature organisms and molecules may use their own types and pure presentation helpers;
 shared components have no feature dependencies. Pages connect their own feature
-state owner to the template and organisms. Runners and Updates use page-scoped
+state owner to the template and organisms. Projects, Runners, and Updates use page-scoped
 Zustand stores in their feature's `store.ts` for
 transient observations, named actions, dialogs, and outcomes. Its entrypoint
 constructs the store with the native adapter; the page subscribes and binds its
-lifetime. Projects and Tailscale currently retain their feature hooks. There is no
+lifetime. Tailscale currently retains its feature hook. There is no
 cross-page application store or generic operation controller. Layers may skip levels and use PatternFly directly. For example,
 `ProjectActions` composes PatternFly `Button` and `Flex`; `CatalogProjectDialog`
 uses PatternFly `Modal` and `Form` with Soda's `CatalogFields`.
@@ -145,6 +145,14 @@ Use the x86-64 builder on the x86-64 host. The test verifies the executing
 architecture and RPM headers before extraction, then compares every runtime file
 and hash, and records source, lock, builder, and RPM identities. The normal source
 suite skips this test until the native RPM directory is explicitly supplied.
+
+Projects has one state owner in `projects/store.ts`: catalog observations,
+workspace inspections, and the current task. Setup starts from an explicit action,
+not a dialog mount effect. Both workspace views consume the same keyed inspection.
+Removal eligibility lives in `projects/ui.ts` and is enforced by the store as well
+as displayed by the view. Prior attempted identities remain with the receipt;
+fresh previews never rewrite that evidence. Task dialogs in `organisms/projects`
+are passive. No parent/dialog refresh callbacks or separate task stores remain.
 
 ## Installed browser acceptance
 

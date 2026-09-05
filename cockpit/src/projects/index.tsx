@@ -5,7 +5,8 @@ import "@patternfly/patternfly/patternfly-base.css";
 import "../cockpit/soda.css";
 import { ProjectsPage } from "../pages/ProjectsPage";
 import { coordinator } from "./native";
+import { createProjectsStore } from "./store";
 
 createRoot(document.getElementById("app")!).render(
-  <ProjectsPage invoke={coordinator(window.cockpit)} />,
+  <ProjectsPage store={createProjectsStore(coordinator(window.cockpit))} />,
 );

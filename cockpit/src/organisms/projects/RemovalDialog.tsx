@@ -15,10 +15,9 @@ import {
   Stack,
   TextInput,
 } from "@patternfly/react-core";
-import { CodeValue } from "../atoms/CodeValue";
-import type { Invoke, RemovalAction } from "../projects/types";
-import { useRemoval } from "../projects/useRemoval";
-import { removalAccountLabel, removalCatalogMessage } from "../projects/ui";
+import { CodeValue } from "../../atoms/CodeValue";
+import type { RemovalTask } from "../../projects/types";
+import { removalAccountLabel, removalCatalogMessage, removalReview } from "../../projects/ui";
 
 const labels = {
   "remove-workspace": "Remove my workspace",
@@ -26,64 +25,42 @@ const labels = {
   "delete-human": "Remove person",
 };
 
-export function ProjectsRemovalDialog({
-  action,
-  initialTarget,
+export function RemovalDialog({
+  task,
   viewer,
-  invoke,
+  operation,
   catalogReadError,
-  onChanged,
-  onOutcome,
   onClose,
+  changeTarget,
+  changeConfirmation,
+  inspect,
+  remove,
 }: {
-  action: RemovalAction;
-  initialTarget: string;
+  task: RemovalTask;
   viewer: string;
-  invoke: Invoke;
+  operation: "inspect" | "remove" | null;
   catalogReadError: string;
-  onChanged: () => Promise<void>;
-  onOutcome: (message: string, success: boolean) => void;
   onClose: () => void;
+  changeTarget: (target: string) => void;
+  changeConfirmation: (value: string) => void;
+  inspect: () => Promise<void>;
+  remove: () => Promise<void>;
 }) {
-  const [target, setTarget] = useState(initialTarget);
-  const [confirmation, setConfirmation] = useState("");
   const [touched, setTouched] = useState(false);
-  const [reviewing, setReviewing] = useState(false);
   const {
+    action,
+    target,
+    confirmation,
+    reviewing,
     preview,
     receipt,
     selectedAccounts,
     readError,
     unknown,
-    operation,
-    inspect,
-    remove,
-    invalidate,
-  } = useRemoval(invoke, action, initialTarget, onChanged, onOutcome);
+  } = task;
   const busy = operation !== null;
-  const previousFailedAccount = selectedAccounts.find(
-    (account) => account.username === receipt?.result.uncertain,
-  );
-  const failedIdentityChanged = Boolean(
-    previousFailedAccount &&
-    preview &&
-    !preview.accounts.some(
-      (account) =>
-        account.username === previousFailedAccount.username &&
-        account.uid === previousFailedAccount.uid &&
-        account.home === previousFailedAccount.home,
-    ),
-  );
-  const hasTargets = Boolean(
-    preview && (preview.accounts.length || (action === "remove" && preview.catalog_present)),
-  );
-  const showSelection = reviewing || (!receipt && !unknown);
-  const orphaned = Boolean(
-    action === "remove" && preview && !preview.catalog_present && preview.accounts.length,
-  );
-  const canConfirm =
-    preview && hasTargets && !failedIdentityChanged && !orphaned && !receipt?.ok && showSelection;
-  const matches = confirmation === preview?.target;
+  const { failedIdentityChanged, hasTargets, showSelection, orphaned, canConfirm, matches } =
+    removalReview(task);
   const diagnostics = [receipt?.result.diagnostic, unknown, readError, catalogReadError]
     .filter(Boolean)
     .join("\n\n");
@@ -98,10 +75,8 @@ export function ProjectsRemovalDialog({
     if (!busy) onClose();
   }
   function check() {
-    setReviewing(true);
-    setConfirmation("");
     setTouched(false);
-    void inspect(target);
+    void inspect();
   }
   return (
     <Modal
@@ -141,9 +116,7 @@ export function ProjectsRemovalDialog({
                       id="primary-username"
                       value={target}
                       onChange={(_, value) => {
-                        setTarget(value);
-                        setConfirmation("");
-                        invalidate();
+                        changeTarget(value);
                       }}
                       isRequired
                       pattern="[a-z][a-z0-9-]{0,23}"
@@ -244,14 +217,7 @@ export function ProjectsRemovalDialog({
                     <strong>Current selection: {preview.target}</strong>
                   </p>
                   {action === "delete-human" && !receipt && !unknown && (
-                    <Button
-                      variant="link"
-                      isInline
-                      onClick={() => {
-                        setConfirmation("");
-                        invalidate();
-                      }}
-                    >
+                    <Button variant="link" isInline onClick={() => changeTarget(target)}>
                       Change person
                     </Button>
                   )}
@@ -291,14 +257,12 @@ export function ProjectsRemovalDialog({
                   )}
                 </>
               )}
-              {canConfirm && (
+              {canConfirm && preview && (
                 <Form
                   id="confirm-removal"
                   onSubmit={(event) => {
                     event.preventDefault();
                     if (!matches) return;
-                    setConfirmation("");
-                    setReviewing(false);
                     void remove();
                   }}
                 >
@@ -333,7 +297,7 @@ export function ProjectsRemovalDialog({
                     <TextInput
                       id="removal-confirmation"
                       value={confirmation}
-                      onChange={(_, value) => setConfirmation(value)}
+                      onChange={(_, value) => changeConfirmation(value)}
                       onBlur={() => setTouched(true)}
                       autoComplete="off"
                       aria-invalid={touched && !matches}

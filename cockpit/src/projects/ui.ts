@@ -6,6 +6,7 @@ import type {
   WorkspaceInspection,
   RemovalAccount,
   RemovalResponse,
+  RemovalTask,
 } from "./types";
 type FormValues = { get(name: string): FormDataEntryValue | null | undefined };
 export const formActions = Object.freeze(["add-existing", "edit"]);
@@ -108,6 +109,39 @@ export function humanDeletionHidden(currentUser: Partial<CurrentUser>) {
 
 export function projectRemovalHidden(currentUser: Partial<CurrentUser>) {
   return currentUser.administrator !== true;
+}
+
+export function removalReview(task: RemovalTask) {
+  const { preview, receipt, selectedAccounts, reviewing, unknown, confirmation, action } = task;
+  const failed = selectedAccounts.find((account) => account.username === receipt?.result.uncertain);
+  const failedIdentityChanged = Boolean(
+    failed &&
+    preview &&
+    !preview.accounts.some(
+      (account) =>
+        account.username === failed.username &&
+        account.uid === failed.uid &&
+        account.home === failed.home,
+    ),
+  );
+  const hasTargets = Boolean(
+    preview && (preview.accounts.length || (action === "remove" && preview.catalog_present)),
+  );
+  const showSelection = reviewing || (!receipt && !unknown);
+  const orphaned = Boolean(
+    action === "remove" && preview && !preview.catalog_present && preview.accounts.length,
+  );
+  const canConfirm = Boolean(
+    preview && hasTargets && !failedIdentityChanged && !orphaned && !receipt?.ok && showSelection,
+  );
+  return {
+    failedIdentityChanged,
+    hasTargets,
+    showSelection,
+    orphaned,
+    canConfirm,
+    matches: confirmation === preview?.target,
+  };
 }
 
 export function errorMessage(error: unknown) {

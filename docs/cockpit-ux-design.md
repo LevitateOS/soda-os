@@ -43,7 +43,8 @@ Unavailable data establishes neither readiness nor absence.
 | Removal | Native people/account/home selection, exact confirmation, stopped-task and data-loss warnings |
 | Partial removal | Confirmed, uncertain, and unattempted outcomes; fresh review before another confirmation |
 
-Workspace orchestration belongs to `ProjectsWorkspaceDialog` and `useWorkspace`.
+Workspace orchestration belongs to `projects/store.ts`; `WorkspaceDialog` is a
+passive view. Explicit user actions start setup, not mounting the dialog.
 The native `inspect` action checks only the caller's own derived account and
 existing keys/checkout, without requiring administrator status. Catalog listing
 remains unprivileged and does not inspect private homes. Inspection creates no
@@ -62,7 +63,9 @@ verification is not presented as verified readiness.
 
 ### Removal and recovery
 
-`ProjectsRemovalDialog` and `useRemoval` own transient removal interaction.
+`projects/store.ts` owns transient removal interaction and enforces the shared
+removal-review calculation in `projects/ui.ts`. `RemovalDialog` renders the task
+and collects confirmation; it does not invoke the backend or own recovery policy.
 The existing narrow helper supplies `removal-inspect` with `{action,target}`;
 its preview includes Linux usernames, UIDs, homes, native associations, catalog
 presence, and a scope revision. Inspection reuses native preflight checks and

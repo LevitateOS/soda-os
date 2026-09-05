@@ -11,38 +11,31 @@ import {
   Spinner,
   Stack,
 } from "@patternfly/react-core";
-import { ExternalLink } from "../atoms/ExternalLink";
-import { CodeValue } from "../atoms/CodeValue";
-import type { Invoke, Project, WorkspaceInspection } from "../projects/types";
-import { sshCommand, workspaceReady, workspaceCanSetup } from "../projects/ui";
-import { useWorkspace } from "../projects/useWorkspace";
+import { ExternalLink } from "../../atoms/ExternalLink";
+import { CodeValue } from "../../atoms/CodeValue";
+import type { WorkspaceTask, WorkspaceInspection } from "../../projects/types";
+import { sshCommand, workspaceReady, workspaceCanSetup } from "../../projects/ui";
 
-export function ProjectsWorkspaceDialog({
-  project,
-  invoke,
+export function WorkspaceDialog({
+  task,
+  inspection,
+  operation,
   hostname,
-  startSetup,
   catalogReadError,
   onClose,
-  onChanged,
-  onInspected,
+  refresh,
+  setup,
 }: {
-  project: Project;
-  invoke: Invoke;
+  task: WorkspaceTask;
+  inspection: WorkspaceInspection | null;
+  operation: "inspect" | "setup" | null;
   hostname: string;
-  startSetup: boolean;
   catalogReadError: string;
   onClose: () => void;
-  onChanged: () => Promise<void>;
-  onInspected: (id: string, inspection: WorkspaceInspection | null) => void;
+  refresh: () => Promise<void>;
+  setup: () => Promise<void>;
 }) {
-  const { inspection, operation, readError, setupError, completed, refresh, setup } = useWorkspace(
-    invoke,
-    project.id,
-    startSetup,
-    onChanged,
-    onInspected,
-  );
+  const { project, readError, setupError, completed } = task;
   const busy = operation !== null;
   const ready = workspaceReady(inspection);
   const primaryKey = inspection && !inspection.exists && inspection.primary_key_problem;
