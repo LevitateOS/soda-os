@@ -20,12 +20,7 @@ mkdir -p %{buildroot}%{_libexecdir}/soda %{buildroot}%{_datadir}/cockpit/soda-ru
 install -m 0755 %{_sourcedir}/soda-runners %{buildroot}%{_libexecdir}/soda/soda-runners
 install -m 0755 %{_sourcedir}/soda-runner-helper %{buildroot}%{_libexecdir}/soda/soda-runner-helper
 install -m 0755 %{_sourcedir}/soda-runner-launch %{buildroot}%{_libexecdir}/soda/soda-runner-launch
-install -m 0644 %{_sourcedir}/soda-runners-manifest.json %{buildroot}%{_datadir}/cockpit/soda-runners/manifest.json
-install -m 0644 %{_sourcedir}/soda-runners-index.html %{buildroot}%{_datadir}/cockpit/soda-runners/index.html
-install -m 0644 %{_sourcedir}/soda-runners-app.mjs %{buildroot}%{_datadir}/cockpit/soda-runners/app.mjs
-install -m 0644 %{_sourcedir}/soda-runners-protocol.mjs %{buildroot}%{_datadir}/cockpit/soda-runners/protocol.mjs
-install -m 0644 %{_sourcedir}/soda-runners-ui.mjs %{buildroot}%{_datadir}/cockpit/soda-runners/ui.mjs
-install -m 0644 %{_sourcedir}/soda-runners-app.css %{buildroot}%{_datadir}/cockpit/soda-runners/app.css
+cp -a %{_sourcedir}/soda-runners-cockpit/. %{buildroot}%{_datadir}/cockpit/soda-runners/
 install -m 0644 %{_sourcedir}/org.sodaos.runners.policy %{buildroot}%{_datadir}/polkit-1/actions/org.sodaos.runners.policy
 install -m 0644 %{_sourcedir}/soda-runners.tmpfiles %{buildroot}%{_tmpfilesdir}/soda-runners.conf
 install -m 0644 %{_sourcedir}/soda-runners.sysusers %{buildroot}%{_sysusersdir}/soda-runners.conf
