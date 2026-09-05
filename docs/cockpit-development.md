@@ -54,6 +54,9 @@ observations; no credentials or disposable guest are needed.
 
 ## Source and package ownership
 
+See [Cockpit feature state](cockpit-state.md) for action lookup, lifecycle rules,
+and the decision to defer an additional read-cache library.
+
 The source uses atomic layers first. PatternFly supplies most primitives and
 larger compositions: import its buttons, inputs, forms, modals, tables, alerts,
 and layouts directly instead of wrapping them merely to populate an atomic layer.
@@ -111,7 +114,8 @@ request serialization, and are cleared on teardown.
 Tailscale's store owns one observer and obtains a fresh adapter for each activation.
 The page binds Cockpit visibility/pagehide; hiding closes HTTP/subprocess handles
 and clears transient authentication state, while reopening reloads native state.
-Closing handles does not prove that native work was undone. Reads do not overlap. A preference write invalidates reads begun before or during it;
+Closing handles does not prove that native work was undone. Reads do not overlap.
+A preference write invalidates reads begun before or during it;
 post-write readback retires those reads before releasing draft protection.
 Command, read, and Forgejo errors remain independent. Forgejo refresh is attempted
 once per connected identity, with explicit retry after failure. No completion
