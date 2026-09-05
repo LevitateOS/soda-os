@@ -97,6 +97,7 @@ func TestNativeWorkspaceSourcesAreStagedForRPMBuild(t *testing.T) {
 		"soda-logo-horizontal.svg", "soda-logo-horizontal-dark.svg", "soda-cockpit-palette.css",
 		"soda-login-background-light.svg", "soda-login-background-dark.svg",
 		"soda-cockpit-favicon.ico", "soda-cockpit-apple-touch-icon.png",
+		"soda-forgejo-logo.svg", "soda-forgejo-home.tmpl", "theme-soda-auto.css",
 		"org.sodaos.projects.policy", "soda-projects.tmpfiles", "soda-projects.sysusers", "cockpit-stock.pam",
 		"soda-runners", "soda-runner-helper", "soda-runner-launch",
 		"org.sodaos.runners.policy", "soda-runners.tmpfiles", "soda-runners.sysusers", "soda-runner@.service",

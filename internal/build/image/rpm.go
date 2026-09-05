@@ -281,7 +281,7 @@ func (b *Builder) stageProductRPMSources(build, sources string) error {
 			return err
 		}
 	}
-	return nil
+	return b.stageForgejoBranding(sources)
 }
 
 func (b *Builder) writeLockedInstallInputs(rpms string) error {

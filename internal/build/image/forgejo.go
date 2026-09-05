@@ -3,6 +3,7 @@ package image
 import (
 	"errors"
 	"fmt"
+	"path/filepath"
 	"regexp"
 	"strings"
 
@@ -50,4 +51,25 @@ func validSourceArchive(value string) bool {
 
 func validInputFilename(value string) bool {
 	return sourceArchivePattern.MatchString(value)
+}
+
+func (b *Builder) stageForgejoBranding(sources string) error {
+	custom := "packaging/rpm/forgejo/sources/custom/"
+	files := [][2]string{
+		{"assets/branding/source/soda-symbol.svg", "soda-forgejo-logo.svg"},
+		{"assets/branding/forgejo/logo.png", "soda-forgejo-logo.png"},
+		{"assets/branding/forgejo/favicon.png", "soda-forgejo-favicon.png"},
+		{"assets/branding/forgejo/apple-touch-icon.png", "soda-forgejo-apple-touch-icon.png"},
+		{custom + "templates/home.tmpl", "soda-forgejo-home.tmpl"},
+		{custom + "templates/custom/header.tmpl", "soda-forgejo-header.tmpl"},
+	}
+	for _, name := range []string{"theme-soda-light.css", "theme-soda-dark.css", "theme-soda-auto.css", "soda-controls.css"} {
+		files = append(files, [2]string{custom + "public/assets/css/" + name, name})
+	}
+	for _, file := range files {
+		if err := copyFile(b.path(file[0]), filepath.Join(sources, file[1])); err != nil {
+			return err
+		}
+	}
+	return nil
 }

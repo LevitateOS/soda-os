@@ -1,7 +1,16 @@
-APP_NAME = Built-in Git
+APP_NAME = Soda OS
 RUN_MODE = prod
 RUN_USER = git
 WORK_PATH = /var/lib/forgejo
+
+[ui]
+DEFAULT_THEME = soda-auto
+THEMES = soda-auto,soda-light,soda-dark,forgejo-auto,forgejo-light,forgejo-dark,gitea-auto,gitea-light,gitea-dark,forgejo-auto-deuteranopia-protanopia,forgejo-light-deuteranopia-protanopia,forgejo-dark-deuteranopia-protanopia,forgejo-auto-tritanopia,forgejo-light-tritanopia,forgejo-dark-tritanopia
+
+[ui.meta]
+AUTHOR = Soda OS
+DESCRIPTION = Your team's repositories and collaboration.
+KEYWORDS = git,forge,soda-os
 
 [database]
 DB_TYPE = sqlite3
@@ -12,6 +21,9 @@ ROOT = /var/lib/forgejo/data/repositories
 DEFAULT_PRIVATE = public
 
 [server]
+; Soda can update custom assets without changing Forgejo's upstream version.
+; Native conditional requests revalidate them instead of caching for six hours.
+STATIC_CACHE_TIME = 0
 DOMAIN = localhost
 HTTP_ADDR = 127.0.0.1
 HTTP_PORT = 30000

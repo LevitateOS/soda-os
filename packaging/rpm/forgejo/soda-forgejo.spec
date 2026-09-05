@@ -1,6 +1,6 @@
 Name:           soda-forgejo
 Version:        15.0.7
-Release:        7%{?dist}
+Release:        8%{?dist}
 Summary:        Soda OS built-in Git service
 License:        MIT AND GPL-3.0-or-later
 Requires:       checkpolicy, git-core, git-lfs, pam, policycoreutils, shadow-utils, systemd, tailscale, util-linux-core
@@ -21,6 +21,19 @@ install -m 0644 %{_sourcedir}/forgejo-app.ini.tmpl %{buildroot}%{_datadir}/soda/
 install -m 0644 %{_sourcedir}/soda-forgejo.pam %{buildroot}%{_sysconfdir}/pam.d/soda-forgejo
 install -m 0644 %{_sourcedir}/soda-forgejo-shadow.te %{buildroot}%{_datadir}/soda/selinux/soda-forgejo-shadow.te
 
+custom=%{buildroot}%{_datadir}/soda/forgejo/custom
+install -d "$custom/public/assets/img" "$custom/public/assets/css" "$custom/templates/custom"
+install -m 0644 %{_sourcedir}/soda-forgejo-logo.svg "$custom/public/assets/img/logo.svg"
+install -m 0644 %{_sourcedir}/soda-forgejo-logo.svg "$custom/public/assets/img/favicon.svg"
+install -m 0644 %{_sourcedir}/soda-forgejo-logo.png "$custom/public/assets/img/logo.png"
+install -m 0644 %{_sourcedir}/soda-forgejo-favicon.png "$custom/public/assets/img/favicon.png"
+install -m 0644 %{_sourcedir}/soda-forgejo-apple-touch-icon.png "$custom/public/assets/img/apple-touch-icon.png"
+for stylesheet in theme-soda-light.css theme-soda-dark.css theme-soda-auto.css soda-controls.css; do
+    install -m 0644 %{_sourcedir}/"$stylesheet" "$custom/public/assets/css/$stylesheet"
+done
+install -m 0644 %{_sourcedir}/soda-forgejo-home.tmpl "$custom/templates/home.tmpl"
+install -m 0644 %{_sourcedir}/soda-forgejo-header.tmpl "$custom/templates/custom/header.tmpl"
+
 %files
 %{_bindir}/forgejo
 %{_libexecdir}/soda/forgejo-init
@@ -30,5 +43,6 @@ install -m 0644 %{_sourcedir}/soda-forgejo-shadow.te %{buildroot}%{_datadir}/sod
 %{_sysusersdir}/forgejo.conf
 %{_tmpfilesdir}/forgejo.conf
 %{_datadir}/soda/forgejo/app.ini.tmpl
+%{_datadir}/soda/forgejo/custom/
 %{_datadir}/soda/selinux/soda-forgejo-shadow.te
 %config(noreplace) %{_sysconfdir}/pam.d/soda-forgejo

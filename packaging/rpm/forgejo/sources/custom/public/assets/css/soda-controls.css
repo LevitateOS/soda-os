@@ -13,6 +13,15 @@
   background: var(--color-primary-active);
 }
 
+/* Fomantic's selected primary rules still contain literal blue values. */
+.ui.primary.button.active,
+.ui.primary.buttons .button.active,
+.ui.primary.button.active:active,
+.ui.primary.buttons .button.active:active {
+  background: var(--color-primary-active);
+  color: var(--color-primary-contrast);
+}
+
 /* Fomantic's type-specific input selectors otherwise suppress the outline. */
 :root :focus-visible {
   outline: 2px solid var(--soda-focus) !important;

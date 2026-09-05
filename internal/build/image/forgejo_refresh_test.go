@@ -77,7 +77,7 @@ func TestForgejoInitializationKeepsNativeOrdering(t *testing.T) {
 func TestStaleRefreshRunsTheExistingInitializerOnRestart(t *testing.T) {
 	root := t.TempDir()
 	config := filepath.Join(root, "app.ini")
-	initial := "[server]\nHTTP_ADDR = 0.0.0.0\nHTTP_PORT = 30000\nDOMAIN = soda\nSSH_DOMAIN = soda\nROOT_URL = http://soda:30000/\n[service]\nDISABLE_REGISTRATION = false\n"
+	initial := "APP_NAME = Team Git\n[ui]\nDEFAULT_THEME = forgejo-dark\nTHEMES = forgejo-dark,custom-theme\n[ui.meta]\nDESCRIPTION = Operator-owned description\n[security]\nSECRET_KEY = retained-fixture-secret\n[server]\nHTTP_ADDR = 0.0.0.0\nHTTP_PORT = 30000\nDOMAIN = soda\nSSH_DOMAIN = soda\nROOT_URL = http://soda:30000/\n[service]\nDISABLE_REGISTRATION = false\n"
 	require.NoError(t, os.WriteFile(config, []byte(initial), 0600))
 	writeWelcomeTestCommand(t, root, "hostnamectl", "echo soda\n")
 	writeWelcomeTestCommand(t, root, "forgejo-tailnet", "echo 'soda.test.ts.net 100.64.0.1'\n")

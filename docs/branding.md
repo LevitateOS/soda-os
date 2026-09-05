@@ -54,8 +54,8 @@ to verify that all tracked outputs are current.
 
 ## Forgejo asset preparation
 
-`assets/branding/forgejo` contains the prepared web raster assets, not an
-installed Forgejo customization. Open `assets/branding/forgejo/preview.html`
+`assets/branding/forgejo` contains the web raster assets shipped by
+`soda-forgejo`. Open `assets/branding/forgejo/preview.html`
 directly in a browser at 100% zoom to review the light/dark placements without
 a server or network connection. It compares 1x and 2x favicon samples and two
 homepage layouts; it is not an installed-product screenshot or visual approval.
@@ -72,12 +72,13 @@ homepage layouts; it is not an installed-product screenshot or visual approval.
 
 Paths in this table are relative to `assets/branding`. The native 30px and
 220px placements come from Forgejo 15.0.7, not permanent Soda layout rules.
-The 440px horizontal layout is an alternative for review, not a replacement
-for the square navigation icon. Homepage copy in the preview is proposed copy.
+The shipped homepage uses the square symbol, the configured instance name,
+and the configured meta description. The 440px horizontal layout remains an
+alternative for review, not a replacement for the square navigation icon.
 
-Use the canonical symbol as both `logo.svg` and `favicon.svg` when integrating;
-do not maintain duplicate SVG masters or manufacture raster copies of the
-SVG-only navigation/homepage slots. The Apple icon's background uses the
+The RPM installs the canonical symbol as both `logo.svg` and `favicon.svg`;
+there are no duplicate SVG masters or raster copies of the SVG-only
+navigation/homepage slots. The Apple icon's background uses the
 approved navy without recolouring the mark or adding baked-in rounded corners.
 The existing Cockpit, installer, and general web exports are unchanged.
 
@@ -160,8 +161,9 @@ palettes. The logo's cyan is not used for small text on white.
 
 For contrast, dark links use the website's brighter `#60a5fa` blue, while filled
 primary buttons use `#2563eb` with white text and darker hover/active states.
-`soda-controls.css` binds native button variables locally and provides visible
-keyboard focus, including Fomantic fields that otherwise suppress outlines.
+`soda-controls.css` binds native button variables locally, replaces Fomantic's
+literal selected-primary blue, and provides visible keyboard focus, including
+Fomantic fields that otherwise suppress outlines.
 It does not introduce new control behavior, fonts, animations, or layouts.
 `theme-soda-auto.css` follows the browser's color-scheme preference through
 conditional CSS imports; explicit light/dark choices ignore that preference.
@@ -187,12 +189,100 @@ node scripts/check-forgejo-branding.mjs \
 ```
 
 This read-only check exercises native primary button families and their
-normal/hover/active contrast, disabled controls, keyboard focus, preservation
+normal/hover/active/selected contrast, disabled controls, keyboard focus, preservation
 of native diff/error/ANSI colors, automatic preference changes without reload,
 explicit themes under the opposite OS preference, narrow screens, and 2x
 screenshots. Source tests additionally check text and field/focus contrast.
 Neither the component sheet nor these source checks establish installed-system
 acceptance or complete WCAG conformance.
+
+## Installed Forgejo branding
+
+`soda-forgejo` owns `/usr/share/soda/forgejo/custom`. Its systemd service sets
+`FORGEJO_CUSTOM` to that directory while keeping the explicit
+`--config /etc/forgejo/app.ini`, native `git` service account, and writable data
+under `/var/lib/forgejo`. Assets are read directly from the image; startup does
+not copy them into mutable state. The two template overrides are `home.tmpl`
+and `custom/header.tmpl` (the Apple touch-icon link). Native navigation, login,
+registration, user/repository avatars, footer attribution, license links, and
+repository functionality are not replaced.
+
+New configurations set `APP_NAME = Soda OS`, the shared description
+`Your team's repositories and collaboration.`, and `DEFAULT_THEME = soda-auto`.
+`THEMES` adds the three Soda modes to **all** native Forgejo/Gitea and
+color-vision accessibility choices. Users continue to select their own theme
+through Forgejo's native Appearance settings. No saved preference is reset.
+
+### Existing installations and administrator choices
+
+The initializer still seeds `app.ini` only when it is absent. An image update
+ships the artwork/templates but does **not** rewrite an existing instance name,
+meta description, theme list/default, static-cache setting, or secrets. To
+adopt the new defaults, merge the relevant settings from
+`/usr/share/soda/forgejo/app.ini.tmpl` into the corresponding existing sections:
+
+- Set the top-level `APP_NAME` to `Soda OS` if desired.
+- In `[ui]`, add `soda-auto,soda-light,soda-dark` to the existing `THEMES` list,
+  preserving custom choices, and set `DEFAULT_THEME = soda-auto`. If no list was
+  explicitly configured, start from the complete list in the shipped template;
+  do not accidentally replace native/accessibility choices with only Soda.
+- In `[ui.meta]`, adopt the shipped author, description, and keywords if desired.
+- In `[server]`, adopt `STATIC_CACHE_TIME = 0` for native cache revalidation.
+
+Do not replace the entire file, duplicate INI sections, regenerate secrets, or
+modify the database to change user themes. Restart `forgejo.service` through
+native systemd after an approved configuration edit, then hard-refresh the
+browser once to clear assets cached before the change.
+
+**Operator custom files:** the previous default custom path was
+`/var/lib/forgejo/custom`. Before updating an instance with local files there,
+inspect its effective custom path. Retain the operator-owned path with a native
+systemd drop-in (`[Service]` and
+`Environment=FORGEJO_CUSTOM=/var/lib/forgejo/custom`) if needed. Existing
+explicit drop-in overrides remain authoritative. Such installations can adopt
+selected bundled files through native Forgejo customization; Soda does not
+merge, overwrite, or delete operator templates. There is only one active
+custom path, not a Soda-managed overlay system.
+
+### Asset caching and upgrade checks
+
+Forgejo's asset cache key uses its upstream version, which does not change
+when only the Soda RPM release changes. New configurations therefore use native
+`STATIC_CACHE_TIME = 0`: browsers revalidate assets, unchanged files can return
+304, and changed local files are served without waiting for the upstream
+six-hour default. This includes imported theme CSS. There is no custom cache
+service or asset-version state.
+
+Forgejo explicitly does not guarantee compatibility for custom templates,
+artwork overrides, or CSS internals. On every Forgejo upgrade:
+
+1. Recheck the custom paths, native theme imports/variables, template helpers,
+   and complete native/accessibility theme list.
+2. Run source tests and the component review on the matching-native binary.
+3. Review the actual logged-out homepage, signup/login, repository/code pages,
+   issues, pull requests/diffs, Actions, settings, and confirmation dialogs in
+   light/dark/automatic modes, mobile widths, and high-density displays.
+4. Verify keyboard focus, readable state colors, native saved theme selection,
+   manifest/icon responses, and same-URL asset revalidation after an update.
+5. On each architecture, verify the built RPM payload and installed read-only
+   custom path under systemd/SELinux, new initialization, and update/reboot of
+   an existing configuration. Keep native PAM/SSH clone/push smoke tests in the
+   installed-system validation; branding tests are not substitutes.
+
+The integration's source tests execute the spec's install section in a
+scratch directory and compare installed assets/templates/CSS with their
+sources; this is not an RPM build. Linux x86-64 validation exercised a disposable
+Forgejo 15.0.7 process, native login and saved theme selection, repository/code,
+issue/PR/diff/Actions/settings pages and dialogs, mobile/2x views, HTTP asset bytes
+and MIME types, the manifest, and unchanged/updated cache responses. A process
+restart retained the native account/repository and saved theme despite a
+changed site default; the homepage respected operator text and escaped markup.
+This is a process restart, not an OS update/reboot test. Actions
+page coverage does not establish runner execution. No installed-system,
+PAM/OpenSSH, or Apple-device result is implied. AArch64 must reproduce the native
+browser checks; both architectures still require RPM/image and installed
+fresh/update/reboot validation on matching hardware. Prerequisites are the
+matching-native Forgejo/build inputs, browser, and disposable installed guest.
 
 ## Regenerating all derivatives
 

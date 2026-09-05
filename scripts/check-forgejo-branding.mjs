@@ -55,7 +55,8 @@ async function visit(page, theme) {
 }
 
 async function checkButtons(page) {
-  for (const selector of ['#primary', '.button.primary:not(.ui)', '.ui.primary.buttons .button']) {
+  let activeBackground;
+  for (const selector of ['#primary', '.button.primary:not(.ui)', '.ui.primary.buttons .button:not(.active)']) {
     const button = page.locator(selector);
     await page.mouse.move(0, 0);
     const normal = await colors(button);
@@ -63,12 +64,18 @@ async function checkButtons(page) {
     const hover = await colors(button);
     await page.mouse.down();
     const active = await colors(button);
+    activeBackground = active.background;
     await page.mouse.up();
     for (const [state, value] of Object.entries({ normal, hover, active })) {
       assert(contrast(value.color, value.background) >= 4.5, `${selector} ${state}: ${JSON.stringify(value)}`);
     }
     assert.notEqual(normal.background, hover.background, `${selector} hover feedback`);
     assert.notEqual(hover.background, active.background, `${selector} active feedback`);
+  }
+  for (const selector of ['.ui.primary.button.active', '.ui.primary.buttons .button.active']) {
+    const selected = await colors(page.locator(selector));
+    assert.equal(selected.background, activeBackground, `${selector} selected feedback`);
+    assert(contrast(selected.color, selected.background) >= 4.5);
   }
   assert(await page.locator('button[disabled]').isDisabled());
 }
@@ -95,6 +102,7 @@ try {
     page.on('pageerror', error => errors.push(error.message));
     page.on('response', response => { if (response.status() >= 400) errors.push(`${response.status()} ${response.url()}`); });
     const baseline = await visit(page, `forgejo-${scheme}`);
+    for (const [name, value] of Object.entries(baseline)) assert(value, `Missing native semantic color: ${name}`);
     for (const theme of [`soda-${scheme}`, 'soda-auto']) {
       assert.deepEqual(await visit(page, theme), baseline, `${theme} must preserve native diff, error and ANSI colors`);
       const body = await colors(page.locator('body'));

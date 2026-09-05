@@ -9,7 +9,7 @@ User=git
 Group=git
 SupplementaryGroups=soda-forgejo-shadow
 WorkingDirectory=/var/lib/forgejo
-Environment=HOME=/var/lib/forgejo USER=git FORGEJO_WORK_DIR=/var/lib/forgejo
+Environment=HOME=/var/lib/forgejo USER=git FORGEJO_WORK_DIR=/var/lib/forgejo FORGEJO_CUSTOM=/usr/share/soda/forgejo/custom
 ExecStart=/usr/bin/forgejo web --config /etc/forgejo/app.ini
 Restart=on-failure
 RestartSec=2s
