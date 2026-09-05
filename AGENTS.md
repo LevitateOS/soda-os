@@ -219,7 +219,15 @@ Use the present tree as a navigation aid, not an immutable architecture:
   immutable-toolset files are implementation debt, not product authority
 - `packaging`: files grouped by the artifact or package that ships them
 - `tests/acceptance`: system-level installation and boot evidence
-- `scripts` and `tools`: repository verification and developer tooling
+- `scripts` and `tools`: repository verification and developer tooling;
+  `scripts` also contains convenience commands for artifact preparation and
+  building through the existing repository workflow.
+
+Inspect `scripts` and `justfile` before assembling manual artifact commands.
+For example, `scripts/prepare-x86_64-cockpit-iso-candidate.sh` prepares and
+publishes an x86-64 OCI candidate and builds its Cockpit-selectable installer
+ISO. Read each script's prerequisites and side effects before running it;
+convenience wrappers do not authorize builds, publication, or host changes.
 
 Move code when responsibility genuinely changes. Update imports, tests, and
 documentation directly. Do not preserve an obsolete layout through forwarding
