@@ -121,7 +121,7 @@ func recordOptions(x86, arm, armRecord, output string) RecordOptions {
 
 func testARM64Spec() config.DistroSpec {
 	return config.DistroSpec{
-		Identity: config.IdentitySpec{Version: "0.6.1"},
+		Identity: config.IdentitySpec{Version: "0.6.2"},
 		Base: config.BaseSpec{
 			Platform:  "linux/arm64",
 			Reference: "quay.io/fedora/fedora-bootc@sha256:" + strings.Repeat("f", 64),
@@ -146,7 +146,7 @@ func writeSummaryFixture(t *testing.T, path, architecture string) {
 func writeARMReleaseRecordFixture(t *testing.T, path, revision, candidateDigest string) {
 	t.Helper()
 	record := release.Record{
-		SchemaVersion: 3, SodaVersion: "0.6.1", SourceRevision: revision,
+		SchemaVersion: 3, SodaVersion: "0.6.2", SourceRevision: revision,
 		Platform: "linux/arm64", Channel: "aarch64",
 		FedoraBaseReference: "quay.io/fedora/fedora-bootc@sha256:" + strings.Repeat("f", 64),
 		SodaImageReference:  release.Repository + "@" + candidateDigest,
