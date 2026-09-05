@@ -1,3 +1,5 @@
+import { CockpitPageTemplate } from "../templates/CockpitPageTemplate";
+import { DiagnosticAlert } from "../molecules/DiagnosticAlert";
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import {
   Alert,
@@ -10,7 +12,6 @@ import {
   ModalBody,
   ModalFooter,
   ModalHeader,
-  Page,
   PageSection,
   Spinner,
   TextArea,
@@ -148,13 +149,11 @@ export function Projects({
     }
   }
   return (
-    <Page sidebar={null} className="soda-page" mainAriaLabel="Projects" aria-busy={busy}>
-      <PageSection>
-        <p className="soda-eyebrow">Soda OS</p>
-        <Title headingLevel="h1" id="page-title">
-          Projects
-        </Title>
-        <p>Catalog repositories and create an isolated Linux workspace for each person.</p>
+    <CockpitPageTemplate
+      title="Projects"
+      busy={busy}
+      description="Catalog repositories and create an isolated Linux workspace for each person."
+      actions={
         <Toolbar>
           <ToolbarContent>
             <ToolbarItem>
@@ -169,17 +168,9 @@ export function Projects({
             </ToolbarItem>
           </ToolbarContent>
         </Toolbar>
-        {notice && (
-          <Alert
-            isInline
-            variant={notice.kind}
-            title={notice.message}
-            className="soda-diagnostic"
-            role="status"
-            aria-live="polite"
-          />
-        )}
-      </PageSection>
+      }
+      feedback={notice && <DiagnosticAlert message={notice.message} variant={notice.kind} />}
+    >
       <PageSection aria-labelledby="catalog-title">
         <Title headingLevel="h2" id="catalog-title">
           Project catalog
@@ -300,7 +291,7 @@ export function Projects({
           onSubmit={submit}
         />
       )}
-    </Page>
+    </CockpitPageTemplate>
   );
 }
 

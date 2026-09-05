@@ -1,3 +1,5 @@
+import { CockpitPageTemplate } from "../templates/CockpitPageTemplate";
+import { DiagnosticAlert } from "../molecules/DiagnosticAlert";
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import {
   Alert,
@@ -11,7 +13,6 @@ import {
   ModalBody,
   ModalFooter,
   ModalHeader,
-  Page,
   PageSection,
   Radio,
   Spinner,
@@ -148,13 +149,11 @@ export function Runners({
     if (!pending.current) setDialog(null);
   };
   return (
-    <Page sidebar={null} className="soda-page" mainAriaLabel="Runners" aria-busy={busy}>
-      <PageSection>
-        <p className="soda-eyebrow">Soda OS</p>
-        <Title headingLevel="h1" id="page-title">
-          Runners
-        </Title>
-        <p>Create and manage generic local capacity for provider-owned CI workflows.</p>
+    <CockpitPageTemplate
+      title="Runners"
+      busy={busy}
+      description="Create and manage generic local capacity for provider-owned CI workflows."
+      actions={
         <Toolbar>
           <ToolbarContent>
             <ToolbarItem>
@@ -169,17 +168,9 @@ export function Runners({
             </ToolbarItem>
           </ToolbarContent>
         </Toolbar>
-        {notice && (
-          <Alert
-            isInline
-            variant={notice.kind}
-            title={notice.message}
-            role="status"
-            aria-live="polite"
-            className="soda-diagnostic"
-          />
-        )}
-      </PageSection>
+      }
+      feedback={notice && <DiagnosticAlert message={notice.message} variant={notice.kind} />}
+    >
       <PageSection>
         <Alert isInline variant="warning" title="Runner jobs execute repository code">
           Each local runner has its own unprivileged Linux account, one job slot, no sudo access,
@@ -360,7 +351,7 @@ export function Runners({
           </ModalFooter>
         </Modal>
       )}
-    </Page>
+    </CockpitPageTemplate>
   );
 }
 

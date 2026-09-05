@@ -1,3 +1,5 @@
+import { CockpitPageTemplate } from "../templates/CockpitPageTemplate";
+import { DiagnosticAlert } from "../molecules/DiagnosticAlert";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Alert,
@@ -13,7 +15,6 @@ import {
   FormGroup,
   FormSelect,
   FormSelectOption,
-  Page,
   PageSection,
   Spinner,
   Title,
@@ -170,23 +171,11 @@ export function Tailscale({
     prefs?.ExitNodeID && selected && !choices.some((peer) => peer.TailscaleIPs?.[0] === selected),
   );
   return (
-    <Page sidebar={null} className="soda-page" mainAriaLabel="Tailscale" aria-busy={busy}>
-      <PageSection>
-        <p className="soda-eyebrow">Soda OS</p>
-        <Title headingLevel="h1" id="page-title">
-          Tailscale
-        </Title>
-        {notice && (
-          <Alert
-            isInline
-            variant="danger"
-            title={notice}
-            role="status"
-            aria-live="polite"
-            className="soda-diagnostic"
-          />
-        )}
-      </PageSection>
+    <CockpitPageTemplate
+      title="Tailscale"
+      busy={busy}
+      feedback={notice && <DiagnosticAlert message={notice} />}
+    >
       <PageSection aria-labelledby="connection-title">
         <Title headingLevel="h2" id="connection-title">
           Connection
@@ -393,7 +382,7 @@ export function Tailscale({
           Tailscale CLI documentation
         </a>
       </PageSection>
-    </Page>
+    </CockpitPageTemplate>
   );
 }
 
