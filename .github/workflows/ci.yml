@@ -25,6 +25,13 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
+      - uses: voidzero-dev/setup-vp@49c3e4e92c52e7f8392712a9267bbe71c5ab30e5
+        with:
+          version: '0.3.0'
+          node-version: '24.20.0'
+          working-directory: cockpit
+          run-install: false
+          cache: true
       - name: Install source-check prerequisites
         run: sudo apt-get update && sudo apt-get install --yes librsvg2-bin
       - name: Check tracked diff integrity
@@ -40,7 +47,10 @@ jobs:
           ./scripts/check-acceptance-evidence-ci.sh
       - name: Test source contracts
         run: |
-          node --test cockpit/soda-projects/*.test.mjs
+          vp -C cockpit install --frozen-lockfile
+          vp -C cockpit check
+          vp -C cockpit build
+          vp -C cockpit test
           go vet ./...
           go test -race ./internal/acceptance
           go test ./...

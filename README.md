@@ -88,7 +88,7 @@ and [administration](docs/public/40-Operate-Soda-OS/10-administration.md).
 ## Repository layout
 
 - `cmd`: bounded product and artifact commands
-- `cockpit`: the stock-Cockpit Projects package
+- `cockpit`: shared React/TypeScript sources for the Projects, Runners, and Tailscale packages
 - `internal`: Projects, host integration, and artifact construction
 - `distro`: Soda identity, locks, and base inputs
 - `packaging`: bootc, installer, and RPM inputs
@@ -99,7 +99,8 @@ and [administration](docs/public/40-Operate-Soda-OS/10-administration.md).
 
 ## Development
 
-Run source checks and build only on matching-native hardware:
+Install the [pinned Cockpit build toolchain](docs/cockpit-development.md#build-host-setup),
+then run source checks and builds on matching-native hardware:
 
 ```sh
 just check

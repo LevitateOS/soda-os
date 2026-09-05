@@ -29,6 +29,9 @@ func (b *Builder) BuildRPMs(ctx context.Context) error {
 }
 
 func (b *Builder) buildRPMs(ctx context.Context, revision string) error {
+	if err := b.buildCockpit(ctx); err != nil {
+		return err
+	}
 	if err := b.buildContainer(ctx); err != nil {
 		return err
 	}
@@ -216,6 +219,9 @@ func (b *Builder) stageGitHubRunnerSource(sources string) error {
 }
 
 func (b *Builder) stageProductRPMSources(build, sources string) error {
+	if err := b.stageCockpitSources(sources); err != nil {
+		return err
+	}
 	files := [][2]string{
 		{filepath.Join(build, "soda-projects"), filepath.Join(sources, "soda-projects")},
 		{filepath.Join(build, "soda-workspace-helper"), filepath.Join(sources, "soda-workspace-helper")},
@@ -234,30 +240,11 @@ func (b *Builder) stageProductRPMSources(build, sources string) error {
 		{b.path("packaging/rpm/projects/sources/polkit/org.sodaos.projects.policy"), filepath.Join(sources, "org.sodaos.projects.policy")},
 		{b.path("packaging/rpm/projects/sources/tmpfiles/soda-projects.conf"), filepath.Join(sources, "soda-projects.tmpfiles")},
 		{b.path("packaging/rpm/projects/sources/sysusers/soda-projects.conf"), filepath.Join(sources, "soda-projects.sysusers")},
-		{b.path("cockpit/soda-projects/manifest.json"), filepath.Join(sources, "soda-projects-manifest.json")},
-		{b.path("cockpit/soda-projects/index.html"), filepath.Join(sources, "soda-projects-index.html")},
-		{b.path("cockpit/soda-projects/app.mjs"), filepath.Join(sources, "soda-projects-app.mjs")},
-		{b.path("cockpit/soda-projects/protocol.mjs"), filepath.Join(sources, "soda-projects-protocol.mjs")},
-		{b.path("cockpit/soda-projects/ui.mjs"), filepath.Join(sources, "soda-projects-ui.mjs")},
-		{b.path("cockpit/soda-projects/app.css"), filepath.Join(sources, "soda-projects-app.css")},
 		{b.path("packaging/rpm/runners/sources/polkit/org.sodaos.runners.policy"), filepath.Join(sources, "org.sodaos.runners.policy")},
 		{b.path("packaging/rpm/runners/sources/tmpfiles/soda-runners.conf"), filepath.Join(sources, "soda-runners.tmpfiles")},
 		{b.path("packaging/rpm/runners/sources/sysusers/soda-runners.conf"), filepath.Join(sources, "soda-runners.sysusers")},
 		{b.path("packaging/rpm/runners/sources/systemd/soda-runner@.service"), filepath.Join(sources, "soda-runner@.service")},
-		{b.path("cockpit/soda-tailscale/manifest.json"), filepath.Join(sources, "soda-tailscale-manifest.json")},
-		{b.path("cockpit/soda-tailscale/index.html"), filepath.Join(sources, "soda-tailscale-index.html")},
-		{b.path("cockpit/soda-tailscale/app.css"), filepath.Join(sources, "soda-tailscale-app.css")},
-		{b.path("cockpit/soda-tailscale/app.mjs"), filepath.Join(sources, "soda-tailscale-app.mjs")},
-		{b.path("cockpit/soda-tailscale/native.mjs"), filepath.Join(sources, "soda-tailscale-native.mjs")},
-		{b.path("cockpit/soda-tailscale/status.mjs"), filepath.Join(sources, "soda-tailscale-status.mjs")},
-		{b.path("cockpit/soda-tailscale/stream.mjs"), filepath.Join(sources, "soda-tailscale-stream.mjs")},
 		{b.path("packaging/rpm/runtime/sources/sysctl/60-soda-tailscale.conf"), filepath.Join(sources, "60-soda-tailscale.conf")},
-		{b.path("cockpit/soda-runners/manifest.json"), filepath.Join(sources, "soda-runners-manifest.json")},
-		{b.path("cockpit/soda-runners/index.html"), filepath.Join(sources, "soda-runners-index.html")},
-		{b.path("cockpit/soda-runners/app.mjs"), filepath.Join(sources, "soda-runners-app.mjs")},
-		{b.path("cockpit/soda-runners/protocol.mjs"), filepath.Join(sources, "soda-runners-protocol.mjs")},
-		{b.path("cockpit/soda-runners/ui.mjs"), filepath.Join(sources, "soda-runners-ui.mjs")},
-		{b.path("cockpit/soda-runners/app.css"), filepath.Join(sources, "soda-runners-app.css")},
 		{b.path("packaging/rpm/projects/sources/branding/sodaos/branding.css"), filepath.Join(sources, "soda-projects-branding.css")},
 		{b.path("assets/branding/source/soda-symbol.svg"), filepath.Join(sources, "soda-projects-symbol.svg")},
 		{b.path("packaging/rpm/forgejo/sources/systemd/forgejo.service"), filepath.Join(sources, "forgejo.service")},

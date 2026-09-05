@@ -13,3 +13,5 @@ cockpit/node_modules/
 *.db
 
 .tailscale_auth_key
+cockpit/dist/
+cockpit/.vite/

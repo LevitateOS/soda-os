@@ -19,14 +19,8 @@ func TestTailscalePageShipsThroughRuntimeWithoutSetup(t *testing.T) {
 	require.NoError(t, (&Builder{Root: root}).stageProductRPMSources(build, sources))
 	spec, err := os.ReadFile(filepath.Join(root, "packaging/rpm/runtime/soda-runtime.spec"))
 	require.NoError(t, err)
-	for _, name := range []string{"manifest.json", "index.html", "app.css", "app.mjs", "native.mjs", "status.mjs", "stream.mjs"} {
-		staged, readErr := os.ReadFile(filepath.Join(sources, "soda-tailscale-"+name))
-		require.NoError(t, readErr)
-		original, readErr := os.ReadFile(filepath.Join(root, "cockpit/soda-tailscale", name))
-		require.NoError(t, readErr)
-		require.Equal(t, original, staged)
-		require.Contains(t, string(spec), "%{buildroot}%{_datadir}/cockpit/soda-tailscale/"+name)
-	}
+	assertCockpitStaged(t, root, sources, "soda-tailscale")
+	require.Contains(t, string(spec), "%{_sourcedir}/soda-tailscale-cockpit/.")
 	for _, name := range []string{"soda-setup", "soda-local-access", "soda-tailnet.xml", "soda-projects-setup.mjs", "soda-projects-setup-protocol.mjs"} {
 		_, statErr := os.Stat(filepath.Join(sources, name))
 		require.ErrorIs(t, statErr, os.ErrNotExist)

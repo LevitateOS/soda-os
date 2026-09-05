@@ -92,14 +92,11 @@ func TestNativeWorkspaceSourcesAreStagedForRPMBuild(t *testing.T) {
 
 	require.NoError(t, (&Builder{Root: root}).stageProductRPMSources(build, sources))
 	for _, name := range []string{
-		"soda-projects", "soda-workspace-helper", "soda-projects-manifest.json",
-		"soda-projects-index.html", "soda-projects-app.mjs", "soda-projects-protocol.mjs",
-		"soda-projects-ui.mjs",
-		"soda-projects-app.css", "soda-projects-branding.css", "soda-projects-symbol.svg",
+		"soda-projects", "soda-workspace-helper",
+		"soda-projects-branding.css", "soda-projects-symbol.svg",
 		"org.sodaos.projects.policy", "soda-projects.tmpfiles", "soda-projects.sysusers", "cockpit-stock.pam",
-		"soda-runners", "soda-runner-helper", "soda-runner-launch", "soda-runners-manifest.json",
-		"soda-runners-index.html", "soda-runners-app.mjs", "soda-runners-protocol.mjs", "soda-runners-ui.mjs",
-		"soda-runners-app.css", "org.sodaos.runners.policy", "soda-runners.tmpfiles", "soda-runners.sysusers", "soda-runner@.service",
+		"soda-runners", "soda-runner-helper", "soda-runner-launch",
+		"org.sodaos.runners.policy", "soda-runners.tmpfiles", "soda-runners.sysusers", "soda-runner@.service",
 	} {
 		info, statErr := os.Stat(filepath.Join(sources, name))
 		require.NoError(t, statErr, name)
