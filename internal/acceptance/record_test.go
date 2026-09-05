@@ -7,7 +7,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/LevitateOS/soda-os/internal/build/release"
 	"github.com/LevitateOS/soda-os/internal/config"
@@ -49,6 +48,9 @@ func TestCreateSignedRecordCombinesExactSiblingRunsAndUsesCosign(t *testing.T) {
 	require.NoError(t, err)
 	require.Contains(t, string(contents), `"architecture": "aarch64"`)
 	require.Contains(t, string(contents), `"architecture": "x86_64"`)
+	var record AcceptanceRecord
+	require.NoError(t, json.Unmarshal(contents, &record))
+	require.EqualValues(t, 2, record.SchemaVersion)
 }
 
 func TestCreateSignedRecordRejectsMismatchedSiblingSource(t *testing.T) {
@@ -133,13 +135,9 @@ func testARM64Spec() config.DistroSpec {
 func writeSummaryFixture(t *testing.T, path, architecture string) {
 	t.Helper()
 	platform := map[string]string{"x86_64": "linux/amd64", "aarch64": "linux/arm64"}[architecture]
-	summary := RunSummary{
-		SchemaVersion: 1, Architecture: architecture, Platform: platform,
-		SourceRevision: strings.Repeat("a", 40), SuiteRevision: strings.Repeat("a", 40),
-		CandidateDigest: "sha256:" + strings.Repeat("c", 64),
-		FallbackDigest:  "sha256:" + strings.Repeat("d", 64),
-		Scenarios:       passedScenarios(), CompletedAt: SummaryTime(time.Unix(1_700_000_000, 0)),
-	}
+	summary := qualificationFixture()
+	summary.Architecture = architecture
+	summary.Platform = platform
 	require.NoError(t, WriteRunSummary(path, summary))
 }
 

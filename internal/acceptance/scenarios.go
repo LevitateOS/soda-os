@@ -35,13 +35,13 @@ func (state *runnerState) exerciseInstalledSystem(ctx context.Context, scenario 
 	if err = state.seedPreservationState(ctx, scenario); err != nil {
 		return fmt.Errorf("seed update and fallback state: %w", err)
 	}
-	if err = state.exerciseFallback(ctx, scenario, vm); err != nil {
+	if err = state.checks.record("update-and-fallback", state.exerciseFallback(ctx, scenario, vm)); err != nil {
 		return fmt.Errorf("manual update and fallback: %w", err)
 	}
 	if err = state.exerciseProductScenarios(ctx, scenario); err != nil {
 		return fmt.Errorf("product scenarios: %w", err)
 	}
-	if err = state.captureCore(ctx, scenario.remote, "final"); err != nil {
+	if err = state.checks.record("packaged-boundaries", state.captureCore(ctx, scenario.remote, "final")); err != nil {
 		return fmt.Errorf("final product capture: %w", err)
 	}
 	if state.logout == nil {

@@ -27,6 +27,66 @@ After both sibling runs pass, produce one strict signed JSON record containing:
 Cosign/Sigstore signs the record. It is an authenticated statement about these
 pre-release runs, not a claim that release CI's later-built bytes were booted.
 
+## Run reports versus qualification (schema 2)
+
+`run` records only checks that actually returned success, at their call sites.
+`summary.json` is a **run report**, not a qualification certificate. Its
+`scenarios` object contains named `"pass"` observations; an absent name means
+**not established** (failed, not reached, or not covered), never an inferred pass.
+A report may be empty or partial. `completed_at` is the report completion time,
+not a claim that every required check completed. `failure.txt` retains execution
+and cleanup errors when writable; individual captures and `secret-absence.txt`
+retain diagnostics. Reporting and sanitization failures also return CLI errors.
+Validation failures before source/artifact identity and the evidence directory
+are established do not produce a report. Later failures and cancellation retain
+a partial report when reporting itself succeeds.
+
+`record` separately requires every check below on **each** architecture before
+writing or signing anything. It rejects schema-1 reports and unknown check names;
+there is no legacy migration or override flag. The combined signed record also
+uses schema 2. Signing authenticates the submitted observations; it adds no
+coverage. A zero exit from `run` means its implemented itinerary and finalization
+succeeded, not that release qualification is complete.
+
+**Current qualification blocker:** the runner does not establish
+`installed-onboarding-observations`, `trusted-lan-access`, or
+`public-ingress-rejection`. Consequently its reports cannot currently pass
+`record`. Do not remove these requirements or edit reports to invent passes.
+A separately scoped implementation must connect the documented installed and
+network-topology observations to qualification evidence. This milestone adds
+neither public-side probe infrastructure nor a manual-pass input mechanism.
+
+### Coverage map
+
+Evidence paths below are relative to the run evidence directory; capture prefixes
+have `.stdout` and `.stderr` files. The native helper/API checks below are not
+installed-browser interaction evidence. Fixture changes occur only in disposable
+guests. This table maps the product requirements below to checks; it does not
+replace those requirements with a new product contract.
+
+| Check | Establishing operation and mutation | Evidence / success boundary |
+|---|---|---|
+| `iso-first-boot-defaults` | `verifyInitialLAN`: inspect ISO cloud-init/firewall/welcome defaults, then explicitly allow Forgejo fixture ports | `iso/lan-before-enrollment`, `iso/administrator-allows-forgejo`, `iso/lan-forgejo-before-enrollment.txt`; local forwarding, not an independently observed LAN |
+| `qcow2-cloud-init-local` | `exerciseReusableQCOW2`: clone/grow disk, provision cloud-init, operator Forgejo signup, create local-only workspace, power down | `qcow2/core`, `qcow2/cloud-init`, `qcow2/volume-growth`, local project setup captures and `qcow2/local-access`; not the complete console/browser journey |
+| `local-forwarded-access` | `verifyLAN`: SSH/Cockpit readiness and native service assertions after enrollment; initial local checks already completed | `iso/lan-before-enrollment`, `iso/lan-after-tailscale`; probes reach `127.0.0.1` QEMU forwards, not a separate LAN client |
+| `tailnet-access` | `verifyTailnetAfterLAN`: SSH/Cockpit readiness, native enrollment state, Forgejo health | `iso/tailnet-after-lan`, `iso/tailnet-forgejo-after-lan.txt`; not public-ingress evidence |
+| `installed-onboarding-observations` | **Not recorded by runner.** Operator installation/console/browser/reboot checks in Installation and native onboarding below | Requires normal console/welcome, Cockpit key entry and native enrollment, Forgejo advertised URL/clone/refresh and registration-policy observations, plus installed service-ordering evidence; pressing Enter or a helper/API result does not establish this composite |
+| `trusted-lan-access` | **Not covered by runner topology.** Separate trusted LAN client | Real SSH/Cockpit, administrator-opened Forgejo/development access before/after enrollment as applicable; forwarding alone is insufficient |
+| `public-ingress-rejection` | **Not covered.** Actual public-side probes against cloud deployment | Verify protected services reject public ingress while their Tailnet path works |
+| `workspace-boundaries-and-git-keys` | `verifyWorkspaceBoundaries`: inspect seeded accounts/clones/UIDs/keys; append a later personal key | `product/*-workspace-boundary`, `workspace-uids`, Forgejo key captures, `workspace-forgejo-absence`, `workspace-key-copy-once`; every constituent must succeed |
+| `ssh-transports` | `verifySSHTransports`: direct workspace command, SCP file, SFTP listing | `product/direct-command`, `scp-content`, `sftp.txt` |
+| `development-server-access` | `verifyDevelopmentServer`: run two workspace-owned Python servers, change served content | `product/*development-server*`, `alice-hot-reload-*`; local-forwarded and Tailnet fetches, not browser hot-module replacement or independent LAN evidence |
+| `native-mise-ownership` | `verifyMiseOwnership`: concurrent native installation in two workspaces, privacy checks | `product/mise-native-*`, `mise-workspace-privacy`, `cli-ownership-boundaries` |
+| `workspace-removal` | `verifyWorkspaceRemoval`: remove Alice's workspace, reject nonadmin project removal | `product/own-workspace-removal`, `nonadmin-project-remove`; surviving peer accounts checked |
+| `cockpit-auth-and-independent-roles` | `verifyCockpitAndRoles`: check authentication, promote Alice to wheel, verify Forgejo role remains ordinary | `product/cockpit-status.txt`, `alice-wheel-promotion`, `alice-forgejo-user`; no browser interaction claim |
+| `external-ssh-repository` | `verifyExternalSSHRepository`: create bounded local git-shell host fixture, register key, retry clone, remove project and fixture | `product/external-ssh-*`, `local-guest-external-ssh-fixture-*`; not remote-provider deployment/reachability |
+| `project-removal` | `verifyProjectRemoval`: create admin/Bob workspaces, remove project, check accounts gone and canonical repository retained | `product/removable-*`, `project-removal-preserves-forgejo` |
+| `human-removal-preserves-forgejo` | `verifyIndependentPersonDeletion`: create person/workspace/owned repository, delete Linux person | `product/obsolete-*`, `linux-deletion-preserves-forgejo`; current assertions check primary account absence and retained Forgejo user/repository, not every derived home |
+| `update-and-fallback` | `exerciseFallback`: switch B→A→B, verify booted digests and compare snapshots | `fallback/*`; current snapshot scope is `stableManifestScript`, not a full data backup/integrity test |
+| `packaged-boundaries` | Final `captureCore`: packaged/native-service and forbidden-path assertions, current system snapshot | `final/core`, `final/tailscale-access`, `final/system-manifest`; asserts enumerated boundaries, not absence of every conceivable control plane |
+| `runner-completion` | Complete input preparation and implemented itinerary without error | All preceding itinerary operations returned successfully; does not imply the missing observations above |
+| `evidence-and-cleanup` | Exact-resource cleanup, cleanup-log write, then credential scan | `cleanup.txt`, `secret-absence.txt`; any cleanup or sanitization failure leaves this check absent |
+
 ## Required scenarios
 
 ### Installation and native onboarding
@@ -226,13 +286,17 @@ creates the ISO Linux administrator in Anaconda, logs in, configures the network
 and adds the personal key through Cockpit Accounts. The runner prints only the protected input
 paths, then resumes through native SSH and Tailscale readiness.
 
-The successful run leaves `summary.json` and normalized credential-free
-evidence, but removes its exact QEMU processes, disposable loopback registry,
-generated keys, passwords, and VM disks. A failed run retains sanitized
-diagnostics and reports cleanup failures explicitly.
+The run leaves `summary.json` with the observations it established and normalized
+credential-free evidence, but removes its exact QEMU processes, disposable
+loopback registry, generated keys/passwords, and VM disks. Operator-owned input
+credential files are not deleted. A failed run retains a partial report and
+sanitized diagnostics when possible, and reports cleanup failures explicitly.
+Reporting failure returns an error rather than claiming a report was written.
 
-After matching x86-64 and AArch64 summaries name the same source and suite
-revisions, combine and sign them:
+Only reports with complete qualification evidence can be combined and signed.
+The current runner alone cannot supply that evidence (see the blocker above).
+Once matching x86-64 and AArch64 reports establish every required check and name
+the same source and suite revisions, the signing interface is:
 
 ```text
 go run ./cmd/soda-acceptance record \

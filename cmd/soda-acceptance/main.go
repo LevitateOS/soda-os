@@ -40,8 +40,8 @@ func runCommand() *cobra.Command {
 			if result.EvidenceDir != "" {
 				fmt.Fprintln(os.Stdout, "Evidence:", result.EvidenceDir)
 			}
-			if err == nil {
-				fmt.Fprintln(os.Stdout, "Run summary:", result.SummaryPath)
+			if result.SummaryPath != "" {
+				fmt.Fprintln(os.Stdout, "Run report (not release qualification):", result.SummaryPath)
 			}
 			return err
 		},
@@ -81,7 +81,7 @@ func recordCommand() *cobra.Command {
 	var specPath string
 	command := &cobra.Command{
 		Use:   "record",
-		Short: "Combine and sign matching x86-64 and AArch64 run summaries",
+		Short: "Qualify, combine, and sign complete x86-64 and AArch64 run reports",
 		Args:  cobra.NoArgs,
 		RunE: func(command *cobra.Command, _ []string) error {
 			spec, err := config.LoadDistro(specPath, "aarch64")
@@ -99,8 +99,8 @@ func recordCommand() *cobra.Command {
 	}
 	flags := command.Flags()
 	flags.StringVar(&specPath, "spec", "distro/soda.toml", "Soda distribution specification for the AArch64 record")
-	flags.StringVar(&options.X86Summary, "x86-summary", "", "passing x86-64 run summary")
-	flags.StringVar(&options.ARM64Summary, "aarch64-summary", "", "passing AArch64 run summary")
+	flags.StringVar(&options.X86Summary, "x86-summary", "", "schema-2 x86-64 run report with complete qualification evidence")
+	flags.StringVar(&options.ARM64Summary, "aarch64-summary", "", "schema-2 AArch64 run report with complete qualification evidence")
 	flags.StringVar(&options.ARM64ReleaseRecord, "aarch64-release-record", "", "strict AArch64 candidate release record")
 	flags.StringVar(&options.ExpectedRevision, "expected-revision", "", "exact main revision named by both runs")
 	flags.StringVar(&options.Output, "output", "", "new strict JSON acceptance record")

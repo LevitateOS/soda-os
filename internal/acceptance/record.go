@@ -77,6 +77,9 @@ func (options RecordOptions) validate() error {
 
 func validateRecordInputs(runs []RunSummary, options RecordOptions) error {
 	for _, run := range runs {
+		if err := run.Qualify(); err != nil {
+			return fmt.Errorf("qualify %s: %w", run.Architecture, err)
+		}
 		if run.SourceRevision != options.ExpectedRevision || run.SuiteRevision != options.ExpectedRevision {
 			return errors.New("sibling source and suite revisions must equal the expected workflow revision")
 		}
@@ -149,7 +152,7 @@ func combinedRecord(runs []RunSummary, signer string) AcceptanceRecord {
 		completed = runs[1].CompletedAt
 	}
 	return AcceptanceRecord{
-		SchemaVersion:  1,
+		SchemaVersion:  2,
 		SourceRevision: runs[0].SourceRevision,
 		SuiteRevision:  runs[0].SuiteRevision,
 		Architectures:  runs,

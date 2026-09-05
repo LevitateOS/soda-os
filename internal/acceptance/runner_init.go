@@ -32,14 +32,7 @@ func newRunnerState(ctx context.Context, options RunOptions, output io.Writer) (
 	if err != nil {
 		return nil, err
 	}
-	state := &runnerState{options: options, artifacts: artifacts, evidence: evidence, cleanup: &Cleanup{}, output: output}
-	if err = state.prepareInputs(ctx); err != nil {
-		_ = evidence.Write("failure.txt", []byte(err.Error()+"\n"))
-		cleanupErr := state.cleanup.Run(context.Background())
-		sanitizeErr := evidence.Sanitize(state.secrets)
-		return nil, errors.Join(err, cleanupErr, sanitizeErr)
-	}
-	return state, nil
+	return &runnerState{options: options, artifacts: artifacts, evidence: evidence, cleanup: &Cleanup{}, output: output, checks: checkResults{}}, nil
 }
 
 func defaultRunOptions(options RunOptions) RunOptions {

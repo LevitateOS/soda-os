@@ -5,21 +5,33 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"sort"
+	"slices"
 	"strings"
 	"time"
 )
 
-var RequiredScenarios = []string{
-	"installation-first-boot",
-	"qcow2-cloud-init-lan",
-	"lan-and-tailscale-access",
+// Qualification requires observations, not merely completion of the runner.
+// tests/acceptance/README.md maps each name to its evidence and limitations.
+var requiredChecks = []string{
+	"iso-first-boot-defaults",
+	"qcow2-cloud-init-local",
+	"local-forwarded-access",
+	"tailnet-access",
+	"installed-onboarding-observations",
+	"trusted-lan-access",
 	"public-ingress-rejection",
-	"ssh-cockpit-projects-forgejo",
+	"workspace-boundaries-and-git-keys",
+	"ssh-transports",
+	"development-server-access",
 	"native-mise-ownership",
-	"identity-and-deletion",
+	"workspace-removal",
+	"cockpit-auth-and-independent-roles",
+	"external-ssh-repository",
+	"project-removal",
+	"human-removal-preserves-forgejo",
 	"update-and-fallback",
-	"forbidden-state-absence",
+	"packaged-boundaries",
+	"runner-completion",
 	"evidence-and-cleanup",
 }
 
@@ -35,9 +47,10 @@ type RunSummary struct {
 	CompletedAt     string            `json:"completed_at"`
 }
 
+// Validate accepts partial reports. Missing checks are not established.
 func (summary RunSummary) Validate() error {
-	if summary.SchemaVersion != 1 {
-		return fmt.Errorf("run summary schema is %d, expected 1", summary.SchemaVersion)
+	if summary.SchemaVersion != 2 {
+		return fmt.Errorf("run summary schema is %d, expected 2", summary.SchemaVersion)
 	}
 	if summary.Architecture != "x86_64" && summary.Architecture != "aarch64" {
 		return errors.New("run summary architecture must be x86_64 or aarch64")
@@ -75,13 +88,30 @@ func gitRevision(value string) bool {
 }
 
 func validateScenarioResults(results map[string]string) error {
-	if len(results) != len(RequiredScenarios) {
-		return errors.New("run summary has an incomplete scenario set")
-	}
-	for _, scenario := range RequiredScenarios {
-		if results[scenario] != "pass" {
-			return fmt.Errorf("scenario %s did not pass", scenario)
+	for name, result := range results {
+		if !slices.Contains(requiredChecks, name) {
+			return fmt.Errorf("unknown acceptance check %s", name)
 		}
+		if result != "pass" {
+			return fmt.Errorf("check %s has invalid result %q; omit checks not established", name, result)
+		}
+	}
+	return nil
+}
+
+// Qualify is the signing boundary; structural validity alone is insufficient.
+func (summary RunSummary) Qualify() error {
+	if err := summary.Validate(); err != nil {
+		return err
+	}
+	var missing []string
+	for _, name := range requiredChecks {
+		if summary.Scenarios[name] != "pass" {
+			missing = append(missing, name)
+		}
+	}
+	if len(missing) != 0 {
+		return fmt.Errorf("incomplete qualification; missing evidence for: %s", strings.Join(missing, ", "))
 	}
 	return nil
 }
@@ -102,12 +132,15 @@ func WriteRunSummary(path string, summary RunSummary) error {
 	return os.WriteFile(path, contents, 0o600)
 }
 
-func passedScenarios() map[string]string {
-	results := make(map[string]string, len(RequiredScenarios))
-	names := append([]string(nil), RequiredScenarios...)
-	sort.Strings(names)
-	for _, name := range names {
-		results[name] = "pass"
+// checkResults records only successful observations at their call sites.
+// It neither schedules checks nor infers coverage from other results.
+type checkResults map[string]string
+
+func (results checkResults) record(name string, err error) error {
+	if err != nil {
+		delete(results, name)
+		return fmt.Errorf("check %s: %w", name, err)
 	}
-	return results
+	results[name] = "pass"
+	return nil
 }

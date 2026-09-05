@@ -60,7 +60,7 @@ type runnerState struct {
 	paths     runPaths
 	cleanup   *Cleanup
 	registry  Registry
-	tailnet   Tailnet
+	checks    checkResults
 	secrets   []Secret
 	output    io.Writer
 	logout    func(context.Context) error
@@ -71,23 +71,37 @@ func Run(ctx context.Context, options RunOptions, output io.Writer) (RunResult, 
 	if err != nil {
 		return RunResult{}, err
 	}
-	runErr := state.execute(ctx)
-	secrets := state.secrets
+	runErr := state.prepareInputs(ctx)
+	if runErr == nil {
+		runErr = state.execute(ctx)
+	}
+	return state.finish(ctx, runErr)
+}
+
+// finish retains partial reports even when execution or finalization fails.
+func (state *runnerState) finish(ctx context.Context, runErr error) (RunResult, error) {
+	runErr = state.checks.record("runner-completion", runErr)
 	cleanupErr := state.cleanup.Run(context.Background())
+	cleanupLog := "result=pass\n"
+	if cleanupErr != nil {
+		cleanupLog = "result=fail\n" + cleanupErr.Error() + "\n"
+	}
+	cleanupErr = errors.Join(cleanupErr, state.evidence.Write("cleanup.txt", []byte(cleanupLog)))
 	resultErr := errors.Join(runErr, cleanupErr)
 	if resultErr != nil {
-		_ = state.evidence.Write("failure.txt", []byte(resultErr.Error()+"\n"))
+		resultErr = errors.Join(resultErr, state.evidence.Write("failure.txt", []byte(resultErr.Error()+"\n")))
 	}
-	sanitizeErr := state.evidence.Sanitize(secrets)
-	if resultErr = errors.Join(resultErr, sanitizeErr); resultErr != nil {
-		return RunResult{EvidenceDir: state.evidence.Root}, resultErr
+	sanitizeErr := state.evidence.Sanitize(state.secrets)
+	finalizeErr := state.checks.record("evidence-and-cleanup", errors.Join(cleanupErr, sanitizeErr))
+	// A cancelled guest run must still be able to record its completed checks.
+	reportCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
+	defer cancel()
+	reportErr := state.writeSummary(reportCtx)
+	result := RunResult{EvidenceDir: state.evidence.Root}
+	if reportErr == nil {
+		result.SummaryPath = filepath.Join(state.evidence.Root, "summary.json")
 	}
-	if err = state.writeSummary(ctx); err != nil {
-		_ = state.evidence.Write("failure.txt", []byte(err.Error()+"\n"))
-		return RunResult{EvidenceDir: state.evidence.Root}, err
-	}
-	summary := filepath.Join(state.evidence.Root, "summary.json")
-	return RunResult{SummaryPath: summary, EvidenceDir: state.evidence.Root}, nil
+	return result, errors.Join(resultErr, finalizeErr, reportErr)
 }
 
 func (state *runnerState) execute(ctx context.Context) error {
@@ -104,7 +118,7 @@ func (state *runnerState) execute(ctx context.Context) error {
 	if err = state.exerciseInstalledSystem(ctx, &scenario, &vm); err != nil {
 		return err
 	}
-	if err = state.exerciseReusableQCOW2(ctx); err != nil {
+	if err = state.checks.record("qcow2-cloud-init-local", state.exerciseReusableQCOW2(ctx)); err != nil {
 		return fmt.Errorf("reusable QCOW2: %w", err)
 	}
 	return nil
@@ -132,10 +146,10 @@ func (state *runnerState) writeSummary(ctx context.Context) error {
 		return err
 	}
 	summary := RunSummary{
-		SchemaVersion: 1, Architecture: nativeArchitecture(), Platform: state.artifacts.Candidate.Platform,
+		SchemaVersion: 2, Architecture: nativeArchitecture(), Platform: state.artifacts.Candidate.Platform,
 		SourceRevision: state.artifacts.Candidate.SourceRevision, SuiteRevision: revision,
 		CandidateDigest: imageDigest(state.artifacts.Candidate), FallbackDigest: imageDigest(state.artifacts.Fallback),
-		Scenarios: passedScenarios(), CompletedAt: SummaryTime(time.Now()),
+		Scenarios: state.checks, CompletedAt: SummaryTime(time.Now()),
 	}
 	return WriteRunSummary(filepath.Join(state.evidence.Root, "summary.json"), summary)
 }

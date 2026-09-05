@@ -12,23 +12,31 @@ import (
 )
 
 func (state *runnerState) exerciseProductScenarios(ctx context.Context, scenario *scenarioState) error {
-	steps := []func(context.Context, *scenarioState) error{
-		state.verifyWorkspaceBoundaries,
-		state.verifySSHTransports,
-		state.verifyDevelopmentServer,
-		state.verifyMiseOwnership,
-		state.verifyWorkspaceRemoval,
-		state.verifyCockpitAndRoles,
-		state.verifyExternalSSHRepository,
-		state.verifyProjectRemoval,
-		state.verifyIndependentPersonDeletion,
+	if err := state.checks.record("workspace-boundaries-and-git-keys", state.verifyWorkspaceBoundaries(ctx, scenario)); err != nil {
+		return err
 	}
-	for _, step := range steps {
-		if err := step(ctx, scenario); err != nil {
-			return err
-		}
+	if err := state.checks.record("ssh-transports", state.verifySSHTransports(ctx, scenario)); err != nil {
+		return err
 	}
-	return nil
+	if err := state.checks.record("development-server-access", state.verifyDevelopmentServer(ctx, scenario)); err != nil {
+		return err
+	}
+	if err := state.checks.record("native-mise-ownership", state.verifyMiseOwnership(ctx, scenario)); err != nil {
+		return err
+	}
+	if err := state.checks.record("workspace-removal", state.verifyWorkspaceRemoval(ctx, scenario)); err != nil {
+		return err
+	}
+	if err := state.checks.record("cockpit-auth-and-independent-roles", state.verifyCockpitAndRoles(ctx, scenario)); err != nil {
+		return err
+	}
+	if err := state.checks.record("external-ssh-repository", state.verifyExternalSSHRepository(ctx, scenario)); err != nil {
+		return err
+	}
+	if err := state.checks.record("project-removal", state.verifyProjectRemoval(ctx, scenario)); err != nil {
+		return err
+	}
+	return state.checks.record("human-removal-preserves-forgejo", state.verifyIndependentPersonDeletion(ctx, scenario))
 }
 
 func (state *runnerState) verifyWorkspaceBoundaries(ctx context.Context, scenario *scenarioState) error {

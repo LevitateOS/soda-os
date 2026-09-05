@@ -4,11 +4,11 @@ on:
   workflow_dispatch:
     inputs:
       x86_summary_b64:
-        description: Base64-encoded credential-free x86-64 summary.json
+        description: Base64-encoded credential-free schema-2 x86-64 report with complete coverage
         required: true
         type: string
       aarch64_summary_b64:
-        description: Base64-encoded credential-free AArch64 summary.json
+        description: Base64-encoded credential-free schema-2 AArch64 report with complete coverage
         required: true
         type: string
       aarch64_release_record_b64:
@@ -65,7 +65,7 @@ jobs:
           decode_record "$X86_SUMMARY_B64" x86_64.summary.json
           decode_record "$AARCH64_SUMMARY_B64" aarch64.summary.json
           decode_record "$AARCH64_RELEASE_RECORD_B64" aarch64.release.json
-      - name: Validate, combine, sign, and verify exact-main evidence
+      - name: Qualify complete coverage, combine, sign, and verify exact-main evidence
         env:
           CERTIFICATE_IDENTITY: https://github.com/LevitateOS/soda-os/.github/workflows/native-acceptance-evidence.yml@refs/heads/main
           OIDC_ISSUER: https://token.actions.githubusercontent.com

@@ -16,7 +16,6 @@ func (state *runnerState) installAndOnboard(ctx context.Context) (scenarioState,
 	if err != nil {
 		return scenarioState{}, nil, err
 	}
-	state.tailnet = tailnet
 	before, raw, err := tailnet.Snapshot(ctx)
 	if err != nil {
 		return scenarioState{}, nil, err
@@ -24,10 +23,10 @@ func (state *runnerState) installAndOnboard(ctx context.Context) (scenarioState,
 	if err = state.evidence.Write("iso/host-tailnet-before.json", raw); err != nil {
 		return scenarioState{}, nil, err
 	}
-	return state.completeISOFlow(ctx, before)
+	return state.completeISOFlow(ctx, before, tailnet)
 }
 
-func (state *runnerState) completeISOFlow(ctx context.Context, before tailnetStatus) (scenarioState, *VM, error) {
+func (state *runnerState) completeISOFlow(ctx context.Context, before tailnetStatus, tailnet Tailnet) (scenarioState, *VM, error) {
 	vm, err := state.launch(ctx, "iso/install", "install", state.paths.installedDisk, state.artifacts.CandidateISO)
 	if err != nil {
 		return scenarioState{}, nil, err
@@ -37,11 +36,11 @@ func (state *runnerState) completeISOFlow(ctx context.Context, before tailnetSta
 	if err != nil {
 		return scenarioState{}, vm, err
 	}
-	if err = state.verifyInitialLAN(ctx, password); err != nil {
+	if err = state.checks.record("iso-first-boot-defaults", state.verifyInitialLAN(ctx, password)); err != nil {
 		return scenarioState{}, vm, err
 	}
 	fmt.Fprintln(state.output, "LAN access is verified. Open Cockpit → Tailscale and sign in through its native browser authentication URL.")
-	host, raw, err := state.resolveGuest(ctx, before)
+	host, raw, err := state.resolveGuest(ctx, before, tailnet)
 	if err != nil {
 		return scenarioState{}, vm, err
 	}
@@ -66,7 +65,7 @@ func (state *runnerState) completeISOFlow(ctx context.Context, before tailnetSta
 
 func (state *runnerState) completeInstalledAccess(ctx context.Context, remote Remote, vm *VM, password []byte) (Remote, *VM, error) {
 	local, err := state.verifyLAN(ctx, remote, password)
-	if err != nil {
+	if err = state.checks.record("local-forwarded-access", err); err != nil {
 		return Remote{}, vm, err
 	}
 	return local, vm, state.captureQMP(ctx, vm, "iso/qmp-running.json")
@@ -99,7 +98,7 @@ func (state *runnerState) verifyLAN(ctx context.Context, tailnet Remote, passwor
 	if err := local.Sudo(ctx, password, localAccessCheck, "iso/lan-after-tailscale"); err != nil {
 		return Remote{}, err
 	}
-	if err := state.verifyTailnetAfterLAN(ctx, tailnet); err != nil {
+	if err := state.checks.record("tailnet-access", state.verifyTailnetAfterLAN(ctx, tailnet)); err != nil {
 		return Remote{}, err
 	}
 	return local, nil
@@ -166,10 +165,10 @@ func (state *runnerState) registerVMCleanup(relative string, vm *VM) error {
 	return state.cleanup.Add(CleanupAction{Name: "guest Tailnet enrollment before QEMU " + relative, Run: state.logout})
 }
 
-func (state *runnerState) resolveGuest(ctx context.Context, before tailnetStatus) (string, []byte, error) {
+func (state *runnerState) resolveGuest(ctx context.Context, before tailnetStatus, tailnet Tailnet) (string, []byte, error) {
 	discoveryCtx, cancel := context.WithTimeout(ctx, 20*time.Minute)
 	defer cancel()
-	return state.tailnet.Discover(discoveryCtx, before)
+	return tailnet.Discover(discoveryCtx, before)
 }
 
 func (state *runnerState) captureQMP(ctx context.Context, vm *VM, relative string) error {

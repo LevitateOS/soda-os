@@ -37,7 +37,17 @@ matching-native machines. It covers:
 Fallback uses the previous signed published OCI image by immutable digest. Do
 not rebuild the previous image or any unused historical ISO/QCOW2.
 
-The completed sibling runs are submitted to the maintained `Native acceptance
+Acceptance reports and combined signed records use schema 2. The runner records
+only observed checks; completion of its itinerary is not complete qualification.
+The signing command rejects missing coverage on either architecture before
+writing or signing a record. **Current blocker:** the runner does not record the
+full installed-onboarding observations, independent trusted-LAN access, or
+public-ingress rejection. Its reports therefore cannot currently qualify. See
+[the coverage map and evidence boundary](../tests/acceptance/README.md#run-reports-versus-qualification-schema-2).
+A separate implementation must supply the missing evidence path; do not invent
+passes or weaken the requirements to sign a report.
+
+The qualified sibling runs are submitted to the maintained `Native acceptance
 evidence` workflow on exact `main`, together with the strict AArch64 candidate
 release record. Each decoded input is limited to 12 KiB. The workflow requires
 both summaries' source and suite revisions to equal its own source SHA, binds
