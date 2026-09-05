@@ -83,6 +83,29 @@ without changing its deployment. GitHub's latest Soda release endpoint returned
 404 during this implementation: there is no approved release to exercise the
 full positive discovery/update path at that checkpoint.
 
+A native x86_64 helper and the built page were subsequently installed as a
+**temporary `/usr` overlay preview** on that VM. A real Chromium/Cockpit session
+verified login, stock administrative elevation, installed Soda 0.6.3 status, and
+the no-published-release response. The temporary browser-test account, home,
+sudo rule, and local credential file were removed afterward. The preview remains
+until reboot; its overlay intentionally blocks download/apply. No deployment was
+staged and no reboot was requested. This is not RPM installation or full upgrade
+evidence, and AArch64 must independently reproduce it on matching hardware.
+
+The read-only smoke test is `cockpit/tests/updates-installed.test.ts`. With the
+current empty published-release feed and a disposable passwordless-sudo account,
+set `SODA_UPDATES_BROWSER_TARGET` to an operator-owned JSON file containing `url`,
+`username`, `passwordFile` (an absolute path to a protected password file), and
+`evidenceDirectory`, then run:
+
+```sh
+vp -C cockpit test tests/updates-installed.test.ts
+```
+
+It saves a screenshot; it never downloads or applies. The operator owns account
+and credential cleanup. This checkpoint-specific test expects no published
+release, not a successful signed-release verification.
+
 Before producing a release image, resolve/lock the verification dependencies on
 matching-native hardware. The runtime RPM now requires Cosign; the previously
 installed image did not provide it. Native x86_64 and AArch64 artifact builds and
