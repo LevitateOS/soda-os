@@ -1,353 +1,168 @@
 # Soda OS agent guidance
 
-## Purpose
+## Product and documentation authority
 
-Soda OS aims to be an understandable, human-owned operating system for remote
-development. It should provide a direct path from installing a machine to using
-one primary Linux account per human, one derived Linux workspace account per
-human-project pair, bundled Forgejo or an external Git host, ordinary Git,
-OpenSSH, and stock Cockpit with one focused Soda Projects page.
+Read [the product contract](docs/product-contract.md) before changing behavior.
+It owns the approved release-day outcomes; do not reproduce that specification
+here. [The documentation map](docs/README.md) separates public instructions,
+implementation references, operations, evidence, and research.
 
-Prefer a small, coherent product over accumulated flexibility, speculative
-machinery, or architecture that only its authors can understand.
+**Public documentation ships with Soda OS and describes the approved finished
+release, not the present checkout.** Implementation gaps, temporary restrictions,
+unverified mechanisms, and qualification blockers belong in internal docs and
+issues. Do not weaken launch documentation to match missing code, or invent
+features to fill a gap. Explicit future-only decisions, including x86-64 WSL2,
+remain future-only. Screenshots must match the release interface.
 
-## Durable product contract
+A later explicit user decision overrides stale plans, documentation, and tests.
+Classify constraints before using them:
 
-- Soda OS is cloud-first, not cloud-only. Trusted local-network installations
-  expose OpenSSH, Cockpit, Forgejo, and project-selected development servers
-  directly over the LAN. Cloud installations expose those services through
-  Tailscale and never to the public Internet. Tailscale must not block LAN
-  access. Initial setup requires a physical, VM, or supported cloud console.
-- The business or technical owner selecting the team's development
-  infrastructure is the primary product decision-maker. Daily users are
-  developers connecting from lightweight clients to a powerful shared Soda OS
-  development server.
-- Remote development and administration are SSH-first. A human connects
-  directly through ordinary OpenSSH to their derived workspace account;
-  non-interactive SSH, automation, SCP, and SFTP retain normal OpenSSH behavior.
-- The browser administration surface is stock Cockpit with Soda branding and
-  one Soda Projects package. The package reuses Cockpit authentication and
-  sessions and may invoke one narrow synchronous catalog-and-workspace operation.
-  It also provides the administrator-only Soda-aware human deletion path;
-  generic Cockpit or command-line account deletion is non-cascading. The
-  package does not add another web server, authentication layer, daemon,
-  database, generic backend, or generic privileged bridge.
-- A separate administrator-only Cockpit Runners package operates local Forgejo
-  and GitHub runner accounts, clients and systemd listeners through the existing
-  narrow helper. Providers own registration, workflows, scheduling and job
-  history; Soda adds no CI control plane.
-- Launch requires bundled Forgejo alongside support for external Git hosts.
-  Repository lifecycle, access, and collaboration stay native to the
-  authoritative Git host. Soda retains only a minimal appliance-wide project
-  catalog without an independently assumed closed field list, plus the
-  human-project-to-workspace-account convention. A successful **Set up for me**
-  operation leaves a complete clone
-  beneath the derived workspace account's `$HOME/Projects/<repository>` without
-  retaining Git credentials or workflow state. Repositories are created through
-  the authoritative Git host, then added to the catalog by SSH clone URL. The
-  project ID and canonical URL are immutable after addition; replacing the URL
-  requires administrator removal of the project and its local workspaces,
-  followed by re-adding it. Listing projects and setting up a workspace never
-  depend on Tailscale identity. Browser SSH guidance uses the host through which
-  the person opened Cockpit.
-- Workspace isolation means separate Linux homes, checkouts, user-local
-  dependencies, process ownership, and project-local data. Projects select
-  non-conflicting host ports themselves. Podman is an optional installed tool,
-  not Soda's isolation mechanism or a Soda-managed subsystem.
-- `mise` owns development-tool installation, versions, and project toolchain
-  configuration. Developers invoke it directly through its native commands and
-  repository configuration. Soda owns no tool picker, toolchain installer,
-  version manager, downloader, cache format, profile system, shared tool store,
-  or parallel state model. Tea and GitHub CLI are available in every workspace;
-  each workspace authenticates them manually and separately.
-- Soda Updates provides an administrator-only Cockpit page for checking approved
-  published releases, verifying and downloading their exact architecture-matched
-  OCI digests, and explicitly applying and restarting. It uses native bootc,
-  Skopeo, and Cosign through a narrow synchronous command, without a daemon,
-  database, automatic updates, or a generic privileged bridge.
-- Linux administrators retain native `bootc` commands for explicit update checks,
-  staging, activation, and supported fallback. Fallback to an earlier image
-  must preserve current Linux account, password, group, and administrator
-  state; direct `bootc rollback` is not supported unless verified against that
-  invariant. The automatic update timer is disabled, and Soda has no runtime
-  update service or shadow deployment state.
-- Firewalld stays installed and available through stock Cockpit Networking →
-  Firewall. Preserve Anaconda/Fedora defaults, including enabled firewalld and
-  native SSH access; Soda adds only the TCP 9090 allowance for Cockpit.
-  Administrators open Forgejo and development ports for LAN access themselves.
-  Preserve administrator choices. Soda adds no selected-LAN trust workflow or
-  custom firewall zone.
-- AArch64 and x86-64 are equal sibling architectures. Neither is a default,
-  fallback, experimental, or second-class target.
-- ISO installation uses graphical Anaconda including Linux account creation,
-  followed by normal login. QCOW2 uses standard Fedora cloud-init delivered by
-  VM tooling; ISO uses its native disabled file. Interactive sessions always show
-  stateless welcome guidance. Tailscale enrollment uses a separate Cockpit page. No Soda checkout, manually
-  built credential ISO, or public-SSH bootstrap is required.
+1. Product aspiration or explicit requirement.
+2. Established user-facing behavior.
+3. External protocol/platform requirement.
+4. Current implementation choice.
+5. Temporary development constraint.
+6. Unresolved decision or unverified hypothesis.
+
+Only the first three normally constrain a new design. Fedora versions, paths,
+locks, package sets, schemas, available machines, and historical evidence are
+not permanent product rules. Tests prove behavior; they do not create authority.
+When authorized behavior changes, update implementation, tests, and docs together.
+
+## Human ownership
+
+Prefer a small, coherent system a person can understand, modify, and delete:
+
+1. Delete dead, duplicated, or unnecessary decisions.
+2. Replace multiple representations with one direct representation.
+3. Separate genuinely independent responsibilities through explicit inputs and
+   outputs.
+
+Do not move branches into arbitrary helpers, assertion utilities, parameter
+bags, or vague packages to satisfy structural metrics. Avoid speculative
+compatibility, migrations, policy frameworks, generic subsystems, fallback
+paths, and future-proofing. Add machinery only for an explicit requirement,
+established contract, external protocol, reproduced failure, or concrete
+correctness/data-loss concern.
+
+Guard against both subsystem takeover and inverse overcollapse: preserve Soda's
+accepted coherent user workflow, while leaving native identity, repositories,
+permissions, processes, tools, and deployments with their upstream owners.
+A narrow adapter may mutate authoritative native state or the accepted catalog;
+it does not justify durable jobs, retries, copied authority, or reconciliation.
+Examples such as Podman are not selected architectures. Trusted teams do not
+imply hostile multitenancy or an enterprise policy system.
+
+Before proposing a bridge, inspect the exact shipped upstream version and
+configuration. Distinguish required behavior, defaults, optional features,
+packaging conventions, and hypotheses. If a native mechanism fails, report the
+exact constraint; do not silently change product behavior or construct a new
+subsystem. An engineering verification is not a new product decision.
+
+## Authorization and working method
+
+Before edits, confirm checkout, branch, Git state, and requested scope; inspect
+callers, tests, relevant contracts, and source owners. Preserve unrelated work.
+State unknowns rather than manufacturing requirements. A plan, suggestion,
+review, or discussion is not authorization to implement.
+
+When direction changes, replace the abandoned implementation directly. Add no
+compatibility for abandoned local state unless preservation is explicitly
+required. Move code when its responsibility changes; update imports, tests, and
+links without forwarding packages, aliases, duplicate files, or compatibility
+directories. Avoid vague buckets such as common, utils, or services unless a
+concrete cohesive owner is demonstrated.
+
+Continue through ordinary authorized engineering failures. Stop at genuine
+product-decision, privilege, persistence, data-safety, credential, matching-
+hardware, or uncontrolled-cost boundaries—not arbitrary attempt counts.
 
 ### Standing commit authorization
 
 This records the user's operational instruction; repository text does not create
 authority. For completed, verified work directly authorized within its exact
-scope, create a clean logical Git commit by default without asking separately.
-Throughout an implementation, commit focused completed milestones as they are
-reached; do not leave completed work only in a disposable worktree.
-Inspect the full diff first and preserve unrelated user work. This covers
-commits only, not push, pull requests, merges, publication, deployment,
-releases, registry mutation, destructive cleanup, or history rewriting.
+scope, create clean logical commits by default without asking separately.
+Commit focused completed milestones as they are reached; do not leave completed
+work only in a disposable worktree. Inspect the full diff first and preserve
+unrelated user work.
 
-## Direction and current implementation
+This authorizes commits only, not push, pull requests, merges, publication,
+deployment, releases, registry mutation, destructive cleanup, or history rewriting.
+Those operations require their own explicit instructions. Convenience scripts
+and documentation do not authorize their side effects.
 
-Treat the repository as a snapshot of the product’s current implementation,
-not as a permanent definition of what Soda OS is allowed to become.
+## Source navigation and commands
 
-The current implementation history may reflect the development and validation
-hardware that was available at the time. Do not interpret AArch64 checks, locks,
-artifact names, or release code as a product decision against x86-64.
+[Architecture](docs/architecture.md) owns the code map. `cmd/AGENTS.md` governs
+Go code under `cmd`. Inspect `scripts` and `justfile` before assembling manual
+artifact commands. In particular:
 
-Likewise, the current Fedora version, bootc base, registry, state schema,
-toolchain profiles, package set, filesystem paths, and release flow are current
-implementation facts. They may change when the product direction or supported
-hardware changes.
+- `scripts/check-native.sh <architecture>` runs the existing Linux source gate;
+  on Darwin it creates a disposable matching-native Linux check environment.
+- `scripts/prepare-native-iso-candidate.sh <architecture>` prepares and
+  **publishes** a native OCI candidate, then builds its installer ISO.
+- `scripts/place-libvirt-iso.sh` separately places an existing ISO for Linux/libvirt.
 
-Before relying on a constraint, classify it as one of:
+Read prerequisites and side effects before execution. See
+[development](docs/development.md) and [build operations](docs/build-and-release.md).
 
-1. Product aspiration
-2. Established user-facing behavior
-3. External protocol or platform requirement
-4. Current implementation choice
-5. Temporary development constraint
-6. Unresolved product decision
+## Quality and evidence
 
-Only the first three should normally constrain a new design. Do not promote a
-temporary limitation into a permanent rule merely because it appears in code,
-tests, documentation, or a build lock.
+Scripts and `justfile` own repository verification. Do not duplicate their numeric
+limits here or weaken, suppress, or bypass a gate to finish work.
 
-Tests and documentation are evidence of current behavior. They are not
-independent product authority. When an authorized product change makes them
-outdated, update them with the implementation.
+- Run focused tests while changing a responsibility.
+- Run `just check` before completion through the appropriate Linux environment.
+- Run relevant race tests for concurrent runtime or persistence changes.
+- Run relevant artifact/acceptance checks when those areas change and separately
+  authorized prerequisites are available.
+- Report source checks, builds, artifact inspection, installed behavior, and
+  release qualification separately. A command exit is not proof of its intended
+  side effect; inspect the actual native state.
 
-## Human ownership
+The gates may evolve through an explicit tooling decision, not incidental
+metric pressure. Do not remove established capabilities to simplify a count.
+For documentation renewal, reduce duplication and obsolete prose, not necessary
+procedures, warnings, evidence, or license notices; do not game line wrapping.
 
-Optimize for code that a person can understand, modify, and delete.
+## Architecture-specific work
 
-Prefer, in order:
+AArch64 and x86-64 are equal siblings. Keep each architecture's preparation,
+dependency resolution, builds, artifact generation, inspection, signing,
+publication, installation, and validation on matching hardware. Coordination
+from a sibling computer is allowed only by executing that work remotely on the
+matching target; do not substitute emulation or claim sibling artifact proof.
+Architecture-static source checks are not artifact execution or platform support.
 
-1. Delete dead, duplicated, or unnecessary decisions.
-2. Replace multiple representations with one direct representation.
-3. Separate genuinely independent responsibilities with explicit inputs and
-   outputs.
-
-Do not satisfy structural gates by moving branches into arbitrary helpers,
-creating parameter bags, hiding conditions behind assertion utilities, or
-introducing vague abstraction packages.
-
-Avoid speculative compatibility, migrations, policy frameworks, workflow
-engines, generic subsystems, fallback paths, and future-proofing. Add machinery
-only for an explicit requirement, an established contract, an external
-protocol, a reproduced failure, or a concrete correctness or data-loss concern.
-
-Do not remove established product capabilities merely to simplify a metric.
-Contracts may change when explicitly required, but the change should simplify
-the product rather than replace one form of complexity with another.
-
-## Product behavior
-
-The architecture reset explicitly replaces pre-reset project, workspace,
-dashboard, toolchain, and update control-plane behavior while retaining the
-smallest Soda-specific project workflow. The target behavior is:
-
-- one primary Linux account per human and one derived Linux workspace account
-  per human-project pair, with Linux authoritative for every account and home;
-- stable primary usernames and a Linux-native distinction between primary and
-  workspace accounts, without a Soda identity database or rename
-  reconciliation;
-- Anaconda or cloud-init creation of the initial Linux administrator;
-  primary humans created through stock Cockpit or Linux, ordinary Forgejo PAM
-  accounts on first login regardless of login order, and browser registration
-  disabled in new configurations; Linux administrators explicitly create a
-  separate Forgejo administrator through its native CLI when needed, with its
-  own Forgejo password, and existing Forgejo administrators can promote PAM
-  users through the native web interface; native manual key registration, no
-  workspace-account Forgejo identities, and no ongoing role synchronization;
-- stock Cockpit with Soda branding and one focused Soda Projects page;
-- a minimal shared declarative project catalog editable by every primary
-  human, without an unapproved closed metadata field list, repository-
-  membership model, or capability state; display information and additional
-  metadata are editable, while project identity and canonical URL are not;
-- synchronous workspace setup whose accepted outcome is a derived account and
-  complete clone produced through native user-authenticated Git or repository-
-  host behavior without retained credentials; setup requires a key in the
-  primary account's standard `~/.ssh/authorized_keys` before mutation and
-  copies those public keys once; each workspace's outbound public key is
-  registered manually through the authoritative Git host before retrying setup;
-  `workspace_exists` reports the derived Linux account even while a failed
-  clone remains retryable, and listing or setup does not require Tailscale;
-- native repository creation through Forgejo or the external authoritative Git
-  host, followed by adding its SSH clone URL to the Soda catalog; changing that
-  immutable URL requires administrator removal and re-addition;
-- direct ordinary OpenSSH login, commands, SFTP, and process attribution as the
-  derived workspace UID, without forced commands or synthetic homes;
-- repository lifecycle and access through bundled Forgejo or the external
-  authoritative Git host;
-- user-owned workspace removal and administrator-only project removal that
-  deletes the shared entry and every local workspace, including uncommitted
-  work, while always preserving the canonical Forgejo repository;
-- administrator-only Soda-aware human deletion that removes derived local
-  local workspaces first and the primary Linux account last; Forgejo account
-  deletion is separate inside Forgejo, without cross-system dependencies;
-- direct `mise`-owned development tools and repository configuration, with
-  workspace-private installed dependencies and assistants;
-- administrator-controlled native `bootc` operations and an account-preserving
-  supported fallback, without claiming direct `bootc rollback` before it is
-  verified and without a Soda update service; and
-- immutable-image construction, installation, inspection, and signed releases.
-
-Pre-reset databases, copied people and repository records, memberships, shared
-project accounts, shared worktrees, device-key projection, standalone dashboard
-services, jobs, retries, rollback, reconciliation, toolchain profiles, broad
-immutable tool manifests, copied Tea credentials, alternate onboarding paths,
-and translated update state are implementation evidence and deletion targets,
-not preservation contracts. The catalog, derived workspace-account convention,
-Projects page, native Tailscale composition, and narrow synchronous operations are
-retained outcomes; they must not become a generic control plane.
-
-Do not add Internet-scale, enterprise, attacker-first, or multi-path machinery
-without a concrete requirement. The team is trusted. Initial setup uses the
-console; LAN and Tailnet access are both first-class within their approved
-deployment contexts.
-
-## Current source ownership
-
-Use the present tree as a navigation aid, not an immutable architecture:
-
-- `cmd`: executable-specific construction and command behavior
-- `cockpit`: shared frontend sources and static Projects, Runners, Tailscale,
-  and Updates packages and their presentation assets
-- `internal/build`: image, installer, and release production
-- `internal`: native Projects behavior, host integration, process execution,
-  and artifact construction
-- `distro`: current distribution specification, locks, and base inputs; current
-  immutable-toolset files are implementation debt, not product authority
-- `packaging`: files grouped by the artifact or package that ships them
-- `tests/acceptance`: system-level installation and boot evidence
-- `scripts` and `tools`: repository verification and developer tooling;
-  `scripts` also contains convenience commands for artifact preparation and
-  building through the existing repository workflow.
-
-Inspect `scripts` and `justfile` before assembling manual artifact commands.
-For example, `scripts/prepare-native-iso-candidate.sh <architecture>` prepares
-and publishes a matching-native OCI candidate and builds its installer ISO;
-`scripts/place-libvirt-iso.sh` separately places an existing ISO for Linux/libvirt.
-Read each script's prerequisites and side effects before running it;
-convenience wrappers do not authorize builds, publication, or host changes.
-
-Move code when responsibility genuinely changes. Update imports, tests, and
-documentation directly. Do not preserve an obsolete layout through forwarding
-packages, aliases, duplicate files, or compatibility directories.
-
-Avoid vague buckets such as `common`, `utils`, or `services` unless a concrete,
-cohesive owner has first been demonstrated.
-
-## htmx skills
-
-Use the installed htmx 4 skills only when their specific workflow applies:
-
-- `htmx-guidance` when writing or reviewing Cockpit htmx markup, attributes,
-  events, swaps, or interaction patterns;
-- `htmx-debugging` when htmx requests, swaps, events, or other runtime behavior
-  do not work as expected;
-- `htmx-extension-authoring` when creating, modifying, or debugging an htmx 4
-  extension.
-
-## Working method
-
-Before changing the repository:
-
-- confirm the exact checkout, branch, Git state, and requested scope;
-- inspect the relevant callers, tests, contracts, and current source of truth;
-- distinguish user requirements from assumptions and repository accidents;
-- preserve unrelated or uncommitted work;
-- state material unknowns instead of manufacturing requirements.
-
-A plan, suggestion, review, or discussion is not authorization to edit files.
-Commit, push, release, deployment, and external operations require their own
-explicit instructions.
-
-When the user changes direction, prefer changing the implementation directly.
-Do not add compatibility for abandoned local state unless preservation is an
-explicit current requirement.
-
-## Quality gates
-
-The scripts and `justfile` are the source of truth for current repository
-verification. Do not copy their numeric limits into this document.
-
-For implementation work:
-
-- run focused tests while changing a responsibility;
-- run `just check` before completion;
-- run the relevant race tests for concurrent runtime or persistence changes;
-- run artifact or acceptance checks when those areas change and prerequisites
-  are available;
-- do not weaken, suppress, or bypass a gate merely to finish a change.
-
-The gates themselves may evolve through an explicit tooling decision. Their
-current values are not permanent product constraints.
-
-Distinguish source checks, artifact builds, live installation, and observed
-user behavior. Report only the level of evidence actually exercised.
+Record the affected architecture, performed work, sibling repetition required,
+and prerequisites/blockers. Keep machine details as handoff context, not product
+requirements. Start platform changes from the product aspiration, identify the
+truly platform-specific inputs, share genuinely common behavior, and use explicit
+platform-owned locks/artifacts. Do not build a generic platform framework before
+real platforms demonstrate the boundary. Compilation alone proves no support.
 
 ## Acceptance credentials
 
-Matching-native acceptance may use a protected, operator-owned reusable
-ephemeral Tailscale auth key. Do not require the operator to create a new
-non-reusable key for every iteration: that adds repeated human work without
-proving Soda behavior. The runner may consume the reusable key once for each
-disposable guest, must pass it only through the established secret-file and
-anonymous-descriptor boundaries, must never retain or print it, and must log
-the guest out during cleanup. Describe the credential truthfully in evidence;
-do not call a reusable key one-use. Require a non-reusable key only when the
-user or a concrete external security requirement explicitly requires one.
+Use only the inputs the current runner actually consumes. A fixture that needs
+a Tailscale auth key may use an operator-owned protected reusable ephemeral key;
+do not demand a fresh non-reusable key for each disposable guest without a user
+or concrete external security requirement. Pass it only through established
+secret-file and anonymous-descriptor boundaries. Never print or retain it; log
+the guest out during cleanup. Describe a reusable key truthfully, not as one-use.
+Do not expose secrets through argv, tracing, terminal echo, logs, or evidence.
+Clean up only exact run-owned resources; preserve operator inputs and evidence.
 
-## Architecture and platform changes
+## htmx skills
 
-Development actively uses both x86-64 and AArch64 computers. Keep every
-architecture-specific operation on matching hardware: perform x86-64 input
-preparation, dependency resolution, builds, artifact generation, inspection,
-signing, publication, installation, and validation on an x86-64 computer, and
-perform the corresponding AArch64 operations on an AArch64 computer. An agent
-may coordinate from a computer of the other architecture only by executing the
-work remotely on the matching target; do not build, inspect, sign, publish,
-install, or validate one architecture's artifacts on the sibling architecture.
-Whenever a change, dependency, artifact, test procedure, limitation, or
-follow-up is architecture-specific, record the affected architecture, what was
-done, what the sibling architecture must reproduce or verify, and any known
-prerequisites or blockers. Keep temporary machine details as handoff context;
-do not turn them into product requirements.
+Use installed htmx 4 skills only for their applicable workflow:
 
-When adding x86-64 or another supported platform:
-
-- start from the product aspiration, not from duplicated AArch64 conditionals;
-- identify which inputs are truly platform-specific;
-- keep product behavior shared where it is genuinely shared;
-- use explicit platform-owned locks and artifacts where they differ;
-- avoid constructing a generic multi-platform framework before two real
-  platforms demonstrate the required boundary;
-- validate the produced image and installation path on the target hardware.
-
-Do not claim platform support from successful compilation alone.
+- `htmx-guidance`: writing/reviewing Cockpit htmx markup and interactions.
+- `htmx-debugging`: failed requests, swaps, events, or runtime behavior.
+- `htmx-extension-authoring`: creating, modifying, or debugging extensions.
 
 ## Handoff
 
-At completion, report:
-
-- what ownership or behavior changed;
-- which established capabilities were preserved;
-- which current restrictions were removed or revised;
-- what was verified;
-- what remains unverified;
-- the exact Git operations performed.
-
-Never describe a temporary implementation restriction as a permanent Soda OS
-principle.
+Report changed ownership/behavior, preserved capabilities, restrictions removed
+or revised, verification actually exercised, remaining unverified work, and exact
+Git operations. Never present a temporary implementation restriction as a Soda
+product principle.

@@ -1,46 +1,134 @@
 # Cockpit frontend development
 
-Soda's Projects, Runners, Tailscale, and Updates pages share one Vite+ project in
-`cockpit/`. React owns transient presentation. Each page has its own typed native
-adapter; the installed Cockpit browser API and existing native executables own
-sessions, privileges, operations, and authoritative state.
+Projects, Runners, Tailscale, and Soda Updates share the Vite+ project in
+`cockpit/`. React owns transient presentation; installed Cockpit and each
+feature's typed native adapter own sessions, privileges, and native operations.
+[Architecture](architecture.md) owns the native boundaries and implementation gaps.
 
 ## Build-host setup
 
-The pinned toolchain is Vite+ 0.3.0, Node 24.20.0, pnpm 11.25.0, React 18.3.1,
-and PatternFly 6.6.1. Install the CLI with `scripts/install-cockpit-toolchain.sh`
-on each build host; this explicitly installs Vite+ and configures its shell
-integration. Reopen the shell or add Vite+'s reported bin directory to PATH.
-The installer itself is fetched from a fixed upstream commit. CI uses a pinned
-`setup-vp` action with explicit Vite+ and Node versions.
-
-From the canonical checkout:
+Versions live in `cockpit/package.json`, `.node-version`, and the lockfile.
+Install `scripts/install-cockpit-toolchain.sh` after reviewing its host changes;
+restart the shell or use Vite+'s reported bin directory. CI pins the same tools.
 
 ```sh
 vp -C cockpit install --frozen-lockfile
 vp -C cockpit check
 vp -C cockpit build
 vp -C cockpit test
-just check
 ```
 
-`just cockpit-check` runs the four frontend commands. `just check` includes them
-before Go tests that inspect built assets. Direct `soda-image rpm` and `oci`
-commands also install locked frontend dependencies and build before RPM staging.
-That frontend invocation has a ten-minute deadline, including dependency installation.
-The release executor uses these same entry points; provision its matching-native
-hosts with the pinned toolchain before running a release.
+`just cockpit-check` runs those commands; `just check` includes them before Go
+packaging tests. Native RPM/OCI construction also installs locked dependencies
+and builds frontend assets, with a ten-minute deadline including installation.
+The release executor uses these entry points. See [development](development.md)
+for the full Linux source gate and Darwin's native check container.
 
-Vite+ owns Oxfmt, Oxlint, strict type checking, and Vitest. No separate formatter,
-linter, or test runner configuration is needed. Pure tests use Node; component
-tests use jsdom and React Testing Library. Frontend tests also rebuild production
-assets and compare file hashes. Generated output and dependencies are untracked.
+Vite+ owns formatting, linting, strict type checks, and Vitest. Pure tests use
+Node; component tests use jsdom/React Testing Library. Production tests compare
+rebuild hashes. Dependencies and `dist` are untracked.
 
-## Projects browser journeys
+## Source and package ownership
 
-The approved Projects prototype is integrated and retired. See the
-[UX design and evidence](cockpit-ux-design.md) for current behavior and remaining
-milestones. Render the production bundle with simulated native responses using:
+| Layer | Responsibility |
+| --- | --- |
+| `src/atoms/` | Soda eyebrow, long code values, external links |
+| `src/molecules/` | Shared diagnostics/confirmation and feature fields/summaries |
+| `src/organisms/{projects,runners,tailscale,updates}/` | Passive sections and dialogs |
+| `src/templates/` | Sidebar-free Cockpit layout and explicit slots |
+| `src/pages/` | Store subscription, lifecycle, input boundaries, composition |
+| `src/{projects,runners,tailscale,updates}/` | Entrypoint, store, adapter, protocol, types, pure presentation helpers |
+| `src/cockpit/` | Shared Cockpit API types and Soda CSS |
+
+Use PatternFly components directly rather than wrappers that merely fill an
+atomic layer. Keep direct imports and feature-specific components under their
+feature; do not import sibling features or higher layers. Passive components
+never invoke native adapters. Pages connect their feature's state to components;
+entrypoints create fresh stores with native dependencies. Source-boundary tests
+parse TypeScript imports/re-exports and check ownership and actual wiring.
+
+Four isolated browser environments compile to self-contained package roots.
+Build relocation adjusts HTML asset references; tests check local JavaScript,
+CSS, fonts, and notices. Only installed `../base1/cockpit.js` is external.
+Projects/Runners RPMs stage their complete corresponding `dist` directories;
+Runtime stages Tailscale and Updates. No JavaScript build tooling is installed
+on Soda. Pinned vendor themes and all bundled dependency licenses remain included.
+
+## Feature state and lifecycle
+
+| Feature store | Starting actions |
+| --- | --- |
+| `projects/store.ts` | `open`, `setupWorkspace`, `checkRemoval`, `remove` |
+| `runners/store.ts` | `register`, `changeListener`, `remove` |
+| `tailscale/store.ts` | `signIn`, `applyExitNode`, `applyAdvertisement`, `retryForgejo` |
+| `updates/store.ts` | `check`, `download`, `requestApply`, `apply` |
+
+Start at an action, then adapter and native owner. Each store/test instance is
+fresh. `start()` starts observations and returns cleanup; construction alone
+runs nothing. Actions enforce pending and confirmation guards themselves.
+Cleanup invalidates continuations, not native outcomes. No application singleton,
+generic operation controller, persistence, middleware, or cross-page cache exists.
+
+- Snapshots are observations. Failed reads establish neither absence nor readiness.
+  A command result and its readback may fail independently; refresh must not erase
+  an unrelated command failure or mutation receipt.
+- Projects shares keyed inspections across catalog/task views. Setup starts from
+  an explicit action, never dialog mount. Refresh invalidates observations, not
+  attempted identities or receipts. Removal eligibility is shared in `projects/ui.ts`
+  and enforced by the store, not only the displayed button.
+- Updates retains reviewed Apply intent independently of later host reads and
+  preserves the installed image while downloading. Focus refresh cannot erase
+  verification/command failure. Native status must confirm deployment outcomes.
+- DOM buffers and focus remain in views; task-significant provider selection is
+  store-owned. Runner tokens stay out of observable state. Synchronous request
+  serialization is immediately followed by input/payload clearing, including
+  failure and teardown. Do not defer this boundary into mutation caching/logging.
+- Tailscale owns one non-overlapping observer and a fresh adapter per activation.
+  Cockpit visibility/pagehide closes handles and transient authentication state;
+  reopening reloads native state. Preference writes invalidate pre/during-write
+  reads and perform fresh readback before releasing draft protection. Command,
+  read, authentication, and Forgejo errors stay separate. Forgejo refresh is
+  attempted once per connected identity, with explicit retry on failure.
+
+Zustand is the current bounded state owner, not a permanent library mandate.
+No demonstrated multi-consumer read problem warrants a second cache. If native
+use reveals one, a bounded trial must replace existing read/loading/error
+ownership rather than copy query results into Zustand. Confirmation, secrets,
+intent, and mutation receipts must not become cache entries.
+
+## Interaction rules
+
+Quiet by default, helpful when needed: show name, accurate observation, and
+next useful action; put active inputs/progress/recovery with the task, and
+technical background on request. Use one primary action and labelled secondary
+Actions. Never hide prerequisites, destructive consequences, or partial results.
+Field-associated errors, keyboard focus, and native modal behavior matter.
+Do not invent percentages, durations, cancellation, or background guarantees.
+
+Projects' accepted journeys are implemented in production, not a parallel preview:
+
+- Empty catalog → one addition action, not an empty table.
+- Add/edit → short forms, optional JSON metadata, immutable ID/address.
+- Missing personal key → stock Accounts handoff before mutation.
+- Retained workspace → inspect actual key/checkout; do not assume clone failure
+  means authorization or account existence means ready.
+- Ready → inspected username/path and browser-hostname SSH command.
+- Unknown setup → inspect before explicit retry.
+- Removal → reviewed native scope, exact confirmation, stopped-work/data warnings.
+- Partial/unknown removal → preserve receipts, explicitly check/review remaining
+  state, require confirmation again, and never infer old home deletion from a
+  missing/replaced account. Inspection does not repair orphaned homes.
+
+PatternFly owns spacing, layouts, modal focus, and themes. Soda CSS stays focused
+on identity, long values, diagnostics, and the page surface. Removed onboarding
+Setup stays removed; Projects' **Set up for me** is a different retained action.
+See [PatternFly content design](https://www.patternfly.org/content-design/best-practices)
+and its component design guidelines; neither establishes usability evidence.
+
+## Source and simulated browser evidence
+
+With locked Playwright Chromium installed, render the production Projects bundle
+with intercepted local native responses:
 
 ```sh
 vp -C cockpit build
@@ -48,139 +136,23 @@ SODA_PROJECTS_BROWSER_EVIDENCE_DIRECTORY="$PWD/.artifacts/projects-removal-ux" \
   vp -C cockpit test tests/projects-browser.test.ts
 ```
 
-This explicit Playwright test uses local intercepted assets and response fixtures,
-not a native backend or installed acceptance. It saves screenshots and request
-observations; no credentials or disposable guest are needed.
-
-## Source and package ownership
-
-See [Cockpit feature state](cockpit-state.md) for action lookup, lifecycle rules,
-and the decision to defer an additional read-cache library.
-
-The source uses atomic layers first. PatternFly supplies most primitives and
-larger compositions: import its buttons, inputs, forms, modals, tables, alerts,
-and layouts directly instead of wrapping them merely to populate an atomic layer.
-
-| Source owner | Responsibility |
-| --- | --- |
-| `src/atoms/` | Soda eyebrow, wrapping code values, and external links |
-| `src/molecules/` | Shared heading, diagnostic and confirmation compositions; feature-specific field groups and summaries |
-| `src/organisms/{projects,runners,tailscale,updates}/` | Complete sections and dialogs with explicit data and callbacks |
-| `src/templates/` | Sidebar-free Cockpit page layout with content, actions, feedback, and dialog slots |
-| `src/pages/` | Store subscription, browser lifecycle, input boundaries, and component composition |
-| `src/{projects,runners,tailscale,updates}/` | Stable entrypoints, scoped Zustand stores, native adapters, protocols, types, and pure presentation helpers |
-| `src/cockpit/` | Shared Cockpit API types and minimal Soda CSS |
-
-`ProjectsPage`, `RunnersPage`, and `TailscalePage` replace the former `App.tsx`
-components. `UpdatesPage` follows the same composition. Interaction tests live
-beside the pages. Native protocol, status, and stream tests remain with their
-feature owners.
-
-Updates organisms own the installed-image, available-release, and pending-
-deployment sections and the Apply confirmation dialog. Its feature molecules
-own operation feedback and native output presentation. The page connects them
-to `updates/store.ts`, which owns requests, bounded streaming output, reviewed
-selection, and native-state refresh. Status-read errors are independent of
-command/check outcomes; focus refresh never erases an unrelated failure. Long
-image identities reuse `CodeValue`; notices reuse
-`DiagnosticAlert`, while errors retain a separate summary and detailed diagnostic.
-
-Passive organisms and molecules never invoke Cockpit or import native adapters.
-Feature organisms and molecules may use their own types and pure presentation helpers;
-shared components have no feature dependencies. Pages connect their own feature
-state owner to the template and organisms. Each page uses its feature's
-`store.ts` for transient observations, named actions, dialogs, and outcomes.
-Its entrypoint constructs the store with the native adapter; the page subscribes
-and binds its lifetime. There is no cross-page application store or generic
-operation controller. Layers may skip levels and use PatternFly directly. For example,
-`ProjectActions` composes PatternFly `Button` and `Flex`; `CatalogProjectDialog`
-uses PatternFly `Modal` and `Form` with Soda's `CatalogFields`.
-
-Use direct imports, keep feature-specific components under their feature within
-an atomic layer, and do not import sibling features or higher layers. The
-source-boundary test parses the actual TypeScript/TSX imports (including type
-imports and re-exports) through the locked TypeScript API and resolves relative
-paths. It checks these boundaries, store creation/subscription ownership, and
-each entrypoint's own page/native/store wiring.
-
-Browser state remains transient. Create a fresh feature store for each page
-instance and test. Store actions enforce their own pending/confirmation guards;
-disposal invalidates continuations, not native outcomes. No persistence or
-middleware is used. DOM input/focus stays in the view; registration provider
-selection and command outcomes belong to the Runners store. Runner registration
-secrets stay in the native input, are cleared immediately after synchronous
-request serialization, and are cleared on teardown.
-
-Tailscale's store owns one observer and obtains a fresh adapter for each activation.
-The page binds Cockpit visibility/pagehide; hiding closes HTTP/subprocess handles
-and clears transient authentication state, while reopening reloads native state.
-Closing handles does not prove that native work was undone. Reads do not overlap.
-A preference write invalidates reads begun before or during it;
-post-write readback retires those reads before releasing draft protection.
-Command, read, and Forgejo errors remain independent. Forgejo refresh is attempted
-once per connected identity, with explicit retry after failure. No completion
-state, daemon, or privileged bridge is added.
-
-PatternFly owns spacing, typography, responsive layouts, modal focus, and theme
-behavior. Soda CSS is limited to identity, long values/diagnostics, and the page
-surface. Keep sections, native guidance, and product actions in their existing
-order. Removed onboarding Setup code stays removed; the workspace **Set up for
-me** action remains in Projects.
-
-One build configuration runs four isolated browser environments. Vite's emitted
-HTML is relocated from its source subdirectory to each installed package root;
-its generated asset references are adjusted correspondingly. Every package is
-checked for package-local HTML, JavaScript, CSS, and font references. The only
-external runtime asset is Cockpit's installed `../base1/cockpit.js`.
-
-`dist/soda-projects` and `dist/soda-runners` are staged as complete directories
-into the Projects and Runners RPMs. `dist/soda-tailscale` and `dist/soda-updates`
-are both staged into the Runtime RPM.
-No JavaScript tooling is installed on the appliance. React and PatternFly are
-compiled assets. Cockpit theme inputs and their licenses are pinned under
-`cockpit/vendor`; fonts come from the locked PatternFly dependency. Every package
-includes the bundled dependencies' license notices.
-
-After a native RPM build, compare extracted RPM payloads with the actual generated
-assets through the same test lifecycle. Use the builder image produced by that
-build and absolute paths for its RPM and evidence directories:
-
-```sh
-SODA_COCKPIT_RPM_DIRECTORY=/absolute/path/.artifacts/rpms \
-SODA_COCKPIT_RPM_BUILDER=soda-os-rpm-builder:0.6.3-aarch64 \
-SODA_COCKPIT_EVIDENCE_DIRECTORY=/absolute/path/evidence \
-  vp -C cockpit test tests/rpm.test.ts
-```
-
-Use the x86-64 builder on the x86-64 host. The test verifies the executing
-architecture and RPM headers before extraction, then compares every runtime file
-and hash, and records source, lock, builder, and RPM identities. The normal source
-suite skips this test until the native RPM directory is explicitly supplied.
-
-Projects has one state owner in `projects/store.ts`: catalog observations,
-workspace inspections, and the current task. Setup starts from an explicit action,
-not a dialog mount effect. Both workspace views consume the same keyed inspection.
-Removal eligibility lives in `projects/ui.ts` and is enforced by the store as well
-as displayed by the view. Prior attempted identities remain with the receipt;
-fresh previews never rewrite that evidence. Task dialogs in `organisms/projects`
-are passive. No parent/dialog refresh callbacks or separate task stores remain.
+This opt-in suite exercises light/dark, wide/narrow, validation, focus, clipboard,
+and removal recovery, saving screenshots and `observations.json`. No provider,
+native backend, or credentials are used. Fixture sources do not ship. Headless
+store tests and real-store page tests run in the ordinary source lifecycle.
 
 ## Branding verification
 
-The canonical palette lives in `assets/branding/theme/palette.css`, shared with
-Forgejo. Cockpit's mappings live in `cockpit/src/cockpit/theme.css`. The native
-branding stylesheet imports installed copies of both; each Soda package bundles
-those same sources. Do not duplicate color literals in frontend adapters or copy
-`preview.css` into a package. Production asset tests verify the symbol and tokens
-in all four bundles. Go tests check the RPM asset allowlist and native-login
-boundary; `tools/render-cockpit-branding` verifies icon freshness and contrast.
+`assets/branding/theme/palette.css` owns color values; the Cockpit adapter is
+`src/cockpit/theme.css`. Native branding and all four pages consume those same
+sources. Do not copy preview CSS or color literals into adapters. Source tests
+check package allowlists, login boundaries, palette/symbol inclusion, contrast,
+and regenerated icons. [Branding](branding.md) owns integration and upgrade rules.
 
-For reproducible login-DOM evidence, obtain the **installed**, compiled Cockpit
-366 `login.html`, `login.css`, and `login.js` from
-`/usr/share/cockpit/static/` on a matching-native reference host. Copy only those
-public static files, not its configuration or credentials, into a local ignored
-reference directory. Upstream Git's `login.js` is a build input, not the installed
-script. Keep Cockpit package-version evidence with the reference. Then run:
+For reference-DOM tests, copy only public installed Cockpit `login.html`,
+`login.css`, and compiled `login.js` from `/usr/share/cockpit/static/` into an
+ignored reference directory. Record native package version and hashes. Upstream
+Git's JavaScript source is not the installed script; never copy credentials.
 
 ```sh
 SODA_COCKPIT_LOGIN_REFERENCE="$PWD/.artifacts/cockpit-login-reference" \
@@ -188,65 +160,14 @@ SODA_COCKPIT_BRANDING_EVIDENCE_DIRECTORY="$PWD/.artifacts/cockpit-branding-imple
   vp -C cockpit test tests/branding-browser.test.ts
 ```
 
-This opt-in test serves the unmodified installed login files through Playwright
-routing, injects the normal environment/base placeholders, and serves local Soda
-branding. HTTP authentication responses are simulated: this is **not** installed
-login or PAM evidence. It tests explicit and automatic light/dark themes, live
-system-theme changes, desktop/narrow layouts, a prefixed URL root, image loading,
-computed button colors, password visibility, keyboard focus, failed-login text,
-and authentication conversations. Reference-file hashes accompany screenshots.
-No new server, authentication implementation, or runtime JavaScript is shipped.
+The suite serves unmodified native login assets with local branding and simulated
+HTTP authentication. It checks explicit/automatic themes, system changes, narrow
+layouts, URL prefixes, loading/colors, password visibility, focus, errors, and
+authentication conversations. It is not actual PAM or installed-session evidence.
 
-For real integration, provision a disposable matching-native guest as described
-below and run the additional suite:
-
-```sh
-SODA_COCKPIT_TARGET_FILE=/absolute/path/target.json \
-  vp -C cockpit test tests/branding-installed.test.ts
-```
-
-It verifies public branding payloads, real login/logout, RPM ownership, the
-native guest architecture, shell accents, all four Soda page identities/themes,
-narrow layouts, and read-only visits to stock pages. It does not deliberately
-submit incorrect passwords, change accounts, check/download updates, or restart.
-The other installed/acceptance suites still own privilege escalation and product
-operation evidence. Run them as well; this test does not replace them.
-
-Keep source checks, reference-DOM simulations, native RPM inspection, and
-installed-session evidence distinct. Integration remains unverified on any
-architecture without a matching-native guest run. The image build adds the native
-branding link to the five stock entry points that omit it upstream. Guest checks
-verify those links; the palette covers surfaces and links as well as accents.
-Administrator `/etc/cockpit/branding/` precedence should also be checked in a
-disposable guest before shipping.
-
-For read-only signed-in color checks without a password, an operator can run
-native `cockpit-ws --local-session=/usr/bin/cockpit-bridge` as their own user,
-bound strictly to loopback, and relay it through their SSH connection. Never
-expose this passwordless test endpoint to the LAN or Tailnet. Stop the temporary
-server and relay afterwards; do not change Cockpit authentication or SELinux
-policy for this test. With that endpoint available on the driver's loopback:
-
-```sh
-SODA_COCKPIT_COLOR_URL=http://127.0.0.1:19091 \
-SODA_COCKPIT_BRANDING_EVIDENCE_DIRECTORY="$PWD/.artifacts/cockpit-stock-colors" \
-  vp -C cockpit test tests/stock-colors-browser.test.ts
-```
-
-This suite uses real native pages, no CSS/HTML interception or synthetic backend.
-It verifies rendered shell text/background, cards, primary actions, and links in
-both themes, including Logs, Services, Terminal, hardware, firewall and Metrics.
-It does not prove PAM login or privilege escalation; the credential-based suite
-above owns those checks. Terminal ANSI output colors remain terminal semantics.
-
-### Shared-palette CSS reference proofs
-
-For `tests/shared-theme-browser.test.ts`, place public, installed native CSS in a
-local reference directory: `cockpit.css` (Cockpit's expanded `overview.css`,
-including cards and controls), `forgejo.css` (Forgejo's `index.css`),
-`theme-forgejo-light.css`, and
-`theme-forgejo-dark.css`. Record the native package versions and file hashes.
-Do not copy server configuration or credentials. Then run:
+For shared native CSS proofs, retain public installed `cockpit.css` (expanded
+`overview.css`), `forgejo.css` (native `index.css`), `theme-forgejo-light.css`, and
+`theme-forgejo-dark.css`, with package versions/hashes:
 
 ```sh
 SODA_THEME_REFERENCE="$PWD/.artifacts/shared-palette/reference" \
@@ -254,50 +175,88 @@ SODA_COCKPIT_BRANDING_EVIDENCE_DIRECTORY="$PWD/.artifacts/shared-palette/proofs"
   vp -C cockpit test tests/shared-theme-browser.test.ts
 ```
 
-This opt-in suite renders real native CSS with source adapters on a component
-sheet. It checks both applications' canvas, links, filled buttons, hover/pressed
-states and narrow layouts, explicit modes against the opposite system preference,
-and automatic mode. It uses fallback fonts and a fixture-controlled Cockpit theme
-class: it is color evidence, not installed layout, native theme-switching JS, login,
-or backend evidence. The installed suites above still own those boundaries.
+This component sheet checks theme/color states with fallback fonts and a fixture
+Cockpit class. It does not prove native theme switching, layout, login, or backend.
 
-## Installed browser acceptance
+A read-only signed-in color check can use native `cockpit-ws
+--local-session=/usr/bin/cockpit-bridge` as the operator, **bound only to loopback**
+and relayed through their SSH connection. Never expose this passwordless test
+endpoint to LAN/Tailnet or alter authentication/SELinux. Stop it and its relay
+afterward. With the endpoint already available on the driver's loopback:
 
-Run this separately on disposable matching-native Soda installations with the
-built RPMs installed. Source tests do not establish installed behavior.
-Install the locked Playwright Chromium browser on the test driver with
-`vp -C cockpit exec playwright install chromium`.
+```sh
+SODA_COCKPIT_COLOR_URL=http://127.0.0.1:19091 \
+SODA_COCKPIT_BRANDING_EVIDENCE_DIRECTORY="$PWD/.artifacts/cockpit-stock-colors" \
+  vp -C cockpit test tests/stock-colors-browser.test.ts
+```
 
-Create an operator-owned JSON target file with `url`, `username`, `passwordFile`,
-`architecture` (`x86_64` or `aarch64`), and an absolute `evidenceDirectory`.
-The password stays in the protected file named by `passwordFile`; never put it
-in command arguments or evidence. Run:
+That suite observes actual native pages, not intercepted HTML/CSS; it proves
+colors, not PAM/elevation. Terminal ANSI retains native semantics.
+
+## Native RPM and installed browser acceptance
+
+After a separately authorized native RPM build, use that builder and absolute
+paths to compare actual generated files/hashes with extracted RPM payloads:
+
+```sh
+SODA_COCKPIT_RPM_DIRECTORY=/absolute/path/.artifacts/rpms \
+SODA_COCKPIT_RPM_BUILDER=ACTUAL_NATIVE_BUILDER_IMAGE \
+SODA_COCKPIT_EVIDENCE_DIRECTORY=/absolute/path/evidence \
+  vp -C cockpit test tests/rpm.test.ts
+```
+
+The suite checks executing architecture/RPM headers before extraction and records
+source, lock, builder, and RPM identity. Without explicit prerequisites it skips;
+source tests alone are not native packaging proof.
+
+Use disposable matching-native installations for browser integration. Install
+locked Chromium on the driver with `vp -C cockpit exec playwright install chromium`.
+An operator-owned JSON target contains `url`, `username`, `passwordFile`,
+`architecture` (`x86_64` or `aarch64`), and absolute `evidenceDirectory`. The password
+stays in its protected file, not argv or evidence. Run separately:
 
 ```sh
 SODA_COCKPIT_TARGET_FILE=/absolute/path/target.json \
   vp -C cockpit test tests/installed.test.ts
+SODA_COCKPIT_TARGET_FILE=/absolute/path/target.json \
+  vp -C cockpit test tests/branding-installed.test.ts
 ```
 
-The suite logs in through Cockpit, opens Projects, Runners, and Tailscale, checks
-native API availability, RPM ownership, actual installed asset hashes, themes,
-responsive layouts, dialog focus, refresh, and Tailscale reopening. It captures
-screenshots only after login and without entering provider registration secrets.
-It writes a source/architecture/package record only after passing.
+The first checks real login, native API, RPM ownership/hashes, themes, layouts,
+focus, refresh, and Tailscale reopening. The second covers login/logout, branding,
+all four page identities/themes, stock pages, and native integration. Neither
+substitutes for mutating product scenarios. Administrator `/etc/cockpit/branding/`
+precedence and branding links on stock entries need disposable guest observation.
 
-Updates has a separate, read-only installed smoke test with narrower prerequisites
-and evidence; see [Soda Updates](cockpit-updates.md). That checkpoint test does
-not substitute for RPM, theme, responsive-layout, or full upgrade acceptance.
+Updates has a narrower read-only checkpoint test. With the existing empty-release
+feed fixture and disposable passwordless-sudo account, set
+`SODA_UPDATES_BROWSER_TARGET` to operator JSON with `url`, `username`, protected
+absolute `passwordFile`, and `evidenceDirectory`, then run:
 
-Complete mutating acceptance on disposable fixtures as well: project addition,
-metadata editing, failed and successful setup with native Git key registration,
-workspace/project/person deletion; both runner providers' registration and
-lifecycle; and native Tailscale enrollment, exit-node settings, advertisement,
-Forgejo refresh, and cancellation. Use approved provider credentials and existing
-acceptance secret boundaries. For installation independence, repeat each page's
-load with the other Soda frontend directories absent in the disposable guest;
-retain native service dependencies. Restore only those test directories afterward.
-These scenarios must be recorded as unverified when their prerequisites are absent.
+```sh
+vp -C cockpit test tests/updates-installed.test.ts
+```
 
-Record the exact source revision and asset/RPM digests for each architecture.
-Neither a local browser preview nor a successful RPM file-list check substitutes
-for real Cockpit authentication and native integration evidence.
+It never downloads/applies. Its no-release expectation must be revised when the
+feed changes; it does not establish positive signed-release verification. The
+operator owns test-account and credential cleanup.
+
+## Remaining evidence
+
+Record exact source, platform, asset/RPM identity, topology, and performed checks.
+Earlier x86-64 store/Projects simulations and an Updates overlay preview prove
+only their recorded boundaries, not installed usability or a real upgrade.
+AArch64 must reproduce corresponding native checks; neither sibling qualifies
+the other. [Acceptance](../tests/acceptance/README.md) owns qualification coverage.
+
+Still required on disposable installations: add/edit/setup with real Git key
+registration; workspace/project/person deletion and partial outcomes; real jobs
+and listener lifecycle for both runner providers; browser Tailscale authentication,
+exit nodes, approval, refresh failure and cancellation; verified update/restart/
+preservation. Repeat page loading with other Soda frontend directories absent,
+retaining native dependencies and restoring only those fixture directories.
+Missing credentials/guests mean unverified, not skipped-as-passed.
+
+Runners, Tailscale, and Updates UX follow-up, comprehensive accessibility, and
+representative-user review remain separate work. Public release screenshots must
+show the final native interface; simulated evidence images are not substitutes.

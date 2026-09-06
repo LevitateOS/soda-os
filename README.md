@@ -1,127 +1,34 @@
 # Soda OS
 
-![soda os](assets/branding/source/soda-logo-horizontal.svg)
+![Soda OS](assets/branding/source/soda-logo-horizontal.svg)
 
-Soda OS is an opinionated Fedora bootc remote-development appliance for a
-trusted team. A powerful x86-64 or AArch64 machine runs the development work;
-laptops, editors, terminals, and browsers remain lightweight clients.
+Soda OS combines Fedora bootc, OpenSSH, Cockpit, Forgejo, Tailscale, and mise
+into a human-owned remote development system. Use a powerful computer as your
+remote environment or additional capacity; give a trusted team one shared
+foundation with a separate Linux workspace and clone per developer-project pair.
 
-WSL2 support for x86-64 Windows gaming PCs is planned for a future release.
-No Soda OS WSL2 distribution is currently available.
+Connect directly over a trusted LAN or privately through Tailscale in the cloud.
+Keep your preferred editor, terminal, and client. AArch64 and x86-64 are equal
+image/installer targets. WSL2 on x86-64 Windows is planned for a future release,
+not a launch download.
 
-## Product contract
+## Use Soda
 
-Human installation uses one finished network ISO. Stock graphical Anaconda
-handles storage, networking, bootloader, firmware, bootc deployment and Linux
-administrator creation. Reusable QCOW2 systems use standard Fedora cloud-init.
-Normal interactive login shows mandatory, stateless connection guidance.
-Tailscale is initially unenrolled; its separate Cockpit page uses native browser
-sign-in. Firewalld keeps Anaconda/Fedora defaults, enabled with Cockpit TCP 9090
-allowed. Administrators open Forgejo TCP 30000/2222 and development ports through
-stock Cockpit Networking → Firewall.
+The [public handbook](docs/public/10-Start-here/10-index.md) describes the approved
+release-day product, not this checkout's readiness. Start with installation and
+first connection, then use Projects to create your own workspace. Cockpit owns
+administration; Forgejo or your external Git host owns repositories and collaboration.
 
-On a trusted LAN, OpenSSH, Cockpit, Forgejo, and project development servers are
-directly reachable once their ports are allowed by the administrator. In cloud
-environments, OpenSSH, Cockpit, and Forgejo use Tailscale and are never exposed
-to the public Internet.
+## Develop Soda
 
-Each person has one primary Linux account. Linux `wheel` membership is the only
-administrator fact, and stock Cockpit Accounts owns user listing and promotion.
-Development happens in a separate derived Linux workspace account for every
-selected person-project pair. Each workspace has its own UID, private home,
-complete Git clone, dependencies, processes, and mutable state.
+- [Documentation map](docs/README.md): product, implementation, operations, evidence.
+- [Product contract](docs/product-contract.md): accepted outcomes and native ownership.
+- [Contributor development](docs/development.md): tools and the full Linux source gate.
+- [Architecture](docs/architecture.md): current source owners and release gaps.
+- [Build and release](docs/build-and-release.md): separately authorized artifact work.
+- [Acceptance](tests/acceptance/README.md): matching-native checks and qualification.
+- [Agent guidance](AGENTS.md) and [Go command standard](cmd/AGENTS.md): working rules.
 
-The owner registers the first Forgejo account natively with independent
-credentials. Personal SSH keys are added through Cockpit Accounts or supplied
-by cloud-init. Later primary accounts are created through stock Cockpit or Linux;
-a person's first normal Forgejo sign-in creates their matching profile through
-PAM, and they manage Forgejo keys there. Git uses SSH.
-
-Workspace creation copies the person's current public SSH keys once into the
-workspace's standard `authorized_keys` and creates a workspace-private outbound
-Git key. When repository authentication is unavailable, Projects reports that
-public key for the person to register through the authoritative Git host before
-retrying. Projects accepts no Forgejo password and registers no workspace key.
-It reports that the workspace account exists as soon as the derived Linux
-account exists, including while a failed clone remains retryable; account
-existence is not a claim that setup completed. It never copies private keys,
-Tea configuration, gh configuration, or tokens. Tea and GitHub CLI are
-available in every workspace, and each is authenticated manually there.
-
-Stock Cockpit provides host administration and one focused Soda Projects page.
-Repositories are created through Forgejo or the external authoritative Git host
-and added to the shared project list with their SSH clone URL. Everyone can view
-and edit display information and additional metadata in that list and create or
-remove their own workspace. The project ID and canonical SSH clone URL are
-immutable after addition. Replacing the URL requires an administrator to remove
-the project and its local workspaces, then add it again; the authoritative
-repository itself remains intact. Only an administrator removes an entire
-project. Projects listing and workspace setup do not depend on Tailscale
-enrollment. The browser builds SSH guidance from the host used to open Cockpit
-instead of asking Projects to choose a LAN or Tailnet identity.
-
-Removing a person deletes their workspaces first, their Forgejo account second,
-and their primary Linux account last. A failure stops immediately and reports
-what succeeded and remains. Soda adds no rollback, archive, transfer, approval,
-or recovery workflow; the trusted team coordinates destructive actions.
-
-`mise` owns development-tool installation, versions, and project toolchain
-configuration. People invoke and configure `mise` directly inside their
-workspaces; project configuration is shared through the project's native
-repository workflow. Upstream tool managers own their caches. Projects exposes
-no tool selector, install action, shared tool storage, status, retry, or cleanup
-lifecycle. Soda owns no toolchain package manager, downloader, cache service,
-profile system, or version database. Coding assistants are selected and
-authenticated separately per workspace.
-
-Administrators update explicitly through the Soda Updates Cockpit page or native
-bootc commands. The page discovers approved published releases, verifies their
-exact images, and separates downloading from a confirmed restart. Automatic
-updates are disabled. Supported fallback selects an earlier exact signed image
-while preserving current accounts and data. Soda has no updater, recovery
-engine, runtime daemon, general API, workflow engine, credential broker, or
-reconciliation service.
-
-The [base principles](docs/principles.md) explain the product purpose. The
-[architectural reset](docs/architecture-reset.md) defines the accepted
-architecture. See the public handbook for [installation](docs/public/20-Deploy/20-install-on-premises.md),
-[people and access](docs/public/30-Develop/10-people-and-access.md),
-[projects and workspaces](docs/public/30-Develop/20-projects-and-workspaces.md),
-and [administration](docs/public/40-Operate-Soda-OS/10-administration.md).
-
-## Repository layout
-
-- `cmd`: bounded product and artifact commands
-- `cockpit`: shared React/TypeScript sources for the Projects, Runners, and Tailscale packages
-- `internal`: Projects, host integration, and artifact construction
-- `distro`: Soda identity, locks, and base inputs
-- `packaging`: bootc, installer, and RPM inputs
-- `assets`: canonical branding sources and rendered assets
-- `docs`: architecture, public handbook, installer, and release documentation
-- `tests/acceptance`: matching-native installed-product evidence
-- `scripts` and `tools`: repository verification and developer tooling
-
-## Development
-
-The [Go command standard](cmd/AGENTS.md) governs all Go code under `cmd`,
-including auxiliary code and tests.
-
-Install the [pinned Cockpit build toolchain](docs/cockpit-development.md#build-host-setup),
-then run source checks and builds on matching-native hardware:
-
-```sh
-just check
-ARCH=x86_64 # or aarch64 on matching-native hardware
-just rpm "$ARCH"
-just oci "$ARCH"
-```
-
-Build artifacts are written below `.artifacts/` and are never committed.
-Architecture-specific inputs, construction, inspection, installation, signing,
-and publication remain owned by the matching architecture.
-
-Engineering details are recorded in
-[the implementation architecture](docs/architecture.md),
-[the installer contract](docs/installer.md),
-[acceptance documentation](tests/acceptance/README.md), and
-[release operations](docs/release-operations.md).
+Run `just check` in the documented Linux environment. Generated assets and build
+outputs stay untracked. Source checks, artifact builds, installed behavior, and
+release qualification are distinct evidence; none implies publication approval.

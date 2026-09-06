@@ -1,7 +1,7 @@
 # Matching-native product acceptance
 
 The product outcomes are governed by
-[architecture-reset.md](../../docs/architecture-reset.md). Acceptance proves
+[the product contract](../../docs/product-contract.md). Acceptance proves
 those outcomes; it does not define them.
 
 ## Product evidence boundary
@@ -67,7 +67,7 @@ replace those requirements with a new product contract.
 | Check | Establishing operation and mutation | Evidence / success boundary |
 |---|---|---|
 | `iso-first-boot-defaults` | `verifyInitialLocalForwardedAccess`: inspect ISO cloud-init/firewall/welcome defaults, then explicitly allow Forgejo fixture ports | `iso/local-forwarded-before-enrollment`, `iso/administrator-allows-forgejo`, `iso/local-forwarded-forgejo-before-enrollment.txt`; local forwarding, not an independently observed LAN |
-| `qcow2-cloud-init-local` | `exerciseReusableQCOW2`: clone/grow disk, provision cloud-init, operator Forgejo signup, create local-only workspace, power down | `qcow2/core`, `qcow2/cloud-init`, `qcow2/volume-growth`, local project setup captures and `qcow2/native-service-state`; not the complete console/browser journey |
+| `qcow2-cloud-init-local` | `exerciseReusableQCOW2`: clone/grow disk, provision cloud-init, ordinary Forgejo PAM login, create local-only workspace, power down | `qcow2/core`, `qcow2/cloud-init`, `qcow2/volume-growth`, local project setup captures and `qcow2/native-service-state`; not the complete console/browser journey |
 | `local-forwarded-access` | `verifyLocalForwardedAccess`: SSH/Cockpit readiness and native service assertions after enrollment; initial local checks already completed | `iso/local-forwarded-before-enrollment`, `iso/local-forwarded-after-tailscale`; probes reach `127.0.0.1` QEMU forwards, not a separate LAN client |
 | `tailnet-access` | `verifyTailnetAfterLocalAccess`: SSH/Cockpit readiness, native enrollment state, Forgejo health | `iso/tailnet-after-local-forwarded`, `iso/tailnet-forgejo-after-local-forwarded.txt`; not public-ingress evidence |
 | `installed-onboarding-observations` | **Not recorded by runner.** Operator installation/console/browser/reboot checks in Installation and native onboarding below | Requires normal console/welcome, Cockpit key entry and native enrollment, Forgejo advertised URL/clone/refresh and registration-policy observations, plus installed service-ordering evidence; pressing Enter or a helper/API result does not establish this composite |
@@ -194,7 +194,7 @@ Tailnet address, proven by the separate access checks. Logout ownership begins
 before polling so cancellation cannot lose an enrollment completed between polls;
 cleanup uses the still-known local connection across B→A→B.
 
-The signup prompt owns its input descriptor and closes it on cancellation. SSH
+The operator prompt owns its input descriptor and closes it on cancellation. SSH
 connection/liveness and development HTTP attempts have explicit native timeouts.
 Personal fixture key paths must be new; there is no key-reuse recovery branch.
 Fallback A needs its published OCI identity, native platform and OCI file, not
@@ -334,8 +334,8 @@ running firewall or a newly built image.
 - A Linux administrator can explicitly create a separate Forgejo administrator
   through its native CLI; that account can promote existing PAM users through
   Forgejo's web interface.
-- Cockpit manages personal authorized keys. Neither Setup nor PAM registers
-  those keys with Forgejo.
+- Cockpit manages personal authorized keys. PAM does not register those keys
+  with Forgejo.
 - Git uses SSH.
 - Workspace accounts never become Forgejo users.
 - Workspace creation copies only current public authorized keys once.
@@ -498,7 +498,38 @@ on a disposable instance, including an existing PAM user and the generated
 administrator's required password change. Do not retain the printed password in
 acceptance logs.
 
-The native welcome and separate Cockpit Tailscale page require the installed
-checks in [native installation acceptance](../../docs/native-onboarding.md#installed-acceptance).
-Browser-authentication and exit-node evidence must exercise the real native
+### Additional native browser and routing observations
+
+These remain required beyond the runner's itinerary, on both native architectures:
+
+- Authentication URLs appear before sign-in completes; exercise pending machine
+  approval, reauthentication, unavailable daemon, leaving the page, and reopening
+  with pending or completed native authentication. Closing handles is not logout.
+- Select an exit node and its LAN-access preference. Advertise this device,
+  approve it in native Tailnet administration, and verify routed traffic from
+  another device; local preference state is not approval or traffic evidence.
+- Confirm runtime and permanent Cockpit firewall allowance, then administrator-
+  selected Forgejo/development ports persist after reboot. Restore only the
+  fixture's prior configuration before unrelated access tests.
+- Observe actual local login, SSH login, and interactive-terminal welcome,
+  including explicit LAN/Tailnet URLs and MagicDNS-disabled identity. Verify
+  unchanged non-interactive SSH, SCP, and SFTP output.
+- Verify a project-selected listening port from an independent LAN client
+  before/after enrollment. A QEMU host forward is not that topology.
+
+Browser authentication and exit-node evidence must exercise the real native
 flow; auth-key fixtures and command-unit tests do not substitute for it.
+
+### Handbook release qualification
+
+Before publishing the handbook with Soda, exercise its cloud console → native
+Tailscale sign-in → private Cockpit sequence, including Scaleway import/user-data,
+password and key behavior, and actual public-ingress rejection. Test coherent
+backup/restoration with identities, homes, application data, and native Forgejo
+restore on isolated disposable systems. Confirm public endpoint guidance against
+actual listeners: the Forgejo template uses OpenSSH 22 while older welcome and
+fixture instructions still mention 2222. Those are release follow-ups, not new
+observations produced by this documentation renewal.
+
+Review final screenshots against the release UI. Textual/source checks and
+simulated browser images do not establish native installation or user behavior.

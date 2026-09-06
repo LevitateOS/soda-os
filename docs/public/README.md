@@ -4,10 +4,10 @@ This directory contains release-day user documentation synchronized into the
 Soda OS website. It describes the stable finished-product journey and does not
 expose implementation history, rejected designs, or development status.
 
-Product purpose and ownership come from [`docs/principles.md`](../principles.md).
-Accepted behavior comes from
-[`docs/architecture-reset.md`](../architecture-reset.md). This directory is a
-presentation layer, not an independent source of product requirements.
+The [product contract](../product-contract.md) owns approved release-day behavior.
+Current code and tests do not narrow that contract: missing implementation and
+unverified mechanisms belong in internal release work, never public readiness
+caveats. This directory presents accepted behavior, not speculative features.
 
 Published navigation is derived from the directory and file names. `README.md`
 remains at the root of this directory and is not published.
