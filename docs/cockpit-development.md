@@ -167,9 +167,10 @@ are passive. No parent/dialog refresh callbacks or separate task stores remain.
 
 ## Branding verification
 
-The canonical palette lives in `assets/branding/cockpit/palette.css`. The native
-branding stylesheet imports the installed copy; each Soda package bundles that
-same source. Do not duplicate color literals in frontend adapters or copy
+The canonical palette lives in `assets/branding/theme/palette.css`, shared with
+Forgejo. Cockpit's mappings live in `cockpit/src/cockpit/theme.css`. The native
+branding stylesheet imports installed copies of both; each Soda package bundles
+those same sources. Do not duplicate color literals in frontend adapters or copy
 `preview.css` into a package. Production asset tests verify the symbol and tokens
 in all four bundles. Go tests check the RPM asset allowlist and native-login
 boundary; `tools/render-cockpit-branding` verifies icon freshness and contrast.
@@ -237,6 +238,28 @@ It verifies rendered shell text/background, cards, primary actions, and links in
 both themes, including Logs, Services, Terminal, hardware, firewall and Metrics.
 It does not prove PAM login or privilege escalation; the credential-based suite
 above owns those checks. Terminal ANSI output colors remain terminal semantics.
+
+### Shared-palette CSS reference proofs
+
+For `tests/shared-theme-browser.test.ts`, place public, installed native CSS in a
+local reference directory: `cockpit.css` (Cockpit's expanded `overview.css`,
+including cards and controls), `forgejo.css` (Forgejo's `index.css`),
+`theme-forgejo-light.css`, and
+`theme-forgejo-dark.css`. Record the native package versions and file hashes.
+Do not copy server configuration or credentials. Then run:
+
+```sh
+SODA_THEME_REFERENCE="$PWD/.artifacts/shared-palette/reference" \
+SODA_COCKPIT_BRANDING_EVIDENCE_DIRECTORY="$PWD/.artifacts/shared-palette/proofs" \
+  vp -C cockpit test tests/shared-theme-browser.test.ts
+```
+
+This opt-in suite renders real native CSS with source adapters on a component
+sheet. It checks both applications' canvas, links, filled buttons, hover/pressed
+states and narrow layouts, explicit modes against the opposite system preference,
+and automatic mode. It uses fallback fonts and a fixture-controlled Cockpit theme
+class: it is color evidence, not installed layout, native theme-switching JS, login,
+or backend evidence. The installed suites above still own those boundaries.
 
 ## Installed browser acceptance
 

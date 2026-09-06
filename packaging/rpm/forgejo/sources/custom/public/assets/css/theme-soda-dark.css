@@ -15,7 +15,7 @@
   --color-primary-dark-5: var(--soda-dark-link-ramp-up-5);
   --color-primary-dark-6: var(--soda-dark-link-ramp-up-6);
   --color-primary-dark-7: var(--soda-dark-text);
-  --color-primary-light-1: var(--soda-dark-link-pressed);
+  --color-primary-light-1: var(--soda-dark-link-ramp-down-1);
   --color-primary-light-2: var(--soda-dark-action);
   --color-primary-light-3: var(--soda-dark-action-hover);
   --color-primary-light-4: var(--soda-dark-action-pressed);
@@ -32,7 +32,7 @@
   --color-primary-alpha-80: var(--soda-dark-primary-alpha-80);
   --color-primary-alpha-90: var(--soda-dark-primary-alpha-90);
   --color-primary-hover: var(--soda-dark-link-hover);
-  --color-primary-active: var(--soda-dark-link-pressed);
+  --color-primary-active: var(--soda-dark-link-ramp-down-1);
   --soda-button-bg: var(--soda-dark-action);
   --soda-button-hover: var(--soda-dark-action-hover);
   --soda-button-active: var(--soda-dark-action-pressed);
@@ -112,7 +112,7 @@
   --color-warning-border: var(--soda-dark-warning-border);
   --color-warning-text: var(--soda-dark-warning-text);
   --color-info-bg: var(--soda-dark-selected);
-  --color-info-border: var(--soda-dark-link-pressed);
+  --color-info-border: var(--soda-dark-link-ramp-down-1);
   --color-info-text: var(--soda-dark-link-ramp-up-3);
   --is-dark-theme: true;
   color-scheme: dark;

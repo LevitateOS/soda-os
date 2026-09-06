@@ -86,13 +86,14 @@
   --soda-dark-action-pressed: #1e40af;
   --soda-dark-link: #60a5fa;
   --soda-dark-link-hover: #93c5fd;
-  --soda-dark-link-pressed: #3b82f6;
+  --soda-dark-link-pressed: #93c5fd;
   --soda-dark-on-link: #0c1017;
   --soda-dark-focus: #60a5fa;
   --soda-dark-on-action: #ffffff;
   --soda-dark-link-ramp-up-3: #bfdbfe;
   --soda-dark-link-ramp-up-5: #dbeafe;
   --soda-dark-link-ramp-up-6: #e8efff;
+  --soda-dark-link-ramp-down-1: #3b82f6;
   --soda-dark-link-ramp-down-6: #102a5c;
   --soda-dark-link-ramp-down-7: #06245b;
   --soda-dark-primary-alpha-10: #3b82f619;

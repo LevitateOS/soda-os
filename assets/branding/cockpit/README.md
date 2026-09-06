@@ -1,7 +1,7 @@
 # Soda OS Cockpit identity kit
 
-The Soda Projects RPM installs the palette, two login backgrounds, favicon and
-Apple touch icon into `/usr/share/cockpit/branding/sodaos/`, together with the
+The Soda Projects RPM installs the shared palette, Cockpit adapter, two login
+backgrounds, favicon and Apple touch icon into `/usr/share/cockpit/branding/sodaos/`, together with the
 canonical symbol and light/dark wordmarks. The four Soda pages bundle this same
 palette and canonical symbol. The preview and individual favicon PNG proofs are
 not installed. This describes image source composition, not deployment to an
@@ -26,7 +26,8 @@ do not create a second copy of the symbol or wordmark for Cockpit.
 | Apple shortcut | `apple-touch-icon.png` | 180 x 180 px, opaque approved navy; no baked-in corner mask |
 | Login background, light | `login-background-light.svg` | Static 1920 x 1080 vector canvas, cover-cropped |
 | Login background, dark | `login-background-dark.svg` | Static 1920 x 1080 vector canvas, cover-cropped |
-| Shared theme | `palette.css` | Soda tokens and PatternFly 6 brand-token mappings |
+| Shared palette | `../theme/palette.css` | Color values shared with Forgejo |
+| Cockpit adapter | `../../../cockpit/src/cockpit/theme.css` | Native theme activation and PatternFly mappings |
 | Asset and placement proof | `preview.html`, `preview.css` | Offline responsive review sheet, not runtime UI |
 
 The background waves and bubbles echo the existing symbol without modifying it.
@@ -38,25 +39,26 @@ fallback. The separate animated-wave experiment is unchanged and is not used her
 
 | Role | Daylight | Midnight |
 | --- | --- | --- |
-| Canvas | `#F3F7FB` | `#081526` |
-| Surface | `#FFFFFF` | `#11243C` |
-| Main text | `#142D4E` | `#F4F8FC` |
-| Secondary text | `#50627A` | `#B3C4D8` |
-| Input boundary | `#77889B` | `#788BA1` |
-| Primary action / link / focus | `#007885` | `#10D7E8` |
-| Hover | `#006571` | `#65E7F1` |
-| Pressed | `#00535E` | `#A0F2F8` |
-| Text / icon on primary action | `#FFFFFF` | `#06245B` |
+| Canvas | `#FFFDF8` | `#0C1017` |
+| Surface | `#FFFFFF` | `#141A24` |
+| Main text | `#1C1917` | `#F0F4F8` |
+| Secondary text | `#57524E` | `#94A3B8` |
+| Input boundary | `#8F857D` | `#64748B` |
+| Primary action | `#155EEF` | `#2563EB` |
+| Action hover | `#0E56DB` | `#1D4ED8` |
+| Action pressed | `#0B46B3` | `#1E40AF` |
+| Link / focus | `#155EEF` | `#60A5FA` |
+| Text / icon on primary action | `#FFFFFF` | `#FFFFFF` |
 
-`palette.css` owns the values; this table documents their intended roles.
+`../theme/palette.css` owns the values; this table documents their intended roles.
 Keep native warning, danger, success, and disabled-state semantics. Do not recolor
 the approved logo to match control colors. The preview's system font is only for
 offline review: integration should retain Cockpit's native PatternFly fonts.
 
-Tests measure at least 4.5:1 for main/secondary text and all brand interaction
-states on the theme's canvas and surface, and for button labels on all three
-brand states. Input boundaries and focus colors are checked at 3:1 against both
-surfaces. These are token-pair measurements, not a complete UI accessibility audit.
+Tests measure at least 4.5:1 for main/secondary text and link interaction
+states on canvas, surface and panel, and for button labels on all three action
+states. Input boundaries and focus colors are checked at 3:1 on those surfaces.
+These are token-pair measurements, not a complete UI accessibility audit.
 Use underlines for text links. Use a 2px focus outline with 3px offset; do not
 replace native keyboard focus with color alone.
 

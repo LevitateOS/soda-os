@@ -1,5 +1,6 @@
 /* Stock Cockpit branding. The palette is shared with the four Soda pages. */
 @import url("palette.css");
+@import url("theme.css");
 
 /* Cockpit 366's standalone login uses these variables, not PatternFly brand tokens.
  * Scope them to the login document; leave status and disabled colors native. */
@@ -10,10 +11,10 @@ body.login-pf {
     --color-text-light: var(--soda-muted);
     --color-text-lighter: var(--soda-muted);
     --color-secondary-text: var(--soda-muted);
-    --color-primary: var(--soda-brand);
-    --color-primary-active: var(--soda-brand-hover);
-    --color-link: var(--soda-brand);
-    --color-link-active: var(--soda-brand-hover);
+    --color-primary: var(--soda-action);
+    --color-primary-active: var(--soda-action-hover);
+    --color-link: var(--soda-link);
+    --color-link-active: var(--soda-link-hover);
     --color-border: var(--soda-border);
     --color-border-light: var(--soda-border);
     --color-input-background: var(--soda-canvas);
@@ -72,13 +73,13 @@ body.login-pf #brand .soda-logo-dark,
 
 /* Override only primary actions: danger/warning buttons retain their semantics. */
 body.login-pf .pf-v6-c-button.pf-m-primary {
-    --button-color-text: var(--soda-on-brand);
-    --button-color-hover-text: var(--soda-on-brand);
+    --button-color-text: var(--soda-on-action);
+    --button-color-hover-text: var(--soda-on-action);
 }
 
 body.login-pf .pf-v6-c-button.pf-m-primary:not([disabled]):active {
-    --button-color-background: var(--soda-brand-pressed);
-    --button-color-border: var(--soda-brand-pressed);
+    --button-color-background: var(--soda-action-pressed);
+    --button-color-border: var(--soda-action-pressed);
 }
 
 body.login-pf :focus-visible {

@@ -129,8 +129,8 @@ test.skipIf(!reference || !evidence)(
             });
             expect(colors).toEqual(
               dark
-                ? ["rgb(16, 215, 232)", "rgb(6, 36, 91)"]
-                : ["rgb(0, 120, 133)", "rgb(255, 255, 255)"],
+                ? ["rgb(37, 99, 235)", "rgb(255, 255, 255)"]
+                : ["rgb(21, 94, 239)", "rgb(255, 255, 255)"],
             );
             expect(await page.locator("#server-name").textContent()).toBe("soda-test");
             expect(

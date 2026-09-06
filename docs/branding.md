@@ -94,8 +94,9 @@ rendering them.
 ## Cockpit integration
 
 The Soda Projects RPM owns `/usr/share/cockpit/branding/sodaos/`: the runtime
-branding stylesheet, shared palette, canonical symbol and horizontal marks,
-light/dark login backgrounds, favicon ICO, and opaque Apple touch icon.
+branding stylesheet, shared palette, Cockpit adapter, canonical symbol and
+horizontal marks, light/dark login backgrounds, favicon ICO, and opaque Apple
+touch icon.
 `internal/build/image/rpm.go` stages the approved sources directly. Individual
 favicon PNG proofs and the offline preview are not installed. Installer and
 Forgejo branding are unchanged.
@@ -115,12 +116,17 @@ uses a centered responsive grid and static decorative background. Inline/remote
 login behavior still follows Cockpit's own visibility rules. The version-bound
 selectors require browser revalidation when Cockpit changes.
 
-`assets/branding/cockpit/palette.css` is the single palette source for the shell,
-all shipped stock pages, and the four Soda packages. It maps neutral surfaces,
-text, links, controls, and navigation interaction states—not just brand actions.
-Soda pages bundle it via `cockpit/src/cockpit/soda.css` and use the canonical
-symbol in their shared heading. Cockpit 366 omits the branding stylesheet in
-Logs, Services, Terminal, hardware information, and the standalone firewall
+`assets/branding/theme/palette.css` is the single color-value source for Forgejo,
+the Cockpit shell, all shipped stock pages, and the four Soda packages.
+`cockpit/src/cockpit/theme.css` maps those roles to PatternFly, with distinct
+filled-action and link colors for dark-mode contrast. The native branding entry
+imports installed copies of both files. Soda pages bundle those same sources via
+`cockpit/src/cockpit/soda.css` and use the canonical symbol in their shared heading.
+Artwork, backgrounds, native fonts and layout are unchanged. See the
+[shared palette contract](../assets/branding/theme/README.md).
+
+Cockpit 366 omits the branding stylesheet in Logs, Services, Terminal, hardware
+information, and the standalone firewall
 entry. The image build adds the same native `../../static/branding.css` link to
 those five HTML entry points, after their own styles. This is a small maintained
 vendor HTML adaptation, not a replacement page, script injection, or runtime
@@ -151,7 +157,9 @@ Documentation/help links remain deferred until a published destination is chosen
 ## Forgejo themes
 
 The Soda themes in `packaging/rpm/forgejo/sources/custom/public/assets/css`
-extend Forgejo 15's native styles. The palette reference is
+extend Forgejo 15's native styles and map the shared palette's mode-qualified
+values to native keys. The extraction preserved all 208 existing light/dark
+color assignments. The palette reference is
 [`soda-os-website` at `b9e37c7`](https://github.com/LevitateOS/soda-os-website/tree/b9e37c7e4bccb450c75574bd57a7c981e2f098f3),
 particularly `src/app/styles/tokens.css` and `theme.css`. There is no runtime or
 build-time dependency on the website repository, Tailwind, or an external CDN.

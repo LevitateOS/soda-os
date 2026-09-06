@@ -1,7 +1,8 @@
 // Expected public RPM payloads, shared by browser and native-RPM verification.
 export const brandingSources: Record<string, string> = {
   "branding.css": "packaging/rpm/projects/sources/branding/sodaos/branding.css",
-  "palette.css": "assets/branding/cockpit/palette.css",
+  "palette.css": "assets/branding/theme/palette.css",
+  "theme.css": "cockpit/src/cockpit/theme.css",
   "soda-symbol.svg": "assets/branding/source/soda-symbol.svg",
   "soda-logo-horizontal.svg": "assets/branding/source/soda-logo-horizontal.svg",
   "soda-logo-horizontal-dark.svg": "assets/branding/source/soda-logo-horizontal-dark.svg",

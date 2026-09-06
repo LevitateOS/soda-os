@@ -1,0 +1,125 @@
+/* Cockpit's adapter. Entry stylesheets load the shared palette before this file.
+ * Keep imports and asset URLs out: this source is both bundled and RPM-staged. */
+:root,
+.soda-theme-light {
+  color-scheme: light;
+  --soda-canvas: var(--soda-light-canvas);
+  --soda-surface: var(--soda-light-surface);
+  --soda-panel: var(--soda-light-panel);
+  --soda-text: var(--soda-light-text);
+  --soda-muted: var(--soda-light-muted);
+  --soda-border: var(--soda-light-border);
+  --soda-action: var(--soda-light-action);
+  --soda-action-hover: var(--soda-light-action-hover);
+  --soda-action-pressed: var(--soda-light-action-pressed);
+  --soda-on-action: var(--soda-light-on-action);
+  --soda-link: var(--soda-light-link);
+  --soda-link-hover: var(--soda-light-link-hover);
+  --soda-link-pressed: var(--soda-light-link-pressed);
+  --soda-on-link: var(--soda-light-on-link);
+  --soda-focus: var(--soda-light-focus);
+  --soda-surface-hover: var(--soda-light-hover);
+  --soda-surface-pressed: var(--soda-light-selected);
+}
+
+.pf-v6-theme-dark {
+  color-scheme: dark;
+  --soda-canvas: var(--soda-dark-canvas);
+  --soda-surface: var(--soda-dark-surface);
+  --soda-panel: var(--soda-dark-panel);
+  --soda-text: var(--soda-dark-text);
+  --soda-muted: var(--soda-dark-muted);
+  --soda-border: var(--soda-dark-border);
+  --soda-action: var(--soda-dark-action);
+  --soda-action-hover: var(--soda-dark-action-hover);
+  --soda-action-pressed: var(--soda-dark-action-pressed);
+  --soda-on-action: var(--soda-dark-on-action);
+  --soda-link: var(--soda-dark-link);
+  --soda-link-hover: var(--soda-dark-link-hover);
+  --soda-link-pressed: var(--soda-dark-link-pressed);
+  --soda-on-link: var(--soda-dark-on-link);
+  --soda-focus: var(--soda-dark-focus);
+  --soda-surface-hover: var(--soda-dark-hover);
+  --soda-surface-pressed: var(--soda-dark-selected);
+}
+
+/* Rebind aliases in each theme scope, including side-by-side review containers.
+ * Status, disabled, terminal and categorical chart colors stay native. */
+:root,
+.soda-theme-light,
+.pf-v6-theme-dark {
+  --pf-t--global--background--color--primary--default: var(--soda-surface);
+  --pf-t--global--background--color--primary--hover: var(--soda-surface-hover);
+  --pf-t--global--background--color--primary--clicked: var(--soda-surface-pressed);
+  --pf-t--global--background--color--secondary--default: var(--soda-canvas);
+  --pf-t--global--background--color--secondary--hover: var(--soda-surface-hover);
+  --pf-t--global--background--color--secondary--clicked: var(--soda-surface-pressed);
+  --pf-t--global--background--color--floating--default: var(--soda-surface);
+  --pf-t--global--background--color--floating--hover: var(--soda-surface-hover);
+  --pf-t--global--background--color--floating--clicked: var(--soda-surface-pressed);
+  --pf-t--global--background--color--control--default: var(--soda-surface);
+  --pf-t--global--background--color--control--read-only: var(--soda-panel);
+  --pf-t--global--background--color--sticky--default: var(--soda-surface);
+  --pf-t--global--background--color--tertiary--default: var(--soda-panel);
+  --pf-t--global--background--color--action--plain--hover: var(--soda-surface-hover);
+  --pf-t--global--background--color--action--plain--clicked: var(--soda-surface-pressed);
+  --pf-t--global--background--color--action--plain--alt--hover: var(--soda-surface-hover);
+  --pf-t--global--background--color--action--plain--alt--clicked: var(--soda-surface-pressed);
+  --pf-t--global--text--color--regular: var(--soda-text);
+  --pf-t--global--text--color--subtle: var(--soda-muted);
+  --pf-t--global--text--color--link--default: var(--soda-link);
+  --pf-t--global--text--color--link--hover: var(--soda-link-hover);
+  --pf-t--global--text--color--link--visited: var(--soda-link-pressed);
+  --pf-t--global--icon--color--regular: var(--soda-text);
+  --pf-t--global--icon--color--subtle: var(--soda-muted);
+  --pf-t--global--border--color--default: var(--soda-border);
+  --pf-t--global--border--color--hover: var(--soda-link-hover);
+  --pf-t--global--border--color--clicked: var(--soda-link-pressed);
+  --ct-color-nav-search: var(--soda-canvas);
+  --ct-color-host-accent: var(--soda-link);
+  --pf-t--global--color--brand--accent--default: var(--soda-link);
+  --pf-t--global--color--brand--accent--hover: var(--soda-link-hover);
+  --pf-t--global--color--brand--accent--clicked: var(--soda-link-pressed);
+  --pf-t--global--color--brand--subtle--default: var(--soda-surface-hover);
+  --pf-t--global--color--brand--subtle--hover: var(--soda-surface-pressed);
+  --pf-t--global--color--brand--subtle--clicked: var(--soda-surface-pressed);
+  --pf-t--global--border--color--brand--accent--default: var(--soda-link);
+  --pf-t--global--border--color--brand--accent--hover: var(--soda-link-hover);
+  --pf-t--global--border--color--brand--accent--clicked: var(--soda-link-pressed);
+  --pf-t--global--border--color--brand--subtle--default: var(--soda-link);
+  --pf-t--global--border--color--brand--subtle--hover: var(--soda-link-hover);
+  --pf-t--global--border--color--brand--subtle--clicked: var(--soda-link-pressed);
+  --pf-t--global--icon--color--brand--accent--default: var(--soda-link);
+  --pf-t--global--icon--color--brand--accent--hover: var(--soda-link-hover);
+  --pf-t--global--icon--color--brand--accent--clicked: var(--soda-link-pressed);
+  --pf-t--global--text--color--on-brand--accent--default: var(--soda-on-link);
+  --pf-t--global--text--color--on-brand--accent--hover: var(--soda-on-link);
+  --pf-t--global--text--color--on-brand--accent--clicked: var(--soda-on-link);
+  --pf-t--global--icon--color--on-brand--accent--default: var(--soda-on-link);
+  --pf-t--global--icon--color--on-brand--accent--hover: var(--soda-on-link);
+  --pf-t--global--icon--color--on-brand--accent--clicked: var(--soda-on-link);
+  --pf-t--global--text--color--on-brand--subtle--default: var(--soda-text);
+  --pf-t--global--text--color--on-brand--subtle--hover: var(--soda-text);
+  --pf-t--global--text--color--on-brand--subtle--clicked: var(--soda-text);
+  --pf-t--global--icon--color--on-brand--subtle--default: var(--soda-text);
+  --pf-t--global--icon--color--on-brand--subtle--hover: var(--soda-text);
+  --pf-t--global--icon--color--on-brand--subtle--clicked: var(--soda-text);
+  --pf-t--global--color--brand--default: var(--soda-action);
+  --pf-t--global--color--brand--hover: var(--soda-action-hover);
+  --pf-t--global--color--brand--clicked: var(--soda-action-pressed);
+  --pf-t--global--text--color--brand--default: var(--soda-link);
+  --pf-t--global--text--color--brand--hover: var(--soda-link-hover);
+  --pf-t--global--text--color--brand--clicked: var(--soda-link-pressed);
+  --pf-t--global--icon--color--brand--default: var(--soda-link);
+  --pf-t--global--icon--color--brand--hover: var(--soda-link-hover);
+  --pf-t--global--icon--color--brand--clicked: var(--soda-link-pressed);
+  --pf-t--global--border--color--brand--default: var(--soda-link);
+  --pf-t--global--border--color--brand--hover: var(--soda-link-hover);
+  --pf-t--global--border--color--brand--clicked: var(--soda-link-pressed);
+  --pf-t--global--text--color--on-brand--default: var(--soda-on-action);
+  --pf-t--global--text--color--on-brand--hover: var(--soda-on-action);
+  --pf-t--global--text--color--on-brand--clicked: var(--soda-on-action);
+  --pf-t--global--icon--color--on-brand--default: var(--soda-on-action);
+  --pf-t--global--icon--color--on-brand--hover: var(--soda-on-action);
+  --pf-t--global--icon--color--on-brand--clicked: var(--soda-on-action);
+}

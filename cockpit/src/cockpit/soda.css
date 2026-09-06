@@ -1,11 +1,8 @@
-@import "../../../assets/branding/cockpit/palette.css";
+@import "../../../assets/branding/theme/palette.css";
+@import "./theme.css";
 
 /* Soda-owned page surfaces; stock administration pages retain their native layout. */
 .soda-page {
-  --pf-t--global--background--color--primary--default: var(--soda-surface);
-  --pf-t--global--background--color--secondary--default: var(--soda-canvas);
-  --pf-t--global--text--color--regular: var(--soda-text);
-  --pf-t--global--text--color--subtle: var(--soda-muted);
   color: var(--soda-text);
   min-height: 100vh;
   background: var(--soda-canvas);

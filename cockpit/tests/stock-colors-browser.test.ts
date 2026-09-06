@@ -18,18 +18,20 @@ test.skipIf(!url)(
         const expected =
           theme === "dark"
             ? {
-                brand: "rgb(16, 215, 232)",
-                surface: "rgb(17, 36, 60)",
-                canvas: "rgb(8, 21, 38)",
-                text: "rgb(244, 248, 252)",
-                onBrand: "rgb(6, 36, 91)",
+                action: "rgb(37, 99, 235)",
+                link: "rgb(96, 165, 250)",
+                surface: "rgb(20, 26, 36)",
+                canvas: "rgb(12, 16, 23)",
+                text: "rgb(240, 244, 248)",
+                onAction: "rgb(255, 255, 255)",
               }
             : {
-                brand: "rgb(0, 120, 133)",
+                action: "rgb(21, 94, 239)",
+                link: "rgb(21, 94, 239)",
                 surface: "rgb(255, 255, 255)",
-                canvas: "rgb(243, 247, 251)",
-                text: "rgb(20, 45, 78)",
-                onBrand: "rgb(255, 255, 255)",
+                canvas: "rgb(255, 253, 248)",
+                text: "rgb(28, 25, 23)",
+                onAction: "rgb(255, 255, 255)",
               };
         const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
         await context.addInitScript((style) => localStorage.setItem("shell:style", style), theme);
@@ -68,7 +70,7 @@ test.skipIf(!url)(
             expect(await selected.evaluate((el) => getComputedStyle(el).color)).toBe(expected.text);
             expect(
               await selected.evaluate((el) => getComputedStyle(el, "::after").borderTopColor),
-            ).toBe(theme === "dark" ? "rgb(160, 242, 248)" : "rgb(0, 83, 94)");
+            ).toBe(theme === "dark" ? "rgb(147, 197, 253)" : "rgb(11, 70, 179)");
           }
           // Inspect rendered body text and real controls, not merely the presence
           // of a stylesheet or the names of unused custom properties.
@@ -85,8 +87,8 @@ test.skipIf(!url)(
           });
           expect(actual).toEqual(
             theme === "dark"
-              ? ["#11243c", "#081526", "#10d7e8"]
-              : ["#ffffff", "#f3f7fb", "#007885"],
+              ? ["#141a24", "#0c1017", "#60a5fa"]
+              : ["#ffffff", "#fffdf8", "#155eef"],
           );
           const buttons = await frame
             .locator(
@@ -99,14 +101,14 @@ test.skipIf(!url)(
               })),
             );
           for (const button of buttons)
-            expect(button).toEqual({ background: expected.brand, color: expected.onBrand });
+            expect(button).toEqual({ background: expected.action, color: expected.onAction });
           if (path === "system/index") {
             const card = frame.locator(".pf-v6-c-card").first();
             expect(await card.evaluate((el) => getComputedStyle(el).backgroundColor)).toBe(
               expected.surface,
             );
             const link = frame.getByText("View hardware details", { exact: true });
-            expect(await link.evaluate((el) => getComputedStyle(el).color)).toBe(expected.brand);
+            expect(await link.evaluate((el) => getComputedStyle(el).color)).toBe(expected.link);
           }
           if (evidence)
             await page.screenshot({

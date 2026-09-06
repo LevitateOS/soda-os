@@ -94,7 +94,7 @@ func TestNativeWorkspaceSourcesAreStagedForRPMBuild(t *testing.T) {
 	for _, name := range []string{
 		"soda-projects", "soda-workspace-helper", "cosign", "cosign-LICENSE",
 		"soda-projects-branding.css", "soda-projects-symbol.svg",
-		"soda-logo-horizontal.svg", "soda-logo-horizontal-dark.svg", "soda-cockpit-palette.css",
+		"soda-logo-horizontal.svg", "soda-logo-horizontal-dark.svg", "soda-palette.css", "soda-cockpit-theme.css",
 		"soda-login-background-light.svg", "soda-login-background-dark.svg",
 		"soda-cockpit-favicon.ico", "soda-cockpit-apple-touch-icon.png",
 		"soda-forgejo-logo.svg", "soda-forgejo-home.tmpl", "theme-soda-auto.css",
@@ -105,6 +105,16 @@ func TestNativeWorkspaceSourcesAreStagedForRPMBuild(t *testing.T) {
 		info, statErr := os.Stat(filepath.Join(sources, name))
 		require.NoError(t, statErr, name)
 		require.False(t, info.IsDir(), name)
+	}
+	for _, pair := range [][2]string{
+		{"assets/branding/theme/palette.css", "soda-palette.css"},
+		{"cockpit/src/cockpit/theme.css", "soda-cockpit-theme.css"},
+	} {
+		expected, readErr := os.ReadFile(filepath.Join(root, pair[0]))
+		require.NoError(t, readErr)
+		actual, readErr := os.ReadFile(filepath.Join(sources, pair[1]))
+		require.NoError(t, readErr)
+		require.Equal(t, expected, actual, pair[1])
 	}
 }
 

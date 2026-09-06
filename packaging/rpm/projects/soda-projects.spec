@@ -20,7 +20,8 @@ install -m 0644 %{_sourcedir}/soda-projects-branding.css %{buildroot}%{_datadir}
 install -m 0644 %{_sourcedir}/soda-projects-symbol.svg %{buildroot}%{_datadir}/cockpit/branding/sodaos/soda-symbol.svg
 install -m 0644 %{_sourcedir}/soda-logo-horizontal.svg %{buildroot}%{_datadir}/cockpit/branding/sodaos/soda-logo-horizontal.svg
 install -m 0644 %{_sourcedir}/soda-logo-horizontal-dark.svg %{buildroot}%{_datadir}/cockpit/branding/sodaos/soda-logo-horizontal-dark.svg
-install -m 0644 %{_sourcedir}/soda-cockpit-palette.css %{buildroot}%{_datadir}/cockpit/branding/sodaos/palette.css
+install -m 0644 %{_sourcedir}/soda-palette.css %{buildroot}%{_datadir}/cockpit/branding/sodaos/palette.css
+install -m 0644 %{_sourcedir}/soda-cockpit-theme.css %{buildroot}%{_datadir}/cockpit/branding/sodaos/theme.css
 install -m 0644 %{_sourcedir}/soda-login-background-light.svg %{buildroot}%{_datadir}/cockpit/branding/sodaos/login-background-light.svg
 install -m 0644 %{_sourcedir}/soda-login-background-dark.svg %{buildroot}%{_datadir}/cockpit/branding/sodaos/login-background-dark.svg
 install -m 0644 %{_sourcedir}/soda-cockpit-favicon.ico %{buildroot}%{_datadir}/cockpit/branding/sodaos/favicon.ico

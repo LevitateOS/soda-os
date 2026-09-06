@@ -10,6 +10,9 @@ layout, theme switching, or asset URLs.
 - `action` / `on-action` describe filled primary buttons. `link` / `on-link`
   describe link/accent treatments. Dark links are brighter than filled buttons;
   do not collapse these roles because light mode happens to use the same blue.
+  Dark pressed/visited link text also stays bright enough for panel backgrounds.
+  Forgejo's native `primary-active` palette key retains its original medium-blue
+  ramp value; that native key is not the shared accessible link-text role.
 - Mode-qualified values let each application keep its own native theme selection.
 - Additional ramps and alpha values preserve existing Forgejo control colors.
   Only distinct extra ramp values are named; adapters reuse semantic values where

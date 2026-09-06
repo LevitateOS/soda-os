@@ -95,16 +95,16 @@ test.skipIf(!targetFile)(
             .poll(() =>
               frame
                 .locator("html")
-                .evaluate((el) => getComputedStyle(el).getPropertyValue("--soda-brand").trim()),
+                .evaluate((el) => getComputedStyle(el).getPropertyValue("--soda-link").trim()),
             )
-            .toBe(theme === "light" ? "#007885" : "#10d7e8");
+            .toBe(theme === "light" ? "#155eef" : "#60a5fa");
           expect(
             await page
               .locator("html")
               .evaluate((el) =>
                 getComputedStyle(el).getPropertyValue("--ct-color-host-accent").trim(),
               ),
-          ).toBe(theme === "light" ? "#007885" : "#10d7e8");
+          ).toBe(theme === "light" ? "#155eef" : "#60a5fa");
           await page.setViewportSize({ width: 390, height: 844 });
           expect(
             await frame.locator("html").evaluate((el) => el.scrollWidth > el.clientWidth + 1),
@@ -136,8 +136,8 @@ test.skipIf(!targetFile)(
         expect(
           await frame
             .locator("html")
-            .evaluate((el) => getComputedStyle(el).getPropertyValue("--soda-brand").trim()),
-        ).toBe("#10d7e8");
+            .evaluate((el) => getComputedStyle(el).getPropertyValue("--soda-link").trim()),
+        ).toBe("#60a5fa");
         await page.screenshot({
           path: resolve(target.evidenceDirectory, `stock-${label.toLowerCase()}.png`),
         });
@@ -156,7 +156,7 @@ test.skipIf(!targetFile)(
               encoding: "utf8",
             }).trim(),
             paletteSHA256: createHash("sha256")
-              .update(readFileSync(resolve(root, "assets/branding/cockpit/palette.css")))
+              .update(readFileSync(resolve(root, "assets/branding/theme/palette.css")))
               .digest("hex"),
             architecture: target.architecture,
             observations,

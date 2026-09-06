@@ -70,13 +70,11 @@ func TestICOContainsExactPNGFrames(t *testing.T) {
 }
 
 func TestPaletteContrast(t *testing.T) {
-	data, err := os.ReadFile("../../assets/branding/cockpit/palette.css")
+	data, err := os.ReadFile("../../assets/branding/theme/palette.css")
 	require.NoError(t, err)
-	blocks := regexp.MustCompile(`(?s)(?:\.soda-theme-light|\.pf-v6-theme-dark) \{([^}]+)\}`).FindAllSubmatch(data, -1)
-	require.GreaterOrEqual(t, len(blocks), 2)
-	for _, block := range blocks[:2] {
+	for _, mode := range []string{"light", "dark"} {
 		tokens := map[string]string{}
-		for _, token := range regexp.MustCompile(`--soda-([a-z-]+): (#[0-9a-f]{6});`).FindAllSubmatch(block[1], -1) {
+		for _, token := range regexp.MustCompile(`--soda-`+mode+`-([a-z-]+): (#[0-9a-f]{6});`).FindAllSubmatch(data, -1) {
 			tokens[string(token[1])] = string(token[2])
 		}
 		checkThemeContrast(t, tokens)
@@ -85,16 +83,16 @@ func TestPaletteContrast(t *testing.T) {
 
 func checkThemeContrast(t *testing.T, tokens map[string]string) {
 	t.Helper()
-	for _, background := range []string{"canvas", "surface"} {
-		for _, foreground := range []string{"text", "muted", "brand", "brand-hover", "brand-pressed"} {
+	for _, background := range []string{"canvas", "surface", "panel"} {
+		for _, foreground := range []string{"text", "muted", "link", "link-hover", "link-pressed"} {
 			require.GreaterOrEqual(t, contrast(t, tokens[foreground], tokens[background]), 4.5, "%s on %s", foreground, background)
 		}
 		for _, foreground := range []string{"border", "focus"} {
 			require.GreaterOrEqual(t, contrast(t, tokens[foreground], tokens[background]), 3.0, "%s on %s", foreground, background)
 		}
 	}
-	for _, background := range []string{"brand", "brand-hover", "brand-pressed"} {
-		require.GreaterOrEqual(t, contrast(t, tokens["on-brand"], tokens[background]), 4.5, "button text on %s", background)
+	for _, background := range []string{"action", "action-hover", "action-pressed"} {
+		require.GreaterOrEqual(t, contrast(t, tokens["on-action"], tokens[background]), 4.5, "button text on %s", background)
 	}
 }
 

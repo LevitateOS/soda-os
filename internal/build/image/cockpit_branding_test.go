@@ -21,7 +21,7 @@ func TestCockpitBrandingInstallsOnlyRuntimeAssets(t *testing.T) {
 		}
 	}
 	require.ElementsMatch(t, []string{
-		"branding.css", "palette.css", "soda-symbol.svg",
+		"branding.css", "palette.css", "theme.css", "soda-symbol.svg",
 		"soda-logo-horizontal.svg", "soda-logo-horizontal-dark.svg",
 		"login-background-light.svg", "login-background-dark.svg",
 		"favicon.ico", "apple-touch-icon.png",
@@ -39,13 +39,13 @@ func TestCockpitStockPageColorCoverage(t *testing.T) {
 	}
 	require.Contains(t, string(data), `grep -Fq '</head>' "/usr/share/cockpit/${page}.html" || exit 1`)
 	require.Contains(t, string(data), `<link href="../../static/branding.css" rel="stylesheet" />`)
-	data, err = os.ReadFile(filepath.Join(root, "assets/branding/cockpit/palette.css"))
+	data, err = os.ReadFile(filepath.Join(root, "cockpit/src/cockpit/theme.css"))
 	require.NoError(t, err)
 	for _, token := range []string{
 		"--pf-t--global--background--color--primary--default: var(--soda-surface)",
 		"--pf-t--global--background--color--secondary--default: var(--soda-canvas)",
 		"--pf-t--global--text--color--regular: var(--soda-text)",
-		"--pf-t--global--text--color--link--default: var(--soda-brand)",
+		"--pf-t--global--text--color--link--default: var(--soda-link)",
 		"--pf-t--global--background--color--action--plain--alt--clicked: var(--soda-surface-pressed)",
 	} {
 		require.Contains(t, string(data), token)
@@ -60,9 +60,9 @@ func TestCockpitBrandingRetainsNativeLoginAndTheme(t *testing.T) {
 	require.NoError(t, err)
 	css := string(data)
 	for _, expected := range []string{
-		`@import url("palette.css")`, "body.login-pf #brand::before", ".pf-v6-theme-dark",
-		"--color-background: var(--soda-surface)", "--color-primary: var(--soda-brand)",
-		"--button-color-text: var(--soda-on-brand)", "--button-color-hover-text: var(--soda-on-brand)",
+		`@import url("palette.css")`, `@import url("theme.css")`, "body.login-pf #brand::before", ".pf-v6-theme-dark",
+		"--color-background: var(--soda-surface)", "--color-primary: var(--soda-action)",
+		"--button-color-text: var(--soda-on-action)", "--button-color-hover-text: var(--soda-on-action)",
 		"login-background-light.svg", "login-background-dark.svg", "alt='Soda OS'",
 	} {
 		require.Contains(t, css, expected)

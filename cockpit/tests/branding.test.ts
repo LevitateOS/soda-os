@@ -22,9 +22,12 @@ test.each(["projects", "runners", "tailscale", "updates"])(
     for (const token of [
       "--soda-surface",
       "--soda-text",
-      "--soda-brand",
-      "--soda-brand-hover",
-      "--soda-on-brand",
+      "--soda-action",
+      "--soda-action-hover",
+      "--soda-on-action",
+      "--soda-link",
+      "--soda-light-canvas",
+      "--soda-dark-canvas",
     ])
       expect(css).toContain(token);
     expect(css).toContain(".soda-eyebrow");
