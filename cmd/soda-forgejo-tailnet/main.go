@@ -4,15 +4,22 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
+	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/LevitateOS/soda-os/internal/tailnet"
 )
 
-func main() {
-	endpoint, err := tailnet.New(tailnet.Options{}).Endpoint(context.Background())
-	if err != nil {
-		log.Fatal(err)
+func main() { os.Exit(run()) }
+
+func run() int {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	client := tailnet.New(tailnet.Options{})
+	if err := execute(ctx, os.Stdout, client.Endpoint); err != nil {
+		fmt.Fprintln(os.Stderr, "soda-forgejo-tailnet:", err)
+		return 1
 	}
-	fmt.Println(endpoint.Identity, endpoint.IPv4)
+	return 0
 }
