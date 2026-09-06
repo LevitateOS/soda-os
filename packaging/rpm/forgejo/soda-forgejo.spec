@@ -22,7 +22,7 @@ install -m 0644 %{_sourcedir}/soda-forgejo.pam %{buildroot}%{_sysconfdir}/pam.d/
 install -m 0644 %{_sourcedir}/soda-forgejo-shadow.te %{buildroot}%{_datadir}/soda/selinux/soda-forgejo-shadow.te
 
 custom=%{buildroot}%{_datadir}/soda/forgejo/custom
-install -d "$custom/public/assets/img" "$custom/public/assets/css" "$custom/templates/custom"
+install -d "$custom/public/assets/img" "$custom/public/assets/css" "$custom/templates/custom" "$custom/templates/user/auth"
 install -m 0644 %{_sourcedir}/soda-forgejo-logo.svg "$custom/public/assets/img/logo.svg"
 install -m 0644 %{_sourcedir}/soda-forgejo-logo.svg "$custom/public/assets/img/favicon.svg"
 install -m 0644 %{_sourcedir}/soda-forgejo-logo.png "$custom/public/assets/img/logo.png"
@@ -34,6 +34,9 @@ for stylesheet in theme-soda-light.css theme-soda-dark.css theme-soda-auto.css s
 done
 install -m 0644 %{_sourcedir}/soda-forgejo-home.tmpl "$custom/templates/home.tmpl"
 install -m 0644 %{_sourcedir}/soda-forgejo-header.tmpl "$custom/templates/custom/header.tmpl"
+install -m 0644 %{_sourcedir}/soda-forgejo-owner-setup.tmpl "$custom/templates/custom/owner_setup.tmpl"
+install -m 0644 %{_sourcedir}/soda-forgejo-signup.tmpl "$custom/templates/user/auth/signup.tmpl"
+install -m 0644 %{_sourcedir}/soda-forgejo-signin.tmpl "$custom/templates/user/auth/signin.tmpl"
 
 %files
 %{_bindir}/forgejo

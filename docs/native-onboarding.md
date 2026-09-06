@@ -48,7 +48,14 @@ There is no watcher or durable recovery state.
 The owner registers the first Forgejo account through the normal trusted LAN
 or Tailnet before teammates sign in. Native first-user signup grants Forgejo
 administration. Use independent Forgejo credentials, even with the same username
-as the Linux owner. PAM remains active. Later Linux users' first successful PAM
+as the Linux owner. The empty homepage offers **Create administrator account**;
+early web sign-in leads to native registration. The pinned Forgejo patch makes
+first registration and its administrator role atomic and blocks new PAM accounts
+until an administrator is committed, including through API/Git-over-HTTP access.
+PAM remains active; it needs no setup-time toggle or watcher. Existing accounts
+without an administrator get a diagnostic, not automatic promotion or deletion.
+See the [public first-owner guide](public/20-Deploy/30-first-connection.md#register-the-forgejo-owner-first).
+Later Linux users' first successful PAM
 login creates ordinary Forgejo accounts. Linux wheel membership grants no
 Forgejo role. The team controls ongoing registration policy; there is no
 mandatory registration-closing step or associated restart.
@@ -92,7 +99,10 @@ After separately authorized builds, run on both matching architectures:
 5. Cover LAN-only provisioning and preserved LAN access after enrollment. Verify
    the complete packaged service graph, including Fedora cloud-init and
    multi-user.target, has no ordering cycle; inspect boot logs for discarded jobs.
-6. Verify independent owner credentials, native administrator privileges, and
+6. Before registration, exercise web, API and Git-over-HTTP PAM requests and
+   verify that no account is created. Register through the visible owner entry;
+   verify the confirmation and Site Administration link, failed signup/retry and
+   concurrent registration. Verify independent owner credentials, native administrator privileges, and
    later ordinary PAM accounts with self-registration both enabled and disabled
    by team policy. Verify Cockpit key entry, real authorized_keys, one-time
    copying, and incoming workspace SSH.

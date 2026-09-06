@@ -1,0 +1,19 @@
+{{if eq .SodaOwnerSetup "register"}}
+<section class="ui info message" aria-labelledby="soda-owner-title">
+	<h2 id="soda-owner-title">Create your Forgejo administrator account</h2>
+	<p>This server has no Forgejo accounts yet. The person setting up Soda OS must register the first account here. It becomes the Forgejo administrator automatically.</p>
+	<p>Choose independent Forgejo credentials, even if you use the same username as Linux or Cockpit. Your Linux password is not used for this owner account.</p>
+	<p>After registration, other humans can sign in with their Linux credentials. Linux administrator status does not grant Forgejo administration.</p>
+	{{if .SodaOwnerRegistrationAllowed}}
+		{{if not .PageIsSignUp}}<a class="ui primary button" href="{{AppSubUrl}}/user/sign_up">Create administrator account</a>{{end}}
+	{{else}}
+		<p><strong>Local registration is disabled.</strong> The Linux administrator must review Forgejo's registration settings before first-owner setup can continue. Soda does not override that choice.</p>
+	{{end}}
+</section>
+{{else if eq .SodaOwnerSetup "missing-admin"}}
+<section class="ui warning message" aria-labelledby="soda-owner-title">
+	<h2 id="soda-owner-title">This Forgejo instance has no administrator</h2>
+	<p>Accounts already exist, so this is not an unclaimed instance. Registering another account cannot repair it. Contact the Linux administrator to investigate and recover administration while preserving the existing data.</p>
+	<p>Soda has not changed anyone's role. Do not reset a server that contains work you need to keep.</p>
+</section>
+{{end}}

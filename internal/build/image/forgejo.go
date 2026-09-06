@@ -64,6 +64,9 @@ func (b *Builder) stageForgejoBranding(sources string) error {
 		{"assets/branding/forgejo/apple-touch-icon.png", "soda-forgejo-apple-touch-icon.png"},
 		{custom + "templates/home.tmpl", "soda-forgejo-home.tmpl"},
 		{custom + "templates/custom/header.tmpl", "soda-forgejo-header.tmpl"},
+		{custom + "templates/custom/owner_setup.tmpl", "soda-forgejo-owner-setup.tmpl"},
+		{custom + "templates/user/auth/signup.tmpl", "soda-forgejo-signup.tmpl"},
+		{custom + "templates/user/auth/signin.tmpl", "soda-forgejo-signin.tmpl"},
 	}
 	for _, name := range []string{"theme-soda-light.css", "theme-soda-dark.css", "theme-soda-auto.css", "soda-controls.css"} {
 		files = append(files, [2]string{custom + "public/assets/css/" + name, name})

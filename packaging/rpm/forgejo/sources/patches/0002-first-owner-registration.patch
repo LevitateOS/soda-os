@@ -22,15 +22,15 @@ new file mode 100644
 +// OwnerSetup reads native account state. No completion flag is stored or cached.
 +// A remaining (even disabled) administrator means the instance is already owned.
 +func OwnerSetup(ctx context.Context) (string, error) {
-+	hasAdmin, err := db.GetEngine(ctx).Where("type = ? AND is_admin = ?", UserTypeIndividual, true).Exist(new(User))
-+	if err != nil || hasAdmin {
++	// One statement also keeps presentation consistent while registration commits.
++	var counts struct{ Users, Admins int64 }
++	_, err := db.GetEngine(ctx).Table(new(User)).
++		Where("type IN (?, ?)", UserTypeIndividual, UserTypeRemoteUser).
++		Select("COUNT(*) AS users, COALESCE(MAX(CASE WHEN is_admin THEN 1 ELSE 0 END), 0) AS admins").Get(&counts)
++	if err != nil || counts.Admins > 0 {
 +		return "", err
 +	}
-+	hasUsers, err := db.GetEngine(ctx).Where("type IN (?, ?)", UserTypeIndividual, UserTypeRemoteUser).Exist(new(User))
-+	if err != nil {
-+		return "", err
-+	}
-+	if hasUsers {
++	if counts.Users > 0 {
 +		return "missing-admin", nil
 +	}
 +	return "register", nil
@@ -232,21 +232,22 @@ diff --git a/routers/web/auth/auth.go b/routers/web/auth/auth.go
  	if registrationDisabled(ctx) {
  		ctx.Error(http.StatusForbidden)
  		return
-@@ -502,7 +524,12 @@
+@@ -502,6 +524,14 @@
  		return
  	}
  
--	ctx.Flash.Success(ctx.Tr("auth.sign_up_successful"))
 +	if ctx.Data["SodaOwnerSetup"] == "register" && u.IsAdmin {
 +		ctx.Flash.Success("Your Forgejo administrator account is ready. Site Administration is also available from your account menu.")
-+		middleware.SetRedirectToCookie(ctx.Resp, setting.AppSubURL+"/admin")
-+	} else {
-+		ctx.Flash.Success(ctx.Tr("auth.sign_up_successful"))
++		handleSignInFull(ctx, u, false, false)
++		if !ctx.Written() {
++			ctx.Redirect(setting.AppSubURL + "/admin")
++		}
++		return
 +	}
+ 	ctx.Flash.Success(ctx.Tr("auth.sign_up_successful"))
  	handleSignIn(ctx, u, false)
  }
- 
-@@ -518,7 +545,7 @@
+@@ -518,7 +548,7 @@
  // createUserInContext creates a user and handles errors within a given context.
  // Optionally a template can be specified.
  func createUserInContext(ctx *context.Context, tpl base.TplName, form any, u *user_model.User, overwrites *user_model.CreateUserOverwriteOptions, gothUser *goth.User, allowLink bool) (ok bool) {
@@ -255,7 +256,7 @@ diff --git a/routers/web/auth/auth.go b/routers/web/auth/auth.go
  		if allowLink && (user_model.IsErrUserAlreadyExist(err) || user_model.IsErrEmailAlreadyUsed(err)) {
  			switch setting.OAuth2Client.AccountLinking {
  			case setting.OAuth2AccountLinkingAuto:
-@@ -551,6 +578,8 @@
+@@ -551,6 +581,8 @@
  
  		// handle error with template
  		switch {
@@ -264,7 +265,7 @@ diff --git a/routers/web/auth/auth.go b/routers/web/auth/auth.go
  		case user_model.IsErrUserAlreadyExist(err):
  			ctx.Data["Err_UserName"] = true
  			ctx.RenderWithErr(ctx.Tr("form.username_been_taken"), tpl, form)
-@@ -582,22 +611,9 @@
+@@ -582,22 +614,9 @@
  }
  
  // handleUserCreated does additional steps after a new user is created.
@@ -299,13 +300,35 @@ diff --git a/routers/web/home.go b/routers/web/home.go
 +	if !ctx.LoadOwnerSetup() {
 +		return
 +	}
-+	if ctx.Data["SodaOwnerSetup"] != "" {
++	if ctx.Data["SodaOwnerSetup"] != "" && !ctx.IsSigned {
 +		ctx.HTML(http.StatusOK, tplHome)
 +		return
 +	}
  	if ctx.IsSigned {
  		if !ctx.Doer.IsActive && setting.Service.RegisterEmailConfirm {
  			ctx.Data["Title"] = ctx.Tr("auth.active_your_account")
+diff --git a/routers/web/web.go b/routers/web/web.go
+--- a/routers/web/web.go
++++ b/routers/web/web.go
+@@ -15,6 +15,7 @@
+ 	"forgejo.org/models/perm"
+ 	quota_model "forgejo.org/models/quota"
+ 	"forgejo.org/models/unit"
++	user_model "forgejo.org/models/user"
+ 	"forgejo.org/modules/log"
+ 	"forgejo.org/modules/metrics"
+ 	"forgejo.org/modules/public"
+@@ -129,6 +130,10 @@
+ 		case *auth_service.AuthenticationNotAttempted:
+ 			ar = &auth_service.UnauthenticatedResult{}
+ 		case *auth_service.AuthenticationAttemptedIncorrectCredential:
++			if errors.Is(v.Error, user_model.ErrOwnerSetupRequired) {
++				ctx.Error(http.StatusUnauthorized, v.Error.Error())
++				return
++			}
+ 			ctx.Error(http.StatusUnauthorized, ctx.Locale.TrString("auth.unauthorized_credentials", "https://codeberg.org/forgejo/forgejo/issues/2809"))
+ 			return
+ 		case *auth_service.AuthenticationError:
 diff --git a/services/auth/method/basic.go b/services/auth/method/basic.go
 --- a/services/auth/method/basic.go
 +++ b/services/auth/method/basic.go

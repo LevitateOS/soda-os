@@ -215,10 +215,21 @@ acceptance or complete WCAG conformance.
 `FORGEJO_CUSTOM` to that directory while keeping the explicit
 `--config /etc/forgejo/app.ini`, native `git` service account, and writable data
 under `/var/lib/forgejo`. Assets are read directly from the image; startup does
-not copy them into mutable state. The two template overrides are `home.tmpl`
-and `custom/header.tmpl` (the Apple touch-icon link). Native navigation, login,
-registration, user/repository avatars, footer attribution, license links, and
-repository functionality are not replaced.
+not copy them into mutable state. The custom tree supplies `home.tmpl`,
+`custom/header.tmpl` (the Apple touch-icon link), native sign-in/signup wrappers,
+and the shared `custom/owner_setup.tmpl` fragment. The wrappers retain Forgejo's
+native inner authentication forms and validation. Native navigation,
+user/repository avatars, footer attribution, license links, and repository
+functionality are not replaced.
+
+The pinned first-owner patch supplies uncached native account-state information
+to the home/authentication pages. Empty instances show owner registration;
+established instances retain normal presentation; existing accounts with no
+administrator get a non-destructive diagnostic. See the
+[public first-owner flow](public/20-Deploy/30-first-connection.md#register-the-forgejo-owner-first).
+These templates require the matching patched executable, not an asset-only
+update. An operator-owned custom directory can mask the new wrappers; inspect
+its overrides before claiming the onboarding UI was deployed.
 
 New configurations set `APP_NAME = Soda OS`, the shared description
 `Your team's repositories and collaboration.`, and `DEFAULT_THEME = soda-auto`.

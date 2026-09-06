@@ -482,9 +482,49 @@ acceptance; a runner summary alone does not prove those interactive checks.
 Run `sudo tests/acceptance/check-native-service-ordering.sh` on each installed
 candidate after provisioning, and repeat after reboot and on the cloud-init-disabled
 ISO. It inspects the actual Fedora and Forgejo units and boot journal.
-The runner generates a separate protected Forgejo owner password and pauses for
-native first-owner signup before creating teammate fixtures. It verifies the
-owner role and that the Linux password does not authenticate that local account.
+Before prompting for owner signup, the runner probes the empty homepage and
+attempts early web/API login using valid fixture Linux credentials. It requires
+the visible owner entry, API HTTP 401, and a web redirect to native registration.
+The runner then pauses for native first-owner signup, verifies the owner role
+and independent credentials, and only then creates teammate fixtures. Captures
+are `iso/owner-entry-*` and `qcow2/owner-entry-*`; the subsequent successful
+first-owner registration must prove the early requests did not consume ownership.
+
+### First-owner regression checks
+
+On matching-native Soda hardware, with Python 3, OpenSSL, util-linux namespaces,
+the packaged PAM stack, `git` account and `soda-forgejo-shadow` group available:
+
+```sh
+sudo unshare --mount --net --pid --fork --kill-child --mount-proc \
+  --propagation private python3 tests/acceptance/check-forgejo-first-owner.py \
+  --binary /usr/bin/forgejo --custom /usr/share/soda/forgejo/custom
+```
+
+Use the candidate's actual effective custom tree if testing an operator override.
+The script requires a private PID namespace, uses temporary namespace-private
+Linux credential files and databases, keeps SELinux enforcing, and cleans up
+its fixtures. It does not modify real accounts, roles, services, or configuration.
+It covers web/API/Git-over-HTTP entry, signup retry, competing registration,
+independent owner passwords, ordinary PAM peers, workspace exclusion, no retained
+PAM verifier, source activation choices, registration policy, process restart,
+and the existing-accounts/no-administrator diagnostic. It does not establish OS
+reboot, image-update, or complete browser usability acceptance.
+
+For browser acceptance, start a separate empty matching-native Forgejo process
+with the staged custom tree, Soda theme defaults, and active Soda PAM source:
+
+```sh
+node scripts/check-forgejo-owner.mjs http://127.0.0.1:PORT .artifacts/branding/owner
+```
+
+**This browser check creates an administrator through native registration. Use
+only a disposable instance.** It generates its own temporary credential in
+memory, checks light/dark/mobile presentation, early sign-in guidance and
+API/Git rejection, failed signup/retry, administrator confirmation and navigation,
+and established-instance sign-in. Do not run it on the server an operator is
+about to claim. The native fixture additionally tests valid Linux credentials;
+the browser check is not a substitute for the PAM matrix.
 
 The native welcome and separate Cockpit Tailscale page require the installed
 checks in [native installation acceptance](../../docs/native-onboarding.md#installed-acceptance).

@@ -121,7 +121,7 @@ func (state *runnerState) exerciseReusableQCOW2(ctx context.Context, inputs runI
 	if err = remote.Sudo(ctx, admin.LinuxPassword, acceptanceForgejoFirewall, "qcow2/administrator-allows-forgejo"); err != nil {
 		return err
 	}
-	if err = awaitNativeOwnerSignup(ctx, admin, fmt.Sprintf("http://127.0.0.1:%d", state.options.Ports.Forgejo), inputs.OwnerPasswordFile, state.output); err != nil {
+	if err = state.awaitNativeOwnerSignup(ctx, admin, fmt.Sprintf("http://127.0.0.1:%d", state.options.Ports.Forgejo), inputs.OwnerPasswordFile, "qcow2/owner-entry"); err != nil {
 		return err
 	}
 	if err = runQCOW2Checks(ctx, admin, originalSize); err != nil {

@@ -10,9 +10,12 @@ import (
 	"os"
 )
 
-// Signup stays in Forgejo's native UI. The runner only verifies its outcome.
-func awaitNativeOwnerSignup(ctx context.Context, person personFixture, address, passwordPath string, output io.Writer) error {
-	fmt.Fprintf(output, "Register the first Forgejo owner at %s/user/sign_up with username %q and the independent password in %s. Keep PAM active. Before teammates sign in, verify site administration is available, then press Enter here.\n", address, person.Remote.Username, passwordPath)
+// Check the unclaimed entry before asking the operator to complete native signup.
+func (state *runnerState) awaitNativeOwnerSignup(ctx context.Context, person personFixture, address, passwordPath, evidence string) error {
+	if err := verifyOwnerEntry(ctx, person, evidence); err != nil {
+		return err
+	}
+	fmt.Fprintf(state.output, "Open %s and choose Create administrator account. Register username %q with the independent Forgejo password in %s. Early Linux sign-in is blocked; after registration PAM becomes available automatically without changing its activation setting. Verify the administrator confirmation and Site Administration access, then press Enter here.\n", address, person.Remote.Username, passwordPath)
 	// Own this descriptor so cancellation can interrupt the read without closing
 	// the caller's os.Stdin or leaving an unbounded reader goroutine behind.
 	input, err := os.Open("/dev/stdin")
