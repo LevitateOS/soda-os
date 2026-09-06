@@ -59,14 +59,6 @@ type Builder struct {
 	runner           process.Runner
 }
 
-func NewBuilderFromWorkingDirectory(specPath, architecture string, runner process.Runner) (*Builder, error) {
-	root, err := os.Getwd()
-	if err != nil {
-		return nil, fmt.Errorf("get working directory: %w", err)
-	}
-	return NewBuilder(root, specPath, architecture, runner)
-}
-
 func NewBuilder(root, specPath, architecture string, runner process.Runner) (*Builder, error) {
 	canonicalRoot, err := filepath.EvalSymlinks(root)
 	if err != nil {

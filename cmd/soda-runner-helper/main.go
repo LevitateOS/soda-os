@@ -18,6 +18,9 @@ func main() { os.Exit(run()) }
 func run() int {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	// A signal must also unblock a request decoder waiting on stdin.
+	stopInput := context.AfterFunc(ctx, func() { _ = os.Stdin.Close() })
+	defer stopInput()
 	native := runners.NewNative()
 	helper := runners.Helper{
 		Authorizer: runners.LinuxAuthorizer{Accounts: linuxhost.NewNative()},

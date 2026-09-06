@@ -52,11 +52,41 @@ type publicationCase struct {
 
 func publicationCases() []publicationCase {
 	return []publicationCase{
-		{"image-stage", []string{"--architecture", "aarch64", "--archive", "image.oci"}, release.ImageStageOptions{Architecture: "aarch64", ArchivePath: "image.oci"}, "candidate:"},
-		{"image-promote", []string{"--architecture", "x86_64", "--record", "release.json"}, release.ImagePromoteOptions{Architecture: "x86_64", RecordPath: "release.json"}, "Promoted"},
-		{"record-sign", []string{"--architecture", "aarch64", "--record", "release.json"}, release.RecordSignOptions{Architecture: "aarch64", RecordPath: "release.json"}, "Signed"},
-		{"draft", []string{"--notes-file", "notes.md", "--aarch64-record", "arm.json", "--x86_64-record", "x86.json"}, release.DraftOptions{NotesPath: "notes.md", AArch64RecordPath: "arm.json", X86RecordPath: "x86.json"}, "Created GitHub draft"},
-		{"upload", []string{"--architecture", "x86_64", "--iso", "image.iso", "--qcow2-zst", "image.zst", "--record", "release.json", "--record-bundle", "bundle.json"}, release.UploadOptions{Architecture: "x86_64", ISOPath: "image.iso", QCOW2ZSTPath: "image.zst", RecordPath: "release.json", RecordBundlePath: "bundle.json"}, "Uploaded"},
-		{"publish", []string{"--aarch64-record", "arm.json", "--x86_64-record", "x86.json"}, release.PublishOptions{AArch64RecordPath: "arm.json", X86RecordPath: "x86.json"}, "Published GitHub release"},
+		{
+			action:  "image-stage",
+			flags:   []string{"--architecture", "aarch64", "--archive", "image.oci"},
+			options: release.ImageStageOptions{Architecture: "aarch64", ArchivePath: "image.oci"},
+			message: "candidate:",
+		},
+		{
+			action:  "image-promote",
+			flags:   []string{"--architecture", "x86_64", "--record", "release.json"},
+			options: release.ImagePromoteOptions{Architecture: "x86_64", RecordPath: "release.json"},
+			message: "Promoted",
+		},
+		{
+			action:  "record-sign",
+			flags:   []string{"--architecture", "aarch64", "--record", "release.json"},
+			options: release.RecordSignOptions{Architecture: "aarch64", RecordPath: "release.json"},
+			message: "Signed",
+		},
+		{
+			action:  "draft",
+			flags:   []string{"--notes-file", "notes.md", "--aarch64-record", "arm.json", "--x86_64-record", "x86.json"},
+			options: release.DraftOptions{NotesPath: "notes.md", AArch64RecordPath: "arm.json", X86RecordPath: "x86.json"},
+			message: "Created GitHub draft",
+		},
+		{
+			action:  "upload",
+			flags:   []string{"--architecture", "x86_64", "--iso", "image.iso", "--qcow2-zst", "image.zst", "--record", "release.json", "--record-bundle", "bundle.json"},
+			options: release.UploadOptions{Architecture: "x86_64", ISOPath: "image.iso", QCOW2ZSTPath: "image.zst", RecordPath: "release.json", RecordBundlePath: "bundle.json"},
+			message: "Uploaded",
+		},
+		{
+			action:  "publish",
+			flags:   []string{"--aarch64-record", "arm.json", "--x86_64-record", "x86.json"},
+			options: release.PublishOptions{AArch64RecordPath: "arm.json", X86RecordPath: "x86.json"},
+			message: "Published GitHub release",
+		},
 	}
 }
