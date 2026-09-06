@@ -130,6 +130,11 @@ it with a supervising child-process wrapper to fit the ordinary command shape.
   fixed execution boundaries receive readers/writers explicitly. Delegated
   output must follow the same routing. No handler-level `fmt.Print*` or access to
   `os.Stdin`, `os.Stdout`, or `os.Stderr`.
+- `soda-image oci` emits only its returned absolute archive path on stdout and
+  routes progress to stderr. `soda-image publish` uses the selected native spec
+  and the archive's own identity, never publisher HEAD. ISO/QCOW2 are independent.
+  `soda-acceptance run` consumes actual artifact paths and preserves partial run
+  reports; no release-record creation/signing/verification commands remain.
 - Use `encoding/json` for JSON protocols: one newline-terminated value per
   response, with the encoder's default escaping unless an external protocol
   requires otherwise. Keep diagnostics and command traces off JSON stdout.

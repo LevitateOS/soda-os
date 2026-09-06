@@ -14,6 +14,7 @@ import (
 	"runtime"
 	"strings"
 
+	"github.com/LevitateOS/soda-os/internal/build/oci"
 	"github.com/LevitateOS/soda-os/internal/config"
 	"github.com/LevitateOS/soda-os/internal/process"
 )
@@ -129,10 +130,11 @@ func (b *Builder) Build(ctx context.Context, options Options) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	reference, err := archiveReference(options.ArchivePath, b.Spec.Platform.Architecture.OCI)
+	image, err := oci.Inspect(options.ArchivePath, b.Spec.Platform.Architecture.OCI)
 	if err != nil {
 		return "", err
 	}
+	reference := image.Reference()
 	workspace, err := b.prepareInstallerWorkspace(options, reference)
 	if err != nil {
 		return "", err

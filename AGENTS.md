@@ -67,7 +67,9 @@ machinery, or architecture that only its authors can understand.
   The selected pre-alpha policy trusts authorized publishers and uses one rolling
   development tag per architecture, without release records, signatures, version
   increases, installers, or sibling qualification as runtime prerequisites.
-  The OCI-only publication replacement remains pending under #61. Soda adds no
+  `just dev-image <architecture>` prepares and publishes one native OCI without
+  installers or sibling qualification; artifact and installed evidence remain
+  separate. Soda adds no
   daemon, database, automatic updates, or generic privileged bridge.
 - Linux administrators retain native `bootc` commands for explicit update checks,
   staging, activation, and supported fallback. Fallback to an earlier image
@@ -205,7 +207,8 @@ smallest Soda-specific project workflow. The target behavior is:
 - administrator-controlled native `bootc` operations and an account-preserving
   supported fallback, without claiming direct `bootc rollback` before it is
   verified and without a Soda update service; and
-- immutable-image construction, installation, inspection, and signed releases.
+- immutable-image construction, installation, inspection, and native per-architecture
+  development publication without a Soda release-record or approval system.
 
 Pre-reset databases, copied people and repository records, memberships, shared
 project accounts, shared worktrees, device-key projection, standalone dashboard
@@ -240,9 +243,10 @@ Use the present tree as a navigation aid, not an immutable architecture:
   building through the existing repository workflow.
 
 Inspect `scripts` and `justfile` before assembling manual artifact commands.
-For example, `scripts/prepare-native-iso-candidate.sh <architecture>` prepares
-and publishes a matching-native OCI candidate and builds its installer ISO;
-`scripts/place-libvirt-iso.sh` separately places an existing ISO for Linux/libvirt.
+For example, `just dev-image <architecture>` invokes `scripts/prepare-native-image.sh`
+to prepare and publish one matching-native OCI and stop. ISO/QCOW2 construction
+is independent; `scripts/place-libvirt-iso.sh` separately places an existing ISO
+for Linux/libvirt.
 Read each script's prerequisites and side effects before running it;
 convenience wrappers do not authorize builds, publication, or host changes.
 

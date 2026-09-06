@@ -14,8 +14,8 @@ import (
 func runArguments() []string {
 	args := []string{"run"}
 	for _, flag := range []string{
-		"evidence", "candidate-record", "candidate-oci", "candidate-iso", "candidate-qcow2",
-		"fallback-record", "fallback-oci", "administrator-private-key", "administrator-public-key",
+		"evidence", "candidate-oci", "candidate-iso", "candidate-qcow2",
+		"fallback-oci", "administrator-private-key", "administrator-public-key",
 		"administrator-password-file",
 	} {
 		args = append(args, "--"+flag, flag+"-fixture")
@@ -56,7 +56,7 @@ func TestRunRetainsReportsOnFailureAndRoutesProgress(t *testing.T) {
 		require.Equal(t, 2222, options.Ports.SSH)
 		_, err := io.WriteString(stdout, "suite progress\n")
 		return acceptance.RunResult{EvidenceDir: "evidence", SummaryPath: "summary.json"}, errors.Join(failure, err)
-	}, nil, nil)
+	})
 	command.SetOut(&output)
 	command.SetArgs(runArguments())
 	require.ErrorIs(t, command.ExecuteContext(t.Context()), failure)
@@ -73,7 +73,7 @@ func TestRunPreservesCancellationAndReportWriteFailure(t *testing.T) {
 	cancel()
 	command := newCommand(func(ctx context.Context, _ acceptance.RunOptions, _ io.Writer) (acceptance.RunResult, error) {
 		return acceptance.RunResult{EvidenceDir: "partial"}, ctx.Err()
-	}, nil, nil)
+	})
 	command.SetOut(failingWriter{})
 	command.SetArgs(runArguments())
 	err := command.ExecuteContext(ctx)

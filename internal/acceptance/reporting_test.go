@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/LevitateOS/soda-os/internal/build/oci"
 	"github.com/stretchr/testify/require"
 )
 
@@ -101,10 +102,10 @@ func reportingState(t *testing.T) *runnerState {
 	return &runnerState{
 		evidence: evidence, cleanup: &Cleanup{}, checks: checkResults{},
 		artifacts: ValidatedArtifacts{
-			Candidate: releaseRecord{SourceRevision: revision,
-				Platform:           map[string]string{"x86_64": "linux/amd64", "aarch64": "linux/arm64"}[nativeArchitecture()],
-				SodaImageReference: "image@sha256:" + strings.Repeat("c", 64)},
-			Fallback: releaseRecord{SodaImageReference: "image@sha256:" + strings.Repeat("d", 64)},
+			Candidate: oci.Image{Revision: revision,
+				Platform: map[string]string{"x86_64": "linux/amd64", "aarch64": "linux/arm64"}[nativeArchitecture()],
+				Digest:   "sha256:" + strings.Repeat("c", 64)},
+			Fallback: oci.Image{Digest: "sha256:" + strings.Repeat("d", 64)},
 		},
 	}
 }

@@ -9,7 +9,7 @@ import (
 )
 
 func TestRunInputsDoNotRequireAnUnusedEnrollmentSecret(t *testing.T) {
-	for _, command := range []string{"cosign", "curl", "docker", "git", "qemu-img", "cloud-localds", "openssl", "ssh", "ssh-keygen", "ssh-keyscan", "scp", "sftp", "fixture-qemu"} {
+	for _, command := range []string{"curl", "docker", "git", "qemu-img", "cloud-localds", "openssl", "ssh", "ssh-keygen", "ssh-keyscan", "scp", "sftp", "fixture-qemu"} {
 		installAcceptanceCommand(t, command, "exit 0\n")
 	}
 	work := t.TempDir()

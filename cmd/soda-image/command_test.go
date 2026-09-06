@@ -20,7 +20,7 @@ func TestCommandInventoryAndHelpRequireNoBuildInputs(t *testing.T) {
 		names = append(names, child.Name())
 	}
 	sort.Strings(names)
-	require.Equal(t, []string{"check", "iso", "oci", "qcow2", "record", "rpm"}, names)
+	require.Equal(t, []string{"check", "iso", "oci", "publish", "qcow2", "rpm"}, names)
 	command.SetOut(io.Discard)
 	command.SetArgs([]string{"--help"})
 	require.NoError(t, command.Execute())
@@ -115,7 +115,7 @@ func TestImageFactoryFailureAndInvalidArguments(t *testing.T) {
 		command.SetArgs(append([]string{test.action, "--architecture", "aarch64"}, test.flags...))
 		require.ErrorIs(t, command.Execute(), failure)
 	}
-	for _, args := range [][]string{{"installer-input"}, {"cloud-input"}, {"check", "extra"}, {"oci", "--unknown"}} {
+	for _, args := range [][]string{{"record"}, {"installer-input"}, {"cloud-input"}, {"check", "extra"}, {"oci", "--unknown"}} {
 		command := newCommand(nil)
 		command.SetArgs(args)
 		require.Error(t, command.Execute())

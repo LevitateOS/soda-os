@@ -98,22 +98,6 @@ func (state *runnerState) finish(ctx context.Context, runErr error) (RunResult, 
 	return result, redactError(errors.Join(resultErr, finalizeErr, reportErr), state.secrets)
 }
 
-func (state *runnerState) verifyFallbackPublication(ctx context.Context) error {
-	command := fallbackVerificationCommand(state.artifacts.Fallback.SodaImageReference)
-	output, err := CommandOutput(ctx, command)
-	if err != nil {
-		return err
-	}
-	return state.evidence.Write("fallback/published-signature.json", output)
-}
-
-func fallbackVerificationCommand(reference string) CommandSpec {
-	return CommandSpec{Name: "cosign", Args: []string{
-		"verify", "--certificate-identity", "https://github.com/LevitateOS/soda-os/.github/workflows/release.yml@refs/heads/production",
-		"--certificate-oidc-issuer", "https://token.actions.githubusercontent.com", reference,
-	}}
-}
-
 func (state *runnerState) writeSummary(ctx context.Context) error {
 	revision, err := state.repositoryRevision(ctx)
 	if err != nil {
@@ -121,8 +105,8 @@ func (state *runnerState) writeSummary(ctx context.Context) error {
 	}
 	summary := RunSummary{
 		SchemaVersion: 2, Architecture: nativeArchitecture(), Platform: state.artifacts.Candidate.Platform,
-		SourceRevision: state.artifacts.Candidate.SourceRevision, SuiteRevision: revision,
-		CandidateDigest: imageDigest(state.artifacts.Candidate), FallbackDigest: imageDigest(state.artifacts.Fallback),
+		SourceRevision: state.artifacts.Candidate.Revision, SuiteRevision: revision,
+		CandidateDigest: state.artifacts.Candidate.Digest, FallbackDigest: state.artifacts.Fallback.Digest,
 		Scenarios: state.checks, CompletedAt: SummaryTime(time.Now()),
 	}
 	return WriteRunSummary(filepath.Join(state.evidence.Root, "summary.json"), summary)
@@ -134,16 +118,12 @@ func (state *runnerState) repositoryRevision(ctx context.Context) (string, error
 		return "", err
 	}
 	revision := strings.TrimSpace(string(output))
-	if revision != state.artifacts.Candidate.SourceRevision {
-		return "", fmt.Errorf("candidate source %s differs from acceptance suite revision %s", state.artifacts.Candidate.SourceRevision, revision)
+	if revision != state.artifacts.Candidate.Revision {
+		return "", fmt.Errorf("candidate source %s differs from acceptance suite revision %s", state.artifacts.Candidate.Revision, revision)
 	}
 	return revision, nil
 }
 
 func nativeArchitecture() string {
 	return map[string]string{"amd64": "x86_64", "arm64": "aarch64"}[runtime.GOARCH]
-}
-
-func imageDigest(record releaseRecord) string {
-	return "sha256:" + strings.Split(record.SodaImageReference, "@sha256:")[1]
 }

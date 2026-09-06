@@ -70,23 +70,7 @@ contains internal/version/version.go 'DefaultVersion = "development"'
 contains packaging/bootc/Containerfile 'org.opencontainers.image.version="${SODA_VERSION}"'
 contains internal/build/image/builder.go '"--tag", b.Spec.Image.Registry + ":" + b.Spec.Identity.Version'
 contains internal/build/image/builder.go '"--build-arg", "SODA_VERSION=" + b.Spec.Identity.Version'
-contains internal/build/release/image_publication.go 'return Repository + ":" + p.version + "-" + spec.Platform.Architecture.Artifact'
+contains packaging/bootc/Containerfile 'org.opencontainers.image.revision="${SODA_SOURCE_REVISION}"'
+contains internal/build/image/builder.go '"--build-arg", "SODA_SOURCE_REVISION=" + inputs.revision'
 contains internal/build/installer/builder.go 'outputName := "SodaOS-" + b.Spec.Identity.Version'
 contains internal/build/installer/qcow2.go 'outputName := "SodaOS-" + b.Spec.Identity.Version'
-contains internal/build/release/publisher.go '"soda-os-"+record.SodaVersion+"-"+record.Channel+".release.json"'
-contains internal/build/release/github_validation.go 'record := "soda-os-" + spec.Identity.Version'
-contains scripts/soda-release-executor 'release_version() {'
-contains scripts/soda-release-executor 'distro/soda.toml'
-
-contains internal/build/release/github.go 'version:          aarch64.Identity.Version'
-exact internal/build/release/github.go 'func (p *Publication) tag() string { return "v" + p.version }'
-contains internal/build/release/github.go '"--title", "Soda OS "+p.version'
-contains internal/build/release/github.go 'release notes omit the %s exact GHCR digest'
-if grep -Eq 'soda-os-[0-9]+\.[0-9]+\.[0-9]+-|Soda OS [0-9]+\.[0-9]+\.[0-9]+' .github/workflows/release.yml; then
-  echo '.github/workflows/release.yml contains a literal Soda release identity' >&2
-  exit 1
-fi
-if [ "$(grep -Fc 'distro/soda.toml' .github/workflows/release.yml)" -lt 4 ]; then
-  echo '.github/workflows/release.yml does not derive every release identity from distro/soda.toml' >&2
-  exit 1
-fi

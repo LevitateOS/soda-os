@@ -10,18 +10,14 @@ import (
 
 type suiteRunner func(context.Context, acceptance.RunOptions, io.Writer) (acceptance.RunResult, error)
 
-type recordSigner func(context.Context, string, acceptance.RecordOptions, io.Writer, io.Writer) (acceptance.RecordResult, error)
-
-type recordVerifier func(context.Context, string, string, io.Writer, io.Writer) error
-
-func newCommand(suite suiteRunner, sign recordSigner, verify recordVerifier) *cobra.Command {
+func newCommand(suite suiteRunner) *cobra.Command {
 	root := &cobra.Command{
 		Use:           "soda-acceptance",
-		Short:         "Run and record matching-native Soda OS product acceptance",
+		Short:         "Run and report matching-native Soda OS product acceptance",
 		SilenceUsage:  true,
 		SilenceErrors: true,
 	}
 	root.CompletionOptions.DisableDefaultCmd = false
-	root.AddCommand(runCommand(suite), recordCommand(sign), verifyCommand(verify))
+	root.AddCommand(runCommand(suite))
 	return root
 }

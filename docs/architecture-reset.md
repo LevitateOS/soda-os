@@ -246,9 +246,9 @@ release selection, deployment database, or automatic update/reboot service.
 Reconnection and native readback must establish the actual booted digest.
 
 Issue #61 selects architecture-independent pre-alpha development-tag tracking,
-without signature, version-increase, installer, or sibling prerequisites. Its
-publication/release-system replacement remains pending; the release section below
-describes the old machinery, not prerequisites of the replacement runtime updater.
+without signature, version-increase, installer, or sibling prerequisites.
+`just dev-image <architecture>` implements OCI-only native preparation/publication;
+source completion does not establish artifact or installed-update evidence.
 
 Supported fallback selects an earlier exact Soda OCI digest through a
 native bootc path that preserves current identities, groups, homes, catalog,
@@ -258,39 +258,34 @@ proved to preserve that invariant. Soda adds no recovery engine.
 
 ## Release and acceptance evidence
 
-A push to protected `production` coordinates one matching-native build for each
-architecture and publishes OCI, network ISO, and compressed reusable QCOW2
-outputs. Each release image B is built exactly once, checked, and published
-unchanged. Release CI never rebuilds a release copy.
+One clean committed source builds one matching-native OCI, including RPMs once,
+and publishes those exact bytes. Its source-revision tag is checked for an exact
+digest match; only that architecture's rolling development tag advances from the
+verified remote digest. Anonymous readback confirms the result. A matching
+revision can be explicitly republished; conflicting digests stop. Partial failures
+are reported without automatic retries or reconciliation.
 
-Fallback image A is the previous signed published OCI selected by immutable
-digest. CI downloads it; it never rebuilds A or unused historical ISO/QCOW2
-artifacts.
+`internal/build/oci` owns shared path, platform, blob-integrity, native identity
+and installed RPM-inventory inspection. Publication uses archive provenance,
+not publisher HEAD. Installer ISO and raw/compressed QCOW2 production remain
+independent, exact-digest-bound operations with ordinary checksums and native
+artifact checks. No installer or sibling build is required before publication.
 
-Expensive boot, graphical installation, first-boot provisioning, product,
-update, and fallback tests run beforehand on user-controlled matching-native
-machines. They produce one signed strict JSON acceptance record for the exact
-source commit. The record identifies its schema, source commit, acceptance-
-suite revision or digest, both architectures, required scenarios and results,
-previous fallback digest, completion time, and approved signer.
+Expensive boot, graphical installation, first-boot, product, update and fallback
+checks run only when authorized on user-controlled matching-native machines.
+The runner consumes actual candidate OCI/ISO/raw-QCOW2 and earlier fallback OCI
+paths. Fallback version/base facts are independent of the current specification.
+Installed booted-digest readback binds both installation paths to the candidate;
+B → earlier A → B checks retain mutable-state preservation.
 
-The signed record is an authenticated claim about those earlier tests. It is
-not a claim that later CI-built bytes were boot-tested. Cosign/Sigstore owns the
-signature boundary; Soda creates no attestation service.
-
-Release CI verifies that record, runs cheap source and unit checks once, builds
-x86-64 and AArch64 once in parallel on matching-native builders, performs only
-structural artifact, identity, checksum, signature, and remote-publication
-checks, then publishes the exact checked outputs unchanged.
-
-Release CI runs no VM, product acceptance suite, fallback suite, or
-acceptance-only Tailscale enrollment. The wall-clock target is 30 minutes. At
-45 minutes it reports the active slow stage and continues; timing is not a hard
-stop.
-
-Strict release records, immutable digests, checksums, Cosign verification,
-remote asset verification, anonymous image retrieval, clean checkout, and
-production-commit verification remain required.
+Each run retains its exact image/source/suite attribution, observations, partial
+results and cleanup diagnostics. `RunSummary.Validate` accepts honest partial
+reports; `Qualify` rejects missing observations. Self-computed checksums are not
+provenance, and source tests are not an installed PASS. The combined signed
+acceptance records, release records, production release workflow and signing-
+evidence workflow are removed rather than replaced by another approval format.
+Native source gates and product-identity checks remain. Runtime Cosign packaging
+and Go cache-lifetime cleanup are the following source step, not publication gates.
 
 ## Forbidden architecture
 
@@ -384,9 +379,10 @@ The reset is complete when both matching-native architectures demonstrate:
 12. People invoke and configure `mise` directly in workspaces without a Soda
     tool selector, installer, shared storage model, or lifecycle.
 13. Native manual update and fallback preserve authoritative mutable state.
-14. The signed pre-release record covers both architectures and exact source.
-15. Release CI builds each B once, structurally verifies and signs the exact
-    outputs, and publishes them unchanged without VM acceptance.
+14. Each architecture's observations retain exact image/source attribution;
+    missing installed observations never become qualification passes.
+15. Native development publication builds once and publishes verified exact
+    bytes without a signature, version increase, installer or sibling gate.
 16. No forbidden control-plane, credential, toolchain, updater, or recovery
     machinery remains.
 

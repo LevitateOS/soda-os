@@ -77,6 +77,31 @@ func TestCompressQCOW2UsesSupportedFixedZstdArguments(t *testing.T) {
 	require.NotContains(t, commandOutput(runner), "--threads=1")
 }
 
+func TestQCOW2WritesBothSidecarsAndRejectsTheirCollisions(t *testing.T) {
+	root := t.TempDir()
+	raw := filepath.Join(root, "disk.qcow2")
+	compressed := raw + ".zst"
+	require.NoError(t, os.WriteFile(raw, []byte("raw bytes"), 0o644))
+	require.NoError(t, os.WriteFile(compressed, []byte("compressed stand-in"), 0o644))
+	builder := NewBuilder(root, config.DistroSpec{}, &recordingRunner{})
+	result, err := builder.compressQCOW2(t.Context(), qcow2Input{rawPath: raw, compressedPath: compressed})
+	require.NoError(t, err)
+	for path, digest := range map[string]string{raw: result.SHA256, compressed: result.CompressedSHA} {
+		contents, err := os.ReadFile(path + ".sha256")
+		require.NoError(t, err)
+		require.Equal(t, digest+"  "+filepath.Base(path)+"\n", string(contents))
+	}
+	require.NoError(t, os.Remove(raw))
+	require.NoError(t, os.Remove(compressed))
+	require.ErrorContains(t, requireAbsentQCOW2Outputs(raw, compressed), raw+".sha256")
+	require.NoError(t, os.Remove(raw+".sha256"))
+	require.NoError(t, os.Mkdir(raw+".sha256", 0o755))
+	require.NoError(t, os.WriteFile(raw, []byte("raw bytes"), 0o644))
+	require.NoError(t, os.WriteFile(compressed, []byte("compressed stand-in"), 0o644))
+	_, err = builder.compressQCOW2(t.Context(), qcow2Input{rawPath: raw, compressedPath: compressed})
+	require.ErrorContains(t, err, "write QCOW2 checksum")
+}
+
 func commandOutput(runner *recordingRunner) string {
 	commands := make([]string, 0, len(runner.Commands))
 	for _, command := range runner.Commands {

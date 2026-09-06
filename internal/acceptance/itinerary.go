@@ -9,9 +9,6 @@ import (
 // Read the run here in order: host preparation, ISO lifetime, then an independent
 // QCOW2 lifetime. Run always calls finish afterward, including on failure.
 func (state *runnerState) execute(ctx context.Context, inputs runInputs) error {
-	if err := state.verifyFallbackPublication(ctx); err != nil {
-		return fmt.Errorf("previous published fallback: %w", err)
-	}
 	if err := state.prepareRegistry(ctx); err != nil {
 		return fmt.Errorf("registry: %w", err)
 	}

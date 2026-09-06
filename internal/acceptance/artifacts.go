@@ -7,24 +7,22 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"runtime"
 	"strings"
 
-	"github.com/LevitateOS/soda-os/internal/build/release"
+	"github.com/LevitateOS/soda-os/internal/build/oci"
 )
 
 type ArtifactSet struct {
-	Record string
-	OCI    string
-	ISO    string
-	QCOW2  string
+	OCI   string
+	ISO   string
+	QCOW2 string
 }
 
-type releaseRecord = release.Record
-
 type ValidatedArtifacts struct {
-	Candidate      releaseRecord
-	Fallback       releaseRecord
+	Candidate      oci.Image
+	Fallback       oci.Image
 	CandidateOCI   string
 	FallbackOCI    string
 	CandidateISO   string
@@ -32,77 +30,55 @@ type ValidatedArtifacts struct {
 }
 
 func ValidateArtifacts(candidate, fallback ArtifactSet) (ValidatedArtifacts, error) {
-	candidateRecord, err := readReleaseRecord(candidate.Record)
+	if nativeArchitecture() == "" {
+		return ValidatedArtifacts{}, fmt.Errorf("acceptance requires matching-native x86-64 or AArch64, not %s", runtime.GOARCH)
+	}
+	candidateImage, err := oci.Inspect(candidate.OCI, runtime.GOARCH)
 	if err != nil {
-		return ValidatedArtifacts{}, fmt.Errorf("candidate release record: %w", err)
+		return ValidatedArtifacts{}, fmt.Errorf("candidate OCI: %w", err)
 	}
-	if !validReleaseChecksums(candidateRecord) {
-		return ValidatedArtifacts{}, errors.New("candidate release checksums are incomplete")
-	}
-	fallbackRecord, err := readReleaseRecord(fallback.Record)
+	// The earlier image supplies its own version/base, never the current spec's.
+	fallbackImage, err := oci.Inspect(fallback.OCI, runtime.GOARCH)
 	if err != nil {
-		return ValidatedArtifacts{}, fmt.Errorf("fallback release record: %w", err)
+		return ValidatedArtifacts{}, fmt.Errorf("fallback OCI: %w", err)
 	}
-	if err = validateMatchingNative(candidateRecord, fallbackRecord); err != nil {
-		return ValidatedArtifacts{}, err
+	if candidateImage.Digest == fallbackImage.Digest || candidateImage.Revision == fallbackImage.Revision {
+		return ValidatedArtifacts{}, errors.New("candidate and fallback must have distinct image digests and source revisions")
 	}
-	paths := []string{candidate.OCI, candidate.ISO, candidate.QCOW2, fallback.OCI}
-	for _, path := range paths {
-		if err = requireRegularFile(path); err != nil {
+	for _, path := range []string{candidate.ISO, candidate.QCOW2} {
+		if err := requireChecksumSidecar(path); err != nil {
 			return ValidatedArtifacts{}, err
 		}
 	}
-	if err = requireChecksum(candidate.ISO, candidateRecord.ISOChecksum, "candidate ISO"); err != nil {
-		return ValidatedArtifacts{}, err
-	}
-	if err = requireChecksum(candidate.QCOW2, candidateRecord.QCOW2Checksum, "candidate QCOW2"); err != nil {
-		return ValidatedArtifacts{}, err
-	}
 	return ValidatedArtifacts{
-		Candidate:      candidateRecord,
-		Fallback:       fallbackRecord,
-		CandidateOCI:   candidate.OCI,
-		FallbackOCI:    fallback.OCI,
-		CandidateISO:   candidate.ISO,
-		CandidateQCOW2: candidate.QCOW2,
+		Candidate: candidateImage, Fallback: fallbackImage,
+		CandidateOCI: candidate.OCI, FallbackOCI: fallback.OCI,
+		CandidateISO: candidate.ISO, CandidateQCOW2: candidate.QCOW2,
 	}, nil
 }
 
-func readReleaseRecord(path string) (releaseRecord, error) {
-	if err := requireRegularFile(path); err != nil {
-		return releaseRecord{}, err
-	}
-	record, err := release.ReadStrictRecord(path)
-	if err != nil {
-		return releaseRecord{}, fmt.Errorf("decode: %w", err)
-	}
-	if !validReleaseRecord(record) {
-		return releaseRecord{}, errors.New("release record identity or provenance is incomplete")
-	}
-	return record, nil
-}
-
-func validReleaseRecord(record releaseRecord) bool {
-	if record.SchemaVersion != 3 || !gitRevision(record.SourceRevision) {
-		return false
-	}
-	if record.SodaVersion == "" || record.Channel == "" || !exactReference(record.FedoraBaseReference) {
-		return false
-	}
-	if !strings.HasPrefix(record.SodaImageReference, release.Repository+"@sha256:") {
-		return false
-	}
-	return exactReference(record.SodaImageReference)
-}
-
-func validReleaseChecksums(record releaseRecord) bool {
-	checksums := []string{record.RPMInventorySHA256, record.ISOChecksum, record.QCOW2Checksum, record.QCOW2ZSTChecksum}
-	for _, checksum := range checksums {
-		if !validHex(checksum) {
-			return false
+func requireChecksumSidecar(path string) error {
+	for _, input := range []string{path, path + ".sha256"} {
+		if err := requireRegularFile(input); err != nil {
+			return err
 		}
 	}
-	return true
+	contents, err := os.ReadFile(path + ".sha256")
+	if err != nil {
+		return err
+	}
+	fields := strings.Fields(string(contents))
+	if len(fields) != 2 || !validHex(fields[0]) || fields[1] != filepath.Base(path) {
+		return fmt.Errorf("checksum sidecar for %s must name its exact file and SHA-256", path)
+	}
+	actual, err := fileSHA256(path)
+	if err != nil {
+		return err
+	}
+	if actual != fields[0] {
+		return fmt.Errorf("artifact %s checksum does not match sidecar", path)
+	}
+	return nil
 }
 
 func validHex(value string) bool {
@@ -111,23 +87,6 @@ func validHex(value string) bool {
 	}
 	_, err := hex.DecodeString(value)
 	return err == nil
-}
-
-func validateMatchingNative(candidate, fallback releaseRecord) error {
-	expected := map[string]string{"amd64": "linux/amd64", "arm64": "linux/arm64"}[runtime.GOARCH]
-	if expected == "" {
-		return fmt.Errorf("acceptance requires matching-native x86-64 or AArch64, not %s", runtime.GOARCH)
-	}
-	if candidate.Platform != expected || fallback.Platform != expected {
-		return fmt.Errorf("release records must both target native platform %s", expected)
-	}
-	if candidate.SodaImageReference == fallback.SodaImageReference {
-		return errors.New("candidate and fallback image digests must differ")
-	}
-	if candidate.SourceRevision == fallback.SourceRevision {
-		return errors.New("candidate and fallback records name the same source revision")
-	}
-	return nil
 }
 
 func requireRegularFile(path string) error {
@@ -140,17 +99,6 @@ func requireRegularFile(path string) error {
 	}
 	if !info.Mode().IsRegular() {
 		return fmt.Errorf("artifact %s must be a regular non-symlink file", path)
-	}
-	return nil
-}
-
-func requireChecksum(path, expected, label string) error {
-	actual, err := fileSHA256(path)
-	if err != nil {
-		return fmt.Errorf("checksum %s: %w", label, err)
-	}
-	if actual != expected {
-		return fmt.Errorf("%s checksum %s does not match record %s", label, actual, expected)
 	}
 	return nil
 }
@@ -170,9 +118,5 @@ func fileSHA256(path string) (string, error) {
 
 func exactReference(reference string) bool {
 	parts := strings.Split(reference, "@sha256:")
-	if len(parts) != 2 || parts[0] == "" || len(parts[1]) != 64 {
-		return false
-	}
-	_, err := hex.DecodeString(parts[1])
-	return err == nil
+	return len(parts) == 2 && parts[0] != "" && validHex(parts[1])
 }

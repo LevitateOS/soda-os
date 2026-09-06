@@ -25,7 +25,7 @@ func newRunnerState(ctx context.Context, options RunOptions, output io.Writer) (
 	if err != nil {
 		return nil, err
 	}
-	if err = requireCleanSource(ctx, options.RepositoryRoot, artifacts.Candidate.SourceRevision); err != nil {
+	if err = requireCleanSource(ctx, options.RepositoryRoot, artifacts.Candidate.Revision); err != nil {
 		return nil, err
 	}
 	evidence, err := CreateEvidence(options.EvidenceDir)
@@ -76,7 +76,7 @@ func validateRunOptions(options RunOptions) error {
 	if err := validateCredentialFiles(options); err != nil {
 		return err
 	}
-	if err := RequireCommands("cosign", "curl", "docker", "git", "qemu-img", "cloud-localds", "openssl", "ssh", "ssh-keygen", "ssh-keyscan", "scp", "sftp"); err != nil {
+	if err := RequireCommands("curl", "docker", "git", "qemu-img", "cloud-localds", "openssl", "ssh", "ssh-keygen", "ssh-keyscan", "scp", "sftp"); err != nil {
 		return err
 	}
 	return requireQEMUInputs()
@@ -157,7 +157,7 @@ func requireCleanSource(ctx context.Context, root, revision string) error {
 		return err
 	}
 	if strings.TrimSpace(string(actual)) != revision {
-		return errors.New("candidate release record does not name the runner checkout")
+		return errors.New("candidate OCI source revision does not name the runner checkout")
 	}
 	status, err := CommandOutput(ctx, CommandSpec{Name: "git", Args: []string{"-C", root, "status", "--porcelain=v1", "--untracked-files=normal"}})
 	if err != nil {
@@ -267,8 +267,8 @@ func (state *runnerState) prepareRegistry(ctx context.Context) error {
 
 func (state *runnerState) publishImages(ctx context.Context, skopeoImage string) error {
 	for _, item := range []struct{ archive, tag, digest string }{
-		{state.artifacts.FallbackOCI, "fallback", imageDigest(state.artifacts.Fallback)},
-		{state.artifacts.CandidateOCI, "candidate", imageDigest(state.artifacts.Candidate)},
+		{state.artifacts.FallbackOCI, "fallback", state.artifacts.Fallback.Digest},
+		{state.artifacts.CandidateOCI, "candidate", state.artifacts.Candidate.Digest},
 	} {
 		actual, err := state.registry.Publish(ctx, item.archive, item.tag, skopeoImage)
 		if err != nil {

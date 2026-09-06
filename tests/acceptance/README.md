@@ -6,26 +6,19 @@ those outcomes; it does not define them.
 
 ## Product evidence boundary
 
-Run the complete suite before release CI on user-controlled matching-native
-x86-64 and AArch64 machines. One architecture never qualifies the other.
+Run the authorized suite on user-controlled matching-native x86-64 and AArch64
+machines. One architecture never qualifies the other or gates its publication.
+The suite exercises the candidate OCI's own source revision and uses an earlier
+exact OCI for fallback A. It does not rebuild A or reconstruct its unused ISO/
+QCOW2 files. Version and base validation are independent for candidate/fallback.
 
-The suite exercises the exact source commit intended for release and uses the
-previous signed published OCI digest for fallback A. It must not rebuild A or
-reconstruct historical ISO/QCOW2 artifacts.
-
-After both sibling runs pass, produce one strict signed JSON record containing:
-
-- schema;
-- exact source commit;
-- acceptance-suite revision or digest;
-- both architectures;
-- required scenario names and pass results;
-- previous fallback OCI digest;
-- completion time; and
-- approved signer.
-
-Cosign/Sigstore signs the record. It is an authenticated statement about these
-pre-release runs, not a claim that release CI's later-built bytes were booted.
+Inputs are actual OCI/ISO/raw-QCOW2 paths, not release records. Shared OCI
+inspection verifies native platform, blob integrity, image identity and installed
+RPM inventory. Installer checksum sidecars detect byte changes but are not
+provenance; installed booted-digest readback binds both deployment paths to the
+candidate. Per-run source/suite/image attribution and observations remain;
+combined signed acceptance records and the signing/verification CLI/workflows
+have been removed. Product acceptance is evidence, not a publication permission.
 
 ## Run reports versus qualification (schema 2)
 
@@ -41,17 +34,15 @@ Validation failures before source/artifact identity and the evidence directory
 are established do not produce a report. Later failures and cancellation retain
 a partial report when reporting itself succeeds.
 
-`record` separately requires every check below on **each** architecture before
-writing or signing anything. It rejects schema-1 reports and unknown check names;
-there is no legacy migration or override flag. The combined signed record also
-uses schema 2. Signing authenticates the submitted observations; it adds no
-coverage. A zero exit from `run` means its implemented itinerary and finalization
-succeeded, not that release qualification is complete.
+`RunSummary.Qualify` requires every check below on each assessed architecture.
+Validation rejects schema-1 reports and unknown check names; there is no legacy
+migration or override flag. A zero exit from `run` means its implemented itinerary
+and finalization succeeded, not that product qualification is complete.
 
 **Current qualification blocker:** the runner does not establish
 `installed-onboarding-observations`, `trusted-lan-access`, or
 `public-ingress-rejection`. Consequently its reports cannot currently pass
-`record`. Do not remove these requirements or edit reports to invent passes.
+`RunSummary.Qualify`. Do not remove these requirements or edit reports to invent passes.
 A separately scoped implementation must connect the documented installed and
 network-topology observations to qualification evidence. This milestone adds
 neither public-side probe infrastructure nor a manual-pass input mechanism.
@@ -95,7 +86,7 @@ ordered Go calls, not a scenario registry or resumable workflow. Read `execute`,
 then `exerciseInstalledSystem`, then `exerciseProductScenarios` in that file.
 The order is intentional:
 
-1. Verify the published fallback signature and prepare the disposable registry.
+1. Validate direct native artifact identities/checksums and prepare the disposable registry.
 2. Install through Anaconda; observe local-forwarded defaults before opening
    fixture Forgejo ports; discover native browser enrollment; recheck both paths.
 3. Verify the initial administrator's PAM login produces an ordinary Forgejo
@@ -197,9 +188,9 @@ cleanup uses the still-known local connection across B→A→B.
 The signup prompt owns its input descriptor and closes it on cancellation. SSH
 connection/liveness and development HTTP attempts have explicit native timeouts.
 Personal fixture key paths must be new; there is no key-reuse recovery branch.
-Fallback A needs its published OCI identity, native platform and OCI file, not
-unused historical installer checksums/files. Candidate artifact validation and
-published fallback signature/digest checks remain mandatory.
+Fallback A needs its native OCI identity/platform and OCI file, not unused
+historical installer checksums/files or a signature. Candidate artifact checks
+and exact registry/installed digest comparisons remain mandatory.
 
 ### Guest ownership
 
@@ -294,7 +285,7 @@ TCP 9090 and disables cloud-init. The image no longer
 overrides firewalld enablement or its native preset. First-boot `enabled`/`active`,
 Cockpit access, and administrator-controlled Forgejo access must be observed
 through disposable native ISO acceptance on **both x86-64 and AArch64**. The investigation host lacked native
-host `qemu-system-x86_64`, `cloud-localds`, and candidate/fallback release records
+host `qemu-system-x86_64`, `cloud-localds`, and candidate/fallback OCI identities
 required by the existing full acceptance runner; no new ISO guest was run.
 The sibling AArch64 run must reproduce image and installed-system checks on
 AArch64 hardware. Source tests alone do not qualify either installation path.
@@ -383,7 +374,7 @@ running firewall or a newly built image.
 ### Updates and absence
 
 - Native manual bootc update preserves authoritative mutable state.
-- Fallback to the previous signed OCI digest preserves current accounts,
+- Fallback to the earlier exact OCI digest preserves current accounts,
   groups, homes, catalog, workspaces, Forgejo, Tailscale, and SSH state.
 - Automatic updates remain disabled.
 - The final system has no Soda daemon, API, identity database, membership
@@ -405,14 +396,13 @@ facts.
 ## Go runner
 
 Run one architecture on its matching-native machine from the clean source
-revision named by the candidate release record:
+revision embedded in the candidate OCI image:
 
 ```text
 go run ./cmd/soda-acceptance run \
   --evidence .artifacts/acceptance/x86_64 \
-  --candidate-record PATH --candidate-oci PATH \
-  --candidate-iso PATH --candidate-qcow2 PATH \
-  --fallback-record PATH --fallback-oci PATH \
+  --candidate-oci PATH --candidate-iso PATH --candidate-qcow2 PATH \
+  --fallback-oci PATH \
   --administrator-private-key PATH \
   --administrator-public-key PATH \
   --administrator-password-file PATH
@@ -439,42 +429,17 @@ credential files are not deleted. A failed run retains a partial report and
 sanitized diagnostics when possible, and reports cleanup failures explicitly.
 Reporting failure returns an error rather than claiming a report was written.
 
-Only reports with complete qualification evidence can be combined and signed.
-The current runner alone cannot supply that evidence (see the blocker above).
-Once matching x86-64 and AArch64 reports establish every required check and name
-the same source and suite revisions, the signing interface is:
+Candidate ISO and raw QCOW2 require adjacent `.sha256` files naming the exact
+basename. OCI blob/config/manifest and RPM-inventory integrity is checked directly;
+fallback version/base need not equal the current candidate. The runner compares
+the actually booted candidate digest after ISO installation and QCOW2 first boot,
+then retains B → earlier A → B digest and mutable-state preservation checks.
+Checksums alone do not prove installer binding or provenance.
 
-```text
-go run ./cmd/soda-acceptance record \
-  --x86-summary PATH --aarch64-summary PATH \
-  --x86-release-record PATH --aarch64-release-record PATH \
-  --expected-revision EXACT_MAIN_SHA \
-  --output PATH \
-  --approved-signer SIGSTORE_CERTIFICATE_IDENTITY \
-  --oidc-issuer SIGSTORE_OIDC_ISSUER
-```
-
-Both candidate release records use the strict schema-3 decoder and must bind
-the corresponding run's candidate digest, native platform, and exact main
-revision. Both summaries must name that revision as their source and suite.
-The maintained `Native acceptance evidence` workflow accepts base64-encoded
-copies of those four credential-free inputs, invokes this command with its exact
-`main` SHA, signs and verifies the combined record, and retains the six small
-files for one day. It does not
-run QEMU, receive a guest Tailscale credential, publish an image, or create a
-release.
-
-Release CI consumes that artifact before native preparation:
-
-```text
-go run ./cmd/soda-acceptance verify --record PATH --expected-revision EXACT_PRODUCTION_SHA
-```
-
-The adjacent `PATH.sigstore.json` bundle is required. Trust is fixed to the
-maintained main signing workflow, not supplied by the record or a CLI override.
-Both siblings must qualify at the exact production SHA; a merge commit or merely
-equivalent source tree is not accepted as a substitute. Duplicate report/check
-fields, unknown fields, mismatched identities and signature failures are errors.
+Reports retain exact image and source/suite identities. Duplicate report/check
+fields, unknown fields and mismatched identities are errors. The current runner
+cannot qualify missing observations (see the blocker above); removing signatures
+does not supply them. There is no combined approval format or release CI consumer.
 Capture writes are exclusive: an accidentally reused label fails rather than
 overwriting an earlier observation. Returned error text is redacted as well as
 retained files; error identity remains available to programmatic callers.

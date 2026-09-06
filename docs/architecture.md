@@ -139,7 +139,10 @@ fallback. The Soda Updates page exposes native status, informational metadata
 checking, and one explicit Update and restart action. Bootc owns the configured
 source, activation, and restart; native readback must establish the booted digest.
 Automatic updates remain disabled. Soda adds no deployment-state or recovery
-engine. The OCI-only development publication replacement remains pending #61.
+engine. `just dev-image <architecture>` prepares and publishes one native OCI;
+`internal/build/oci` owns shared inspection for publication, installers and direct-
+artifact acceptance. No release records, signing/approval workflow, production-
+branch promotion, installer or sibling result is required for development publication.
 
 ## Current implementation
 
@@ -159,7 +162,7 @@ implementation debt:
 | Soda-created Tea PAT/config and workspace copying | Manual Tea and gh login in each workspace |
 | Custom `soda-bun` and broad immutable tool manifest | `mise`-owned tool installation and versions |
 | Coordinated Linux/Forgejo deletion | Local workspaces then Linux; independent native Forgejo deletion |
-| Release CI rebuilds fallback A and runs VM acceptance | Prior signed A digest plus signed pre-release evidence |
+| Historical release CI/record approval system | Removed under #61; native per-architecture OCI publication and independent observed acceptance |
 
 Current package, path, group, account-marker, polkit, staging, and process
 commands remain implementation choices. They must be re-evaluated while their

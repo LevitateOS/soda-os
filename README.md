@@ -79,7 +79,8 @@ bootc commands. The page shows native tracking and deployment facts, offers an
 informational metadata check, and one Update and restart action. Reconnect and
 verify the actual booted digest. Automatic updates are disabled. The selected
 pre-alpha development-tag policy has no signature, version-increase, installer,
-or sibling prerequisite; its OCI-only publication command remains pending #61.
+or sibling prerequisite. `just dev-image <architecture>` prepares and publishes
+one matching-native OCI and stops; installers remain independent.
 Fallback selects an earlier exact image while preserving current accounts and
 data. Soda has no updater, recovery engine, runtime daemon, general API, workflow
 engine, credential broker, or reconciliation service.

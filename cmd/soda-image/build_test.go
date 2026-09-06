@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/LevitateOS/soda-os/internal/build/installer"
-	"github.com/LevitateOS/soda-os/internal/build/release"
+	"github.com/LevitateOS/soda-os/internal/build/oci"
 	"github.com/stretchr/testify/require"
 )
 
@@ -45,8 +45,8 @@ func (fake *recordingImage) BuildQCOW2(ctx context.Context, options installer.QC
 	return installer.QCOW2Result{Path: "image.qcow2", SHA256: "checksum", CompressedPath: "image.qcow2.zst"}, fake.record(ctx, "qcow2", options)
 }
 
-func (fake *recordingImage) CreateRecord(ctx context.Context, options release.RecordOptions) (release.Result, error) {
-	return release.Result{ImageReference: "reference", RecordPath: "record.json"}, fake.record(ctx, "record", options)
+func (fake *recordingImage) PublishImage(ctx context.Context, archive string) (oci.Image, error) {
+	return oci.Image{Digest: "sha256:fixture", Revision: "archive-revision"}, fake.record(ctx, "publish", archive)
 }
 
 func TestOCIOutputDirectoryAndPathOnlyStdout(t *testing.T) {
@@ -99,10 +99,10 @@ func imageCases() []imageCase {
 			message: "Built QCOW2: image.qcow2\nChecksum: checksum\nCompressed: image.qcow2.zst\nChecksum: image.qcow2.zst.sha256\n",
 		},
 		{
-			action:  "record",
-			flags:   []string{"--archive", "archive.oci", "--iso", "installer.iso", "--qcow2", "image.qcow2", "--qcow2-zst", "image.zst"},
-			options: release.RecordOptions{ArchivePath: "archive.oci", ISOPath: "installer.iso", QCOW2Path: "image.qcow2", QCOW2ZSTPath: "image.zst", OutputDir: ".artifacts/releases"},
-			message: "Recorded reference\nRelease record: record.json\n",
+			action:  "publish",
+			flags:   []string{"--archive", "archive.oci"},
+			options: "archive.oci",
+			message: "Published " + oci.Repository + "@sha256:fixture from archive source archive-revision\n",
 		},
 	}
 }

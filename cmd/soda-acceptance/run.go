@@ -22,12 +22,10 @@ func runCommand(suite suiteRunner) *cobra.Command {
 	}
 	flags := command.Flags()
 	flags.StringVar(&options.EvidenceDir, "evidence", "", "new directory for credential-free run evidence")
-	flags.StringVar(&options.Candidate.Record, "candidate-record", "", "candidate architecture release record")
 	flags.StringVar(&options.Candidate.OCI, "candidate-oci", "", "candidate architecture OCI archive")
 	flags.StringVar(&options.Candidate.ISO, "candidate-iso", "", "candidate architecture network installer ISO")
 	flags.StringVar(&options.Candidate.QCOW2, "candidate-qcow2", "", "candidate architecture reusable QCOW2")
-	flags.StringVar(&options.Fallback.Record, "fallback-record", "", "previous published architecture release record")
-	flags.StringVar(&options.Fallback.OCI, "fallback-oci", "", "previous published architecture OCI archive")
+	flags.StringVar(&options.Fallback.OCI, "fallback-oci", "", "earlier matching-native OCI archive (its own version/base)")
 	flags.StringVar(&options.Administrator.Username, "administrator", "soda-test", "temporary primary administrator username")
 	flags.StringVar(&options.Administrator.PrivateKey, "administrator-private-key", "", "mode-0600 disposable administrator SSH private key")
 	flags.StringVar(&options.Administrator.PublicKey, "administrator-public-key", "", "matching disposable administrator SSH public key")
@@ -40,8 +38,8 @@ func runCommand(suite suiteRunner) *cobra.Command {
 	flags.IntVar(&options.Ports.Registry, "registry-port", 5001, "loopback port for the disposable OCI registry")
 	flags.StringVar(&options.RepositoryRoot, "repository", ".", "clean acceptance-suite checkout")
 	for _, name := range []string{
-		"evidence", "candidate-record", "candidate-oci", "candidate-iso", "candidate-qcow2",
-		"fallback-record", "fallback-oci", "administrator-private-key",
+		"evidence", "candidate-oci", "candidate-iso", "candidate-qcow2",
+		"fallback-oci", "administrator-private-key",
 		"administrator-public-key", "administrator-password-file",
 	} {
 		_ = command.MarkFlagRequired(name)

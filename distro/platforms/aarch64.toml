@@ -22,6 +22,3 @@ package_lock = "distro/locks/builder-packages-aarch64.toml"
 package_lock = "distro/locks/installer-packages-aarch64.toml"
 tool_lock = "distro/locks/installer-image-builder-aarch64.toml"
 iso_config = "packaging/installer/iso-aarch64.yaml"
-
-[release]
-channel = "aarch64"

@@ -1,197 +1,172 @@
-# Soda OS release operations
+# Soda OS image construction and publication
 
-This is an internal operator document. The accepted release contract is in
-[architecture-reset.md](architecture-reset.md). No command in this document is
-evidence that a public release exists.
+**Paused work-in-progress:** #61 step 3 is saved but not declared complete.
+See the [checkpoint handoff](issue-61-step-3-handoff.md) for review gaps and the
+owner's stop instruction before using or continuing this implementation.
 
-**Runtime policy update (#61):** Soda Updates now follows native bootc tracking
-with informational Check and one Update and restart action. It no longer
-consumes the records/signatures below. The OCI-only development publication
-command and deletion of this old release orchestration remain pending; these
-historical production prerequisites are not runtime-update prerequisites. See
-[cockpit-updates.md](cockpit-updates.md) for the implemented runtime boundary.
+This internal operator document describes the pre-alpha native development flow
+selected in #61. Commands that build, publish, install or restart require their
+own operational authorization. Source tests do not prove a published image or
+an installed update.
 
-## Product contract
+## Native development loop
 
-A push to protected `production` coordinates one release for x86-64 and
-AArch64. Each architecture produces:
-
-- one bootc OCI image stored in GHCR;
-- one network installer ISO and checksum stored in GitHub Releases;
-- one compressed reusable QCOW2 and checksum stored in GitHub Releases;
-- one strict release record and signing bundle; and
-- image signatures and provenance attached to the exact OCI digest.
-
-GHCR images are first-class update artifacts. GitHub Releases stores downloads.
-OIDC supplies short-lived authentication and stores nothing.
-
-Version and product identity derive from `distro/soda.toml`. The protected
-production commit, Git tag, both OCI digests, artifact names, checksums, signed
-records, release notes, and remote assets must agree.
-
-## Evidence before release CI
-
-Expensive product validation runs before the production push on user-controlled
-matching-native machines. It covers:
-
-- graphical one-ISO installation;
-- native installation, mandatory welcome and Cockpit Tailscale on ISO and reusable QCOW2;
-- LAN and cloud/Tailscale access;
-- identities, Forgejo SSH keys, Projects, workspaces, `mise`, and deletion;
-- manual update and account-preserving fallback; and
-- absence of forbidden Soda control planes and copied credentials.
-
-Fallback uses the previous signed published OCI image by immutable digest. Do
-not rebuild the previous image or any unused historical ISO/QCOW2.
-
-Acceptance reports and combined signed records use schema 2. The runner records
-only observed checks; completion of its itinerary is not complete qualification.
-The signing command rejects missing coverage on either architecture before
-writing or signing a record. **Current blocker:** the runner does not record the
-full installed-onboarding observations, independent trusted-LAN access, or
-public-ingress rejection. Its reports therefore cannot currently qualify. See
-[the coverage map and evidence boundary](../tests/acceptance/README.md#run-reports-versus-qualification-schema-2).
-A separate implementation must supply the missing evidence path; do not invent
-passes or weaken the requirements to sign a report.
-
-The qualified sibling runs are submitted to the maintained `Native acceptance
-evidence` workflow on exact `main`, together with both strict candidate release
-records. Each decoded input is limited to 12 KiB. The workflow requires both
-summaries' source and suite revisions to equal its own source SHA, binds each
-candidate digest/platform to its schema-3 release record, and produces one
-strict JSON acceptance record containing:
-
-- schema;
-- exact source commit;
-- acceptance-suite revision or digest;
-- both architectures;
-- required scenario names and pass results;
-- previous fallback OCI digest;
-- completion time; and
-- approved signer identity.
-
-The record is signed and verified through Cosign/Sigstore with the fixed
-`native-acceptance-evidence.yml@refs/heads/main` workflow identity. The two
-summaries, both candidate records, combined record, and signature bundle remain
-available as a one-day Actions artifact. The workflow receives no credentials,
-runs no VM, publishes no image, and creates no release. Its record authenticates
-the claim about the pre-release runs; it does not claim that any later CI-built
-bytes were boot-tested. Soda creates no attestation service.
-
-The production `validate` job downloads the successful maintained signing
-workflow's artifact for its exact `GITHUB_SHA`, then invokes `soda-acceptance
-verify`. Verification requires full sibling qualification and a Cosign signature
-from the fixed main workflow identity; missing, expired, mismatched or invalid
-evidence stops the job before native preparation. There is no signer override or
-ancestor/tree-equivalence fallback. Promote the accepted **same commit SHA** to
-production; a new merge commit needs its own exact-source acceptance. This is a
-source-level gate, not a claim that later rebuilt artifacts were exercised.
-
-## Build-once production workflow
-
-Release CI follows this order:
-
-1. Verify protected branch identity, clean source identity, version, collision
-   state, and the signed acceptance record.
-2. Run cheap source and unit checks once.
-3. Start x86-64 and AArch64 matching-native build jobs in parallel.
-4. Build each architecture's release image B exactly once.
-5. Structurally inspect that OCI output and publish its immutable candidate
-   digest to GHCR.
-6. Build the network ISO and raw/compressed QCOW2 from that same OCI output.
-7. Check only artifact structure, architecture, identity, checksum, size,
-   signature, provenance, and remote publication facts.
-8. Promote the accepted OCI digests to the release's immutable architecture
-   tags.
-9. Create and sign the strict release records.
-10. Create the Git tag and draft GitHub Release, upload both architecture asset
-    sets, and re-read every remote fact.
-11. Publish the draft only after all OCI, file, record, signature, provenance,
-    source, and production-branch identities agree.
-
-The locked release account allocates each build's native temporary directory
-directly beneath its home and links it from the immutable run directory. This
-keeps QEMU monitor sockets below the host's Unix-socket path limit while the
-source checkout, Go cache, artifacts, and the link identifying that temporary
-directory remain grouped with the exact run.
-
-CI publishes the exact checked files unchanged. It never rebuilds a release
-copy and never builds fallback A.
-
-Release CI runs no QEMU, graphical installation, first-boot provisioning,
-product acceptance, update/fallback suite, NoCloud, ConfigDrive, or
-acceptance-only Tailscale enrollment. It receives no guest Tailscale keys.
-
-## Native ISO candidate preparation
-
-**Execution status:** the development check image and unchanged complete
-`just check` passed on a native AArch64 development snapshot on this MacBook
-(2026-09-05). Candidate orchestration still has only mocked execution tests;
-Soda artifact construction, publication and graphical installation remain
-unverified for this workflow. Native x86-64 execution awaits matching hardware.
-Commands below build and publish artifacts; documentation is not operational
-authorization.
-
-Select one architecture explicitly on matching hardware:
+On the matching-native machine, from any clean committed checkout:
 
 ```sh
-# On an AArch64 build machine (Linux, or this Apple Silicon MacBook):
-scripts/prepare-native-iso-candidate.sh aarch64
-
-# On a native x86-64 build machine, when available:
-scripts/prepare-native-iso-candidate.sh x86_64
+just dev-image x86_64
+# Or, independently on AArch64 hardware:
+just dev-image aarch64
 ```
 
-**Candidate preparation publishes an OCI image to GHCR.** It is neither a
-local-only builder nor a signed release. Both architectures use the same
-orchestration and their own existing platform locks. No sibling-architecture
-emulation is supported.
+`just dev-image <architecture>` runs `scripts/prepare-native-image.sh`. It:
 
-### Prerequisites and verification boundary
+1. Checks the selected hardware, local Linux Docker daemon and integrated Buildx
+   worker, then the clean source revision. It never fetches or changes Git refs.
+2. Runs the complete source gate once through `scripts/check-native.sh`.
+3. Prepares the existing reviewed inputs and builds one OCI archive, including
+   RPM construction once, under `.artifacts/images/<architecture>/<revision>/`.
+4. Uses the actual path returned by `soda-image oci`, checks its source/platform
+   metadata, loads it, and executes the exact verified image ID without pulling.
+   Linux architecture, os-release identity and Soda RPM versions must agree.
+   Both classic Docker config IDs and containerd manifest IDs are accepted only
+   when they match the archive's own identities.
+5. Publishes that archive through `soda-image publish` and stops.
 
-- A clean Git checkout, including untracked files, with `HEAD` equal to the
-  local `origin/main` reference. The command does not fetch, update refs,
-  commit, or exclude investigation files. Resolve source identity explicitly
-  before executing it; a local tracking ref is not a live remote-branch check.
-- Bash, Go, Git, just, jq, Skopeo, `sha256sum`, the pinned Vite+/Node toolchain,
-  and ordinary shell utilities on the build host. Frontend assets are rebuilt
-  by the existing RPM builder on that host; check-container output is discarded.
-- A local Docker context with a matching Linux daemon and a running, single
-  integrated Buildx `docker` worker on that same endpoint. The wrapper checks
-  daemon OS/architecture and worker driver/endpoint, not its advertised platform
-  list. It binds subsequent calls with process-local `DOCKER_CONTEXT` and
-  `BUILDX_BUILDER`; it changes no global selection. Use a context rather than
-  `DOCKER_HOST`. Remote and independently managed workers are currently rejected
-  because this small wrapper does not establish their native execution identity.
-- The selected platform's exact locked inputs, native build capacity, network
-  access for existing input fetchers, and Skopeo credentials permitting GHCR
-  candidate publication. Anonymous retrieval must also work after publication.
-  If the locked Fedora manifest is no longer available remotely, supply the
-  exact retained archive matching the platform's archive checksum. Do not
-  substitute a current Fedora tag or another base. Loading the retained archive
-  remains owned by the existing builder.
+It builds no ISO/QCOW2, creates no VM, and performs no installed update. It
+requires neither `origin/main` equality nor GitHub-published source, a version
+increase, production-branch promotion, signature, release record, installer,
+prior qualification or sibling result. Both architectures keep their own native
+locks and tags. No new CI publication control plane replaces the removed one.
 
-`scripts/check-native.sh <architecture>` owns the source gate. On Linux it runs
-unchanged `just check` directly; invoke source verification as an ordinary user,
-not root. On Darwin it builds the development-only
-`tools/check/Containerfile` using Go from `go.mod`, the existing Vite+ installer,
-Node from `cockpit/.node-version`, and Linux source-check dependencies. It then
-runs unchanged `just check` inside a disposable native Linux container as the
-unprivileged `check` account (UID 1000). Its Vite+ binary uses the Linux install
-path under that account's `.local/share/vite-plus/bin`; `jq` is installed for the
-script tests. This requires dependency downloads and writes Docker image/cache
-data; it does not publish images. Its development base is unrelated to the
-locked Soda bootc base.
+## Prerequisites and source verification
 
-The canonical source is mounted read-only. A private exact-commit Git clone in
-the container's writable Linux filesystem receives generated frontend files and
-caches. That clone excludes host `node_modules` and ignored generated outputs;
-the read-only canonical mount is used to clone Git objects, not as the test
-working directory. No separate credential directory, Docker socket, writable
-host output mount, or privileged mode is passed into the check container. Linux verification
-is not replaced with Darwin implementations or a reduced test suite. The
-canonical checkout must remain clean at the same revision after verification;
-there is no success stamp or skip flag.
+Use Bash, Go, Git, just, jq, Skopeo, Docker, the pinned Vite+/Node toolchain and
+ordinary shell tools. Supply the selected architecture's exact locked Fedora
+base and reviewed fetched inputs, adequate native build capacity, and ordinary
+Skopeo credentials with push permission. HTTPS and anonymous image retrieval
+must work. Credentials alone do not establish push permission.
+
+The wrapper verifies a local Docker context with a matching Linux daemon and one
+running integrated `docker` Buildx worker. It sets process-local `DOCKER_CONTEXT`
+and `BUILDX_BUILDER`, not global configuration. Use a local context rather than
+`DOCKER_HOST`. These are current execution checks, not a universal restriction
+on Soda's product platforms.
+
+On Linux, `scripts/check-native.sh <architecture>` runs `just check` as the
+ordinary build user. On Darwin it builds `tools/check/Containerfile` and runs
+that same gate inside a native Linux container as the unprivileged check user.
+The canonical checkout is mounted read-only; a private exact-commit clone owns
+its generated frontend files and caches. No Docker socket, privileged mode or
+host output mount is provided to that check container. This Darwin source gate
+itself writes a development image/cache and needs build authorization.
+
+Use one build per checkout: revision-scoped OCI destinations do not isolate the
+shared RPM/build scratch directories. The current Cosign package/fetch chain and
+Go cache-lifetime corrections are pending step 4, not publication requirements.
+
+## OCI output destinations
+
+`image.Builder.BuildImage(ctx, outputDir)` returns `(archivePath, error)`. Empty
+`outputDir` selects `.artifacts/images`; relative destinations resolve against
+`Builder.Root`, and absolute destinations are used directly. The result is an
+absolute `soda-os-<version>-<architecture>.oci.tar` path. Native enforcement,
+clean source checks before/after RPM building, locked inputs, image identity,
+RPM checks and bootc lint remain mandatory. OCI construction loads the archive
+locally for lint, but does not publish it.
+
+`just oci <architecture> [output_dir]` prepares inputs and constructs locally.
+For direct path capture after the existing input-fetch recipes have completed:
+
+```sh
+ARCH=x86_64 # or aarch64 on matching hardware
+revision=$(git rev-parse HEAD)
+archive=$(go run ./cmd/soda-image --architecture "$ARCH" oci \
+  --output-dir ".artifacts/images/$ARCH/$revision") || exit 1
+```
+
+The lower-level OCI CLI emits only the absolute path plus a newline on stdout;
+progress and traces go to stderr. Do not scrape `just` or native progress.
+A rebuild replaces only the selected archive. Filesystem/export/load/lint failure
+returns an error and no successful path; a partial or unvalidated archive may
+remain. A result-write failure also returns an error. Other revision directories
+are not cleaned up. There is no artifact-history database or resume state.
+
+## Publication and partial failures
+
+To publish an already-built archive, without building again:
+
+```sh
+go run ./cmd/soda-image --architecture "$ARCH" publish --archive "$archive"
+```
+
+`internal/build/oci` inspects the archive's native manifest/config/digests,
+version, source revision, exact base reference and RPM inventory/sidecar. It
+rejects unsafe archive paths, wrong platforms and corrupt blobs. These facts
+come from the image bytes; publication never substitutes publisher HEAD or the
+current specification's version/base for an older archive's identity.
+
+With authenticated Skopeo and HTTPS, publication checks
+`ghcr.io/levitateos/soda-os:sha-<archive-revision>-<architecture>`. If absent it
+copies the archive with digest preservation, then verifies the remote digest.
+An existing identical revision digest may be reused on an explicit republish;
+a conflicting digest or failed lookup stops before development advancement.
+The verified **exact remote digest**, not the mutable revision tag, is copied to
+`dev-x86_64` or `dev-aarch64`, then anonymously inspected for the same digest.
+Neither sibling tag is touched. Authorized publishers own registry credentials
+and must serialize publication of a given revision/tag; this is not a registry
+transaction or an atomic compare-and-swap service.
+
+Copy failures may have changed remote state. Errors distinguish revision-copy
+failure, revision verification failure, development advancement failure and
+anonymous verification failure. Inspect the named tag/digest before an explicit
+retry. There is no automatic retry, compensation, cleanup or reconciliation.
+The completion message identifies the actual image reference and source; it is
+not installed-update evidence or cryptographic provenance from a trusted signer.
+
+## Independent installers and acceptance
+
+When separately requested, `just iso <architecture> <archive>` and
+`just qcow2 <architecture> <archive>` construct graphical network ISOs and raw/
+compressed QCOW2 disks from that exact OCI. They use the shared inspector and
+retain native tooling, exact digest binding, ISO squashfs/initramfs/branding
+checks and ordinary checksum sidecars. Raw QCOW2 now also has a `.sha256`
+sidecar. Network ISOs require anonymous access to the embedded exact digest.
+
+`scripts/place-libvirt-iso.sh <architecture> <ISO> <destination>` remains a
+separate matching-Linux operation: checksum verification, no-overwrite copy,
+qemu traversal/readability, SELinux label and non-booting QEMU open. It does not
+build, publish, repair host permissions or boot an installation VM.
+
+The [acceptance runner](../tests/acceptance/README.md#go-runner) consumes candidate
+OCI/ISO/raw-QCOW2 paths and an earlier fallback OCI directly. It checks native
+OCI facts and installer checksum sidecars, then installed booted-digest readback
+binds the actual ISO and QCOW2 deployments to the candidate. Fallback facts use
+the earlier image's own version/base, independent of the current specification.
+Self-computed checksums detect byte changes; they are not provenance.
+
+Per-run `RunSummary`, partial results, credential handling, cleanup and truthful
+`Validate`/`Qualify` semantics remain. Missing onboarding, independent LAN and
+public-ingress observations still do not qualify. Combined signed acceptance
+records, record commands, the release executable/package, production release CI
+and signing-evidence CI have been deleted. The **soda-release RPM** and OS
+identity/branding are retained. No release accounts, branch history, registry
+tags or operator artifacts are cleaned up by this source change.
+
+## Planned A and verification limits
+
+The clean commit completing #61 step 3 is the planned **A source**; its exact
+commit ID is recorded in the implementation handoff. Do not build it during this
+source assignment. Step 4 removes the unused installed Cosign pipeline; the later
+B source can demonstrate a real same-version image difference without a dummy
+feature. Neither source checks nor historical evidence below establish that this
+new publisher has run against GHCR or that A has booted. Both architectures need
+their own explicitly authorized native artifact and installed evidence.
+
+## Historical build evidence (not validation of the replacement)
+
+The following observations predate the native development publication replacement.
+They describe those checkpoints only, not current prerequisites or live PASS.
 
 ### Bounded AArch64 source-check evidence
 
@@ -271,102 +246,6 @@ capacity, publication or installation. No need for a separate Linux build VM
 was demonstrated. Native x86-64 must reproduce these probes on matching
 hardware; no sibling-architecture execution occurred here.
 
-### OCI output destinations
-
-`image.Builder.BuildImage(ctx, outputDir)` returns `(archivePath, error)`. Empty
-`outputDir` retains `.artifacts/images`; relative destinations resolve against
-`Builder.Root`, and absolute destinations are used directly. The returned path
-is absolute and names `soda-os-<version>-<architecture>.oci.tar`. No caller needs
-to scrape a build-progress message or rename an archive to retain another
-commit at the same version.
-
-On matching-native hardware, `just oci <architecture> [output_dir]` fetches the
-required inputs and builds the OCI archive, including RPM construction. Its
-optional directory defaults to `.artifacts/images`. For direct path capture,
-after preparing the required fetched inputs through the existing `just` recipes:
-
-```sh
-ARCH=x86_64 # or aarch64 on its matching-native host
-revision=$(git rev-parse HEAD)
-archive=$(go run ./cmd/soda-image --architecture "$ARCH" oci \
-    --output-dir ".artifacts/images/$ARCH/$revision") || exit 1
-# Only if separately authorized: pass "$archive" to an independent ISO or QCOW2 build.
-```
-
-The OCI CLI writes only the returned archive path plus a newline to stdout;
-command traces and native progress go to stderr. Input-fetch recipes invoked by
-`just` have their own output, so capture the lower-level CLI as above rather than
-parsing `just` progress. The library no longer prints OCI/RPM success summaries.
-A result-write failure is an error, even if the archive was already built.
-
-Native-host enforcement, clean source revision checks before/after RPM building,
-locked inputs, source/version/platform identity, RPM/runtime checks and bootc
-lint remain mandatory. OCI construction loads the archive locally for bootc
-lint; it does not publish it or construct an ISO/QCOW2. The existing candidate
-wrapper's additional runtime checks remain unchanged.
-
-A rebuild replaces only the selected archive, as before. Export/load/lint or
-filesystem failure returns an error and no successful path; a partial or
-unvalidated archive may remain and must not be treated as a successful result.
-Other revision directories and their contents are not removed. Output separation
-does not isolate shared RPM/build scratch paths: use one build per checkout.
-There is no artifact-history store or automatic revision cleanup. Replacement
-of the existing candidate/publication wrapper remains step 3 of #61; that wrapper
-continues using the unchanged default destination in the meantime.
-
-### Construction and publication order
-
-The candidate command refuses existing final OCI, ISO, or ISO checksum paths
-(including dangling symlinks), and fails closed if candidate-tag enumeration
-fails. Lower-level builders retain their existing scratch-directory behavior;
-use one preparation process per checkout, not concurrent builds in shared
-scratch paths.
-
-It runs the complete Linux gate, then `just oci` once, which already builds the
-RPMs. It checks OCI OS, architecture, version and source labels, loads the
-archive, verifies its image ID against the archive's config or manifest digest,
-and runs that exact image without pulling. Linux runtime architecture, `os-release`, and
-Soda RPM versions must pass before publication. Docker's classic image store
-reports the config digest as the image ID; its containerd store reports the
-manifest digest. The runtime check accepts only these two identities derived
-from the archive, then executes the verified ID with `--pull=never`, never the
-mutable tag. The script can be sourced to run this check without publication.
-
-Next, `soda-release image-stage` publishes
-`ghcr.io/levitateos/soda-os:sha-<full-source-revision>-<architecture>` without
-replacing an existing candidate. Preparation immediately reports confirmed
-publication, verifies anonymous remote/local manifest digest equality, and runs
-`just iso` against that archive. Existing deep Linux squashfs/initramfs,
-configuration and branding inspection remains mandatory. The wrapper also checks
-the ISO checksum sidecar and exact published-digest installer source. Its final
-summary reports the revision, architecture, tag, digest, ISO and checksum—not
-successful installation.
-
-**Publication can succeed and ISO construction can fail.** On failure the
-command reports whether publication was attempted or confirmed, plus the
-candidate tag and expected digest. A failed publication command can itself have
-changed remote state. Stop and inspect that state explicitly: there is no
-retry, deletion, compensation, reconciliation or persisted workflow state.
-A full rerun will refuse existing candidate tags or final output paths.
-
-### Independent Linux/libvirt placement
-
-On a matching Linux destination, place an existing ISO separately:
-
-```sh
-scripts/place-libvirt-iso.sh aarch64 <verified-ISO> <destination-directory>
-scripts/place-libvirt-iso.sh x86_64 <verified-ISO> <destination-directory>
-```
-
-Placement requires the source `.sha256` sidecar, an existing writable destination
-with appropriate permissions/SELinux policy, GNU `stat`, passwordless sudo for
-the required `qemu`-account operations, and the matching `qemu-system-*` binary.
-It validates the source checksum, actual destination path traversal, no-overwrite
-copy, destination checksum, `qemu` readability, `virt_image_t`, and a non-booting
-QEMU open. It neither builds nor publishes nor repairs permissions or labels.
-A failure after copying starts may leave a partial or complete destination; the
-command reports it and does not remove or overwrite it automatically.
-
 ### Native OCI dependency fixes
 
 The first real AArch64 OCI attempt at `bf4ea45` loaded the exact retained Fedora
@@ -401,74 +280,3 @@ That image also reproduced the containerd manifest-ID distinction above; the
 corrected runtime verifier passed against the actual archive. Subsequent loop
 logs and cleanup evidence remain in `.artifacts/native-oci.iGvZss/`. Checks and
 local OCI construction do not imply GHCR publication or installation approval.
-
-### Installation evidence remains separate
-
-This Apple Silicon MacBook is both the planned AArch64 build and installation
-test machine. No Mac Mini or separate general-purpose Linux build VM is required.
-Only a demonstrated Docker Desktop limitation would justify evaluating the
-latter. Native x86-64 execution remains pending matching hardware, independently
-of AArch64 progress.
-
-For the first bounded local installation test, use the existing ARM QEMU/HVF,
-UEFI, VirtIO and Cocoa configuration in `internal/acceptance/qemu.go`, reviewed
-against the resulting ISO. The full `soda-acceptance` CLI is not an ISO-only
-launcher: it additionally requires QCOW2/fallback artifacts and credentials.
-Do not invoke that larger suite implicitly. VM creation/boot needs separate
-approval, and the network ISO needs access to its exact published OCI digest.
-Verify graphical Anaconda, reboot, installed identity and native onboarding;
-loopback user-network forwarding is not proof of general LAN reachability.
-
-Candidate preparation and placement create no installation VMs, reusable
-QCOW2s, release records, signatures, version tags or GitHub Releases.
-
-## Publication boundaries
-
-Soda release tooling remains a fixed wrapper around Git, Skopeo, Cosign, and
-GitHub CLI. Those tools own authentication, transport, registry, Sigstore, and
-GitHub protocols. Soda validates its own fixed inputs and resulting remote
-facts.
-
-Known input errors and collisions fail before mutation. If an external action
-partially succeeds, report the exact remote state and stop. Do not overwrite,
-delete, compensate, retry automatically, or reconcile partial state.
-
-The release has a 30-minute wall-clock target. At 45 minutes, the workflow must
-identify the active or slow stage and continue. This is a warning, not a
-timeout.
-
-## Final publication gate
-
-Publication refuses to proceed unless:
-
-- the signed acceptance record matches the exact source commit;
-- each architecture built B once on matching-native hardware;
-- each exact OCI digest is anonymously retrievable;
-- image signatures and provenance verify against the release workflow;
-- ISO and QCOW2 structures, architectures, identities, and checksums pass;
-- signed records bind the correct source, architecture, base, image, and file
-  checksums;
-- all expected remote assets exist once with the exact checked bytes;
-- release notes name both exact OCI update digests; and
-- the remote `production` head remains the original release commit.
-
-No moving OCI tag policy is implied without a separate decision. No release
-daemon, workflow database, credential store, retry engine, or reconciliation
-system is allowed.
-
-## Current implementation
-
-At checkpoint `5cf31df`, the repository contains release tooling, a production
-workflow, strict records, OCI/ISO/QCOW2 construction, Cosign integration, and
-matching-native executor support. It still performs work rejected by the
-contract above:
-
-- rebuilds fallback A from source;
-- runs installed VM and B-to-A-to-B acceptance in paid release CI;
-- creates acceptance-only Tailscale guest keys;
-- exercises NoCloud and ConfigDrive provisioning; and
-- repeats source checks across architecture/build phases.
-
-The current workflow and operator commands must not be used as release-day
-instructions until those differences are removed and the signed pre-release
-record boundary is implemented. No public `0.5.0` release is claimed here.

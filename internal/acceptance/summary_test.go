@@ -2,13 +2,28 @@ package acceptance
 
 import (
 	"errors"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/LevitateOS/soda-os/internal/strictjson"
 	"github.com/stretchr/testify/require"
 )
+
+func readRunSummary(path string) (RunSummary, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return RunSummary{}, err
+	}
+	defer file.Close()
+	var summary RunSummary
+	if err = strictjson.Decode(file, &summary); err != nil {
+		return RunSummary{}, err
+	}
+	return summary, summary.Validate()
+}
 
 // Deliberately explicit: a newly required check must break qualification tests
 // until its evidence and fixtures have been reviewed, not auto-pass in a loop.

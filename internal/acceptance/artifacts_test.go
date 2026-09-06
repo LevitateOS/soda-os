@@ -3,85 +3,88 @@ package acceptance
 import (
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
 
-	"github.com/LevitateOS/soda-os/internal/build/release"
+	"github.com/LevitateOS/soda-os/internal/build/oci/ocitest"
+	v1 "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/stretchr/testify/require"
 )
 
-func TestValidateArtifactsRequiresMatchingNativeRecordsAndChecksums(t *testing.T) {
+func TestValidateArtifactsUsesNativeBytesAndIndependentFallback(t *testing.T) {
 	directory := t.TempDir()
 	candidate := writeArtifactFixture(t, directory, "candidate", strings.Repeat("a", 40))
 	fallback := writeArtifactFixture(t, directory, "fallback", strings.Repeat("b", 40))
-
-	validated, err := ValidateArtifacts(candidate, fallback)
-	require.NoError(t, err)
-	require.Equal(t, strings.Repeat("a", 40), validated.Candidate.SourceRevision)
-	require.Equal(t, strings.Repeat("b", 40), validated.Fallback.SourceRevision)
-}
-
-func TestValidateArtifactsRejectsSymlink(t *testing.T) {
-	directory := t.TempDir()
-	candidate := writeArtifactFixture(t, directory, "candidate", strings.Repeat("a", 40))
-	fallback := writeArtifactFixture(t, directory, "fallback", strings.Repeat("b", 40))
-	target := candidate.ISO
-	candidate.ISO = filepath.Join(directory, "candidate-link.iso")
-	require.NoError(t, os.Symlink(target, candidate.ISO))
-
-	_, err := ValidateArtifacts(candidate, fallback)
-	require.ErrorContains(t, err, "regular non-symlink")
-}
-
-func TestFallbackNeedsNoHistoricalInstallerChecksumsOrFiles(t *testing.T) {
-	directory := t.TempDir()
-	candidate := writeArtifactFixture(t, directory, "candidate", strings.Repeat("a", 40))
-	fallback := writeArtifactFixture(t, directory, "fallback", strings.Repeat("b", 40))
-	record, err := readReleaseRecord(fallback.Record)
-	require.NoError(t, err)
-	record.ArtifactChecksums = release.ArtifactChecksums{}
-	contents, err := json.Marshal(record)
-	require.NoError(t, err)
-	require.NoError(t, os.WriteFile(fallback.Record, contents, 0o600))
 	require.NoError(t, os.Remove(fallback.ISO))
 	require.NoError(t, os.Remove(fallback.QCOW2))
-	_, err = ValidateArtifacts(candidate, fallback)
+	validated, err := ValidateArtifacts(candidate, fallback)
 	require.NoError(t, err)
-	// The same incomplete record must never satisfy candidate validation.
+	require.Equal(t, strings.Repeat("a", 40), validated.Candidate.Revision)
+	require.Equal(t, strings.Repeat("b", 40), validated.Fallback.Revision)
+	require.NotEqual(t, validated.Candidate.Version, validated.Fallback.Version)
+	require.NotEqual(t, validated.Candidate.BaseReference, validated.Fallback.BaseReference)
 	_, err = ValidateArtifacts(fallback, candidate)
-	require.ErrorContains(t, err, "candidate release checksums")
+	require.Error(t, err, "candidate installer files are required")
+	_, err = ValidateArtifacts(candidate, candidate)
+	require.ErrorContains(t, err, "distinct image digests")
+}
+
+func TestValidateArtifactsAllowsSameVersionDifferentRevisions(t *testing.T) {
+	directory := t.TempDir()
+	candidate := writeArtifactFixture(t, directory, "candidate", strings.Repeat("a", 40))
+	fallback := writeArtifactFixture(t, directory, "earlier", strings.Repeat("b", 40))
+	validated, err := ValidateArtifacts(candidate, fallback)
+	require.NoError(t, err)
+	require.Equal(t, validated.Candidate.Version, validated.Fallback.Version)
+	require.NotEqual(t, validated.Candidate.Digest, validated.Fallback.Digest)
+}
+
+func TestValidateArtifactsRejectsBadFilesAndSidecars(t *testing.T) {
+	for _, fault := range []string{"symlink", "checksum", "name", "missing", "oci"} {
+		t.Run(fault, func(t *testing.T) {
+			directory := t.TempDir()
+			candidate := writeArtifactFixture(t, directory, "candidate", strings.Repeat("a", 40))
+			fallback := writeArtifactFixture(t, directory, "fallback", strings.Repeat("b", 40))
+			switch fault {
+			case "symlink":
+				target := candidate.ISO
+				candidate.ISO += ".link"
+				require.NoError(t, os.Symlink(target, candidate.ISO))
+			case "checksum":
+				require.NoError(t, os.WriteFile(candidate.QCOW2, []byte("changed"), 0o600))
+			case "name":
+				require.NoError(t, os.WriteFile(candidate.ISO+".sha256", []byte(checksumString("iso")+"  other.iso\n"), 0o600))
+			case "missing":
+				require.NoError(t, os.Remove(candidate.ISO+".sha256"))
+			case "oci":
+				require.NoError(t, os.WriteFile(candidate.OCI, []byte("invalid OCI"), 0o600))
+			}
+			_, err := ValidateArtifacts(candidate, fallback)
+			require.Error(t, err)
+		})
+	}
 }
 
 func writeArtifactFixture(t *testing.T, directory, name, revision string) ArtifactSet {
 	t.Helper()
-	set := ArtifactSet{
-		Record: filepath.Join(directory, name+".release.json"),
-		OCI:    filepath.Join(directory, name+".oci.tar"),
-		ISO:    filepath.Join(directory, name+".iso"),
-		QCOW2:  filepath.Join(directory, name+".qcow2"),
+	set := ArtifactSet{OCI: filepath.Join(directory, name+".oci.tar"), ISO: filepath.Join(directory, name+".iso"), QCOW2: filepath.Join(directory, name+".qcow2")}
+	version := "0.6.3"
+	if name == "fallback" {
+		version = "0.5.0"
 	}
-	for _, item := range []struct{ path, value string }{{set.OCI, "oci"}, {set.ISO, "iso"}, {set.QCOW2, "qcow2"}} {
+	img := ocitest.Image(t, &v1.ConfigFile{Architecture: runtime.GOARCH, OS: "linux", Config: v1.Config{Labels: map[string]string{
+		"org.opencontainers.image.version":   version,
+		"org.opencontainers.image.revision":  revision,
+		"org.opencontainers.image.base.name": "quay.io/fedora/fedora-bootc@sha256:" + strings.Repeat(revision[:1], 64),
+	}}})
+	require.NoError(t, copyFile(ocitest.Archive(t, img, runtime.GOARCH), set.OCI))
+	for _, item := range []struct{ path, value string }{{set.ISO, "iso"}, {set.QCOW2, "qcow2"}} {
 		require.NoError(t, os.WriteFile(item.path, []byte(item.value), 0o600))
+		require.NoError(t, os.WriteFile(item.path+".sha256", []byte(checksumString(item.value)+"  "+filepath.Base(item.path)+"\n"), 0o600))
 	}
-	platform := map[string]string{"amd64": "linux/amd64", "arm64": "linux/arm64"}[runtime.GOARCH]
-	record := releaseRecord{
-		SchemaVersion: 3, SodaVersion: "0.5.0", SourceRevision: revision,
-		Platform: platform, Channel: "stable", FedoraBaseReference: "quay.io/fedora/fedora-bootc@sha256:" + strings.Repeat("f", 64),
-		SodaImageReference: release.Repository + "@sha256:" + strings.Repeat(name[:1], 64),
-		ArtifactChecksums: release.ArtifactChecksums{
-			RPMInventorySHA256: strings.Repeat("e", 64),
-			ISOChecksum:        checksumString("iso"),
-			QCOW2Checksum:      checksumString("qcow2"),
-			QCOW2ZSTChecksum:   strings.Repeat("d", 64),
-		},
-	}
-	contents, err := json.Marshal(record)
-	require.NoError(t, err)
-	require.NoError(t, os.WriteFile(set.Record, contents, 0o600))
 	return set
 }
 

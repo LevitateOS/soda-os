@@ -15,7 +15,6 @@ func TestLoadDistro(t *testing.T) {
 	require.Equal(t, "0.2.0", spec.Identity.Version)
 	require.Equal(t, "aarch64", spec.Identity.Architecture)
 	require.Equal(t, "linux/arm64", spec.Base.Platform)
-	require.Equal(t, "LevitateOS/soda-os", spec.Distribution.GitHubRepository)
 }
 
 func TestDistroHasNoRuntimeUpdateDiscoveryMetadata(t *testing.T) {
@@ -26,7 +25,7 @@ func TestDistroHasNoRuntimeUpdateDiscoveryMetadata(t *testing.T) {
 		require.NotContains(t, string(contents), "state_schema")
 		require.NotContains(t, string(contents), "daemon_socket")
 		require.NotContains(t, string(contents), "[paths]")
-		require.Equal(t, 1, strings.Count(string(contents), "github_repository"))
+		require.NotContains(t, string(contents), "github_repository")
 	}
 }
 
@@ -37,7 +36,6 @@ func TestLoadDistroSelectsEqualSiblingPlatforms(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, architecture, spec.Identity.Architecture)
 			require.Equal(t, "linux/"+oci, spec.Base.Platform)
-			require.Equal(t, architecture, spec.Platform.Release.Channel)
 		})
 	}
 }

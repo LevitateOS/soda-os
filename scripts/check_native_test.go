@@ -12,7 +12,7 @@ func TestNativeCandidateRejectsUnverifiedBackend(t *testing.T) {
 		for _, backend := range []string{"daemon", "daemon-os", "remote", "driver", "endpoint", "stopped", "multiple", "missing", "unnamed"} {
 			t.Run(arch+"/"+backend, func(t *testing.T) {
 				fixture := prepareNativeScriptTest(t, arch, "Linux")
-				cmd := fixture.command(t, "prepare-native-iso-candidate.sh", arch)
+				cmd := fixture.command(t, "prepare-native-image.sh", arch)
 				cmd.Env = append(cmd.Env, "SODA_TEST_DOCKER_CASE="+backend)
 				runScriptFails(t, cmd, "check-native:")
 				commands := readFile(t, fixture.log)
@@ -28,7 +28,7 @@ func TestNativeCandidateHonorsExplicitBackendSelection(t *testing.T) {
 	for _, selection := range []string{"DOCKER_HOST=tcp://other:2375", "BUILDX_BUILDER=other"} {
 		t.Run(selection, func(t *testing.T) {
 			fixture := prepareNativeScriptTest(t, "aarch64", "Linux")
-			cmd := fixture.command(t, "prepare-native-iso-candidate.sh", fixture.arch)
+			cmd := fixture.command(t, "prepare-native-image.sh", fixture.arch)
 			cmd.Env = append(cmd.Env, selection)
 			runScriptFails(t, cmd, "check-native:")
 			if strings.Contains(readFile(t, fixture.log), "just ") {
@@ -45,7 +45,7 @@ func TestNativeCandidateRejectsSiblingHardware(t *testing.T) {
 		if host == other {
 			other = "x86_64"
 		}
-		runScriptFails(t, fixture.command(t, "prepare-native-iso-candidate.sh", other), "matching native hardware")
+		runScriptFails(t, fixture.command(t, "prepare-native-image.sh", other), "matching native hardware")
 		if strings.Contains(readFile(t, fixture.log), "docker ") {
 			t.Fatal("wrong host contacted Docker")
 		}

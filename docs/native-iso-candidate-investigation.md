@@ -2,6 +2,13 @@
 
 Recorded: 2026-09-05.
 
+**Historical investigation, superseded by #61 step 3.** The old candidate wrapper,
+release executable and record-bound publication path described here have been
+removed. Current commands and prerequisites are in
+[image construction and publication](release-operations.md): `just dev-image`
+publishes only OCI; installer construction is independent. Findings and machine
+evidence below remain historical, not instructions to restore that workflow.
+
 Status: investigation and proposed design. Implementation, artifact builds,
 publication, VM creation, and host changes have not been approved or performed
 as part of this investigation. This document records findings; it does not
@@ -149,7 +156,7 @@ Mac Mini either.
 
 ### Publication is an explicit external mutation
 
-[`internal/build/release/image_publication.go`](../internal/build/release/image_publication.go)
+the historical `internal/build/release/image_publication.go` (removed in #61)
 validates the native architecture, clean source identity, local OCI contents,
 and digest. It uses Skopeo to list existing tags, publish the archive, and verify
 the resulting digest. The candidate name is:

@@ -16,8 +16,8 @@ not approval of a selected version or digest.
   supplied query and progress runners.
 - `soda-runtime`: packages the helper and static page. The runtime updater uses
   only bootc. The old Skopeo/Cosign RPM requirements and custom Cosign image
-  pipeline remain pending removal after the release/acceptance consumers are
-  replaced under issue #61; they are not update prerequisites.
+  pipeline remain pending removal in #61 step 4. The release/acceptance signature
+  consumers are gone; these packages are not update prerequisites.
 
 The helper protocol is:
 
@@ -58,7 +58,7 @@ refresh after reconnect. Command and readback failures remain distinct. Verify
 the actual booted digest before concluding that the update took effect; do not
 automatically retry an ambiguous outcome.
 
-## Selected pre-alpha policy and pending publication work
+## Selected pre-alpha policy and native publication
 
 Issue #61 selects one rolling tag per architecture:
 `ghcr.io/levitateos/soda-os:dev-x86_64` and
@@ -69,9 +69,9 @@ integrity are the selected development trust boundary—not production authentic
 No version bump, signature, GitHub release, installer, or sibling qualification
 is required by this runtime updater.
 
-The OCI-only preparation/publication replacement is **not implemented yet**.
-Do not treat the existing ISO-candidate wrapper as that new command or assume a
-development tag is available. A digest-pinned VM requires a separately authorized
+`just dev-image <architecture>` now prepares/publishes one native OCI and stops;
+installers and sibling qualification are independent. Implementation/source tests
+do not mean a development tag has been published. A digest-pinned VM requires a separately authorized
 native switch to an available development tag; ordinary upgrade cannot follow a
 moving tag while pinned. Soda never performs this switch implicitly. Native
 administration and exact-digest fallback remain available; arbitrary downgrade

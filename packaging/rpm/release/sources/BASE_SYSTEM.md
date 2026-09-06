@@ -64,7 +64,8 @@ successful command or disconnection is not boot proof. Digest-pinned systems
 need an explicit native `bootc switch` to follow a moving tag; Soda never changes
 the configured source implicitly. The selected pre-alpha development policy
 requires no signature, release approval, or increasing version. Its OCI-only
-publication command remains pending under #61.
+publication command is `just dev-image <architecture>` on a matching-native
+build host. It does not build installers or establish installed-update evidence.
 
 Fallback selects an earlier exact architecture-matched Soda digest with native
 `bootc switch` and must preserve current mutable state; arbitrary downgrade

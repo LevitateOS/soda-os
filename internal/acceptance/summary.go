@@ -13,6 +13,10 @@ import (
 	"github.com/LevitateOS/soda-os/internal/strictjson"
 )
 
+func SummaryTime(now time.Time) string {
+	return now.UTC().Format(time.RFC3339)
+}
+
 // Qualification requires observations, not merely completion of the runner.
 // tests/acceptance/README.md maps each name to its evidence and limitations.
 var requiredChecks = []string{

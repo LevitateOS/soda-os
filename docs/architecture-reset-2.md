@@ -1,5 +1,10 @@
 # Soda postmortem decision ledger
 
+> Historical publication recommendations below are superseded by #61's native
+> development flow. Release records, production-branch promotion, signing gates
+> and coordinated sibling releases are removed, not current requirements. See
+> [image construction and publication](release-operations.md).
+
 > Historical record: references below to Soda Setup, selected-LAN trust, or
 > default-drop host configuration are superseded by the current
 > [native installation and access contract](native-onboarding.md). They are not

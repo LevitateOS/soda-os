@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/LevitateOS/soda-os/internal/build/oci"
 	"github.com/LevitateOS/soda-os/internal/process"
 )
 
@@ -68,7 +69,7 @@ func (b *Builder) prepareQCOW2(options QCOW2Options) (qcow2Input, error) {
 	if err != nil {
 		return qcow2Input{}, err
 	}
-	reference, err := archiveReference(options.ArchivePath, b.Spec.Platform.Architecture.OCI)
+	image, err := oci.Inspect(options.ArchivePath, b.Spec.Platform.Architecture.OCI)
 	if err != nil {
 		return qcow2Input{}, err
 	}
@@ -85,7 +86,7 @@ func (b *Builder) prepareQCOW2(options QCOW2Options) (qcow2Input, error) {
 	if err := requireAbsentQCOW2Outputs(rawPath, compressedPath); err != nil {
 		return qcow2Input{}, err
 	}
-	return qcow2Input{lock: lock, archivePath: options.ArchivePath, reference: reference, outputDir: outputDir, rawPath: rawPath, compressedPath: compressedPath}, nil
+	return qcow2Input{lock: lock, archivePath: options.ArchivePath, reference: image.Reference(), outputDir: outputDir, rawPath: rawPath, compressedPath: compressedPath}, nil
 }
 
 func (b *Builder) buildQCOW2(ctx context.Context, input qcow2Input) error {
@@ -134,6 +135,9 @@ func (b *Builder) compressQCOW2(ctx context.Context, input qcow2Input) (QCOW2Res
 	if err != nil {
 		return QCOW2Result{}, fmt.Errorf("checksum compressed QCOW2: %w", err)
 	}
+	if err := writeQCOW2Sidecar(input.rawPath, rawDigest); err != nil {
+		return QCOW2Result{}, err
+	}
 	if err := writeQCOW2Sidecar(input.compressedPath, compressedDigest); err != nil {
 		return QCOW2Result{}, err
 	}
@@ -141,7 +145,7 @@ func (b *Builder) compressQCOW2(ctx context.Context, input qcow2Input) (QCOW2Res
 }
 
 func requireAbsentQCOW2Outputs(rawPath, compressedPath string) error {
-	for _, path := range []string{rawPath, compressedPath, compressedPath + ".sha256"} {
+	for _, path := range []string{rawPath, rawPath + ".sha256", compressedPath, compressedPath + ".sha256"} {
 		if _, err := os.Lstat(path); err == nil {
 			return fmt.Errorf("QCOW2 output %q already exists", path)
 		} else if !errors.Is(err, os.ErrNotExist) {
@@ -154,7 +158,7 @@ func requireAbsentQCOW2Outputs(rawPath, compressedPath string) error {
 func writeQCOW2Sidecar(path, digest string) error {
 	contents := []byte(digest + "  " + filepath.Base(path) + "\n")
 	if err := os.WriteFile(path+".sha256", contents, 0o644); err != nil {
-		return fmt.Errorf("write compressed QCOW2 checksum: %w", err)
+		return fmt.Errorf("write QCOW2 checksum: %w", err)
 	}
 	return os.Chmod(path+".sha256", 0o644)
 }

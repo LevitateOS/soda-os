@@ -10,12 +10,11 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/LevitateOS/soda-os/internal/build/oci"
+	"github.com/LevitateOS/soda-os/internal/build/oci/ocitest"
 	"github.com/LevitateOS/soda-os/internal/config"
 	"github.com/LevitateOS/soda-os/internal/process"
 	v1 "github.com/google/go-containerregistry/pkg/v1"
-	"github.com/google/go-containerregistry/pkg/v1/empty"
-	"github.com/google/go-containerregistry/pkg/v1/layout"
-	"github.com/google/go-containerregistry/pkg/v1/mutate"
 	"github.com/stretchr/testify/require"
 )
 
@@ -407,10 +406,10 @@ func TestSelectedToolLockAcceptsTheConfiguredRelativePath(t *testing.T) {
 
 func TestArchiveReferenceDerivesExactDigestFromOneMatchingArm64Manifest(t *testing.T) {
 	archive, digest := writeTestOCIArchiveAt(t, filepath.Join(t.TempDir(), "runtime.oci.tar"))
-	reference, err := archiveReference(archive, "arm64")
+	image, err := oci.Inspect(archive, "arm64")
 	require.NoError(t, err)
-	require.Equal(t, Repository+"@"+digest, reference)
-	_, err = archiveReference(archive, "amd64")
+	require.Equal(t, Repository+"@"+digest, image.Reference())
+	_, err = oci.Inspect(archive, "amd64")
 	require.ErrorContains(t, err, "must be linux/amd64")
 }
 
@@ -428,15 +427,14 @@ func TestBuildRejectsMismatchedHostBeforeValidatingInputs(t *testing.T) {
 
 func writeTestOCIArchiveAt(t *testing.T, archive string) (string, string) {
 	t.Helper()
-	image, err := mutate.ConfigFile(empty.Image, &v1.ConfigFile{Architecture: "arm64", OS: "linux"})
-	require.NoError(t, err)
+	image := ocitest.Image(t, &v1.ConfigFile{Architecture: "arm64", OS: "linux", Config: v1.Config{Labels: map[string]string{
+		"org.opencontainers.image.version":   "0.6.3",
+		"org.opencontainers.image.revision":  strings.Repeat("a", 40),
+		"org.opencontainers.image.base.name": "quay.io/fedora/fedora-bootc@sha256:" + strings.Repeat("b", 64),
+	}}})
 	digest, err := image.Digest()
 	require.NoError(t, err)
-	directory := t.TempDir()
-	path, err := layout.Write(directory, empty.Index)
-	require.NoError(t, err)
-	require.NoError(t, path.AppendImage(image, layout.WithPlatform(v1.Platform{OS: "linux", Architecture: "arm64"})))
-	require.NoError(t, os.MkdirAll(filepath.Dir(archive), 0o755))
-	require.NoError(t, exec.Command("tar", "-cf", archive, "-C", directory, ".").Run())
+	fixture := ocitest.Archive(t, image, "arm64")
+	require.NoError(t, copyFile(fixture, archive))
 	return archive, digest.String()
 }

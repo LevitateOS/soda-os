@@ -17,8 +17,6 @@ check:
     go run ./cmd/soda-acceptance --help >/dev/null
     ./scripts/check-complexity.sh
     ./scripts/check-release-identity.sh
-    ./scripts/check-release-ci.sh
-    ./scripts/check-acceptance-evidence-ci.sh
     just cockpit-check
     go vet ./...
     go test -race ./internal/acceptance
@@ -53,8 +51,9 @@ iso architecture archive:
 qcow2 architecture archive:
     go run ./cmd/soda-image --architecture {{quote(architecture)}} qcow2 --archive {{quote(archive)}}
 
-record architecture archive iso qcow2 qcow2_zst:
-    go run ./cmd/soda-image --architecture {{quote(architecture)}} record --archive {{quote(archive)}} --iso {{quote(iso)}} --qcow2 {{quote(qcow2)}} --qcow2-zst {{quote(qcow2_zst)}}
+# Builds and publishes one native OCI; does not construct installers or update VMs.
+dev-image architecture:
+    ./scripts/prepare-native-image.sh {{quote(architecture)}}
 
 # Run the complete shared frontend lifecycle before Go packaging tests.
 cockpit-check:

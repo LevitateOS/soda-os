@@ -19,37 +19,23 @@ can log in on the console and complete network configuration.
 
 ## Download and verify the image
 
-1. Open the [latest GitHub
-   Release](https://github.com/LevitateOS/soda-os/releases/latest).
-2. Select the `.qcow2.zst`, checksum, release record, and Sigstore bundle for
-   the VM architecture.
-3. Keep the four files together in one directory.
-4. Verify the compressed download:
+Obtain an architecture-matched `.qcow2.zst` and its `.sha256` sidecar from your
+trusted operator. Installers are built independently from an exact OCI archive;
+the development publication command does not publish GitHub Release downloads.
+Do not assume a new public disk image is available.
+
+Verify the compressed download:
 
    ```sh
    sha256sum --check SodaOS-*.qcow2.zst.sha256
    ```
 
-5. Set `RECORD` to the downloaded release-record filename and verify it:
-
-   ```sh
-   RECORD='soda-os-VERSION-ARCHITECTURE.release.json'
-   cosign verify-blob \
-     --bundle "$RECORD.sigstore.json" \
-     --certificate-identity 'https://github.com/LevitateOS/soda-os/.github/workflows/release.yml@refs/heads/production' \
-     --certificate-oidc-issuer 'https://token.actions.githubusercontent.com' \
-     "$RECORD"
-   ```
-
-   Replace `VERSION` and `ARCHITECTURE` with the downloaded filename. This pins
-   Soda's release workflow identity and GitHub Actions issuer. See [Sigstore's
-   verification guide](https://docs.sigstore.dev/cosign/verifying/verify/) for
-   the meaning of the identity and bundle checks.
-6. Confirm that the record names the expected architecture and that its
-   `qcow2_zst_sha256` matches the verified compressed file.
-
-Do not import an artifact after a failed checksum, signature, architecture, or
-record check.
+Keep the operator's exact OCI digest/source and architecture with the artifact.
+The raw QCOW2 also has a checksum sidecar when supplied. These self-computed
+checksums detect changed bytes; they do not establish publisher authenticity.
+No Soda release record or signature bundle is required by the pre-alpha path.
+Do not import an artifact after a failed checksum or architecture check. After
+boot, compare `sudo bootc status --json` with the operator's expected OCI digest.
 
 ## Import and size the disk
 

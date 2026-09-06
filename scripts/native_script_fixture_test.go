@@ -8,8 +8,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-
-	"github.com/stretchr/testify/require"
 )
 
 const testRevision = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
@@ -21,107 +19,6 @@ type nativeScriptFixture struct {
 	bin  string
 	log  string
 	arch string
-}
-
-func TestPrepareNativeISOSequence(t *testing.T) {
-	for _, arch := range []string{"aarch64", "x86_64"} {
-		t.Run(arch, func(t *testing.T) {
-			fixture := prepareNativeScriptTest(t, arch, "Linux")
-			output := runScriptOK(t, fixture.command(t, "prepare-native-iso-candidate.sh", arch))
-			commands := readFile(t, fixture.log)
-			requireOrder(t, commands, "docker info", "docker buildx ls", "skopeo list-tags", "just check", "just oci "+arch,
-				"skopeo inspect --raw", "docker load", "docker image inspect", "docker run", "go run ./cmd/soda-release image-stage",
-				"skopeo inspect --no-creds", "just iso "+arch)
-			for _, forbidden := range []string{"just rpm", "sudo ", "qcow2", "image-promote", "record-sign"} {
-				require.NotContains(t, commands, forbidden)
-			}
-			for _, expected := range []string{"--pull=never --platform linux/", "--entrypoint /bin/sh " + testImageID, "context=native builder=native"} {
-				require.Contains(t, commands, expected)
-			}
-			require.Contains(t, output, "Publication succeeded:")
-			require.Contains(t, output, "not installation-tested")
-			require.Contains(t, output, testDigest)
-		})
-	}
-}
-
-func TestPrepareNativeISOUsesExactContainerdManifestID(t *testing.T) {
-	fixture := prepareNativeScriptTest(t, "aarch64", "Linux")
-	cmd := fixture.command(t, "prepare-native-iso-candidate.sh", fixture.arch)
-	cmd.Env = append(cmd.Env, "SODA_TEST_IMAGE_STORE=containerd")
-	runScriptOK(t, cmd)
-	commands := readFile(t, fixture.log)
-	require.Contains(t, commands, "image inspect --format {{.Id}} ghcr.io/levitateos/soda-os:0.6.3")
-	require.Contains(t, commands, "--entrypoint /bin/sh "+testDigest)
-	require.NotContains(t, commands, "--entrypoint /bin/sh ghcr.io/")
-}
-
-func TestPrepareNativeISOCanBeSourcedWithoutPublication(t *testing.T) {
-	fixture := prepareNativeScriptTest(t, "aarch64", "Linux")
-	writeTestFile(t, filepath.Join(fixture.root, "scripts", "source-only.sh"), "#!/usr/bin/env bash\nsource scripts/prepare-native-iso-candidate.sh\n", 0o755)
-	runScriptOK(t, fixture.command(t, "source-only.sh"))
-	_, err := os.Stat(fixture.log)
-	require.ErrorIs(t, err, os.ErrNotExist)
-}
-
-func TestPrepareNativeISORefusesCollisions(t *testing.T) {
-	for _, suffix := range []string{"soda-os-0.6.3-aarch64.oci.tar", "SodaOS-0.6.3-aarch64.iso", "SodaOS-0.6.3-aarch64.iso.sha256"} {
-		t.Run(suffix, func(t *testing.T) {
-			fixture := prepareNativeScriptTest(t, "aarch64", "Linux")
-			path := filepath.Join(fixture.root, ".artifacts", "images", suffix)
-			if err := os.Symlink("missing-target", path); err != nil {
-				t.Fatal(err)
-			}
-			runScriptFails(t, fixture.command(t, "prepare-native-iso-candidate.sh", fixture.arch), "output already exists")
-			if strings.Contains(readFile(t, fixture.log), "just ") {
-				t.Fatal("collision reached checks or construction")
-			}
-		})
-	}
-}
-
-func TestPrepareNativeISOPrepublicationFailures(t *testing.T) {
-	for _, failure := range []string{"dirty", "git-status", "status-after-check", "origin", "tag", "tag-network", "check", "oci", "metadata", "config-digest", "manifest-digest", "image-id", "runtime", "drift-check", "drift-oci"} {
-		t.Run(failure, func(t *testing.T) {
-			fixture := prepareNativeScriptTest(t, "aarch64", "Linux")
-			cmd := fixture.command(t, "prepare-native-iso-candidate.sh", fixture.arch)
-			cmd.Env = append(cmd.Env, "SODA_TEST_FAIL="+failure)
-			runScriptFails(t, cmd, "")
-			if strings.Contains(readFile(t, fixture.log), "go run ./cmd/soda-release") {
-				t.Fatal("prepublication failure reached publication")
-			}
-		})
-	}
-}
-
-func TestPrepareNativeISOReportsPartialPublication(t *testing.T) {
-	for _, failure := range []string{"stage", "remote-digest", "remote-network", "iso", "checksum", "binding"} {
-		t.Run(failure, func(t *testing.T) {
-			fixture := prepareNativeScriptTest(t, "aarch64", "Linux")
-			cmd := fixture.command(t, "prepare-native-iso-candidate.sh", fixture.arch)
-			cmd.Env = append(cmd.Env, "SODA_TEST_FAIL="+failure)
-			state := "confirmed"
-			if failure == "stage" {
-				state = "attempted"
-			}
-			output := runScriptFails(t, cmd, "publication="+state)
-			require.Contains(t, output, testDigest)
-			require.Contains(t, output, "sha-"+testRevision+"-aarch64")
-			commands := readFile(t, fixture.log)
-			require.Equal(t, 1, strings.Count(commands, "go run ./cmd/soda-release image-stage"), commands)
-			require.NotContains(t, output, "candidate is ready")
-		})
-	}
-}
-
-func TestPrepareNativeISODarwinUsesLinuxChecks(t *testing.T) {
-	fixture := prepareNativeScriptTest(t, "aarch64", "Darwin")
-	runScriptOK(t, fixture.command(t, "prepare-native-iso-candidate.sh", fixture.arch))
-	commands := readFile(t, fixture.log)
-	requireOrder(t, commands, "docker build --platform linux/arm64", "git clone --no-local --no-checkout", "just oci aarch64")
-	if strings.Contains(commands, "\njust check\n") {
-		t.Fatal("Darwin ran host just check")
-	}
 }
 
 func prepareNativeScriptTest(t *testing.T, arch, hostOS string) nativeScriptFixture {
@@ -136,7 +33,7 @@ func prepareNativeScriptTest(t *testing.T, arch, hostOS string) nativeScriptFixt
 			t.Fatal(err)
 		}
 	}
-	for _, script := range []string{"check-native.sh", "prepare-native-iso-candidate.sh", "place-libvirt-iso.sh"} {
+	for _, script := range []string{"check-native.sh", "prepare-native-image.sh", "place-libvirt-iso.sh"} {
 		writeTestFile(t, filepath.Join(root, "scripts", script), readFile(t, script), 0o755)
 	}
 	writeTestFile(t, filepath.Join(root, "distro", "soda.toml"), "[identity]\nversion = \"0.6.3\"\n", 0o644)
@@ -245,8 +142,8 @@ const gitStub = `case "$*" in
 'status --porcelain=v1 --untracked-files=all')
   [[ ${SODA_TEST_FAIL:-} != git-status && ! -f "$SODA_TEST_ROOT/status-error" ]] || exit 1
   [[ ${SODA_TEST_FAIL:-} != dirty ]] || echo '?? source.go' ;;
-'rev-parse HEAD'|'rev-parse origin/main')
-  if [[ -f "$SODA_TEST_ROOT/drift" || ( "$*" == 'rev-parse origin/main' && ${SODA_TEST_FAIL:-} == origin ) ]]; then
+'rev-parse HEAD')
+  if [[ -f "$SODA_TEST_ROOT/drift" ]]; then
     printf 'dddddddddddddddddddddddddddddddddddddddd\n'
   else echo '` + testRevision + `'; fi ;;
 *) echo "unexpected git $*" >&2; exit 2 ;;
@@ -288,21 +185,16 @@ case "$*" in
 esac`
 
 const skopeoStub = `case "$*" in
-'list-tags docker://ghcr.io/levitateos/soda-os')
-  [[ ${SODA_TEST_FAIL:-} != tag-network ]] || exit 1
-  if [[ ${SODA_TEST_FAIL:-} == tag ]]; then echo '{"Tags":["sha-` + testRevision + `-'"$SODA_TEST_ARCH"'"]}'; else echo '{"Tags":[]}'; fi ;;
 'inspect oci-archive:'*)
   arch=arm64; [[ $SODA_TEST_ARCH != x86_64 ]] || arch=amd64
   [[ ${SODA_TEST_FAIL:-} != metadata ]] || arch=wrong
-  printf '{"Os":"linux","Architecture":"%s","Digest":"` + testDigest + `","Labels":{"org.opencontainers.image.version":"0.6.3","org.opencontainers.image.revision":"` + testRevision + `"}}\n' "$arch" ;;
+  version=0.6.3; [[ ${SODA_TEST_FAIL:-} != version ]] || version=wrong
+  printf '{"Os":"linux","Architecture":"%s","Digest":"` + testDigest + `","Labels":{"org.opencontainers.image.version":"%s","org.opencontainers.image.revision":"` + testRevision + `"}}\n' "$arch" "$version" ;;
 'inspect --raw oci-archive:'*)
   if [[ ${SODA_TEST_FAIL:-} == config-digest ]]; then echo '{"config":{"digest":"bad"}}'
   else echo '{"config":{"digest":"` + testImageID + `"}}'; fi ;;
 'inspect --format {{.Digest}} oci-archive:'*)
   if [[ ${SODA_TEST_FAIL:-} == manifest-digest ]]; then echo bad; else echo '` + testDigest + `'; fi ;;
-'inspect --no-creds --format {{.Digest}} docker://'* )
-  [[ ${SODA_TEST_FAIL:-} != remote-network ]] || exit 1
-  if [[ ${SODA_TEST_FAIL:-} == remote-digest ]]; then echo wrong; else echo '` + testDigest + `'; fi ;;
 *) echo "unexpected skopeo $*" >&2; exit 2 ;;
 esac`
 
@@ -311,26 +203,21 @@ check)
   [[ ${SODA_TEST_FAIL:-} != check ]] || exit 1
   [[ ${SODA_TEST_FAIL:-} != drift-check ]] || touch "$SODA_TEST_ROOT/drift"
   [[ ${SODA_TEST_FAIL:-} != status-after-check ]] || touch "$SODA_TEST_ROOT/status-error" ;;
-oci)
-  [[ ${SODA_TEST_FAIL:-} != oci ]] || exit 1
-  printf oci >".artifacts/images/soda-os-0.6.3-$2.oci.tar"
-  [[ ${SODA_TEST_FAIL:-} != drift-oci ]] || touch "$SODA_TEST_ROOT/drift" ;;
-iso)
-  [[ ${SODA_TEST_FAIL:-} != iso ]] || exit 1
-  iso=".artifacts/images/SodaOS-0.6.3-$2.iso"
-  printf iso >"$iso"
-  sum=$(sha256sum "$iso" | awk '{print $1}')
-  [[ ${SODA_TEST_FAIL:-} != checksum ]] || sum=wrong
-  printf '%s  %s\n' "$sum" "$(basename "$iso")" >"$iso.sha256"
-  mkdir -p .artifacts/installer/context
-  digest='` + testDigest + `'
-  [[ ${SODA_TEST_FAIL:-} != binding ]] || digest=wrong
-  printf 'bootc --source-imgref="docker://ghcr.io/levitateos/soda-os@%s" --target-imgref="ghcr.io/levitateos/soda-os@%s"\n' "$digest" "$digest" >.artifacts/installer/context/interactive-defaults.ks ;;
+forgejo-source|github-runner|mise-rpm|tea-source|cosign-source)
+  [[ ${SODA_TEST_FAIL:-} != fetch ]] || exit 1 ;;
 *) echo "unexpected just $*" >&2; exit 2 ;;
 esac`
 
 const goStub = `case "$*" in
-'run ./cmd/soda-image --architecture '*' check') ;;
-'run ./cmd/soda-release image-stage '*) [[ ${SODA_TEST_FAIL:-} != stage ]] ;;
+'run ./cmd/soda-image --architecture '*' oci --output-dir '*)
+  [[ ${SODA_TEST_FAIL:-} != oci ]] || exit 1
+  archive="$SODA_TEST_ROOT/.artifacts/images/actual returned archive.oci.tar"
+  [[ ${SODA_TEST_FAIL:-} == missing-archive ]] || printf oci >"$archive"
+  printf 'build progress\n' >&2
+  printf '%s\n' "$archive"
+  [[ ${SODA_TEST_FAIL:-} != drift-oci ]] || touch "$SODA_TEST_ROOT/drift" ;;
+'run ./cmd/soda-image --architecture '*' publish --archive '*)
+  [[ "$*" == *'/actual returned archive.oci.tar' ]] || exit 2
+  [[ ${SODA_TEST_FAIL:-} != publish ]] || { echo 'development tag may have advanced' >&2; exit 1; } ;;
 *) echo "unexpected go $*" >&2; exit 2 ;;
 esac`

@@ -9,17 +9,12 @@ import (
 )
 
 type DistroSpec struct {
-	SchemaVersion uint32           `toml:"schema_version"`
-	Identity      IdentitySpec     `toml:"identity"`
-	Base          BaseSpec         `toml:"base"`
-	Image         ImageSpec        `toml:"image"`
-	Distribution  DistributionSpec `toml:"distribution"`
-	Build         BuildSpec        `toml:"build"`
-	Platform      PlatformSpec     `toml:"-"`
-}
-
-type DistributionSpec struct {
-	GitHubRepository string `toml:"github_repository" json:"github_repository"`
+	SchemaVersion uint32       `toml:"schema_version"`
+	Identity      IdentitySpec `toml:"identity"`
+	Base          BaseSpec     `toml:"base"`
+	Image         ImageSpec    `toml:"image"`
+	Build         BuildSpec    `toml:"build"`
+	Platform      PlatformSpec `toml:"-"`
 }
 
 type IdentitySpec struct {
@@ -46,7 +41,6 @@ type PlatformSpec struct {
 	Base          PlatformBase         `toml:"base"`
 	Builder       PlatformBuilder      `toml:"builder"`
 	Installer     PlatformInstaller    `toml:"installer"`
-	Release       PlatformRelease      `toml:"release"`
 }
 
 type PlatformArchitecture struct {
@@ -74,10 +68,6 @@ type PlatformInstaller struct {
 	PackageLock string `toml:"package_lock"`
 	ToolLock    string `toml:"tool_lock"`
 	ISOConfig   string `toml:"iso_config"`
-}
-
-type PlatformRelease struct {
-	Channel string `toml:"channel"`
 }
 
 type BuildSpec struct {
@@ -136,7 +126,7 @@ func validatePlatformSpec(spec PlatformSpec, requested string) error {
 	expected := architectureContract[requested]
 	if spec.SchemaVersion != 1 || !validPlatformArchitecture(spec.Architecture, requested, expected) ||
 		!validPlatformBase(spec.Base) || !validPlatformBuild(spec.Builder) ||
-		!validPlatformInstaller(spec.Installer, spec.Release, expected.artifact) {
+		!validPlatformInstaller(spec.Installer) {
 		return fmt.Errorf("platform specification for %s differs from the Soda architecture contract", requested)
 	}
 	return nil
@@ -156,9 +146,8 @@ func validPlatformBuild(builder PlatformBuilder) bool {
 	return digestReference(builder.BaseReference) && builder.PackageLock != ""
 }
 
-func validPlatformInstaller(installer PlatformInstaller, release PlatformRelease, artifactArchitecture string) bool {
-	return installer.PackageLock != "" && installer.ToolLock != "" && installer.ISOConfig != "" &&
-		release.Channel == artifactArchitecture
+func validPlatformInstaller(installer PlatformInstaller) bool {
+	return installer.PackageLock != "" && installer.ToolLock != "" && installer.ISOConfig != ""
 }
 
 func digestReference(value string) bool {

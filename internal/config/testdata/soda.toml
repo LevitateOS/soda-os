@@ -9,8 +9,5 @@ hostname = "soda"
 [image]
 registry = "ghcr.io/levitateos/soda-os"
 
-[distribution]
-github_repository = "LevitateOS/soda-os"
-
 [build]
 source_date_epoch = 1787825905

@@ -117,20 +117,24 @@ it is separately proved to preserve current `/etc` and `/var` state.
 
 The narrow synchronous helper adds no release-discovery client, update daemon,
 deployment database, retry process, or recovery service. Runtime updates require
-no signature or release record. The record-bound build/publication code below
-remains pending replacement under #61; it does not govern runtime updates.
+no signature or release record. `just dev-image <architecture>` builds/publishes
+one native OCI independently of installer construction.
 
-## Release records
+## Direct artifact identity
 
-A strict release record binds the product version, source revision,
-architecture, Fedora base, exact GHCR image digest, RPM inventory, ISO checksum,
-raw QCOW2 checksum, and compressed QCOW2 checksum. Signatures and provenance
-bind the record and OCI digest to the release workflow.
+`internal/build/oci` is the shared inspection owner for publication, installers
+and acceptance. It checks archive paths/platforms, blob integrity, version/source/
+base labels and the installed RPM inventory/sidecar. It returns in-memory OCI
+facts, not a private release record. An earlier fallback image supplies its own
+version and base, not the current specification's values.
 
-Release CI builds each architecture's new image once and derives its ISO and
-QCOW2 from that exact output. It structurally checks and publishes those bytes
-unchanged. The previous fallback image is downloaded by its earlier signed
-published digest rather than rebuilt.
+ISO and raw/compressed QCOW2 construction remain independent commands against
+the exact OCI digest. Native ISO squashfs/initramfs/configuration/branding checks
+remain. ISO, raw QCOW2 and compressed QCOW2 have ordinary checksum sidecars;
+checksums detect byte changes, not provenance. Acceptance consumes those actual
+paths and verifies the installed booted digest for both deployment paths, while
+retaining the native B → earlier A → B preservation journey. No combined signed
+record, release workflow or sibling qualification is required for publication.
 
 ## Current implementation
 

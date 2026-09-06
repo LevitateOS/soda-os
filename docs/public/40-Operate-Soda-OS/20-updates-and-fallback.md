@@ -49,8 +49,9 @@ publication and content-digest integrity, and retains revision tags. It does not
 establish production-release authenticity. Soda Updates requires no signature,
 GitHub release, version bump, installer, or sibling result.
 
-**The new OCI-only publication command is still pending.** Do not assume those
-tags are published. Once an appropriate image is available and the operator
+`just dev-image <architecture>` prepares and publishes one OCI on matching-native
+build hardware. Its source implementation does not prove those tags are already
+published. Once an appropriate image is available and the operator
 has authorized the source change/restart, a digest-pinned VM needs one explicit
 native switch. For example, on the selected native x86-64 VM:
 

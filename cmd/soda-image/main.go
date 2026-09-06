@@ -10,7 +10,6 @@ import (
 
 	"github.com/LevitateOS/soda-os/internal/build/image"
 	"github.com/LevitateOS/soda-os/internal/build/installer"
-	"github.com/LevitateOS/soda-os/internal/build/release"
 	"github.com/LevitateOS/soda-os/internal/process"
 )
 
@@ -44,6 +43,5 @@ func nativeBuilder(root, specPath, architecture string, runner process.Runner) (
 	return nativeImage{
 		Builder:   builder,
 		installer: installer.NewBuilder(builder.Root, builder.Spec, runner),
-		publisher: func() (recordPublisher, error) { return release.NewPublisher(builder.Root, builder.Spec, runner) },
 	}, nil
 }

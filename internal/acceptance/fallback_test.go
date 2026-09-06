@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/LevitateOS/soda-os/internal/build/oci"
 	"github.com/stretchr/testify/require"
 )
 
@@ -44,8 +45,8 @@ case "$*" in
 esac
 `)
 	candidateDigest, fallbackDigest := "sha256:"+strings.Repeat("b", 64), "sha256:"+strings.Repeat("a", 64)
-	candidate := guestImageReference(5001, releaseRecord{SodaImageReference: "example.test/soda@" + candidateDigest})
-	fallback := guestImageReference(5001, releaseRecord{SodaImageReference: "example.test/soda@" + fallbackDigest})
+	candidate := guestImageReference(5001, oci.Image{Digest: candidateDigest})
+	fallback := guestImageReference(5001, oci.Image{Digest: fallbackDigest})
 	require.Equal(t, "10.0.2.2:5001/soda-os@"+candidateDigest, candidate)
 	require.Equal(t, "10.0.2.2:5001/soda-os@"+fallbackDigest, fallback)
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)

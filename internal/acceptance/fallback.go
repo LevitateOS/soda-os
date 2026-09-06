@@ -8,6 +8,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/LevitateOS/soda-os/internal/build/oci"
 )
 
 type bootcStatus struct {
@@ -113,7 +115,7 @@ func assertBootedDigest(ctx context.Context, admin personFixture, target, digest
 	return nil
 }
 
-// The port and release record have already passed input validation.
-func guestImageReference(port int, image releaseRecord) string {
-	return "10.0.2.2:" + strconv.Itoa(port) + "/soda-os@" + imageDigest(image)
+// The port and native image facts have already passed input validation.
+func guestImageReference(port int, image oci.Image) string {
+	return "10.0.2.2:" + strconv.Itoa(port) + "/soda-os@" + image.Digest
 }

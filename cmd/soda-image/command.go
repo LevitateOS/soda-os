@@ -5,7 +5,7 @@ import (
 	"io"
 
 	"github.com/LevitateOS/soda-os/internal/build/installer"
-	"github.com/LevitateOS/soda-os/internal/build/release"
+	"github.com/LevitateOS/soda-os/internal/build/oci"
 	"github.com/spf13/cobra"
 )
 
@@ -15,7 +15,7 @@ type imageOperations interface {
 	BuildImage(context.Context, string) (string, error)
 	BuildISO(context.Context, installer.Options) (string, error)
 	BuildQCOW2(context.Context, installer.QCOW2Options) (installer.QCOW2Result, error)
-	CreateRecord(context.Context, release.RecordOptions) (release.Result, error)
+	PublishImage(context.Context, string) (oci.Image, error)
 }
 
 type imageFactory func(specPath, architecture string, stdout, stderr io.Writer) (imageOperations, error)
@@ -34,6 +34,6 @@ func newCommand(connect imageFactory) *cobra.Command {
 	flags.StringVar(&architecture, "architecture", "", "Soda architecture to operate on: aarch64 or x86_64")
 	_ = root.MarkPersistentFlagRequired("architecture")
 	root.AddCommand(checkCommand(&specPath, &architecture, connect), rpmCommand(&specPath, &architecture, connect), ociCommand(&specPath, &architecture, connect))
-	root.AddCommand(isoCommand(&specPath, &architecture, connect), qcow2Command(&specPath, &architecture, connect), recordCommand(&specPath, &architecture, connect))
+	root.AddCommand(isoCommand(&specPath, &architecture, connect), qcow2Command(&specPath, &architecture, connect), publishCommand(&specPath, &architecture, connect))
 	return root
 }

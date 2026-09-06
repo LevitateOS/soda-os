@@ -15,41 +15,26 @@ network ISO installation path.
 - Boot media large enough for the ISO.
 - One SSH public key and either a trusted LAN or a Tailscale auth key.
 
-The installer retrieves the exact signed Soda OCI image recorded by the
-release, so the machine must have working network and DNS access during
-installation.
+The installer retrieves its embedded exact Soda OCI digest, so the machine must
+have working network/DNS access and anonymous registry retrieval during installation.
 
 ## Download and verify the installer
 
-1. Open the [latest GitHub
-   Release](https://github.com/LevitateOS/soda-os/releases/latest).
-2. Select the ISO, checksum, release record, and Sigstore bundle for the
-   machine architecture.
-3. Verify the ISO:
+Obtain the matching-architecture ISO and `.sha256` sidecar from your trusted
+operator. ISO construction is independent of development OCI publication; do
+not assume a new GitHub Release download is available. Keep the operator's
+expected source and exact OCI digest for installed readback.
+
+Verify the ISO:
 
    ```sh
    sha256sum --check SodaOS-*.iso.sha256
    ```
 
-4. Set `RECORD` to the downloaded release-record filename and verify it:
-
-   ```sh
-   RECORD='soda-os-VERSION-ARCHITECTURE.release.json'
-   cosign verify-blob \
-     --bundle "$RECORD.sigstore.json" \
-     --certificate-identity 'https://github.com/LevitateOS/soda-os/.github/workflows/release.yml@refs/heads/production' \
-     --certificate-oidc-issuer 'https://token.actions.githubusercontent.com' \
-     "$RECORD"
-   ```
-
-   Replace `VERSION` and `ARCHITECTURE` with the downloaded filename. See
-   [Sigstore's verification guide](https://docs.sigstore.dev/cosign/verifying/verify/)
-   for details.
-5. Confirm that the release record names the expected architecture, the ISO
-   checksum matches, and the exact `soda_image_reference` is an immutable
-   digest rather than a moving tag.
-
-Stop if any verification fails.
+Confirm the selected architecture and expected immutable OCI digest with the
+operator. Checksums detect changed bytes; self-computed sidecars are not
+provenance or a production-authenticity claim. The pre-alpha flow has no Soda
+release record or signature bundle. Stop if a checksum or identity check fails.
 
 ## Prepare boot media
 
@@ -72,7 +57,7 @@ device. Double-check the target before starting.
 6. Open **User Creation**, create your Linux account and password, and select
    administrator capability. Root remains locked.
 7. Start installation. Anaconda retrieves and deploys the exact Soda OCI
-   digest named by the release.
+   digest embedded in this ISO.
 8. Wait for successful completion, remove the installer media, and reboot into
    the installed system.
 
@@ -83,13 +68,14 @@ ISO installation disables cloud-init so it cannot alter the Anaconda accounts.
 ## Expected result
 
 The machine boots the installed Soda image from its target disk and presents
-the normal login prompt. After administrator login, Setup handles any missing
-network configuration.
+the normal login prompt. After administrator login, use native networking tools
+or Cockpit for network configuration. Compare `sudo bootc status --json` with the
+operator's expected booted OCI digest before claiming the installation succeeded.
 
 ## If something fails
 
 - If the installer cannot retrieve the image, verify network, DNS, system time,
-  and anonymous access to the exact digest shown in the release record.
+  and anonymous access to the exact digest embedded in the ISO.
 - If storage is wrong, stop before beginning installation and return to
   Anaconda's storage screen.
 - If installation fails after disk mutation, retain the Anaconda logs and

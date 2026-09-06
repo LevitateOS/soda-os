@@ -21,6 +21,9 @@ func (state *runnerState) installAndOnboard(ctx context.Context, inputs runInput
 	if err = state.checks.record("iso-first-boot-defaults", verifyInitialLocalForwardedAccess(ctx, admin, state.options.Ports.Forgejo)); err != nil {
 		return "", installed, err
 	}
+	if err := assertBootedDigest(ctx, admin, "iso-initial", state.artifacts.Candidate.Digest); err != nil {
+		return "", installed, err
+	}
 	fmt.Fprintln(state.output, "Local-forwarded access through QEMU is verified (not independent LAN evidence). Open Cockpit → Tailscale and sign in through its native browser authentication URL.")
 	host, raw, err := awaitGuestEnrollment(ctx, installed, admin)
 	if err != nil {
@@ -116,6 +119,9 @@ func (state *runnerState) exerciseReusableQCOW2(ctx context.Context, inputs runI
 	waitCtx, cancel := context.WithTimeout(ctx, 20*time.Minute)
 	defer cancel()
 	if err = remote.WaitReady(waitCtx); err != nil {
+		return err
+	}
+	if err := assertBootedDigest(ctx, admin, "qcow2-initial", state.artifacts.Candidate.Digest); err != nil {
 		return err
 	}
 	if err = remote.Sudo(ctx, admin.LinuxPassword, acceptanceForgejoFirewall, "qcow2/administrator-allows-forgejo"); err != nil {
