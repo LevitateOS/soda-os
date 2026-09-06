@@ -2,35 +2,41 @@ package main
 
 import (
 	"context"
-	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/LevitateOS/soda-os/internal/linuxhost"
 	"github.com/LevitateOS/soda-os/internal/runners"
 )
 
-func main() {
-	if len(os.Args) != 2 {
-		fmt.Fprintln(os.Stderr, "usage: soda-runner-helper <list|create|start|stop|restart|remove>")
-		os.Exit(2)
-	}
-	actor, err := linuxhost.PKExecCaller()
-	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
-	}
-	accounts := linuxhost.NewNative()
-	authorizer := runners.LinuxAuthorizer{Accounts: accounts}
+func main() { os.Exit(run()) }
+
+func run() int {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
 	native := runners.NewNative()
-	helper := runners.Helper{Authorizer: authorizer, Local: native, Lifecycle: native}
-	response, err := helper.Execute(context.Background(), actor, os.Args[1], os.Stdin)
+	helper := runners.Helper{
+		Authorizer: runners.LinuxAuthorizer{Accounts: linuxhost.NewNative()},
+		Local:      native,
+		Lifecycle:  native,
+	}
+	err := execute(ctx, os.Args[1:], os.Stdin, os.Stdout, func(ctx context.Context, action string, input io.Reader) (any, error) {
+		actor, err := linuxhost.PKExecCaller()
+		if err != nil {
+			return nil, err
+		}
+		return helper.Execute(ctx, actor, action, input)
+	})
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
+		fmt.Fprintln(os.Stderr, "soda-runner-helper:", err)
+		if errors.Is(err, errUsage) {
+			return 2
+		}
+		return 1
 	}
-	if err = json.NewEncoder(os.Stdout).Encode(response); err != nil {
-		fmt.Fprintln(os.Stderr, "encode result:", err)
-		os.Exit(1)
-	}
+	return 0
 }

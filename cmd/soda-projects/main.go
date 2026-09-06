@@ -2,40 +2,37 @@ package main
 
 import (
 	"context"
-	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"os"
+	"os/signal"
 	"os/user"
+	"syscall"
 
 	"github.com/LevitateOS/soda-os/internal/linuxhost"
 	"github.com/LevitateOS/soda-os/internal/projects"
 )
 
-func main() {
-	if len(os.Args) != 2 {
-		fmt.Fprintln(os.Stderr, "usage: soda-projects <list|add-existing|edit|inspect|removal-inspect|setup|remove-workspace|remove|delete-human>")
-		os.Exit(2)
-	}
-	current, err := user.Current()
+func main() { os.Exit(run()) }
+
+func run() int {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	coordinator := projects.NewSystemCoordinator(linuxhost.NewNative())
+	err := execute(ctx, os.Args[1:], os.Stdin, os.Stdout, func(ctx context.Context, action string, input io.Reader) (any, error) {
+		current, err := user.Current()
+		if err != nil {
+			return nil, fmt.Errorf("resolve current Linux account: %w", err)
+		}
+		return coordinator.Execute(ctx, current.Username, action, input)
+	})
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "resolve current Linux account:", err)
-		os.Exit(1)
+		fmt.Fprintln(os.Stderr, "soda-projects:", err)
+		if errors.Is(err, errUsage) {
+			return 2
+		}
+		return 1
 	}
-	host := linuxhost.NewNative()
-	coordinator := projects.NewSystemCoordinator(host)
-	response, err := coordinator.Execute(context.Background(), current.Username, os.Args[1], os.Stdin)
-	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
-	}
-	encoder := json.NewEncoder(os.Stdout)
-	encoder.SetEscapeHTML(false)
-	if err = encoder.Encode(response); err != nil {
-		fmt.Fprintln(os.Stderr, "encode result:", err)
-		os.Exit(1)
-	}
-	if removal, ok := response.(projects.RemovalResponse); ok && !removal.OK {
-		fmt.Fprintln(os.Stderr, "Removal did not complete; see the structured result on stdout.")
-		os.Exit(1)
-	}
+	return 0
 }

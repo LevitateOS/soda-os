@@ -2,33 +2,36 @@ package main
 
 import (
 	"context"
-	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/LevitateOS/soda-os/internal/linuxhost"
 	"github.com/LevitateOS/soda-os/internal/projects"
 )
 
-func main() {
-	if len(os.Args) != 2 {
-		fmt.Fprintln(os.Stderr, "usage: soda-workspace-helper <catalog-add|catalog-edit|removal-inspect|workspace-inspect|workspace-prepare|workspace-publish|workspace-remove|project-remove|human-delete>")
-		os.Exit(2)
-	}
-	actor, err := linuxhost.PKExecCaller()
+func main() { os.Exit(run()) }
+
+func run() int {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	helper := projects.NewSystemHelper(linuxhost.NewNative())
+	err := execute(ctx, os.Args[1:], os.Stdin, os.Stdout, func(ctx context.Context, action string, input io.Reader) (any, error) {
+		actor, err := linuxhost.PKExecCaller()
+		if err != nil {
+			return nil, err
+		}
+		return helper.Execute(ctx, actor, action, input)
+	})
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
+		fmt.Fprintln(os.Stderr, "soda-workspace-helper:", err)
+		if errors.Is(err, errUsage) {
+			return 2
+		}
+		return 1
 	}
-	host := linuxhost.NewNative()
-	helper := projects.NewSystemHelper(host)
-	response, err := helper.Execute(context.Background(), actor, os.Args[1], os.Stdin)
-	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
-	}
-	if err = json.NewEncoder(os.Stdout).Encode(response); err != nil {
-		fmt.Fprintln(os.Stderr, "encode result:", err)
-		os.Exit(1)
-	}
+	return 0
 }
