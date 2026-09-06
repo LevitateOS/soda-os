@@ -12,7 +12,7 @@ import (
 type imageOperations interface {
 	Check(context.Context) error
 	BuildRPMs(context.Context) error
-	BuildImage(context.Context) error
+	BuildImage(context.Context, string) (string, error)
 	BuildISO(context.Context, installer.Options) (string, error)
 	BuildQCOW2(context.Context, installer.QCOW2Options) (installer.QCOW2Result, error)
 	CreateRecord(context.Context, release.RecordOptions) (release.Result, error)

@@ -44,8 +44,8 @@ cosign-source:
 github-runner architecture:
     ./scripts/fetch-github-runner.sh {{quote(architecture)}}
 
-oci architecture: forgejo-source (github-runner architecture) mise-rpm tea-source cosign-source
-    go run ./cmd/soda-image --architecture {{quote(architecture)}} oci
+oci architecture output_dir=".artifacts/images": forgejo-source (github-runner architecture) mise-rpm tea-source cosign-source
+    go run ./cmd/soda-image --architecture {{quote(architecture)}} oci --output-dir {{quote(output_dir)}}
 
 iso architecture archive:
     go run ./cmd/soda-image --architecture {{quote(architecture)}} iso --archive {{quote(archive)}}

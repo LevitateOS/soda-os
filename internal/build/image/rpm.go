@@ -66,7 +66,6 @@ func (b *Builder) buildLockedRPMs(ctx context.Context, workspace rpmWorkspace, r
 	if err := b.writeLockedInstallInputs(workspace.rpms); err != nil {
 		return err
 	}
-	fmt.Printf("Built locked Soda RPM inputs at %s\n", workspace.rpms)
 	return nil
 }
 

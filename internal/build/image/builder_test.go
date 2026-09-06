@@ -195,8 +195,12 @@ func TestArtifactBuildsRejectDirtyWorktreeBeforeDocker(t *testing.T) {
 	root, err := filepath.Abs(filepath.Join("..", "..", ".."))
 	require.NoError(t, err)
 	for name, build := range map[string]func(context.Context, *Builder) error{
-		"rpms":  func(ctx context.Context, builder *Builder) error { return builder.BuildRPMs(ctx) },
-		"image": func(ctx context.Context, builder *Builder) error { return builder.BuildImage(ctx) },
+		"rpms": func(ctx context.Context, builder *Builder) error { return builder.BuildRPMs(ctx) },
+		"image": func(ctx context.Context, builder *Builder) error {
+			path, err := builder.BuildImage(ctx, "")
+			require.Empty(t, path)
+			return err
+		},
 	} {
 		t.Run(name, func(t *testing.T) {
 			runner := &recordingRunner{Outputs: map[string]string{
@@ -220,6 +224,9 @@ func TestArtifactBuildsRejectMismatchedHostBeforeCheckingInputs(t *testing.T) {
 		runner:           runner,
 	}
 	require.EqualError(t, builder.BuildRPMs(context.Background()), "Soda aarch64 artifact operations require a native arm64 host; running on amd64")
+	path, err := builder.BuildImage(context.Background(), filepath.Join(t.TempDir(), "unused"))
+	require.Empty(t, path)
+	require.EqualError(t, err, "Soda aarch64 artifact operations require a native arm64 host; running on amd64")
 	require.Empty(t, runner.Commands)
 }
 

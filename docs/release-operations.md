@@ -271,6 +271,49 @@ capacity, publication or installation. No need for a separate Linux build VM
 was demonstrated. Native x86-64 must reproduce these probes on matching
 hardware; no sibling-architecture execution occurred here.
 
+### OCI output destinations
+
+`image.Builder.BuildImage(ctx, outputDir)` returns `(archivePath, error)`. Empty
+`outputDir` retains `.artifacts/images`; relative destinations resolve against
+`Builder.Root`, and absolute destinations are used directly. The returned path
+is absolute and names `soda-os-<version>-<architecture>.oci.tar`. No caller needs
+to scrape a build-progress message or rename an archive to retain another
+commit at the same version.
+
+On matching-native hardware, `just oci <architecture> [output_dir]` fetches the
+required inputs and builds the OCI archive, including RPM construction. Its
+optional directory defaults to `.artifacts/images`. For direct path capture,
+after preparing the required fetched inputs through the existing `just` recipes:
+
+```sh
+ARCH=x86_64 # or aarch64 on its matching-native host
+revision=$(git rev-parse HEAD)
+archive=$(go run ./cmd/soda-image --architecture "$ARCH" oci \
+    --output-dir ".artifacts/images/$ARCH/$revision") || exit 1
+# Only if separately authorized: pass "$archive" to an independent ISO or QCOW2 build.
+```
+
+The OCI CLI writes only the returned archive path plus a newline to stdout;
+command traces and native progress go to stderr. Input-fetch recipes invoked by
+`just` have their own output, so capture the lower-level CLI as above rather than
+parsing `just` progress. The library no longer prints OCI/RPM success summaries.
+A result-write failure is an error, even if the archive was already built.
+
+Native-host enforcement, clean source revision checks before/after RPM building,
+locked inputs, source/version/platform identity, RPM/runtime checks and bootc
+lint remain mandatory. OCI construction loads the archive locally for bootc
+lint; it does not publish it or construct an ISO/QCOW2. The existing candidate
+wrapper's additional runtime checks remain unchanged.
+
+A rebuild replaces only the selected archive, as before. Export/load/lint or
+filesystem failure returns an error and no successful path; a partial or
+unvalidated archive may remain and must not be treated as a successful result.
+Other revision directories and their contents are not removed. Output separation
+does not isolate shared RPM/build scratch paths: use one build per checkout.
+There is no artifact-history store or automatic revision cleanup. Replacement
+of the existing candidate/publication wrapper remains step 3 of #61; that wrapper
+continues using the unchanged default destination in the meantime.
+
 ### Construction and publication order
 
 The candidate command refuses existing final OCI, ISO, or ISO checksum paths

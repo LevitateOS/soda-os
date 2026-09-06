@@ -2,6 +2,7 @@ package image
 
 import (
 	"context"
+	"encoding/csv"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -229,25 +230,47 @@ func (b *Builder) validateBuildInputs() error {
 	return err
 }
 
-func (b *Builder) BuildImage(ctx context.Context) error {
+// BuildImage builds and lints an OCI archive, returning its absolute path only
+// on success. An empty outputDir selects .artifacts/images; relative directories
+// are resolved beneath Root. Only the selected archive is replaced on a rebuild.
+func (b *Builder) BuildImage(ctx context.Context, outputDir string) (string, error) {
 	inputs, err := b.prepareImageBuildInputs(ctx)
 	if err != nil {
-		return err
+		return "", err
 	}
 	if err := b.buildRPMs(ctx, inputs.revision); err != nil {
-		return err
+		return "", err
 	}
 	if err := b.verifySourceRevision(ctx, inputs.revision); err != nil {
-		return err
+		return "", err
 	}
-	images := b.artifactPath("images")
+	return b.buildOCIArchive(ctx, inputs, outputDir)
+}
+
+// buildOCIArchive exports the prepared RPM/base inputs and checks the resulting
+// archive with native bootc lint before handing its path to a caller.
+func (b *Builder) buildOCIArchive(ctx context.Context, inputs imageBuildInputs, outputDir string) (string, error) {
+	if outputDir == "" {
+		outputDir = ".artifacts/images"
+	}
+	images, err := filepath.Abs(b.path(outputDir))
+	if err != nil {
+		return "", err
+	}
 	if err := os.MkdirAll(images, 0o755); err != nil {
-		return err
+		return "", err
 	}
 	output := filepath.Join(images, "soda-os-"+b.Spec.Identity.Version+"-"+b.Spec.Platform.Architecture.Artifact+".oci.tar")
 	if err := os.Remove(output); err != nil && !errors.Is(err, fs.ErrNotExist) {
-		return err
+		return "", err
 	}
+	// Buildx parses --output as CSV, including destinations containing commas or quotes.
+	var exporter strings.Builder
+	writer := csv.NewWriter(&exporter)
+	if err := writer.Write([]string{"type=oci", "dest=" + output, "oci-mediatypes=true", "rewrite-timestamp=true"}); err != nil {
+		return "", err
+	}
+	writer.Flush()
 	created := time.Unix(b.Spec.Build.SourceDateEpoch, 0).UTC().Format(time.RFC3339)
 	args := []string{
 		"buildx", "build", "--platform", b.Spec.Base.Platform,
@@ -264,17 +287,19 @@ func (b *Builder) BuildImage(ctx context.Context) error {
 		"--build-arg", "FEDORA_BASE_REFERENCE=" + b.Spec.Base.Reference,
 		"--build-arg", "BOOTC_NEVRA=" + b.Spec.Platform.Base.BootcNEVRA,
 		"--provenance=false",
-		"--output", "type=oci,dest=" + output + ",oci-mediatypes=true,rewrite-timestamp=true",
+		"--output", strings.TrimSuffix(exporter.String(), "\n"),
 		"packaging/bootc",
 	}
 	if err := b.runner.Run(ctx, process.Command{Dir: b.Root, Name: "docker", Args: args}); err != nil {
-		return err
+		return "", err
+	}
+	if !isFile(output) {
+		return "", fmt.Errorf("OCI export did not create an archive at %s", output)
 	}
 	if err := b.lintImage(ctx, output); err != nil {
-		return err
+		return "", err
 	}
-	fmt.Printf("Built OCI archive %s from %s\n", output, b.Spec.Base.Reference)
-	return nil
+	return output, nil
 }
 
 func (b *Builder) lintImage(ctx context.Context, archive string) error {

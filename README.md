@@ -118,7 +118,19 @@ just rpm "$ARCH"
 just oci "$ARCH"
 ```
 
-Build artifacts are written below `.artifacts/` and are never committed.
+Build artifacts default to `.artifacts/` and are never committed. OCI builds
+also accept an explicit directory, retaining the version/architecture filename:
+
+```sh
+just oci "$ARCH" ".artifacts/images/$ARCH/$(git rev-parse HEAD)"
+```
+
+This keeps same-version archives from different commits in separate directories.
+The lower-level `soda-image oci --output-dir <directory>` returns the actual
+absolute archive path on stdout, with build progress on stderr; see
+[OCI construction](docs/release-operations.md#oci-output-destinations) for capture
+and failure semantics. ISO and QCOW2 construction remain separate operations.
+
 Architecture-specific inputs, construction, inspection, installation, signing,
 and publication remain owned by the matching architecture.
 

@@ -41,17 +41,15 @@ func TestEveryRequiredFlagIsValidatedBeforeBuilding(t *testing.T) {
 	}
 }
 
-func TestImageDispatchUsesSuppliedBuildersAndStreams(t *testing.T) {
+func TestImageDispatchUsesSuppliedBuilders(t *testing.T) {
 	for _, architecture := range []string{"aarch64", "x86_64"} {
 		for _, test := range imageCases() {
 			t.Run(architecture+"/"+test.action, func(t *testing.T) {
 				fake := &recordingImage{}
 				var output, diagnostic bytes.Buffer
-				command := newCommand(func(spec, arch string, stdout, stderr io.Writer) (imageOperations, error) {
+				command := newCommand(func(spec, arch string, _, _ io.Writer) (imageOperations, error) {
 					require.Equal(t, "chosen.toml", spec)
 					require.Equal(t, architecture, arch)
-					require.Same(t, &output, stdout)
-					require.Same(t, &diagnostic, stderr)
 					return fake, nil
 				})
 				command.SetOut(&output)
@@ -65,6 +63,25 @@ func TestImageDispatchUsesSuppliedBuildersAndStreams(t *testing.T) {
 				require.Empty(t, diagnostic.String())
 			})
 		}
+	}
+}
+
+func TestImageProgressStreamRouting(t *testing.T) {
+	for _, test := range imageCases() {
+		var output, diagnostic bytes.Buffer
+		command := newCommand(func(_, _ string, stdout, stderr io.Writer) (imageOperations, error) {
+			if test.action == "oci" {
+				require.Same(t, &diagnostic, stdout)
+			} else {
+				require.Same(t, &output, stdout)
+			}
+			require.Same(t, &diagnostic, stderr)
+			return &recordingImage{}, nil
+		})
+		command.SetOut(&output)
+		command.SetErr(&diagnostic)
+		command.SetArgs(append([]string{test.action, "--architecture", "x86_64"}, test.flags...))
+		require.NoError(t, command.Execute())
 	}
 }
 
