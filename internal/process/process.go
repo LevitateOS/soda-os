@@ -32,7 +32,9 @@ type OSRunner struct {
 }
 
 func (r OSRunner) Run(ctx context.Context, command Command) error {
-	fmt.Fprintf(r.stdout(), "+ %s\n", command.String())
+	if _, err := fmt.Fprintf(r.stdout(), "+ %s\n", command.String()); err != nil {
+		return fmt.Errorf("write command trace: %w", err)
+	}
 	cmd := r.command(ctx, command)
 	cmd.Stdout = r.stdout()
 	cmd.Stderr = r.stderr()
@@ -43,7 +45,9 @@ func (r OSRunner) Run(ctx context.Context, command Command) error {
 }
 
 func (r OSRunner) Output(ctx context.Context, command Command) (string, error) {
-	fmt.Fprintf(r.stdout(), "+ %s\n", command.String())
+	if _, err := fmt.Fprintf(r.stdout(), "+ %s\n", command.String()); err != nil {
+		return "", fmt.Errorf("write command trace: %w", err)
+	}
 	output, err := r.command(ctx, command).Output()
 	if err != nil {
 		return "", commandError(command, err)
