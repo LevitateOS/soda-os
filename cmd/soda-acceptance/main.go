@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"os/signal"
 	"syscall"
@@ -10,108 +11,39 @@ import (
 	"github.com/LevitateOS/soda-os/internal/acceptance"
 	"github.com/LevitateOS/soda-os/internal/config"
 	"github.com/LevitateOS/soda-os/internal/process"
-	"github.com/spf13/cobra"
 )
 
-func main() {
-	root := &cobra.Command{
-		Use:           "soda-acceptance",
-		Short:         "Run and record matching-native Soda OS product acceptance",
-		SilenceUsage:  true,
-		SilenceErrors: true,
-	}
-	root.AddCommand(runCommand(), recordCommand(), verifyCommand())
+func main() { os.Exit(run()) }
+
+func run() int {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	if err := root.ExecuteContext(ctx); err != nil {
+	command := newCommand(acceptance.Run,
+		func(ctx context.Context, specPath string, options acceptance.RecordOptions, stdout, stderr io.Writer) (acceptance.RecordResult, error) {
+			return signRecord(ctx, specPath, options, process.OSRunner{Stdout: stdout, Stderr: stderr})
+		},
+		func(ctx context.Context, path, revision string, stdout, stderr io.Writer) error {
+			return acceptance.VerifySignedRecord(ctx, path, revision, process.OSRunner{Stdout: stdout, Stderr: stderr})
+		})
+	command.SetArgs(os.Args[1:])
+	command.SetOut(os.Stdout)
+	command.SetErr(os.Stderr)
+	if err := command.ExecuteContext(ctx); err != nil {
 		fmt.Fprintln(os.Stderr, "soda-acceptance:", err)
-		os.Exit(1)
+		return 1
 	}
+	return 0
 }
 
-func runCommand() *cobra.Command {
-	var options acceptance.RunOptions
-	command := &cobra.Command{
-		Use:   "run",
-		Short: "Run the product suite on this matching-native host",
-		Args:  cobra.NoArgs,
-		RunE: func(command *cobra.Command, _ []string) error {
-			result, err := acceptance.Run(command.Context(), options, os.Stdout)
-			if result.EvidenceDir != "" {
-				fmt.Fprintln(os.Stdout, "Evidence:", result.EvidenceDir)
-			}
-			if result.SummaryPath != "" {
-				fmt.Fprintln(os.Stdout, "Run report (not release qualification):", result.SummaryPath)
-			}
-			return err
-		},
+func signRecord(ctx context.Context, specPath string, options acceptance.RecordOptions, runner process.Runner) (acceptance.RecordResult, error) {
+	var err error
+	options.ARM64Spec, err = config.LoadDistro(specPath, "aarch64")
+	if err != nil {
+		return acceptance.RecordResult{}, err
 	}
-	flags := command.Flags()
-	flags.StringVar(&options.EvidenceDir, "evidence", "", "new directory for credential-free run evidence")
-	flags.StringVar(&options.Candidate.Record, "candidate-record", "", "candidate architecture release record")
-	flags.StringVar(&options.Candidate.OCI, "candidate-oci", "", "candidate architecture OCI archive")
-	flags.StringVar(&options.Candidate.ISO, "candidate-iso", "", "candidate architecture network installer ISO")
-	flags.StringVar(&options.Candidate.QCOW2, "candidate-qcow2", "", "candidate architecture reusable QCOW2")
-	flags.StringVar(&options.Fallback.Record, "fallback-record", "", "previous published architecture release record")
-	flags.StringVar(&options.Fallback.OCI, "fallback-oci", "", "previous published architecture OCI archive")
-	flags.StringVar(&options.Administrator.Username, "administrator", "soda-test", "temporary primary administrator username")
-	flags.StringVar(&options.Administrator.PrivateKey, "administrator-private-key", "", "mode-0600 disposable administrator SSH private key")
-	flags.StringVar(&options.Administrator.PublicKey, "administrator-public-key", "", "matching disposable administrator SSH public key")
-	flags.StringVar(&options.Administrator.Password, "administrator-password-file", "", "mode-0600 file containing one disposable password line")
-	flags.StringVar(&options.TempDir, "temp-dir", "", "host directory for disposable VM state; defaults to RUNNER_TEMP")
-	flags.StringVar(&options.DiskSize, "disk-size", "40G", "installed test disk size")
-	flags.IntVar(&options.Ports.SSH, "ssh-port", 2222, "loopback-forwarded SSH port (not independent LAN evidence)")
-	flags.IntVar(&options.Ports.Cockpit, "cockpit-port", 19090, "loopback-forwarded Cockpit port (not independent LAN evidence)")
-	flags.IntVar(&options.Ports.Forgejo, "forgejo-port", 13000, "loopback-forwarded Forgejo port (not independent LAN evidence)")
-	flags.IntVar(&options.Ports.Registry, "registry-port", 5001, "loopback port for the disposable OCI registry")
-	flags.StringVar(&options.RepositoryRoot, "repository", ".", "clean acceptance-suite checkout")
-	for _, name := range []string{
-		"evidence", "candidate-record", "candidate-oci", "candidate-iso", "candidate-qcow2",
-		"fallback-record", "fallback-oci", "administrator-private-key",
-		"administrator-public-key", "administrator-password-file",
-	} {
-		_ = command.MarkFlagRequired(name)
+	options.X86Spec, err = config.LoadDistro(specPath, "x86_64")
+	if err != nil {
+		return acceptance.RecordResult{}, err
 	}
-	return command
-}
-
-func recordCommand() *cobra.Command {
-	var options acceptance.RecordOptions
-	var specPath string
-	command := &cobra.Command{
-		Use:   "record",
-		Short: "Qualify, combine, and sign complete x86-64 and AArch64 run reports",
-		Args:  cobra.NoArgs,
-		RunE: func(command *cobra.Command, _ []string) error {
-			spec, err := config.LoadDistro(specPath, "aarch64")
-			if err != nil {
-				return err
-			}
-			options.ARM64Spec = spec
-			options.X86Spec, err = config.LoadDistro(specPath, "x86_64")
-			if err != nil {
-				return err
-			}
-			runner := process.OSRunner{Stdout: os.Stdout, Stderr: os.Stderr}
-			result, err := acceptance.CreateSignedRecord(command.Context(), options, runner)
-			if err == nil {
-				fmt.Fprintf(os.Stdout, "Acceptance record: %s\nSignature bundle: %s\n", result.RecordPath, result.BundlePath)
-			}
-			return err
-		},
-	}
-	flags := command.Flags()
-	flags.StringVar(&specPath, "spec", "distro/soda.toml", "Soda distribution specification for both candidate records")
-	flags.StringVar(&options.X86Summary, "x86-summary", "", "schema-2 x86-64 run report with complete qualification evidence")
-	flags.StringVar(&options.ARM64Summary, "aarch64-summary", "", "schema-2 AArch64 run report with complete qualification evidence")
-	flags.StringVar(&options.X86ReleaseRecord, "x86-release-record", "", "strict x86-64 candidate release record")
-	flags.StringVar(&options.ARM64ReleaseRecord, "aarch64-release-record", "", "strict AArch64 candidate release record")
-	flags.StringVar(&options.ExpectedRevision, "expected-revision", "", "exact main revision named by both runs")
-	flags.StringVar(&options.Output, "output", "", "new strict JSON acceptance record")
-	flags.StringVar(&options.ApprovedSigner, "approved-signer", "", "expected Sigstore certificate identity")
-	flags.StringVar(&options.OIDCIssuer, "oidc-issuer", "", "expected Sigstore certificate OIDC issuer")
-	for _, name := range []string{"x86-summary", "aarch64-summary", "x86-release-record", "aarch64-release-record", "expected-revision", "output", "approved-signer", "oidc-issuer"} {
-		_ = command.MarkFlagRequired(name)
-	}
-	return command
+	return acceptance.CreateSignedRecord(ctx, options, runner)
 }

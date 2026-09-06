@@ -71,10 +71,8 @@ func TestSupersededProvisioningPathsAreAbsent(t *testing.T) {
 
 func TestAcceptanceUsesOneGoWorkflow(t *testing.T) {
 	root := filepath.Join("..", "..", "..")
-	entry := readInstallerFixture(t, root, "cmd/soda-acceptance/main.go")
-	for _, expected := range []string{"soda-acceptance", "runCommand()", "recordCommand()", "candidate-iso", "candidate-qcow2", "fallback-oci"} {
-		require.Contains(t, entry, expected)
-	}
+	// Command and flag contracts are exercised by cmd/soda-acceptance tests;
+	// packaging owns only the absence of superseded shell entrypoints here.
 	for _, old := range []string{"tests/acceptance/unattended.sh", "tests/acceptance/internal/bootc.sh"} {
 		_, err := os.Lstat(filepath.Join(root, old))
 		require.ErrorIs(t, err, os.ErrNotExist)
