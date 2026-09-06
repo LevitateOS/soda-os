@@ -87,7 +87,7 @@ func TestForgejoSodaDefaultsAndTemplates(t *testing.T) {
 	root := filepath.Join("..", "..", "..", "packaging", "rpm", "forgejo", "sources")
 	config, err := os.ReadFile(filepath.Join(root, "app.ini.tmpl"))
 	require.NoError(t, err)
-	for _, text := range []string{"APP_NAME = Soda OS", "DEFAULT_THEME = soda-auto", "STATIC_CACHE_TIME = 0", "AUTHOR = Soda OS", "DESCRIPTION = Your team's repositories and collaboration."} {
+	for _, text := range []string{"APP_NAME = Soda OS", "DEFAULT_THEME = soda-auto", "STATIC_CACHE_TIME = 0", "DISABLE_REGISTRATION = true", "AUTHOR = Soda OS", "DESCRIPTION = Your team's repositories and collaboration."} {
 		require.Contains(t, string(config), text)
 	}
 	themes := regexp.MustCompile(`(?m)^THEMES = (.+)$`).FindStringSubmatch(string(config))

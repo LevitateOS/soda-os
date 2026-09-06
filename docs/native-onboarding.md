@@ -45,20 +45,12 @@ before the replacement process starts. The native initializer also runs when
 Forgejo starts. Enrollment success and refresh failure are reported separately.
 There is no watcher or durable recovery state.
 
-The owner registers the first Forgejo account through the normal trusted LAN
-or Tailnet before teammates sign in. Native first-user signup grants Forgejo
-administration. Use independent Forgejo credentials, even with the same username
-as the Linux owner. The empty homepage offers **Create administrator account**;
-early web sign-in leads to native registration. The pinned Forgejo patch makes
-first registration and its administrator role atomic and blocks new PAM accounts
-until an administrator is committed, including through API/Git-over-HTTP access.
-PAM remains active; it needs no setup-time toggle or watcher. Existing accounts
-without an administrator get a diagnostic, not automatic promotion or deletion.
-See the [public first-owner guide](public/20-Deploy/30-first-connection.md#register-the-forgejo-owner-first).
-Later Linux users' first successful PAM
-login creates ordinary Forgejo accounts. Linux wheel membership grants no
-Forgejo role. The team controls ongoing registration policy; there is no
-mandatory registration-closing step or associated restart.
+Every primary human signs in through PAM as an ordinary Forgejo user; there is
+no first-owner signup or PAM provisioning gate. New configurations disable
+browser registration. A Linux administrator can explicitly create a separate
+Forgejo administrator through the native CLI, then use its web interface to
+promote PAM users. See the [administration procedure](public/40-Operate-Soda-OS/10-administration.md#create-a-forgejo-administrator).
+Existing roles and operator configuration are preserved.
 
 | Input | Native owner and purpose |
 |---|---|
@@ -92,20 +84,19 @@ After separately authorized builds, run on both matching architectures:
    access, persistence, and mandatory stateless welcome.
 3. Start Forgejo before enrolling through the Cockpit Tailscale page. Verify the
    conditional refresh reruns native initialization and advertises the intended
-   reachable Tailnet address. After native signup and workspace Git-key
+   reachable Tailnet address. After native PAM login and workspace Git-key
    registration, clone using Forgejo's displayed SSH URL from the intended client.
 4. Repeat address, reachability, and clone checks after reboot. Exercise a matching
    address and verify the running Forgejo process remains unchanged.
 5. Cover LAN-only provisioning and preserved LAN access after enrollment. Verify
    the complete packaged service graph, including Fedora cloud-init and
    multi-user.target, has no ordering cycle; inspect boot logs for discarded jobs.
-6. Before registration, exercise web, API and Git-over-HTTP PAM requests and
-   verify that no account is created. Register through the visible owner entry;
-   verify the confirmation and Site Administration link, failed signup/retry and
-   concurrent registration. Verify independent owner credentials, native administrator privileges, and
-   later ordinary PAM accounts with self-registration both enabled and disabled
-   by team policy. Verify Cockpit key entry, real authorized_keys, one-time
-   copying, and incoming workspace SSH.
+6. Verify the first and later PAM logins create ordinary accounts with browser
+   registration disabled and no Forgejo administrator present. Separately verify
+   explicit native CLI administrator creation, its independent password, and
+   web promotion of an existing PAM user without changing its authentication.
+   Verify Cockpit key entry, real authorized_keys, one-time copying, and incoming
+   workspace SSH.
 7. Delete a Linux person through Soda and verify the same-named Forgejo account
    and its data remain. Source tests are not installed-system acceptance.
 

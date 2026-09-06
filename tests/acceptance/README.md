@@ -98,7 +98,8 @@ The order is intentional:
 1. Verify the published fallback signature and prepare the disposable registry.
 2. Install through Anaconda; observe local-forwarded defaults before opening
    fixture Forgejo ports; discover native browser enrollment; recheck both paths.
-3. Verify native first-owner signup, capture initial boundaries, and seed the
+3. Verify the initial administrator's PAM login produces an ordinary Forgejo
+   account, capture initial boundaries, and seed the
    kept project with a canonical commit, administrator/Alice/Bob workspaces,
    modified and untracked private files, and native mise tools before fallback.
 4. Switch B→A→B and compare returned preservation snapshots. Enrollment stays
@@ -118,13 +119,13 @@ The order is intentional:
 ### Data ownership
 
 - `runner_init.go` returns `runInputs`: usable administrator credentials and
-  connection, a personal-key generator, and protected paths for operator prompts.
+  connection, a personal-key generator, and protected provisioning input paths.
   Paths are not a second source of operational passwords. The secret collection
   is only a redaction input; checks never retrieve credentials by label.
 - `fixtures.go` defines concrete person, workspace, and seeded-project values.
-  A person carries its incoming SSH connection/public key and explicit Linux and
-  Forgejo credentials. The first owner's passwords are independent; ordinary
-  teammate fixtures intentionally use their Linux password through native PAM.
+  A person carries its incoming SSH connection/public key and Linux password.
+  All primary fixtures use that password through native PAM; there is no separate
+  Forgejo owner credential or generated owner-password file.
   Workspace setup returns its actual connection and project identity only after
   successful retry and account checks. Linux, not these values, owns current
   account existence and roles.
@@ -169,9 +170,9 @@ Regression tests execute that boundary through a real shell, without a guest.
 Absence checks require the native negative result: `getent` exit 2, `grep` exit 1,
 or a successful empty systemd unit-file inventory. A transport/lookup failure is
 not evidence of absence. Projects rejection requires exit 1 and the expected
-product diagnostic; independent owner credentials require an observed HTTP 401.
-Owner authentication captures are separate for ISO/QCOW2 and for each password;
-PAM signup and later wheel-promotion observations have separate capture names.
+product diagnostic. Initial PAM authentication must return the expected ordinary
+Forgejo user, not an administrator. Captures are separate for ISO/QCOW2;
+first login and later wheel-promotion observations have separate capture names.
 These source tests do not establish live installed behavior.
 
 ### Native prerequisites and enrollment
@@ -250,17 +251,18 @@ After separately authorized builds, run on both matching architectures:
    administrator console login.
 3. Start Forgejo before enrollment through the Cockpit Tailscale page. Verify the
    conditional refresh reruns native initialization and advertises the intended
-   reachable Tailnet address. After native signup and workspace Git-key
+   reachable Tailnet address. After native PAM login and workspace Git-key
    registration, clone using Forgejo's displayed SSH URL from the intended client.
 4. Repeat address, reachability, and clone checks after reboot. Exercise a matching
    address and verify the running Forgejo process remains unchanged.
 5. Cover LAN-only provisioning and preserved LAN access after enrollment. Verify
    the complete packaged service graph, including Fedora cloud-init and
    multi-user.target, has no ordering cycle; inspect boot logs for discarded jobs.
-6. Verify independent owner credentials, native administrator privileges, and
-   later ordinary PAM accounts with self-registration both enabled and disabled
-   by team policy. Verify Cockpit key entry, real authorized_keys, one-time
-   copying, and incoming workspace SSH.
+6. Verify first and later PAM users are ordinary with browser registration
+   disabled and no Forgejo administrator present. Separately exercise explicit
+   native CLI administrator creation and web promotion of a PAM user. Verify
+   Cockpit key entry, real authorized_keys, one-time copying, and incoming
+   workspace SSH.
 7. Delete a Linux person through Soda and verify the same-named Forgejo account
    and its data remain. Source tests are not installed-system acceptance.
 
@@ -324,11 +326,14 @@ running firewall or a newly built image.
 
 ### Identity and Git
 
-- Linux owns one primary account per person; `wheel` alone owns administrator
-  status.
+- Linux owns one primary account per person; `wheel` owns Linux administrator
+  status, not Forgejo roles.
 - Development occurs only in derived workspace accounts.
-- Native owner-first signup grants independent Forgejo administration. Later
-  Linux users authenticate through PAM and receive ordinary accounts.
+- All primary Linux users authenticate through PAM and receive ordinary accounts,
+  regardless of login order or whether a Forgejo administrator exists.
+- A Linux administrator can explicitly create a separate Forgejo administrator
+  through its native CLI; that account can promote existing PAM users through
+  Forgejo's web interface.
 - Cockpit manages personal authorized keys. Neither Setup nor PAM registers
   those keys with Forgejo.
 - Git uses SSH.
@@ -475,56 +480,23 @@ overwriting an earlier observation. Returned error text is redacted as well as
 retained files; error identity remains available to programmatic callers.
 
 The runner QCOW2 fixture covers cloud-init through QEMU loopback-forwarded
-access, not an independent trusted-LAN client. The late-enrollment Tailnet, native Cockpit key UI, first-signup, registration
-policy, and reboot matrix above still requires separately recorded installed
-acceptance; a runner summary alone does not prove those interactive checks.
+access, not an independent trusted-LAN client. The late-enrollment Tailnet,
+native Cockpit key UI, explicit Forgejo administrator creation/promotion, and
+reboot matrix above still requires separately recorded installed acceptance;
+a runner summary alone does not prove those interactive checks.
 
 Run `sudo tests/acceptance/check-native-service-ordering.sh` on each installed
 candidate after provisioning, and repeat after reboot and on the cloud-init-disabled
 ISO. It inspects the actual Fedora and Forgejo units and boot journal.
-Before prompting for owner signup, the runner probes the empty homepage and
-attempts early web/API login using valid fixture Linux credentials. It requires
-the visible owner entry, API HTTP 401, and a web redirect to native registration.
-The runner then pauses for native first-owner signup, verifies the owner role
-and independent credentials, and only then creates teammate fixtures. Captures
-are `iso/owner-entry-*` and `qcow2/owner-entry-*`; the subsequent successful
-first-owner registration must prove the early requests did not consume ownership.
-
-### First-owner regression checks
-
-On matching-native Soda hardware, with Python 3, OpenSSL, util-linux namespaces,
-the packaged PAM stack, `git` account and `soda-forgejo-shadow` group available:
-
-```sh
-sudo unshare --mount --net --pid --fork --kill-child --mount-proc \
-  --propagation private python3 tests/acceptance/check-forgejo-first-owner.py \
-  --binary /usr/bin/forgejo --custom /usr/share/soda/forgejo/custom
-```
-
-Use the candidate's actual effective custom tree if testing an operator override.
-The script requires a private PID namespace, uses temporary namespace-private
-Linux credential files and databases, keeps SELinux enforcing, and cleans up
-its fixtures. It does not modify real accounts, roles, services, or configuration.
-It covers web/API/Git-over-HTTP entry, signup retry, competing registration,
-independent owner passwords, ordinary PAM peers, workspace exclusion, no retained
-PAM verifier, source activation choices, registration policy, process restart,
-and the existing-accounts/no-administrator diagnostic. It does not establish OS
-reboot, image-update, or complete browser usability acceptance.
-
-For browser acceptance, start a separate empty matching-native Forgejo process
-with the staged custom tree, Soda theme defaults, and active Soda PAM source:
-
-```sh
-node scripts/check-forgejo-owner.mjs http://127.0.0.1:PORT .artifacts/branding/owner
-```
-
-**This browser check creates an administrator through native registration. Use
-only a disposable instance.** It generates its own temporary credential in
-memory, checks light/dark/mobile presentation, early sign-in guidance and
-API/Git rejection, failed signup/retry, administrator confirmation and navigation,
-and established-instance sign-in. Do not run it on the server an operator is
-about to claim. The native fixture additionally tests valid Linux credentials;
-the browser check is not a substitute for the PAM matrix.
+The runner signs the initial Linux administrator into Forgejo through PAM and
+requires an ordinary account, then creates teammate fixtures. It generates no
+separate Forgejo owner password and does not pause for first-owner signup.
+Repository/workspace and update/fallback checks run without creating a Forgejo
+site administrator. Separately verify the documented
+[native CLI administrator creation and web promotion](../../docs/public/40-Operate-Soda-OS/10-administration.md#create-a-forgejo-administrator)
+on a disposable instance, including an existing PAM user and the generated
+administrator's required password change. Do not retain the printed password in
+acceptance logs.
 
 The native welcome and separate Cockpit Tailscale page require the installed
 checks in [native installation acceptance](../../docs/native-onboarding.md#installed-acceptance).

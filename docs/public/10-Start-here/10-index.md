@@ -11,8 +11,7 @@ development happens in a separate workspace for each person and project.
 - **Infrastructure owner:** start with [Deploy to a cloud](../20-Deploy/10-deploy-to-cloud.md)
   or [Install on premises](../20-Deploy/20-install-on-premises.md).
 - **Administrator:** complete [Make the first connection](../20-Deploy/30-first-connection.md),
-  including [first-owner Forgejo registration](../20-Deploy/30-first-connection.md#register-the-forgejo-owner-first)
-  with independent credentials, then [add people and manage access](../30-Develop/10-people-and-access.md).
+  then [add people and manage access](../30-Develop/10-people-and-access.md).
 - **Developer:** start with [Projects and workspaces](../30-Develop/20-projects-and-workspaces.md),
   then [Connect and develop](../30-Develop/30-connect-and-develop.md).
 - **System operator:** use [Administration](../40-Operate-Soda-OS/10-administration.md),
@@ -29,8 +28,9 @@ accounts, services, and ownership boundaries behind these tasks.
    the artifact for the machine's architecture.
 2. Install with the network ISO or import the reusable QCOW2.
 3. Log in normally and use the welcome message for connection details.
-   Use Forgejo's **Create administrator account** entry to register its first
-   owner with independent credentials. Later humans use Linux/PAM sign-in.
+   Sign in to Forgejo with Linux/PAM credentials as an ordinary user.
+   [Create a Forgejo administrator explicitly](../40-Operate-Soda-OS/10-administration.md#create-a-forgejo-administrator)
+   when site administration is needed; other users do not have to wait.
 4. Connect over the LAN or Tailscale with SSH, Cockpit, and Forgejo.
 5. Add each later primary account through stock Cockpit or native Linux, then
    let that person sign in to Forgejo normally and manage repository keys there.

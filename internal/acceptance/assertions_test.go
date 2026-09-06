@@ -64,18 +64,17 @@ func TestExpectedProjectRejectionRequiresItsExitAndDiagnostic(t *testing.T) {
 	}
 }
 
-func TestOwnerPasswordRejectionRequiresHTTP401NotTransportFailure(t *testing.T) {
-	for _, status := range []string{"200", "401", "403", "500", "transport"} {
-		t.Run(status, func(t *testing.T) {
-			t.Setenv("HTTP_STATUS", status)
+func TestFirstPAMUserMustBeOrdinary(t *testing.T) {
+	for _, response := range []string{`{"login":"owner","is_admin":false}`, `{"login":"owner","is_admin":true}`, `{"login":"other","is_admin":false}`, `transport`} {
+		t.Run(response, func(t *testing.T) {
+			t.Setenv("RESPONSE", response)
 			installAcceptanceCommand(t, "ssh", `config=$(cat)
-case "$config" in
- *forgejo-password*) printf '{"login":"owner","is_admin":true}' ;;
- *) test "$HTTP_STATUS" != transport || exit 7; printf '%s' "$HTTP_STATUS" ;;
-esac
+case "$config" in *owner:linux-password*) ;; *) exit 1 ;; esac
+test "$RESPONSE" != transport || exit 7
+printf '%s' "$RESPONSE"
 `)
-			err := verifyOwnerCredentials(context.Background(), testPerson(t, "owner"), "owner")
-			require.Equal(t, status != "401", err != nil)
+			err := verifyOrdinaryForgejoUser(context.Background(), testPerson(t, "owner"), "first-pam")
+			require.Equal(t, response != `{"login":"owner","is_admin":false}`, err != nil)
 		})
 	}
 }

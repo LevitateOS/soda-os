@@ -32,10 +32,7 @@ func (state *runnerState) execute(ctx context.Context, inputs runInputs) error {
 // Person fixtures carry access details, not cached role or account-existence claims.
 func (state *runnerState) exerciseInstalledSystem(ctx context.Context, inputs runInputs, tailnetHost string, installed *guest) error {
 	admin := inputs.Admin
-	if err := state.awaitNativeOwnerSignup(ctx, admin, "http://"+urlHost(tailnetHost)+":30000", inputs.OwnerPasswordFile, "iso/owner-entry"); err != nil {
-		return err
-	}
-	if err := verifyOwnerCredentials(ctx, admin, "iso/owner"); err != nil {
+	if err := verifyOrdinaryForgejoUser(ctx, admin, "iso/administrator-pam"); err != nil {
 		return err
 	}
 	if err := captureCore(ctx, admin, "iso"); err != nil {

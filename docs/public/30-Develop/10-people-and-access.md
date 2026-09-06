@@ -1,30 +1,21 @@
 # Add people and manage access
 
-After first-owner setup, create one primary Linux identity per teammate and let
-Forgejo create its own identity at first normal PAM login. Linux administration
-and Forgejo administration are separate permissions.
+Create one primary Linux identity per teammate and let Forgejo create its own
+identity at first normal PAM login. Linux and Forgejo administration are separate.
 
 ## Understand the identities
 
 - A **primary Linux account** is the person's stable identity and owns their
   password and public SSH keys.
-- Membership in **`wheel`** grants Linux/Cockpit administrator capability, not
-  Forgejo administration.
+- Membership in **`wheel`** grants Linux/Cockpit administration, not Forgejo
+  administration.
 - A **Forgejo account** is the same person's repository identity.
 - A **workspace account** is the person's development identity for one project.
 
 Development happens in workspace accounts, not in the primary home.
 
-| Person | First Forgejo access | Forgejo role |
-| --- | --- | --- |
-| Initial owner | Native registration with independent Forgejo credentials | Administrator |
-| Later human, including a Linux administrator | Sign in with Linux credentials through PAM | Ordinary user |
-
-Complete [first-owner registration](../20-Deploy/30-first-connection.md#register-the-forgejo-owner-first)
-before adding teammates. Early PAM authentication cannot create accounts until
-an administrator exists. The owner keeps using the separate Forgejo password;
-later PAM users keep using their Linux passwords. Ongoing Forgejo registration
-policy and subsequent Forgejo role grants belong to the team.
+No first-owner signup is required. Every primary human, including the first
+Linux administrator, can sign in through PAM as an ordinary Forgejo user.
 
 ## Prerequisites
 
@@ -56,7 +47,7 @@ added to `wheel` unless an administrator grants that native Linux capability.
 Give the initial password to the person through a separate trusted channel.
 They should change it after their first login.
 
-## Promote an administrator
+## Promote a Linux administrator
 
 Use stock Cockpit rather than a Soda role page:
 
@@ -69,15 +60,26 @@ Use stock Cockpit rather than a Soda role page:
 Promotion changes Linux administration capability. It does not make the person
 a Forgejo site administrator.
 
+## Grant Forgejo administration
+
+An existing Forgejo administrator can edit a user's role through **Site
+Administration → User Accounts**. Promoting a PAM user does not change their
+Linux/PAM authentication.
+
+If there is no usable Forgejo administrator, a Linux administrator must first
+[create a separate administrator account with the native CLI](../40-Operate-Soda-OS/10-administration.md#create-a-forgejo-administrator).
+This creates a new account with a separate Forgejo password; it does not promote
+an existing user. Use an unused username rather than deleting someone's account.
+The new administrator can then promote the intended PAM user in the web interface.
+
 ## Maintain passwords and keys
 
 Use Cockpit **Accounts** or native Linux tools for primary-account passwords.
 Use standard `~/.ssh/authorized_keys` files for Linux SSH access and Forgejo's
 native SSH-key interface for repository access. The [Forgejo user
 guide](https://forgejo.org/docs/latest/user/) covers its account and repository
-features. The owner registers the first Forgejo administrator natively with
-independent credentials before teammates sign in. The first-owner guidance uses
-Forgejo's own account state; it does not synchronize passwords or administrator roles.
+features. PAM users keep using Linux passwords, even after a Forgejo role grant.
+A separately CLI-created administrator keeps its independent Forgejo password.
 
 Workspace setup copies the person's current public authorized keys once. A
 later primary-key change does not silently modify existing workspaces; update
@@ -107,11 +109,8 @@ me**.
 
 Inspect the failing native owner. Use Cockpit or Linux tools to check account,
 password, group, home, or `authorized_keys` problems. If first Forgejo login
-fails, first confirm that the owner completed registration, then check the Linux
-credentials and Forgejo's PAM error before retrying. If the instance already has
-accounts but no administrator, follow the
-[existing-account diagnostic](../20-Deploy/30-first-connection.md#existing-accounts-but-no-administrator);
-do not register additional accounts as a repair. Manage repository keys through Forgejo after login; there is no Soda
+fails, confirm the Linux credentials and inspect Forgejo's PAM error before
+retrying. Manage repository keys through Forgejo after login; there is no Soda
 person-creation workflow to roll back or resume.
 
 ## Remove a person

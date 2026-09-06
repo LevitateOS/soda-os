@@ -83,15 +83,11 @@ the Projects protocol does not select a LAN or Tailnet host.
 
 ### Accounts, Forgejo, and workspaces
 
-The owner registers the first Forgejo account through the normal trusted LAN
-or Tailnet before teammates sign in. Native first-user signup grants Forgejo
-administration. Use independent Forgejo credentials, even with the same username
-as the Linux owner. The visible owner-registration flow and a shared PAM
-provisioning guard prevent early login from consuming the first account.
-Registration and its administrator assignment commit together. PAM remains active. Later Linux users' first successful PAM
-login creates ordinary Forgejo accounts. Linux wheel membership grants no
-Forgejo role. The team controls ongoing registration policy; there is no
-mandatory registration-closing step or associated restart.
+Every primary human uses ordinary Forgejo PAM login, without a first-owner
+signup or administrator prerequisite. New configurations disable browser
+registration. Forgejo administration is explicit and independent of Linux roles;
+see the [native CLI creation and web promotion procedure](public/40-Operate-Soda-OS/10-administration.md#create-a-forgejo-administrator).
+Existing roles and operator configuration are preserved.
 
 Workspace setup copies only current public authorized keys. Tea and gh are
 present in every workspace and authenticated manually and separately there.

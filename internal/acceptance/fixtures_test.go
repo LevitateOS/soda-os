@@ -37,8 +37,7 @@ esac
 	require.Equal(t, person, workspace.Person)
 	registration, err := os.ReadFile(os.Getenv("KEY_REGISTRATION"))
 	require.NoError(t, err)
-	require.Contains(t, string(registration), "supplied-person:forgejo-password")
-	require.NotContains(t, string(registration), "linux-password")
+	require.Contains(t, string(registration), "supplied-person:linux-password")
 }
 
 func TestFailedSetupDoesNotReturnCompletedFixture(t *testing.T) {
@@ -46,21 +45,6 @@ func TestFailedSetupDoesNotReturnCompletedFixture(t *testing.T) {
 	workspace, err := setupWorkspace(context.Background(), testPerson(t, "owner"), "kept", "setup")
 	require.ErrorContains(t, err, "before its outbound Git key was registered")
 	require.Equal(t, workspaceFixture{}, workspace)
-}
-
-func TestOwnerCredentialsKeepLinuxAndForgejoIndependent(t *testing.T) {
-	installAcceptanceCommand(t, "ssh", `config=$(cat)
-case "$config" in
- *forgejo-password*)
-  case "$config" in *write-out*) printf 200 ;; *) printf '%s' '{"login":"owner","is_admin":true}' ;; esac ;;
- *linux-password*) printf 401 ;;
- *) exit 1 ;;
-esac
-`)
-	person := testPerson(t, "owner")
-	require.NoError(t, verifyOwnerCredentials(context.Background(), person, "owner"))
-	person.LinuxPassword = person.ForgejoPassword
-	require.ErrorContains(t, verifyOwnerCredentials(context.Background(), person, "owner-recheck"), "must reject")
 }
 
 func TestGeneratedFixtureKeysAreRegisteredForSanitization(t *testing.T) {
@@ -102,6 +86,6 @@ func testPerson(t *testing.T, username string) personFixture {
 	require.NoError(t, err)
 	return personFixture{
 		Remote:    Remote{Username: username, Host: "fixture-host", Port: 2222, Key: "fixture-incoming-key", Evidence: evidence},
-		PublicKey: []byte(testPublicKey), LinuxPassword: []byte("linux-password"), ForgejoPassword: []byte("forgejo-password"),
+		PublicKey: []byte(testPublicKey), LinuxPassword: []byte("linux-password"),
 	}
 }

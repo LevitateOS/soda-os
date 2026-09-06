@@ -49,10 +49,7 @@ func (b *Builder) verifyForgejoInput() error {
 	if err := verifyFileSHA256(b.artifactPath("tools", lock.SourceArchive), lock.SHA256); err != nil {
 		return fmt.Errorf("verify Forgejo source; run just forgejo-source: %w", err)
 	}
-	return errors.Join(
-		verifyFileSHA256(b.path("packaging/rpm/forgejo/sources/patches/0001-pam-do-not-retain-password.patch"), lock.PatchSHA256),
-		verifyFileSHA256(b.path("packaging/rpm/forgejo/sources/patches/0002-first-owner-registration.patch"), lock.OwnerPatchSHA256),
-	)
+	return verifyFileSHA256(b.path("packaging/rpm/forgejo/sources/patches/0001-pam-do-not-retain-password.patch"), lock.PatchSHA256)
 }
 
 func (b *Builder) verifyTeaInput() error {

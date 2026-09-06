@@ -131,15 +131,11 @@ collaboration, issues, pull requests, releases, sessions, tokens, and native
 deletion consequences. External Git hosts own the equivalent facts for their
 repositories.
 
-The owner registers the first Forgejo account through the normal trusted LAN
-or Tailnet before teammates sign in. Native first-user signup grants Forgejo
-administration. Use independent Forgejo credentials, even with the same username
-as the Linux owner. The visible owner-registration flow and a shared PAM
-provisioning guard prevent early login from consuming the first account.
-Registration and its administrator assignment commit together. PAM remains active. Later Linux users' first successful PAM
-login creates ordinary Forgejo accounts. Linux wheel membership grants no
-Forgejo role. The team controls ongoing registration policy; there is no
-mandatory registration-closing step or associated restart.
+Every primary human uses ordinary Forgejo PAM login, without a first-owner
+signup or administrator prerequisite. New configurations disable browser
+registration. Forgejo administration is explicit and independent of Linux roles;
+see the [native CLI creation and web promotion procedure](public/40-Operate-Soda-OS/10-administration.md#create-a-forgejo-administrator).
+Existing roles and operator configuration are preserved.
 
 Workspace accounts remain Linux-only development identities and never become
 Forgejo users. Linux `wheel` membership does not grant Forgejo administration.
@@ -331,8 +327,9 @@ The following remain engineering questions, not product decisions:
 
 1. Installed interactive-shell welcome behavior and native Tailscale page access.
 2. LAN and Tailnet service reachability, including exit-node use on Fedora 44.
-3. Native first-owner signup, later PAM account creation under both team
-   registration policies, and manual Git-key registration on the shipped Forgejo.
+3. Ordinary PAM account creation before any Forgejo administrator exists,
+   explicit CLI administrator creation and native web promotion, and manual
+   Git-key registration on the shipped Forgejo.
 4. Catalog syntax, path, additional fields required by approved UI, and
    concurrency; project identity and canonical-URL immutability are settled.
 5. Workspace naming, classification, staging, and process removal.
@@ -356,9 +353,10 @@ The reset is complete when both matching-native architectures demonstrate:
 3. LAN exposes SSH, Cockpit, Forgejo, and normal development-server links;
    cloud exposes them only through Tailscale.
 4. Linux and `wheel` remain authoritative for people and administrators.
-5. Native first-owner signup grants independent Forgejo administration; later
-   PAM accounts are ordinary. Cockpit manages personal authorized keys; users
-   register workspace Git public keys with their authoritative Git host.
+5. PAM accounts are ordinary regardless of login order. Forgejo administration
+   is granted explicitly, not derived from Linux roles. Cockpit manages personal
+   authorized keys; users register workspace Git public keys with their
+   authoritative Git host.
 6. Every selected person-project pair receives a separate Linux account, home,
    full clone, dependencies, processes, and mutable state; the interface reports
    Linux account existence honestly while an incomplete clone remains retryable.

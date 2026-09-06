@@ -25,9 +25,8 @@ archive=$(lock_value source_archive)
 url=$(lock_value url)
 expected=$(lock_value sha256)
 patch_sha256=$(lock_value patch_sha256)
-owner_patch_sha256=$(lock_value owner_patch_sha256)
 
-for value in "$archive" "$url" "$expected" "$patch_sha256" "$owner_patch_sha256"; do
+for value in "$archive" "$url" "$expected" "$patch_sha256"; do
   if [ -z "$value" ]; then
     echo "Forgejo source lock is incomplete" >&2
     exit 1
@@ -51,7 +50,6 @@ validate_digest() {
 
 validate_digest "$expected"
 validate_digest "$patch_sha256"
-validate_digest "$owner_patch_sha256"
 
 output="$repo_root/.artifacts/tools/$archive"
 
@@ -69,12 +67,6 @@ checksum() {
 patch="$repo_root/packaging/rpm/forgejo/sources/patches/0001-pam-do-not-retain-password.patch"
 if [ "$(checksum "$patch")" != "$patch_sha256" ]; then
   echo "Forgejo PAM patch checksum differs from the source lock" >&2
-  exit 1
-fi
-
-owner_patch="$repo_root/packaging/rpm/forgejo/sources/patches/0002-first-owner-registration.patch"
-if [ "$(checksum "$owner_patch")" != "$owner_patch_sha256" ]; then
-  echo "Forgejo owner patch checksum differs from the source lock" >&2
   exit 1
 fi
 

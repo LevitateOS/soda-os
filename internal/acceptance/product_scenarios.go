@@ -90,6 +90,18 @@ func verifyCockpitAndRoles(ctx context.Context, adminWorkspace workspaceFixture,
 	return admin.Remote.Evidence.Write("product/cockpit-status.txt", []byte("primary=200\nworkspace=401\n"))
 }
 
+// Every human, including the first Linux administrator, starts as an ordinary PAM user.
+func verifyOrdinaryForgejoUser(ctx context.Context, person personFixture, evidence string) error {
+	user, err := forgejoAuthenticatedUser(ctx, person, evidence)
+	if err != nil {
+		return err
+	}
+	if user.Login != person.Remote.Username || user.IsAdmin {
+		return errors.New("PAM login must create the expected ordinary Forgejo account")
+	}
+	return nil
+}
+
 type forgejoUser struct {
 	Login   string `json:"login"`
 	IsAdmin bool   `json:"is_admin"`
@@ -104,7 +116,7 @@ func cockpitLoginStatus(ctx context.Context, remote Remote, username string, pas
 }
 
 func forgejoAuthenticatedUser(ctx context.Context, person personFixture, evidence string) (forgejoUser, error) {
-	config := fmt.Sprintf("user = %s\nsilent\nshow-error\nfail-with-body\nmax-time = 15\nurl = %s\n", curlConfigQuote(person.Remote.Username+":"+string(bytes.TrimRight(person.ForgejoPassword, "\r\n"))), curlConfigQuote(forgejoLoopbackEndpoint+"/api/v1/user"))
+	config := fmt.Sprintf("user = %s\nsilent\nshow-error\nfail-with-body\nmax-time = 15\nurl = %s\n", curlConfigQuote(person.Remote.Username+":"+string(bytes.TrimRight(person.LinuxPassword, "\r\n"))), curlConfigQuote(forgejoLoopbackEndpoint+"/api/v1/user"))
 	output, err := person.Remote.CaptureOutput(ctx, evidence, []byte(config), "curl", "--config", "-")
 	if err != nil {
 		return forgejoUser{}, err

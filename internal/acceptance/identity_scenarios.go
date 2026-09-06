@@ -30,7 +30,7 @@ func verifyForgejoKeys(ctx context.Context, workspace workspaceFixture) error {
 		return err
 	}
 	person := workspace.Person
-	keys, err := forgejoKeys(ctx, person.Remote, person.Remote.Username, person.ForgejoPassword)
+	keys, err := forgejoKeys(ctx, person.Remote, person.Remote.Username, person.LinuxPassword)
 	if err != nil {
 		return err
 	}
@@ -65,7 +65,7 @@ func rejectForgejoKey(keys []forgejoKey, rejected []byte, label, username string
 const forgejoLoopbackEndpoint = "http://127.0.0.1:30000"
 
 func registerForgejoKey(ctx context.Context, person personFixture, publicKey []byte, evidence string) error {
-	remote, password := person.Remote, person.ForgejoPassword
+	remote, password := person.Remote, person.LinuxPassword
 	payload, err := json.Marshal(map[string]string{
 		"key":   strings.TrimSpace(string(publicKey)),
 		"title": "Soda OS acceptance " + evidence,

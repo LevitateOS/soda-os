@@ -16,7 +16,6 @@ source_archive = "forgejo-src-15.0.7.tar.gz"
 url = "https://codeberg.org/forgejo/forgejo/releases/download/v15.0.7/forgejo-src-15.0.7.tar.gz"
 sha256 = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 patch_sha256 = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
-owner_patch_sha256 = "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
 build_tags = "bindata timetzdata sqlite sqlite_unlock_notify pam"
 `
 	require.NoError(t, os.WriteFile(path, []byte(valid), 0o644))

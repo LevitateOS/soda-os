@@ -121,9 +121,6 @@ func (b *Builder) buildForgejo(ctx context.Context) error {
 	if err = verifyFileSHA256(patch, lock.PatchSHA256); err != nil {
 		return fmt.Errorf("verify Forgejo PAM patch: %w", err)
 	}
-	if err = verifyFileSHA256(b.path("packaging/rpm/forgejo/sources/patches/0002-first-owner-registration.patch"), lock.OwnerPatchSHA256); err != nil {
-		return fmt.Errorf("verify Forgejo owner patch: %w", err)
-	}
 	script := strings.Join([]string{
 		"set -eu",
 		"rm -rf /src/.artifacts/build/forgejo-source",
@@ -132,9 +129,7 @@ func (b *Builder) buildForgejo(ctx context.Context) error {
 		"cd /src/.artifacts/build/forgejo-source",
 		"patch --batch --forward --fuzz=0 --strip=1 --input=/src/packaging/rpm/forgejo/sources/patches/0001-pam-do-not-retain-password.patch",
 		"if grep -F 'Passwd:      password' services/auth/source/pam/source_authenticate.go; then echo 'Forgejo PAM patch did not remove the copied password verifier' >&2; exit 1; fi",
-		"patch --batch --forward --fuzz=0 --strip=1 --input=/src/packaging/rpm/forgejo/sources/patches/0002-first-owner-registration.patch",
 		"go test ./services/auth/source/pam",
-		"go test -race -tags 'sqlite sqlite_unlock_notify pam' ./models/user -run TestSodaOwner -count=10",
 		"TAGS='" + lock.BuildTags + "' make backend",
 		"install -m 0755 gitea /src/.artifacts/build/forgejo",
 		"/src/.artifacts/build/forgejo --version | grep -F ': " + strings.ReplaceAll(lock.BuildTags, " ", ", ") + "'",

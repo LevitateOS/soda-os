@@ -158,9 +158,10 @@ The host allowance must not be mirrored into public provider ingress.
 
 The QCOW2 boots from the enlarged disk and cloud-init provisions the Linux
 account. Interactive login always shows the welcome message. Keep the provider's
-private network boundary in place and register the
-first Forgejo owner before teammates begin signing in, as described in [Make
-the first connection](30-first-connection.md).
+private network boundary in place and sign in to Forgejo with Linux/PAM
+credentials, as described in [Make the first connection](30-first-connection.md).
+Forgejo administration is established explicitly when needed; teammates do not
+have to wait for an administrator account.
 
 ## If something fails
 

@@ -12,10 +12,9 @@ import (
 // Fixtures describe credentials and connections, not copied Linux account state.
 // Linux remains authoritative when a later check changes roles or deletes accounts.
 type personFixture struct {
-	Remote          Remote
-	PublicKey       []byte
-	LinuxPassword   []byte
-	ForgejoPassword []byte
+	Remote        Remote
+	PublicKey     []byte
+	LinuxPassword []byte
 }
 
 type workspaceFixture struct {
@@ -32,11 +31,10 @@ type projectFixture struct {
 }
 
 type runInputs struct {
-	Admin             personFixture
-	Keys              fixtureKeys
-	OwnerPasswordFile string
-	PasswordFile      string
-	PublicKeyFile     string
+	Admin         personFixture
+	Keys          fixtureKeys
+	PasswordFile  string
+	PublicKeyFile string
 }
 
 // fixtureKeys owns only generated personal SSH keys and their redaction registration.
@@ -92,7 +90,7 @@ printf '%%s' %q | base64 --decode >"/home/$username/.ssh/authorized_keys"
 	if err = admin.Remote.Sudo(ctx, password, script, evidence+"-linux"); err != nil {
 		return personFixture{}, err
 	}
-	person := personFixture{Remote: admin.Remote.As(username, key.PrivatePath), PublicKey: key.Public, LinuxPassword: password, ForgejoPassword: password}
+	person := personFixture{Remote: admin.Remote.As(username, key.PrivatePath), PublicKey: key.Public, LinuxPassword: password}
 	user, err := forgejoAuthenticatedUser(ctx, person, evidence+"-forgejo-pam")
 	if err != nil {
 		return personFixture{}, err

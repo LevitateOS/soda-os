@@ -163,10 +163,13 @@ smallest Soda-specific project workflow. The target behavior is:
   workspace accounts, without a Soda identity database or rename
   reconciliation;
 - Anaconda or cloud-init creation of the initial Linux administrator;
-  independent native first-owner Forgejo signup with separate credentials;
-  later primary humans created through stock Cockpit or Linux, first normal
-  Forgejo PAM login, native manual key registration, and no workspace-account
-  Forgejo identities or ongoing role synchronization;
+  primary humans created through stock Cockpit or Linux, ordinary Forgejo PAM
+  accounts on first login regardless of login order, and browser registration
+  disabled in new configurations; Linux administrators explicitly create a
+  separate Forgejo administrator through its native CLI when needed, with its
+  own Forgejo password, and existing Forgejo administrators can promote PAM
+  users through the native web interface; native manual key registration, no
+  workspace-account Forgejo identities, and no ongoing role synchronization;
 - stock Cockpit with Soda branding and one focused Soda Projects page;
 - a minimal shared declarative project catalog editable by every primary
   human, without an unapproved closed metadata field list, repository-

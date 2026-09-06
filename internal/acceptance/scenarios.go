@@ -15,7 +15,7 @@ func captureCore(ctx context.Context, admin personFixture, prefix string) error 
 }
 
 func runQCOW2Checks(ctx context.Context, admin personFixture, originalVirtualSize int64) error {
-	if err := verifyOwnerCredentials(ctx, admin, "qcow2/owner"); err != nil {
+	if err := verifyOrdinaryForgejoUser(ctx, admin, "qcow2/administrator-pam"); err != nil {
 		return err
 	}
 	remote, password := admin.Remote, admin.LinuxPassword

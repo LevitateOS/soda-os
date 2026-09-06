@@ -608,9 +608,9 @@ file = "soda-runners-0.6.3-1.fc44.aarch64.rpm"
 
 [[package]]
 name = "soda-forgejo"
-nevra = "soda-forgejo-0:15.0.7-9.fc44.aarch64"
+nevra = "soda-forgejo-0:15.0.7-10.fc44.aarch64"
 source = "local-rpm"
-file = "soda-forgejo-15.0.7-9.fc44.aarch64.rpm"
+file = "soda-forgejo-15.0.7-10.fc44.aarch64.rpm"
 
 [[package]]
 name = "soda-tea"

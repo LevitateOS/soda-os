@@ -44,63 +44,36 @@ ssh ADMINISTRATOR@SODA_HOST
 
 Replace `ADMINISTRATOR` and `SODA_HOST` with your Linux username and the reachable machine address.
 Open Cockpit at `https://SODA_HOST:9090` and sign in with the same Linux
-account. Open Forgejo at `http://SODA_HOST:30000` and complete the first-owner
-registration below before using it for your team.
+account. Open Forgejo at `http://SODA_HOST:30000` and sign in with your Linux
+username and password. PAM creates an ordinary Forgejo account on first login.
 
 Use the host identity shown by Soda instead of disabling SSH host-key or TLS
 warnings. Investigate any unexpected identity change.
 
-## Register the Forgejo owner first
+## Forgejo administration is explicit
 
-**The first owner is the exception to normal Linux/PAM sign-in.** Register a
-separate Forgejo account; do not use Linux sign-in to establish ownership.
+The first human uses the same Linux/PAM sign-in as everyone else and does not
+become a Forgejo administrator automatically. Other users can sign in before
+any Forgejo administrator exists.
 
-1. Open `http://SODA_HOST:30000` through the trusted LAN or Tailnet. An empty
-   instance shows **Create your Forgejo administrator account**.
-2. Choose **Create administrator account** and complete Forgejo's native
-   registration form. You may reuse your Linux username, but choose independent
-   Forgejo credentials. Soda does not copy your Linux password into this account.
-3. After successful registration, the administrator confirmation leads to
-   **Site Administration**. You can also open `/admin` or use your avatar menu.
-4. Later humans sign in with their Linux username and password. PAM creates
-   ordinary Forgejo accounts for them. No manual PAM activation or restart is
-   required, unless an administrator has deliberately disabled that source.
-
-Before owner registration completes, web sign-in leads to registration and
-PAM API/Git-over-HTTP authentication cannot create an account. A failed signup
-can be corrected and retried without consuming the administrator position.
-
-Your owner account continues using its separate Forgejo password on later
-visits. Linux/Cockpit administrator status and `wheel` membership do **not**
-grant Forgejo administration. The team controls later self-registration policy;
-closing registration is optional and does not disable ordinary PAM sign-in.
-
-### Existing accounts but no administrator
-
-If Forgejo says **This Forgejo instance has no administrator**, it already has
-accounts and is not an unclaimed server. Older installations could reach this
-state through PAM login before owner registration. An update does not silently
-promote an account, replace credentials, or erase the database.
-
-**Registering another account will not repair it.** Ask the Linux administrator
-to investigate the account-creation history and arrange explicit recovery after
-[backing up the data](../40-Operate-Soda-OS/30-data-safety-and-removal.md).
-Resetting Forgejo is not a routine troubleshooting step for a server containing
-work. If registration is disabled on an empty server, the Linux administrator
-must review its registration settings; Soda does not override that choice.
+When site administration is needed, a Linux administrator can
+[create a separate Forgejo administrator using the native CLI](../40-Operate-Soda-OS/10-administration.md#create-a-forgejo-administrator).
+That account has its own Forgejo password. It can then promote existing PAM
+users through Forgejo's web interface. Linux `wheel` membership alone grants no
+Forgejo role. There is no first-owner registration step.
 
 ## Expected result
 
 Network access works, SSH accepts the installed personal key, Cockpit accepts
-the Linux password, and Forgejo recognizes its independent administrator.
+the Linux password, and Forgejo accepts Linux/PAM login as an ordinary user.
 
 ## If something fails
 
 - **SSH:** confirm the username, host, route, and public key in the Linux account authorized_keys.
 - **Cockpit:** confirm port 9090 is reachable on the selected LAN or Tailnet
   path and use the Linux password.
-- **Forgejo:** confirm port 30000 and use the Forgejo administrator credentials
-  chosen during native signup.
+- **Forgejo:** confirm port 30000 and use your Linux credentials for a PAM account.
+  Use the separate Forgejo password only for an explicitly CLI-created account.
 - **Tailscale:** inspect its native connection or authentication error in Cockpit.
 
 ## Next step

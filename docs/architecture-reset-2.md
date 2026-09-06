@@ -12,8 +12,9 @@ The accepted [native onboarding contract](native-onboarding.md) supersedes the
 earlier account creation, dismissal, QCOW2, Forgejo signup/key, and coordinated
 person-deletion decisions recorded below. Anaconda creates ISO accounts;
 standard cloud-init provisions QCOW2; Setup handles only missing post-login
-network configuration. The owner registers Forgejo independently. Cockpit
-manages personal authorized keys, Git hosts manage workspace Git public keys,
+network configuration. Primary humans use ordinary Forgejo PAM login; a Linux
+administrator explicitly creates a separate Forgejo administrator when needed.
+Cockpit manages personal authorized keys, Git hosts manage workspace Git public keys,
 and Forgejo deletion stays separate. Registration policy belongs to the team.
 Conditional address refresh after enrollment preserves normal service ordering;
 Forgejo must never wait for cloud-final. The other decisions remain unchanged.

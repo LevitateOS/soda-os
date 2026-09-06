@@ -3,7 +3,6 @@ package acceptance
 import (
 	"bytes"
 	"context"
-	"crypto/rand"
 	"errors"
 	"fmt"
 	"io"
@@ -229,23 +228,17 @@ func (state *runnerState) loadInputs(password []byte) (runInputs, error) {
 	if err != nil {
 		return runInputs{}, err
 	}
-	ownerPassword := []byte(rand.Text())
 	state.secrets = []Secret{
-		{Label: "forgejo-owner-password", Value: ownerPassword},
 		{Label: "administrator-password", Value: password},
 		{Label: "administrator-private-key", Value: privateKey},
-	}
-	ownerPath := filepath.Join(state.paths.work, "forgejo-owner-password")
-	if err = os.WriteFile(ownerPath, ownerPassword, 0600); err != nil {
-		return runInputs{}, err
 	}
 	return runInputs{
 		Admin: personFixture{
 			Remote:    localForwardedRemote(input, state.options.Ports, state.paths.work, state.evidence),
-			PublicKey: publicKey, LinuxPassword: password, ForgejoPassword: ownerPassword,
+			PublicKey: publicKey, LinuxPassword: password,
 		},
-		Keys:              fixtureKeys{Directory: filepath.Join(state.paths.work, "people"), Secrets: &state.secrets},
-		OwnerPasswordFile: ownerPath, PasswordFile: input.Password, PublicKeyFile: input.PublicKey,
+		Keys:         fixtureKeys{Directory: filepath.Join(state.paths.work, "people"), Secrets: &state.secrets},
+		PasswordFile: input.Password, PublicKeyFile: input.PublicKey,
 	}, nil
 }
 
