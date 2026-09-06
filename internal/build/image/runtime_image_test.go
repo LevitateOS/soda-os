@@ -251,6 +251,7 @@ func TestForgejoPAMPatchContract(t *testing.T) {
 	require.Equal(t, "forgejo-src-"+lock.Version+".tar.gz", lock.SourceArchive)
 	require.True(t, validSHA256(lock.SHA256))
 	require.True(t, validSHA256(lock.PatchSHA256))
+	require.True(t, validSHA256(lock.OwnerPatchSHA256))
 	require.Contains(t, lock.BuildTags, "pam")
 
 	buildPipeline, err := os.ReadFile("rpm.go")
@@ -259,6 +260,8 @@ func TestForgejoPAMPatchContract(t *testing.T) {
 	require.Contains(t, string(buildPipeline), `"GOCACHE=/src/.artifacts/build/forgejo-go-cache"`)
 	require.Contains(t, string(buildPipeline), `"GOTMPDIR=/src/.artifacts/build/forgejo-go-tmp"`)
 	require.Contains(t, string(buildPipeline), `patch --batch --forward --fuzz=0 --strip=1 --input=/src/packaging/rpm/forgejo/sources/patches/0001-pam-do-not-retain-password.patch`)
+	require.Contains(t, string(buildPipeline), `patch --batch --forward --fuzz=0 --strip=1 --input=/src/packaging/rpm/forgejo/sources/patches/0002-first-owner-registration.patch`)
+	require.Contains(t, string(buildPipeline), `go test -race -tags 'sqlite sqlite_unlock_notify pam' ./models/user -run TestSodaOwner -count=10`)
 	require.Contains(t, string(buildPipeline), `if grep -F 'Passwd:      password' services/auth/source/pam/source_authenticate.go; then`)
 	require.Contains(t, string(buildPipeline), `go test ./services/auth/source/pam`)
 	require.Contains(t, string(buildPipeline), `TAGS='" + lock.BuildTags + "' make backend`)

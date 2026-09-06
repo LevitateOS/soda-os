@@ -1,0 +1,388 @@
+diff --git a/models/user/owner_setup.go b/models/user/owner_setup.go
+new file mode 100644
+--- /dev/null
++++ b/models/user/owner_setup.go
+@@ -0,0 +1,57 @@
++// Copyright 2026 The Forgejo Authors. All rights reserved.
++// SPDX-License-Identifier: MIT
++
++package user
++
++import (
++	"context"
++	"errors"
++
++	"forgejo.org/models/db"
++	"forgejo.org/modules/optional"
++)
++
++// ErrOwnerSetupRequired never means that a PAM account should be promoted.
++var ErrOwnerSetupRequired = errors.New("Forgejo has no administrator; complete first-owner registration before creating Linux/PAM accounts")
++
++// OwnerSetup reads native account state. No completion flag is stored or cached.
++// A remaining (even disabled) administrator means the instance is already owned.
++func OwnerSetup(ctx context.Context) (string, error) {
++	hasAdmin, err := db.GetEngine(ctx).Where("type = ? AND is_admin = ?", UserTypeIndividual, true).Exist(new(User))
++	if err != nil || hasAdmin {
++		return "", err
++	}
++	hasUsers, err := db.GetEngine(ctx).Where("type IN (?, ?)", UserTypeIndividual, UserTypeRemoteUser).Exist(new(User))
++	if err != nil {
++		return "", err
++	}
++	if hasUsers {
++		return "missing-admin", nil
++	}
++	return "register", nil
++}
++
++// CreateRegisteredUser assigns the native first-registration role in the same
++// transaction as account creation. On Soda's SQLite database, a competing writer
++// either observes the committed owner or fails without leaving a partial account.
++func CreateRegisteredUser(ctx context.Context, u *User, overwrite *CreateUserOverwriteOptions) error {
++	return db.WithTx(ctx, func(ctx context.Context) error {
++		state, err := OwnerSetup(ctx)
++		if err != nil {
++			return err
++		}
++		if state == "missing-admin" {
++			return ErrOwnerSetupRequired
++		}
++		if state == "register" {
++			u.IsAdmin = true
++			options := CreateUserOverwriteOptions{}
++			if overwrite != nil {
++				options = *overwrite
++			}
++			options.IsActive = optional.Some(true)
++			overwrite = &options
++		}
++		return CreateUser(ctx, u, overwrite)
++	})
++}
+diff --git a/models/user/owner_setup_test.go b/models/user/owner_setup_test.go
+new file mode 100644
+--- /dev/null
++++ b/models/user/owner_setup_test.go
+@@ -0,0 +1,105 @@
++// Copyright 2026 The Forgejo Authors. All rights reserved.
++// SPDX-License-Identifier: MIT
++
++package user_test
++
++import (
++	"context"
++	"errors"
++	"fmt"
++	"sync"
++	"testing"
++
++	"forgejo.org/models/db"
++	"forgejo.org/models/unittest"
++	user_model "forgejo.org/models/user"
++	"forgejo.org/services/auth/source/pam"
++	"github.com/stretchr/testify/require"
++)
++
++func emptyOwnerDatabase(t *testing.T) {
++	t.Helper()
++	require.NoError(t, unittest.InitFixtures(unittest.FixturesOptions{}))
++	t.Cleanup(func() {
++		require.NoError(t, unittest.InitFixtures(unittest.FixturesOptions{Dir: unittest.FixturesDir()}))
++	})
++	require.NoError(t, unittest.PrepareTestDatabase())
++}
++
++func TestSodaOwnerRegistration(t *testing.T) {
++	emptyOwnerDatabase(t)
++	state, err := user_model.OwnerSetup(db.DefaultContext)
++	require.NoError(t, err)
++	require.Equal(t, "register", state)
++	_, err = (&pam.Source{}).Authenticate(db.DefaultContext, nil, "linux-owner", "not-used")
++	require.ErrorIs(t, err, user_model.ErrOwnerSetupRequired)
++	require.Zero(t, user_model.CountUsers(db.DefaultContext, nil))
++	first := &user_model.User{Name: "soda-first", Email: "soda-first@example.test"}
++	require.NoError(t, user_model.CreateRegisteredUser(db.DefaultContext, first, nil))
++	require.True(t, first.IsAdmin)
++	require.True(t, first.IsActive)
++	state, err = user_model.OwnerSetup(db.DefaultContext)
++	require.NoError(t, err)
++	require.Empty(t, state)
++	second := &user_model.User{Name: "soda-second", Email: "soda-second@example.test"}
++	require.NoError(t, user_model.CreateRegisteredUser(db.DefaultContext, second, nil))
++	require.False(t, second.IsAdmin)
++	_, err = db.GetEngine(db.DefaultContext).ID(first.ID).Cols("is_active", "prohibit_login").Update(&user_model.User{IsActive: false, ProhibitLogin: true})
++	require.NoError(t, err)
++	state, err = user_model.OwnerSetup(db.DefaultContext)
++	require.NoError(t, err)
++	require.Empty(t, state, "a disabled administrator does not make the instance unclaimed")
++}
++
++func TestSodaOwnerRegistrationRollback(t *testing.T) {
++	emptyOwnerDatabase(t)
++	failure := errors.New("fail before commit")
++	err := db.WithTx(db.DefaultContext, func(ctx context.Context) error {
++		require.NoError(t, user_model.CreateRegisteredUser(ctx, &user_model.User{Name: "soda-retry", Email: "soda-retry@example.test"}, nil))
++		return failure
++	})
++	require.ErrorIs(t, err, failure)
++	state, err := user_model.OwnerSetup(db.DefaultContext)
++	require.NoError(t, err)
++	require.Equal(t, "register", state)
++	retry := &user_model.User{Name: "soda-retry", Email: "soda-retry@example.test"}
++	require.NoError(t, user_model.CreateRegisteredUser(db.DefaultContext, retry, nil))
++	require.True(t, retry.IsAdmin)
++}
++
++func TestSodaOwnerMissingAdministrator(t *testing.T) {
++	emptyOwnerDatabase(t)
++	require.NoError(t, user_model.CreateUser(db.DefaultContext, &user_model.User{Name: "soda-stranded", Email: "soda-stranded@example.test"}))
++	state, err := user_model.OwnerSetup(db.DefaultContext)
++	require.NoError(t, err)
++	require.Equal(t, "missing-admin", state)
++	require.ErrorIs(t, user_model.CreateRegisteredUser(db.DefaultContext, &user_model.User{Name: "soda-not-repair", Email: "soda-not-repair@example.test"}, nil), user_model.ErrOwnerSetupRequired)
++	require.EqualValues(t, 1, user_model.CountUsers(db.DefaultContext, nil))
++}
++
++func TestSodaOwnerConcurrentRegistration(t *testing.T) {
++	emptyOwnerDatabase(t)
++	var wg sync.WaitGroup
++	start := make(chan struct{})
++	results := make(chan error, 2)
++	for i := range 2 {
++		wg.Go(func() {
++			<-start
++			results <- user_model.CreateRegisteredUser(db.DefaultContext, &user_model.User{Name: fmt.Sprintf("soda-race-%d", i), Email: fmt.Sprintf("soda-race-%d@example.test", i)}, nil)
++		})
++	}
++	close(start)
++	wg.Wait()
++	close(results)
++	successes := 0
++	for err := range results {
++		if err == nil {
++			successes++
++		}
++	}
++	require.Positive(t, successes)
++	count, err := db.GetEngine(db.DefaultContext).Where("is_admin = ?", true).Count(new(user_model.User))
++	require.NoError(t, err)
++	require.EqualValues(t, 1, count)
++	require.EqualValues(t, successes, user_model.CountUsers(db.DefaultContext, nil), "failed writers must not leave partial accounts")
++}
+diff --git a/routers/web/auth/auth.go b/routers/web/auth/auth.go
+--- a/routers/web/auth/auth.go
++++ b/routers/web/auth/auth.go
+@@ -143,6 +143,13 @@
+ 
+ // SignIn render sign in page
+ func SignIn(ctx *context.Context) {
++	if !ctx.LoadOwnerSetup() {
++		return
++	}
++	if ctx.Data["SodaOwnerSetup"] == "register" {
++		ctx.Redirect(setting.AppSubURL + "/user/sign_up")
++		return
++	}
+ 	ctx.Data["Title"] = ctx.Tr("sign_in")
+ 
+ 	if CheckAutoLogin(ctx) {
+@@ -177,6 +184,13 @@
+ 
+ // SignInPost response for sign in request
+ func SignInPost(ctx *context.Context) {
++	if !ctx.LoadOwnerSetup() {
++		return
++	}
++	if ctx.Data["SodaOwnerSetup"] == "register" {
++		ctx.Redirect(setting.AppSubURL + "/user/sign_up")
++		return
++	}
+ 	ctx.Data["Title"] = ctx.Tr("sign_in")
+ 
+ 	oauth2Providers, err := oauth2.GetOAuth2Providers(ctx, optional.Some(true))
+@@ -216,7 +230,9 @@
+ 
+ 	u, source, err := auth_method.UserSignIn(ctx, form.UserName, form.Password)
+ 	if err != nil {
+-		if errors.Is(err, util.ErrNotExist) || errors.Is(err, util.ErrInvalidArgument) {
++		if errors.Is(err, user_model.ErrOwnerSetupRequired) {
++			ctx.RenderWithErr(err.Error(), tplSignIn, &form)
++		} else if errors.Is(err, util.ErrNotExist) || errors.Is(err, util.ErrInvalidArgument) {
+ 			log.Warn("Failed authentication attempt for %s from %s: %v", form.UserName, ctx.RemoteAddr(), err)
+ 			ctx.RenderWithErr(ctx.Tr("form.username_password_incorrect"), tplSignIn, &form)
+ 		} else if user_model.IsErrEmailAlreadyUsed(err) {
+@@ -399,6 +415,9 @@
+ 
+ // SignUp render the register page
+ func SignUp(ctx *context.Context) {
++	if !ctx.LoadOwnerSetup() {
++		return
++	}
+ 	ctx.Data["Title"] = ctx.Tr("sign_up")
+ 
+ 	ctx.Data["SignUpLink"] = setting.AppSubURL + "/user/sign_up"
+@@ -426,6 +445,9 @@
+ 
+ // SignUpPost response for sign up information submission
+ func SignUpPost(ctx *context.Context) {
++	if !ctx.LoadOwnerSetup() {
++		return
++	}
+ 	if registrationDisabled(ctx) {
+ 		ctx.Error(http.StatusForbidden)
+ 		return
+@@ -502,7 +524,12 @@
+ 		return
+ 	}
+ 
+-	ctx.Flash.Success(ctx.Tr("auth.sign_up_successful"))
++	if ctx.Data["SodaOwnerSetup"] == "register" && u.IsAdmin {
++		ctx.Flash.Success("Your Forgejo administrator account is ready. Site Administration is also available from your account menu.")
++		middleware.SetRedirectToCookie(ctx.Resp, setting.AppSubURL+"/admin")
++	} else {
++		ctx.Flash.Success(ctx.Tr("auth.sign_up_successful"))
++	}
+ 	handleSignIn(ctx, u, false)
+ }
+ 
+@@ -518,7 +545,7 @@
+ // createUserInContext creates a user and handles errors within a given context.
+ // Optionally a template can be specified.
+ func createUserInContext(ctx *context.Context, tpl base.TplName, form any, u *user_model.User, overwrites *user_model.CreateUserOverwriteOptions, gothUser *goth.User, allowLink bool) (ok bool) {
+-	if err := user_model.CreateUser(ctx, u, overwrites); err != nil {
++	if err := user_model.CreateRegisteredUser(ctx, u, overwrites); err != nil {
+ 		if allowLink && (user_model.IsErrUserAlreadyExist(err) || user_model.IsErrEmailAlreadyUsed(err)) {
+ 			switch setting.OAuth2Client.AccountLinking {
+ 			case setting.OAuth2AccountLinkingAuto:
+@@ -551,6 +578,8 @@
+ 
+ 		// handle error with template
+ 		switch {
++		case errors.Is(err, user_model.ErrOwnerSetupRequired):
++			ctx.RenderWithErr("This instance has accounts but no administrator. Another registration cannot repair it. Contact the Linux administrator.", tpl, form)
+ 		case user_model.IsErrUserAlreadyExist(err):
+ 			ctx.Data["Err_UserName"] = true
+ 			ctx.RenderWithErr(ctx.Tr("form.username_been_taken"), tpl, form)
+@@ -582,22 +611,9 @@
+ }
+ 
+ // handleUserCreated does additional steps after a new user is created.
+-// It auto-sets admin for the only user, updates the optional external user and
+-// sends a confirmation email if required.
++// Account creation and first-owner assignment have already committed together.
++// It updates the optional external user and sends confirmation email if required.
+ func handleUserCreated(ctx *context.Context, u *user_model.User, gothUser *goth.User) (ok bool) {
+-	// Auto-set admin for the only user.
+-	if user_model.CountUsers(ctx, nil) == 1 {
+-		opts := &user_service.UpdateOptions{
+-			IsActive:     optional.Some(true),
+-			IsAdmin:      optional.Some(true),
+-			SetLastLogin: true,
+-		}
+-		if err := user_service.UpdateUser(ctx, u, opts); err != nil {
+-			ctx.ServerError("UpdateUser", err)
+-			return false
+-		}
+-	}
+-
+ 	notify_service.NewUserSignUp(ctx, u)
+ 	// update external user information
+ 	if gothUser != nil {
+diff --git a/routers/web/home.go b/routers/web/home.go
+--- a/routers/web/home.go
++++ b/routers/web/home.go
+@@ -32,6 +32,13 @@
+ 
+ // Home render home page
+ func Home(ctx *context.Context) {
++	if !ctx.LoadOwnerSetup() {
++		return
++	}
++	if ctx.Data["SodaOwnerSetup"] != "" {
++		ctx.HTML(http.StatusOK, tplHome)
++		return
++	}
+ 	if ctx.IsSigned {
+ 		if !ctx.Doer.IsActive && setting.Service.RegisterEmailConfirm {
+ 			ctx.Data["Title"] = ctx.Tr("auth.active_your_account")
+diff --git a/services/auth/method/basic.go b/services/auth/method/basic.go
+--- a/services/auth/method/basic.go
++++ b/services/auth/method/basic.go
+@@ -124,7 +124,7 @@
+ 	log.Trace("Basic Authorization: Attempting SignIn for %s", uname)
+ 	u, source, err := UserSignIn(req.Context(), uname, passwd)
+ 	if err != nil {
+-		if user_model.IsErrUserNotExist(err) || user_model.IsErrUserProhibitLogin(err) ||
++		if errors.Is(err, user_model.ErrOwnerSetupRequired) || user_model.IsErrUserNotExist(err) || user_model.IsErrUserProhibitLogin(err) ||
+ 			errors.As(err, &db.ErrUserPasswordInvalid{}) || errors.As(err, &db.ErrUserPasswordNotSet{}) {
+ 			return &auth.AuthenticationAttemptedIncorrectCredential{Error: err}
+ 		}
+diff --git a/services/auth/method/signin.go b/services/auth/method/signin.go
+--- a/services/auth/method/signin.go
++++ b/services/auth/method/signin.go
+@@ -5,6 +5,7 @@
+ 
+ import (
+ 	"context"
++	"errors"
+ 	"strings"
+ 
+ 	"forgejo.org/models/auth"
+@@ -105,6 +106,9 @@
+ 		}
+ 
+ 		authUser, err := authenticator.Authenticate(ctx, nil, username, password)
++		if errors.Is(err, user_model.ErrOwnerSetupRequired) {
++			return nil, nil, err
++		}
+ 
+ 		if err == nil {
+ 			if !authUser.ProhibitLogin {
+diff --git a/services/auth/source/pam/source_authenticate.go b/services/auth/source/pam/source_authenticate.go
+--- a/services/auth/source/pam/source_authenticate.go
++++ b/services/auth/source/pam/source_authenticate.go
+@@ -22,6 +22,17 @@
+ // Authenticate queries if login/password is valid against the PAM,
+ // and create a local user if success when enabled.
+ func (source *Source) Authenticate(ctx context.Context, user *user_model.User, userName, password string) (*user_model.User, error) {
++	// Existing PAM accounts keep native authentication; only provisioning waits
++	// for a committed administrator. This covers web and Basic/API/Git sign-in.
++	if user == nil {
++		state, err := user_model.OwnerSetup(ctx)
++		if err != nil {
++			return nil, err
++		}
++		if state != "" {
++			return nil, user_model.ErrOwnerSetupRequired
++		}
++	}
+ 	pamLogin, err := pam.Auth(source.ServiceName, userName, password)
+ 	if err != nil {
+ 		if errors.Is(err, pam.ErrInvalidCredentials) {
+diff --git a/services/context/owner_setup.go b/services/context/owner_setup.go
+new file mode 100644
+--- /dev/null
++++ b/services/context/owner_setup.go
+@@ -0,0 +1,21 @@
++// Copyright 2026 The Forgejo Authors. All rights reserved.
++// SPDX-License-Identifier: MIT
++
++package context
++
++import (
++	user_model "forgejo.org/models/user"
++	"forgejo.org/modules/setting"
++)
++
++// LoadOwnerSetup supplies the home and authentication templates only.
++func (ctx *Context) LoadOwnerSetup() bool {
++	state, err := user_model.OwnerSetup(ctx)
++	if err != nil {
++		ctx.ServerError("OwnerSetup", err)
++		return false
++	}
++	ctx.Data["SodaOwnerSetup"] = state
++	ctx.Data["SodaOwnerRegistrationAllowed"] = !setting.Service.DisableRegistration && !setting.Service.AllowOnlyExternalRegistration
++	return true
++}
