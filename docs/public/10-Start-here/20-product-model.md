@@ -1,122 +1,72 @@
 # Product model
 
-Understand the people, accounts, services, and ownership boundaries that make Soda OS predictable.
+Understand what the machine shares, what belongs to a project, and what stays private to each developer.
 
-Soda is designed for a trusted team. Administrators have more destructive
-capabilities, but they are not treated as hostile users. Team coordination is
-the safeguard before deleting shared local work.
+## Three layers
 
-## Prerequisites
+| Layer | What lives there |
+| --- | --- |
+| Shared foundation | Machine, OS image, system tools, compute, storage, private access, project catalog |
+| Shared project | Canonical repository reference and any development services the team chooses to run |
+| Developer-project workspace | Linux account, UID, home, full clone, dependencies, caches, files, data, processes |
 
-No system access is required to understand this model. If you already have a
-Soda role, find it below before choosing a deployment or daily workflow.
+A project is not a shared writable checkout. Teammates collaborate through
+ordinary branches, commits, pushes, and reviews at the authoritative Git host.
+Each person chooses which workspaces to create rather than receiving one for
+every project automatically.
 
-## Roles
+Separate accounts prevent accidental mixing of dependencies, files, and process
+ownership. Soda is for trusted people, not hostile multitenancy. Workspaces share
+host ports; choose non-conflicting ports for project services. User-operated
+containers are optional, not the workspace foundation.
 
-### Infrastructure owner
+## Accounts and roles
 
-The infrastructure owner chooses and operates the machine, its deployment
-location, storage, network, backups, and update timing. This person is normally
-also the first administrator.
+- Your **primary Linux account** is your stable identity for Cockpit, project
+  discovery, and administration. Develop in a workspace, not this home.
+- A **workspace account** belongs to you for one project. Connect directly as
+  that username with OpenSSH; its files and processes use its real Linux UID.
+- Your **Forgejo profile** is created by ordinary first login with your Linux
+  username and password through PAM. Workspace accounts do not get Forgejo profiles.
+- A **Linux administrator** has `wheel` membership. This does not make them a
+  Forgejo administrator; [Forgejo administration](../30-Use-Soda/30-forgejo.md#create-a-forgejo-administrator)
+  is granted explicitly and independently.
 
-### Administrator
+All primary humans can view and edit the shared catalog and create their own
+workspaces. The Git host still decides who may read or write each repository.
+Catalog visibility does not grant repository access.
 
-An administrator is a primary Linux account in the `wheel` group.
-Administrators can create primary Linux accounts through stock Cockpit or
-native Linux tools, promote primary accounts through Cockpit, remove people,
-and remove entire projects with all local workspaces.
+## Native tools, clear responsibilities
 
-### Developer
+| Task | Use |
+| --- | --- |
+| Host services, logs, storage, networking, people | [Cockpit](../30-Use-Soda/10-cockpit.md) and native Linux tools |
+| Repository creation, permissions, collaboration | [Forgejo](../30-Use-Soda/30-forgejo.md) or your external Git host |
+| Project catalog and workspace lifecycle | [Projects](../30-Use-Soda/20-projects-and-workspaces.md) |
+| Remote sessions and file transfers | OpenSSH |
+| Private cloud reachability | [Tailscale](../30-Use-Soda/40-tailscale.md) |
+| Development tools and repository configuration | [mise](../40-Develop/10-connect-and-develop.md#manage-development-tools) |
+| Local provider CI capacity | [Runners](../30-Use-Soda/50-ci-runners.md) |
+| Explicit OS update and restart | [Soda Updates and bootc](../30-Use-Soda/60-updates-and-fallback.md) |
 
-A developer has one primary account but performs development inside derived
-workspace accounts. A developer may create repositories through their native
-Git host, add shared project entries, edit their display information and
-additional metadata, create their own workspace, and remove only their own
-workspace. Project identity and canonical repository URL do not change in
-place.
+## Access and credentials
 
-## Account types
+Use the trusted LAN for local installations, or Tailscale for cloud access.
+Enrolling a LAN server does not disable its LAN route. Firewall allowances for
+Forgejo and development services remain administrator choices.
 
-| Identity | Purpose | Authority |
-|---|---|---|
-| Primary Linux account | One person's stable identity and possible administration capability | Linux and `wheel` |
-| Workspace Linux account | One person's isolated development identity for one project | Linux |
-| Forgejo account | Repository identity, access, SSH keys, issues, and collaboration | Forgejo |
-| Tea or GitHub CLI login | Command-line session for one Git host in one workspace | Tea or GitHub CLI in that workspace |
+Your client keeps your personal private SSH key. Workspace setup copies only
+current public authorized keys, once. Each workspace keeps its own outbound
+Git private key; register its public half at the Git host. Tea, GitHub CLI, and
+assistants are authenticated separately in each workspace.
 
-Primary accounts are not development environments. A workspace account has
-its own UID, private home, complete Git clone, installed dependencies,
-processes, caches, and mutable files.
+## Ownership includes deletion
 
-## Who owns each fact
+You can remove your own workspace. Administrators can remove a whole project
+and every local workspace, or remove a person's workspaces and primary account.
+These actions destroy local work, including uncommitted files, but preserve the
+canonical repository. Forgejo account deletion is separate.
 
-| Responsibility | Authoritative owner |
-|---|---|
-| Accounts, passwords, homes, groups, and processes | Linux |
-| Administrator capability | Linux `wheel` membership |
-| Host administration | Stock Cockpit and native Linux tools |
-| Repositories, collaborators, issues, pull requests, and releases | Forgejo or the external Git host |
-| SSH access | OpenSSH and standard `authorized_keys` files |
-| Private network identity | Tailscale |
-| OS images, update selection, and deployment state | bootc |
-| Development-tool versions and installation | `mise` |
-| Shared project discovery and workspace lifecycle | Cockpit's Soda **Projects** page |
-
-Soda does not copy these facts into a separate identity, repository,
-credential, update, or workflow database.
-
-## Projects and workspaces
-
-The **Projects** page contains the shared information the team needs to find
-and set up projects. It is not a repository permission system. Everyone may
-view and edit the shared list; the authoritative Git host still decides who
-may read or write a repository.
-
-Selecting **Set up for me** creates a separate Linux account and complete clone
-for that person-project pair. The person's current public SSH keys are copied
-once to the workspace. Private keys and command-line credentials are never
-copied. The workspace keeps its outbound Git private key locally. If the Git
-host does not yet know its public key, setup reports the key and retains the
-workspace so the person can register it through the host's native interface
-and retry.
-
-The Projects page reports whether the derived Linux account exists. That fact
-remains true after an authorization failure retains the account and key, even
-though setup must still be retried to complete the clone. Project listing and
-setup do not require Tailscale enrollment. SSH guidance uses the hostname
-through which the person opened Cockpit.
-
-## Access model
-
-On a trusted LAN, OpenSSH, Cockpit, Forgejo, and project-selected development
-ports are available directly over the LAN and may also be reached through
-Tailscale. In a cloud deployment, these services are reached only through
-Tailscale and are not exposed to the public Internet.
-
-## Destructive authority
-
-- A developer can remove only their own workspace.
-- An administrator can remove a project, which permanently deletes its shared
-  Soda entry and every local workspace. The canonical Git repository remains.
-- An administrator can remove a person, deleting their local workspaces first
-  and primary Linux account last. Forgejo deletion is separate inside Forgejo.
-
-Soda stops on partial failure and reports what succeeded and what remains. It
-does not silently roll back completed deletions.
-
-## Expected result
-
-You can identify the native owner of an account, repository, credential,
-service, tool, project entry, workspace, or operating-system image before
-changing it.
-
-## If a responsibility is unclear
-
-Start with the authoritative owner in the table above. Use Soda's Projects
-interface only for shared project discovery and workspace lifecycle; use the
-native system for every other responsibility.
-
-## Next step
-
-Choose [Deploy to a cloud](../20-Deploy/10-deploy-to-cloud.md) or
-[Install on premises](../20-Deploy/20-install-on-premises.md).
+Coordinate before removal and maintain [tested backups](../50-Operate/30-backups-and-restoration.md).
+[Data safety and removal](../50-Operate/40-data-safety-and-removal.md) explains
+scope, confirmation, and partial results. Image fallback is not file recovery.

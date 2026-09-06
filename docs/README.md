@@ -11,7 +11,8 @@ release work, not a reason to weaken public instructions.
 | --- | --- |
 | [Product contract](product-contract.md) | Accepted purpose, release behavior, and native ownership |
 | [Public handbook](public/10-Start-here/10-index.md) | Installation, use, development, and operation |
-| [Handbook authoring](public/README.md) | Source structure, publishing contract, screenshot handoff |
+| [Handbook authoring](public/README.md) | Source structure and publishing contract |
+| [Screenshot brief](screenshot-capture.md) | Unpublished capture requests and image acceptance |
 | [Development](development.md) | Contributor tools and source checks |
 | [Architecture](architecture.md) | Current code, integrations, state, and release gaps |
 | [Cockpit development](cockpit-development.md) | Frontend ownership, interaction rules, browser verification |

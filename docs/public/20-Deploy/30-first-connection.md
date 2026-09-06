@@ -1,81 +1,92 @@
 # Make the first connection
 
-Log in normally after Anaconda installation or native cloud-init provisioning.
-The welcome message shows the hostname, local Cockpit and Forgejo URLs, your
-SSH command, and current Tailscale status. It appears in interactive local and
-SSH sessions, without a dismissal option. An administrator can customize the
-message in `/etc/profile.d/soda-console-welcome.sh`.
+Connect to the installed server, establish trusted SSH and Cockpit access, and prepare your primary account for workspaces.
 
-## Local-network access
+Log in normally at the console with the account created by Anaconda or cloud-init.
+The interactive welcome shows the native hostname, Cockpit/Forgejo URLs, your
+SSH command, and Tailscale status. It appears on each interactive login, not
+as a setup wizard to dismiss.
 
-SSH retains the Anaconda/Fedora allowance, and Soda allows Cockpit TCP 9090.
-Firewalld remains enabled with native defaults. Administrators must open Forgejo
-TCP 30000/2222 and project-selected development ports for LAN access through
-stock Cockpit's **Networking → Firewall** page.
+## Choose a reachable address
 
-Open the local Cockpit URL shown in the welcome message. Use the Linux account
-created by Anaconda or cloud-init. A supplied SSH key enables SSH authentication;
-a password is needed for password-based console, Cockpit and PAM login.
+- **Trusted LAN:** use the LAN address shown by the server. SSH and Cockpit have
+  firewall allowances; administrators open Forgejo and development ports later.
+- **Cloud:** first complete [native Tailscale sign-in from the console](../30-Use-Soda/40-tailscale.md#initial-cloud-connection).
+  Join your client to the allowed Tailnet, then use the server's Tailnet address.
+  Do not try its public IP or open public SSH/Cockpit ingress.
 
-## Tailscale
+Below, `SODA_HOST` means that reachable hostname or address, and `PRIMARY_USER`
+means your primary Linux username. If a hostname does not resolve, use the
+corresponding IP and check DNS; do not substitute an unrelated machine.
 
-Tailscale is preinstalled and its daemon runs initially unenrolled. An
-administrator opens **Cockpit → Tailscale**, chooses **Sign in**, and follows the
-native authentication URL. If device approval is required, the page links to
-Tailscale administration. The page shows device identity and addresses, visible
-peers, eligible exit nodes, LAN access during exit-node use, and exit-node
-advertisement with its approval state.
+## Open Cockpit and verify its identity
 
-Tailscale enrollment does not disable LAN access. When using an exit node,
-use the native **Allow local network access while using an exit node** setting.
-The mandatory welcome includes explicit Cockpit and Forgejo Tailnet links when
-connected, using MagicDNS when enabled or a Tailnet IP address.
+Open `https://SODA_HOST:9090` in your browser. Cockpit is the Soda OS dashboard
+for host administration and Projects. Sign in with your **primary Linux username
+and password**, not a workspace account or Git-host token.
 
-Projects builds SSH guidance from the hostname used to open Cockpit. Project
-listing and workspace creation do not require Tailscale.
+A newly installed Cockpit can use a self-signed certificate, so your browser
+may not already trust it. Check the URL and certificate against the intended
+machine using the installation console or your administrator before accepting
+that server's exception. Do not disable browser TLS verification globally.
+Administrators can install a trusted certificate through
+[Cockpit's native certificate configuration](https://cockpit-project.org/guide/latest/https.html).
+An unexpected certificate change on an existing server needs investigation.
 
-## Connect
+Enable **Administrative access** only when performing administrator tasks.
+See [the Cockpit guide](../30-Use-Soda/10-cockpit.md) for its pages and privileges.
 
-From the administrator's client:
+## Add your personal SSH public key
+
+On your client, use an existing personal key or create one with OpenSSH:
 
 ```sh
-ssh ADMINISTRATOR@SODA_HOST
+ssh-keygen -t ed25519
 ```
 
-Replace `ADMINISTRATOR` and `SODA_HOST` with your Linux username and the reachable machine address.
-Open Cockpit at `https://SODA_HOST:9090` and sign in with the same Linux
-account. Open Forgejo at `http://SODA_HOST:30000` and sign in with your Linux
-username and password. PAM creates an ordinary Forgejo account on first login.
+Use a passphrase and choose a new filename if a key already exists; do not
+overwrite it. Keep the private file on your client. Copy only the `.pub` file's
+contents, which start with a public key type such as `ssh-ed25519`.
 
-Use the host identity shown by Soda instead of disabling SSH host-key or TLS
-warnings. Investigate any unexpected identity change.
+In **Cockpit → Accounts → your account → Authorized public SSH keys**, add that
+public key. Cloud-init may already have installed it; check before adding a
+second copy. This is the key that permits inbound SSH and is copied once when
+you create a workspace. It is different from the workspace's outbound Git key.
 
-## Forgejo administration is explicit
+## Verify and test SSH
 
-The first human uses the same Linux/PAM sign-in as everyone else and does not
-become a Forgejo administrator automatically. Other users can sign in before
-any Forgejo administrator exists.
+At the Soda console, obtain the SSH host key fingerprint:
 
-When site administration is needed, a Linux administrator can
-[create a separate Forgejo administrator using the native CLI](../40-Operate-Soda-OS/10-administration.md#create-a-forgejo-administrator).
-That account has its own Forgejo password. It can then promote existing PAM
-users through Forgejo's web interface. Linux `wheel` membership alone grants no
-Forgejo role. There is no first-owner registration step.
+```sh
+ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub
+```
 
-## Expected result
+From your client, connect with the corresponding personal private key:
 
-Network access works, SSH accepts the installed personal key, Cockpit accepts
-the Linux password, and Forgejo accepts Linux/PAM login as an ordinary user.
+```sh
+ssh -i /path/to/personal_private_key PRIMARY_USER@SODA_HOST
+```
 
-## If something fails
+Compare the first-connection fingerprint with the console result. Accept only
+a matching identity; an administrator can provide the appropriate fingerprint
+if the negotiated host-key type differs. Never use disabled host-key checking
+as a connection fix. A later host-key change needs explanation, such as a
+verified reinstall, before updating your client's known-host entry.
 
-- **SSH:** confirm the username, host, route, and public key in the Linux account authorized_keys.
-- **Cockpit:** confirm port 9090 is reachable on the selected LAN or Tailnet
-  path and use the Linux password.
-- **Forgejo:** confirm port 30000 and use your Linux credentials for a PAM account.
-  Use the separate Forgejo password only for an explicitly CLI-created account.
-- **Tailscale:** inspect its native connection or authentication error in Cockpit.
+After login, `whoami` should show your primary username. Ordinary SSH commands,
+SCP, and SFTP remain available without interactive welcome output.
 
-## Next step
+## Open Forgejo and create your workspace
 
-Read [Add people and manage access](../30-Develop/10-people-and-access.md).
+For LAN access, an administrator allows Forgejo HTTP as described in the
+[service reference](../50-Operate/20-administration.md#service-endpoints).
+Open the Forgejo URL and [sign in with your Linux credentials](../30-Use-Soda/30-forgejo.md).
+Your first PAM login creates an ordinary account; it does not grant site
+administration, even if you are a Linux administrator.
+
+Then open [Projects](../30-Use-Soda/20-projects-and-workspaces.md), add the repository
+if needed, and select **Set up for me**. Use the resulting **workspace** username
+for development, not the primary SSH session you just tested.
+
+If a connection fails, check the selected route, username, credentials, and
+[the owning service](../50-Operate/20-administration.md#troubleshooting).

@@ -1,177 +1,123 @@
-# Deploy to a cloud
+# Deploy to a cloud or VM
 
-Import the architecture-matched Soda QCOW2, protect its services from public ingress, and provision it with standard cloud-init user-data.
+Import the reusable Soda QCOW2, provision a Linux administrator with standard cloud-init, and connect privately.
 
 ## Prerequisites
 
-- A cloud or virtualization platform that imports QCOW2 disks.
-- A usable graphical or serial VM console.
-- An x86-64 or AArch64 instance matching the downloaded artifact.
-- A virtual disk large enough for the operating system, workspaces, source,
-  dependencies, and project data.
-- A firewall or security group that can block public ingress.
-- One SSH public key and a Tailscale auth key.
+Use an x86-64 or AArch64 instance matching your [verified QCOW2](05-verify-downloads.md).
+The platform must import that disk format, supply native cloud-init user-data,
+and provide a usable graphical or serial console independently of SSH.
+Allocate CPU, memory, and disk for the team's workloads and retained data.
 
-Supply standard cloud-init user-data through the provider or VM tooling.
-Keep console access for native administration; public SSH is not an onboarding
-path. If enrollment is omitted, supply a Linux password hash so an administrator
-can log in on the console and complete network configuration.
+Have a personal SSH public key, an administrator password hash, and a Tailnet
+account for cloud access. The hash enables console, Cockpit, PAM, and password-
+based sudo login; a public key alone enables only SSH authentication.
+No Soda checkout, manually built credential ISO, or public-SSH bootstrap is needed.
 
-## Download and verify the image
+## Protect the network before boot
 
-1. Open the [latest GitHub
-   Release](https://github.com/LevitateOS/soda-os/releases/latest).
-2. Select the `.qcow2.zst`, checksum, release record, and Sigstore bundle for
-   the VM architecture.
-3. Keep the four files together in one directory.
-4. Verify the compressed download:
+For a cloud instance, configure its security group before first boot: deny
+public inbound access to all Soda and development services. Keep outbound access
+for DNS, Tailscale, Git hosts, dependencies, and OS images, and allow responses
+to outbound connections through the provider's native stateful filtering.
 
-   ```sh
-   sha256sum --check SodaOS-*.qcow2.zst.sha256
-   ```
+Do not open public SSH or Cockpit while setting up Tailscale. The provider console
+is the initial access path. Keep this network boundary after enrollment; a host
+firewall allowance for Cockpit is not permission to open provider public ingress.
 
-5. Set `RECORD` to the downloaded release-record filename and verify it:
+For a local VM, use a trusted LAN route or enroll Tailscale from its console.
+Consult the VM platform for bridging and guest networking; host-only connectivity
+is not access from another client. See [the service reference](../50-Operate/20-administration.md#service-endpoints).
 
-   ```sh
-   RECORD='soda-os-VERSION-ARCHITECTURE.release.json'
-   cosign verify-blob \
-     --bundle "$RECORD.sigstore.json" \
-     --certificate-identity 'https://github.com/LevitateOS/soda-os/.github/workflows/release.yml@refs/heads/production' \
-     --certificate-oidc-issuer 'https://token.actions.githubusercontent.com' \
-     "$RECORD"
-   ```
+## Import the disk
 
-   Replace `VERSION` and `ARCHITECTURE` with the downloaded filename. This pins
-   Soda's release workflow identity and GitHub Actions issuer. See [Sigstore's
-   verification guide](https://docs.sigstore.dev/cosign/verifying/verify/) for
-   the meaning of the identity and bundle checks.
-6. Confirm that the record names the expected architecture and that its
-   `qcow2_zst_sha256` matches the verified compressed file.
+1. Verify the compressed image and signed record, decompress it, and check the
+   raw QCOW2 hash as described in [Verify downloads](05-verify-downloads.md).
+2. Import the QCOW2 as the boot disk. Enlarge it to the capacity needed for your
+   workspaces and data; Soda grows its final root partition and filesystem.
+3. Select native firmware and machine/device settings supported by the provider
+   for that architecture, and retain console access.
+4. Supply cloud-init user-data **before the first boot**. Use the provider's
+   user-data facility; local virt-install can deliver it through its native
+   cloud-init option. Do not manually construct a credential disk.
 
-Do not import an artifact after a failed checksum, signature, architecture, or
-record check.
+## Provision the administrator
 
-## Import and size the disk
-
-1. Decompress the image:
-
-   ```sh
-   zstd --decompress SodaOS-*.qcow2.zst
-   ```
-
-2. Import the resulting QCOW2 as the VM's boot disk.
-3. Enlarge the virtual disk to the capacity the team needs. Soda grows its
-   final root partition and filesystem to the supplied volume.
-4. Attach a console and configure firmware and machine type supported by the
-   provider for the selected architecture.
-5. Supply the standard cloud-init user-data shown below through the provider's
-   supported user-data or instance-metadata facility. Do not attach a separate
-   credential disk, use public SSH as a bootstrap, or run a Soda setup script.
-
-## Protect network access
-
-Before the first boot, block public Internet ingress to all Soda services,
-including ports 22, 9090, and 30000. A cloud Soda machine is administered and
-used through Tailscale after enrollment.
-
-The VM still needs outbound access for Tailscale, Forgejo-related Git hosts,
-development dependencies, and later OS image retrieval.
-
-## Deploy on Scaleway
-
-Use Scaleway's snapshot import path for the verified, decompressed QCOW2.
-You need permissions for Instances, Object Storage, and security groups in the
-chosen Scaleway project, plus an authenticated Scaleway CLI.
-
-1. Choose an Instance type whose architecture matches the Soda image and an
-   Availability Zone for the server. Create an Object Storage bucket in the
-   same region as that zone.
-2. Upload the `.qcow2` file to the bucket. Keep its `.qcow2` extension; do not
-   upload the compressed `.zst` file as the disk image.
-3. Import the object as an Instance snapshot in the chosen zone. Scaleway's
-   [snapshot import guide](https://www.scaleway.com/en/docs/instances/how-to/snapshot-import-export-feature/)
-   describes the console path; its
-   [CLI guide](https://www.scaleway.com/en/docs/instances/api-cli/managing-instance-snapshot-via-cli/)
-   documents Block Storage imports and the required volume size. Wait for the
-   import to complete before creating the server.
-4. Create a dedicated
-   [security group](https://www.scaleway.com/en/docs/instances/how-to/use-security-groups/)
-   in the same zone. Enable stateful filtering, set inbound traffic to drop,
-   allow outbound traffic, and add no public ingress rules for Soda services.
-   Stateful filtering permits replies to connections the server initiates.
-5. Use the
-   [Instance CLI](https://cli.scaleway.com/instance/#create-server)
-   to create the server from that snapshot with `stopped=true`,
-   `security-group-id` set to the dedicated group, and local disk boot. Select
-   the root-volume option for the snapshot's storage type and size it for the
-   team's data. Confirm the attached boot volume and security group before
-   starting the Instance. Supply standard cloud-init user-data through the
-   platform before first boot, including the Linux account and private network configuration.
-6. Start the Instance, then open **Console** from its overview in Scaleway.
-   The [serial console](https://www.scaleway.com/en/docs/instances/how-to/use-serial-console/)
-   is available independently of public SSH access. Use the cloud-init-created
-   Linux login if console administration is needed; provide a password hash
-   when console, Cockpit, or PAM login is required.
-
-Keep the security group in place after enrollment. Connect to Soda through its
-Tailscale address, not the Instance's public address.
-
-## Provision and boot
-
-Use the VM platform's native user-data facility before first boot. For local
-libvirt VMs, virt-install can deliver a user-data file with its native
-cloud-init option. No Soda checkout or manually created credential ISO is
-needed. Replace the account and public-key values in this standard example:
+Prepare a protected user-data file with the native cloud-init format. Replace
+both placeholders with your public key and password hash; do not supply your
+private key or plaintext password:
 
 ```yaml
 #cloud-config
-# Supply through your VM platform's user-data facility. Replace the public key.
 users:
   - name: owner
     groups: [wheel]
     shell: /bin/bash
+    lock_passwd: false
+    hashed_passwd: '$6$REPLACE_WITH_YOUR_PASSWORD_HASH'
     ssh_authorized_keys:
       - ssh-ed25519 REPLACE_WITH_YOUR_PERSONAL_PUBLIC_KEY
-    # To enable console, Cockpit, PAM, and password-based sudo, also supply:
-    # lock_passwd: false
-    # hashed_passwd: '$6$REPLACE_WITH_YOUR_PASSWORD_HASH'
 disable_root: true
-
+ssh_pwauth: false
 ```
 
-Store user-data with restricted permissions. A personal public key is not a
-password: key-only provisioning enables SSH but does not enable password login
-to the console, Cockpit, or Forgejo PAM. Supply a password hash when those
-logins are required. Use native Linux administration for later password changes.
+Use the native password-hash generation described by
+[cloud-init's users/password examples](https://cloudinit.readthedocs.io/en/latest/reference/examples.html).
+Enter a password through a protected prompt, not command arguments or recorded
+terminal output. `ssh_pwauth: false` keeps SSH key-based; it does not disable
+console, Cockpit, or Forgejo PAM password login.
 
-Cloud-init and the provider may retain user-data, including password hashes.
-Apply the team's provider and cloud-init retention policy; do not publish it.
+Protect the file and provider metadata. Cloud-init and the provider may retain
+user-data, including password hashes; deleting your local file does not erase
+those copies. Apply the provider's native retention/access controls.
 
-Tailscale starts unenrolled. Access Cockpit through the trusted private network
-and use its separate Tailscale page for native browser sign-in. The page applies
-Forgejo's native conditional Tailnet-address refresh after observing connection.
-The provider's network boundary remains responsible for keeping public ingress
-closed; the host firewall keeps Fedora defaults with Cockpit TCP 9090 allowed.
-The host allowance must not be mirrored into public provider ingress.
+## Deploy on Scaleway
 
-## Expected result
+Within your Scaleway project, use Instances, Object Storage, security groups,
+and an authenticated Scaleway CLI:
 
-The QCOW2 boots from the enlarged disk and cloud-init provisions the Linux
-account. Interactive login always shows the welcome message. Keep the provider's
-private network boundary in place and sign in to Forgejo with Linux/PAM
-credentials, as described in [Make the first connection](30-first-connection.md).
-Forgejo administration is established explicitly when needed; teammates do not
-have to wait for an administrator account.
+1. Choose an Instance type with the matching architecture and an Availability Zone.
+   Upload the verified **decompressed `.qcow2`** to an Object Storage bucket in
+   the corresponding region.
+2. Import it as a snapshot in that zone using Scaleway's
+   [snapshot import procedure](https://www.scaleway.com/en/docs/instances/how-to/snapshot-import-export-feature/)
+   and [Block Storage CLI guidance](https://www.scaleway.com/en/docs/instances/api-cli/managing-instance-snapshot-via-cli/).
+   Wait for import completion; select sufficient volume capacity.
+3. Create a dedicated [stateful security group](https://www.scaleway.com/en/docs/instances/how-to/use-security-groups/)
+   with inbound drop and outbound access. Add no public Soda service rules.
+4. Use [Instance creation](https://cli.scaleway.com/instance/#create-server) with
+   `stopped=true`, the selected snapshot/root volume, matching instance type,
+   local disk boot, and the dedicated `security-group-id`. Confirm boot storage
+   and security group before starting.
+5. Supply your protected cloud-init user-data through Scaleway's native user-data
+   facility, then start the Instance. Open its
+   [serial console](https://www.scaleway.com/en/docs/instances/how-to/use-serial-console/)
+   and log in as the cloud-init-created administrator.
 
-## If something fails
+Provider tools own exact snapshot/storage parameters and user-data delivery.
+Keep the console available rather than replacing a failed import/provisioning
+step with public SSH.
 
-- A checksum or signature failure means the artifact must not be used.
-- A boot failure usually indicates an architecture, firmware, or disk-import
-  mismatch; compare those settings with the provider's QCOW2 documentation.
-- If the filesystem does not reflect the enlarged virtual disk, stop before
-  creating project data and retain the console output for diagnosis.
-- If Tailscale cannot connect, inspect its native error in Cockpit.
+## Establish the first private connection
 
-## Next step
+Tailscale initially runs unenrolled. At the provider/VM console, follow
+[Tailscale's initial console sign-in](../30-Use-Soda/40-tailscale.md#initial-cloud-connection).
+Complete its browser authentication from your client and any Tailnet device
+approval. This step does not depend on Cockpit already being reachable.
 
-Continue with [Make the first connection](30-first-connection.md).
+Join your client to the permitted Tailnet, then open Cockpit through the server's
+Tailnet address. Continue with [First connection](30-first-connection.md).
+Use Cockpit's Tailscale page for subsequent device/routing management and its
+Forgejo address-refresh result. Keep public inbound service access closed.
+
+## Check before creating project data
+
+Confirm normal console login and welcome, the expected architecture, enlarged
+disk/filesystem capacity in Cockpit Storage, private SSH/Cockpit access, and
+public service rejection. If cloud-init did not create a usable account, inspect
+its native console diagnostics and provider user-data delivery; do not assume
+that editing user-data after boot reruns account provisioning.
+
+For failed imports or boot, check disk format, architecture, firmware, and boot
+attachment. For private access errors, use the native Tailscale diagnostic and
+[administration troubleshooting](../50-Operate/20-administration.md#troubleshooting).

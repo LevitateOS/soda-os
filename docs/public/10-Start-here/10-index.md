@@ -1,79 +1,54 @@
 # Soda OS documentation
 
-Install a Soda machine, connect your team, create isolated workspaces, and operate the system safely.
+Install Soda, connect from your preferred client, and develop in your own Linux project workspaces.
 
-Soda OS turns one Linux machine into a shared remote development system. Each
-person has a normal Linux account for identity and administration, while daily
-development happens in a separate workspace for each person and project.
+Use a powerful computer as a complete remote environment or as additional
+capacity alongside your everyday computer. For teams, one shared server runs
+builds, editors, agents, databases, and development processes while each
+person-project workspace has its own account, home, and clone.
 
-## Choose where to start
+## Start with your task
 
-- **Infrastructure owner:** start with [Deploy to a cloud](../20-Deploy/10-deploy-to-cloud.md)
-  or [Install on premises](../20-Deploy/20-install-on-premises.md).
-- **Administrator:** complete [Make the first connection](../20-Deploy/30-first-connection.md),
-  then [add people and manage access](../30-Develop/10-people-and-access.md).
-- **Developer:** start with [Projects and workspaces](../30-Develop/20-projects-and-workspaces.md),
-  then [Connect and develop](../30-Develop/30-connect-and-develop.md).
-- **System operator:** use [Administration](../40-Operate-Soda-OS/10-administration.md),
-  [Updates and fallback](../40-Operate-Soda-OS/20-updates-and-fallback.md), and
-  [Data safety and removal](../40-Operate-Soda-OS/30-data-safety-and-removal.md).
+| You want to… | Start here |
+| --- | --- |
+| Understand accounts and shared resources | [Product model](20-product-model.md) |
+| Install on a computer or from an ISO in a VM | [Install on premises](../20-Deploy/20-install-on-premises.md) |
+| Import a reusable VM image or deploy on Scaleway | [Deploy to a cloud or VM](../20-Deploy/10-deploy-to-cloud.md) |
+| Connect to a newly installed server | [First connection](../20-Deploy/30-first-connection.md) |
+| Find your project and create a workspace | [Projects and workspaces](../30-Use-Soda/20-projects-and-workspaces.md) |
+| Open your editor, use Git, or install tools | [Connect and develop](../40-Develop/10-connect-and-develop.md) |
+| Add a teammate | [People and access](../50-Operate/10-people-and-access.md) |
+| Diagnose, protect, or maintain the server | [Administration](../50-Operate/20-administration.md) |
 
-Read [Product model](20-product-model.md) first if you want to understand the
-accounts, services, and ownership boundaries behind these tasks.
+## The path to your first workspace
 
-## From download to development
+1. [Verify the download](../20-Deploy/05-verify-downloads.md) for your x86-64 or
+   AArch64 machine, then install with Anaconda or provision the QCOW2 with cloud-init.
+2. Log in at the console and [make the first connection](../20-Deploy/30-first-connection.md)
+   through your trusted LAN or Tailscale.
+3. Open [Cockpit](../30-Use-Soda/10-cockpit.md), Soda's dashboard for administration.
+4. Create a repository in [Forgejo](../30-Use-Soda/30-forgejo.md), or use an
+   existing repository at your Git host, and add its SSH URL to Projects.
+5. Select **Set up for me**. Register the workspace public key with the Git host
+   when requested, then retry to complete the clone.
+6. Copy the workspace SSH command, connect your editor, and use mise directly
+   for the repository's development tools.
 
-1. Open [Deploy to a cloud](../20-Deploy/10-deploy-to-cloud.md) or
-   [Install on premises](../20-Deploy/20-install-on-premises.md), then choose
-   the artifact for the machine's architecture.
-2. Install with the network ISO or import the reusable QCOW2.
-3. Log in normally and use the welcome message for connection details.
-   Sign in to Forgejo with Linux/PAM credentials as an ordinary user.
-   [Create a Forgejo administrator explicitly](../40-Operate-Soda-OS/10-administration.md#create-a-forgejo-administrator)
-   when site administration is needed; other users do not have to wait.
-4. Connect over the LAN or Tailscale with SSH, Cockpit, and Forgejo.
-5. Add each later primary account through stock Cockpit or native Linux, then
-   let that person sign in to Forgejo normally and manage repository keys there.
-6. Create the repository in its native Git host, then add it to Cockpit's
-   **Projects** page.
-7. Select **Set up for me**, register the reported workspace key with the Git
-   host if asked, and retry to complete your isolated workspace.
-8. Connect directly to that workspace with OpenSSH.
-9. Use `mise` directly in the workspace to install the tools required by you or
-   the project.
+You need console access for initial installation, a personal SSH key, and a
+trusted LAN or Tailnet. Cloud services remain private; public SSH is not a
+bootstrap step. You do not need a Soda source checkout or developer tools to
+install or use Soda.
+
+## Find a Soda page
+
+The dashboard guides cover [Projects](../30-Use-Soda/20-projects-and-workspaces.md),
+[Runners](../30-Use-Soda/50-ci-runners.md),
+[Tailscale](../30-Use-Soda/40-tailscale.md), and
+[Soda Updates](../30-Use-Soda/60-updates-and-fallback.md).
+[Forgejo](../30-Use-Soda/30-forgejo.md) is the separate built-in Git website.
 
 ## Windows and WSL2
 
-WSL2 support for x86-64 Windows gaming PCs is planned for a future release.
-No Soda OS WSL2 distribution is currently available. For installation on
-hardware or a virtual machine, follow the deployment guides above.
-
-## Prerequisites
-
-- An x86-64 or AArch64 machine or virtual machine.
-- A disk whose contents may be replaced during installation.
-- Network access while using the network installer.
-- Console access for installation and initial login.
-- One SSH public key for the first administrator.
-- Either a trusted LAN or a Tailscale network.
-
-Cloud deployments require a usable VM console. Soda does not use public SSH as
-an onboarding path.
-
-## Expected result
-
-You finish with a remotely accessible Soda machine, a primary administrator,
-native Forgejo access, and a private development workspace reached through
-ordinary SSH.
-
-## If something fails
-
-Keep the exact error shown by Anaconda, Cockpit, Forgejo, or
-the command you ran. Soda reports native failures instead of hiding them behind
-a background workflow. Retry only the failed task after correcting its stated
-cause.
-
-## Next step
-
-Read [Product model](20-product-model.md), or go directly to the deployment
-guide for your environment.
+WSL2 support for x86-64 Windows gaming PCs is planned for a future release,
+with no WSL2 download. Use the ISO or QCOW2 deployment guides for hardware and
+virtual-machine installations.

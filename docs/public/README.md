@@ -26,6 +26,32 @@ documentation at that point in the instructions. Keep Soda-specific guidance
 focused on the product boundary and do not reproduce upstream manuals or
 invent Soda wrappers for native tools.
 
-The website synchronizer rejects raw HTML, images, unsafe links, broken local
-links, and malformed page structure. It renders a deterministic snapshot; the
-deployed website never fetches this repository at runtime.
+The website synchronizer rejects raw HTML, unsafe/broken page and heading links,
+and malformed page structure. It renders a deterministic snapshot; the deployed
+website never fetches this repository at runtime.
+
+## Screenshots
+
+Keep real release-interface captures under `assets/cockpit/` or `assets/forgejo/`.
+Use lowercase names with hyphens/underscores and `.png`, `.jpg`, `.jpeg`, or `.webp`.
+The synchronizer checks signatures and paths; SVG, remote/data URLs, symlinks,
+query strings, fragments, and references outside `assets/` are rejected.
+
+Place a Markdown image after the description, beside the step it clarifies:
+
+```markdown
+![Projects showing a confirmed workspace and its SSH connection action](../assets/cockpit/projects.png)
+```
+
+Alt text describes the relevant visible information, not just “screenshot” or
+a filename. Add a normal caption paragraph when interpretation needs context;
+do not repeat the entire alt text. Inspect the real image for readability,
+control names, and credentials before accepting draft alt text. Missing captures
+stay in the unpublished [capture brief](../screenshot-capture.md), never as broken
+links or invented interface illustrations in the handbook.
+
+Commit prose and assets together. The website sync copies referenced images,
+hashes source bytes, imports them through Vite's asset pipeline, and removes
+obsolete generated copies. Run snapshot freshness/integrity and responsive,
+light/dark browser checks there. Source assets remain here; generated copies
+are never edited. File-format checks do not replace visual or accessibility review.

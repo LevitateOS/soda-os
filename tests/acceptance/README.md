@@ -493,7 +493,7 @@ requires an ordinary account, then creates teammate fixtures. It generates no
 separate Forgejo owner password and does not pause for first-owner signup.
 Repository/workspace and update/fallback checks run without creating a Forgejo
 site administrator. Separately verify the documented
-[native CLI administrator creation and web promotion](../../docs/public/40-Operate-Soda-OS/10-administration.md#create-a-forgejo-administrator)
+[native CLI administrator creation and web promotion](../../docs/public/30-Use-Soda/30-forgejo.md#create-a-forgejo-administrator)
 on a disposable instance, including an existing PAM user and the generated
 administrator's required password change. Do not retain the printed password in
 acceptance logs.

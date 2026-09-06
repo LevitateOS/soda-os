@@ -1,101 +1,77 @@
 # Install on premises
 
-Install Soda from the architecture-matched network ISO with graphical Anaconda and log in normally.
+Install Soda on a computer or virtual machine with the network ISO and graphical Anaconda.
 
-WSL2 support for x86-64 Windows gaming PCs is planned for a future release.
-No Soda OS WSL2 distribution is currently available; this guide covers the
-network ISO installation path.
+## Before you begin
 
-## Prerequisites
+Choose the x86-64 or AArch64 ISO matching the target CPU, then
+[verify its signature and checksum](05-verify-downloads.md). Have:
 
-- An x86-64 or AArch64 machine matching the installer architecture.
-- A target disk whose existing contents may be permanently erased.
-- A display and keyboard, remote console, or equivalent installation console.
-- Wired or otherwise Anaconda-supported network access during installation.
-- Boot media large enough for the ISO.
-- One SSH public key and either a trusted LAN or a Tailscale auth key.
+- a target disk whose contents may be erased, with capacity for the OS and your
+  source, dependencies, databases, containers, and backups awaiting transfer;
+- a display/keyboard or VM console, and supported networking with working DNS;
+- an administrator username/password and a personal SSH public key;
+- boot media large enough for the ISO, or a VM with the ISO attached.
 
-The installer retrieves the exact signed Soda OCI image recorded by the
-release, so the machine must have working network and DNS access during
-installation.
+The installer downloads the release's exact OCI image. It needs Internet access
+during installation; it is not an offline installer. Choose memory/CPU/storage
+for your workloads and concurrent developers, not just the installer.
 
-## Download and verify the installer
+For a VM, use matching-architecture virtualization, UEFI firmware and storage/
+network devices supported by the platform. Retain console access after install.
+A bridged trusted LAN or Tailscale gives clients a route to the guest; host-only
+networking does not automatically make it reachable from another computer.
+For reusable disk-image provisioning, use [the QCOW2 guide](10-deploy-to-cloud.md).
 
-1. Open the [latest GitHub
-   Release](https://github.com/LevitateOS/soda-os/releases/latest).
-2. Select the ISO, checksum, release record, and Sigstore bundle for the
-   machine architecture.
-3. Verify the ISO:
+## Prepare and boot the ISO
 
-   ```sh
-   sha256sum --check SodaOS-*.iso.sha256
-   ```
+Write the verified ISO using a raw disk-image writer, selecting the whole
+removable device rather than a partition. **Writing destroys that device's
+previous contents.** Check its identity and capacity before confirming, then
+eject cleanly. In a VM, attach the verified ISO as optical media instead.
 
-4. Set `RECORD` to the downloaded release-record filename and verify it:
-
-   ```sh
-   RECORD='soda-os-VERSION-ARCHITECTURE.release.json'
-   cosign verify-blob \
-     --bundle "$RECORD.sigstore.json" \
-     --certificate-identity 'https://github.com/LevitateOS/soda-os/.github/workflows/release.yml@refs/heads/production' \
-     --certificate-oidc-issuer 'https://token.actions.githubusercontent.com' \
-     "$RECORD"
-   ```
-
-   Replace `VERSION` and `ARCHITECTURE` with the downloaded filename. See
-   [Sigstore's verification guide](https://docs.sigstore.dev/cosign/verifying/verify/)
-   for details.
-5. Confirm that the release record names the expected architecture, the ISO
-   checksum matches, and the exact `soda_image_reference` is an immutable
-   digest rather than a moving tag.
-
-Stop if any verification fails.
-
-## Prepare boot media
-
-Write the verified ISO to removable media with a tool that performs a raw disk
-image write. Select the whole removable device, not one of its partitions.
-Eject it cleanly after the write completes.
-
-Writing an ISO destroys the previous contents of the selected removable
-device. Double-check the target before starting.
+Boot it in the target's native architecture and wait for graphical Anaconda.
+Follow the [Fedora installation guide](https://docs.fedoraproject.org/en-US/fedora/latest/install-guide/)
+for the installer's native storage and device controls.
 
 ## Install with Anaconda
 
-1. Boot the Soda installer in the machine's native architecture.
-2. Wait for graphical Anaconda to open.
-3. Configure the installation language and keyboard if offered.
-4. Select the target disk and storage layout. Confirm only after checking which
-   disks Anaconda will erase or reformat.
-5. Configure networking and the hostname. The network must be usable before
-   installation begins.
-6. Open **User Creation**, create your Linux account and password, and select
-   administrator capability. Root remains locked.
-7. Start installation. Anaconda retrieves and deploys the exact Soda OCI
-   digest named by the release.
-8. Wait for successful completion, remove the installer media, and reboot into
-   the installed system.
+1. Choose language and keyboard settings.
+2. Select the installation disk and review the storage layout. **Installation
+   can permanently erase existing data.** Confirm only the disks you intend to use.
+3. Configure networking and a hostname. Check that the network is usable before
+   starting the image download.
+4. In **User Creation**, create your primary Linux username and password, and
+   grant administrator capability. Root remains locked.
+5. Start installation. Anaconda retrieves and deploys the exact release digest.
+6. Wait for completion, remove/detach the ISO, and reboot from the installed disk.
+7. Log in normally with the new administrator account. The welcome message shows
+   hostname, connection URLs, SSH guidance, and Tailscale status.
 
-Anaconda creates the Linux administrator. After reboot, log in normally.
-The mandatory welcome message shows connection details.
-ISO installation disables cloud-init so it cannot alter the Anaconda accounts.
+ISO installation disables cloud-init so it does not change the Anaconda-created
+accounts. There is no separate Soda Setup wizard or second credential image.
 
-## Expected result
+## Connect and add your key
 
-The machine boots the installed Soda image from its target disk and presents
-the normal login prompt. After administrator login, Setup handles any missing
-network configuration.
+Follow [First connection](30-first-connection.md) to open Cockpit over the
+trusted LAN, add your personal public key through Accounts, and verify SSH.
+For private access away from the LAN, enroll through
+[Tailscale](../30-Use-Soda/40-tailscale.md). Browser authentication does not require
+you to prepare a Tailscale auth key.
 
-## If something fails
+Firewalld retains Fedora's enabled defaults and SSH allowance; Soda also allows
+Cockpit. Open Forgejo and chosen development ports explicitly through
+[Networking → Firewall](../50-Operate/20-administration.md#service-endpoints).
 
-- If the installer cannot retrieve the image, verify network, DNS, system time,
-  and anonymous access to the exact digest shown in the release record.
-- If storage is wrong, stop before beginning installation and return to
-  Anaconda's storage screen.
-- If installation fails after disk mutation, retain the Anaconda logs and
-  reinstall after correcting the cause. Do not assume the partially installed
-  system is usable.
+## If installation fails
 
-## Next step
+- **No image download:** check network, DNS, system time, and anonymous access
+  to the exact digest in the verified release record.
+- **Wrong disk or layout:** stop before installation; return to storage selection.
+- **Partial installation:** preserve Anaconda's error/logs, correct the cause,
+  and install again. Do not assume a partially written disk is usable.
+- **VM does not boot:** compare architecture, firmware, boot order, and disk
+  attachment against the VM platform's native documentation.
 
-Continue with [Make the first connection](30-first-connection.md).
+WSL2 on x86-64 Windows is planned for a future release, with no WSL2 download.
+This guide installs the full ISO on hardware or a VM.

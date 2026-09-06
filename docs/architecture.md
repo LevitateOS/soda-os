@@ -65,7 +65,7 @@ user-manager failure can be reset; unrelated systemd failures are not cleared.
 The helper supplies structured stdout receipts even for incomplete deletion;
 stderr alone cannot reconstruct outcomes. A changed or missing failed identity
 requires native inspection of its old data before a fresh task, not an automatic
-cleanup or retry. See [the user procedure](public/40-Operate-Soda-OS/30-data-safety-and-removal.md).
+cleanup or retry. See [the user procedure](public/50-Operate/40-data-safety-and-removal.md).
 
 ## Host integration
 
@@ -132,7 +132,7 @@ Bootc 1.16.10 has no atomic expected-target activation argument. The ephemeral
 commands. Before/after checks cannot eliminate that race. Users must coordinate
 administration; a failed post-activation check prevents Soda's reboot request
 but may leave changed pending state. No compensation rollback is attempted.
-[Updates and fallback](public/40-Operate-Soda-OS/20-updates-and-fallback.md)
+[Updates and fallback](public/30-Use-Soda/60-updates-and-fallback.md)
 owns the supported user sequence.
 
 ## Release gaps and required evidence
