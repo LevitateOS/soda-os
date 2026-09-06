@@ -63,10 +63,7 @@ func TestSupersededProvisioningPathsAreAbsent(t *testing.T) {
 		_, err := os.Lstat(filepath.Join(root, path))
 		require.ErrorIs(t, err, os.ErrNotExist)
 	}
-	command := readInstallerFixture(t, root, "cmd/soda-image/main.go")
-	for _, obsolete := range []string{"installer-input", "cloud-input", "NoCloud", "ConfigDrive"} {
-		require.NotContains(t, command, obsolete)
-	}
+	// The supported CLI inventory is tested through cmd/soda-image's command tree.
 }
 
 func TestAcceptanceUsesOneGoWorkflow(t *testing.T) {
