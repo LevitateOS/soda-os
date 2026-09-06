@@ -103,6 +103,9 @@ and [administration](docs/public/40-Operate-Soda-OS/10-administration.md).
 
 ## Development
 
+The [Go command standard](cmd/AGENTS.md) governs all Go code under `cmd`,
+including auxiliary code and tests.
+
 Install the [pinned Cockpit build toolchain](docs/cockpit-development.md#build-host-setup),
 then run source checks and builds on matching-native hardware:
 
