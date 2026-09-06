@@ -9,7 +9,7 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-// Lock serializes Soda download/apply requests, not native administrator commands.
+// Lock serializes Soda check/update requests, not native administrator commands.
 // The caller supplies the production path; tests use their own temporary files.
 func Lock(path string) (io.Closer, error) {
 	file, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR|unix.O_NOFOLLOW, 0o600)

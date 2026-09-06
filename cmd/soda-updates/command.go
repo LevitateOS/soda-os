@@ -11,9 +11,8 @@ import (
 
 type updateOperations interface {
 	Status(context.Context) (updates.Host, error)
-	Check(context.Context) (updates.Release, error)
-	Download(context.Context, updates.Selection) error
-	Apply(context.Context, updates.Selection) error
+	Check(context.Context) (updates.Host, error)
+	Update(context.Context) error
 }
 
 type updateFactory func(stdout, stderr io.Writer) updateOperations
@@ -21,7 +20,7 @@ type updateFactory func(stdout, stderr io.Writer) updateOperations
 func newCommand(architecture string, euid int, connect updateFactory) *cobra.Command {
 	root := &cobra.Command{
 		Use:           "soda-updates",
-		Short:         "Check and apply approved Soda images through native bootc",
+		Short:         "Check and update the native bootc image source",
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		PersistentPreRunE: func(*cobra.Command, []string) error {
@@ -35,6 +34,6 @@ func newCommand(architecture string, euid int, connect updateFactory) *cobra.Com
 		},
 	}
 	root.CompletionOptions.DisableDefaultCmd = true
-	root.AddCommand(statusCommand(connect), checkCommand(connect), downloadCommand(connect), applyCommand(connect))
+	root.AddCommand(statusCommand(connect), checkCommand(connect), updateCommand(connect))
 	return root
 }

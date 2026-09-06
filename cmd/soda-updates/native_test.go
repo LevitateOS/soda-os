@@ -6,7 +6,6 @@ import (
 	"io"
 	"testing"
 
-	"github.com/LevitateOS/soda-os/internal/updates"
 	"github.com/stretchr/testify/require"
 )
 
@@ -26,7 +25,7 @@ func TestMutationReleasesLockAndPreservesBothErrors(t *testing.T) {
 	native := nativeUpdates{lock: func() (io.Closer, error) { return lock, nil }}
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
-	err := native.mutate(ctx, updates.Selection{}, func(received context.Context, _ updates.Selection) error {
+	err := native.mutate(ctx, func(received context.Context) error {
 		require.Same(t, ctx, received)
 		require.ErrorIs(t, received.Err(), context.Canceled)
 		require.False(t, lock.closed)
@@ -37,10 +36,19 @@ func TestMutationReleasesLockAndPreservesBothErrors(t *testing.T) {
 	require.ErrorIs(t, err, closeErr)
 }
 
+func TestCheckAndUpdateUseTheSodaOperationLock(t *testing.T) {
+	failure := errors.New("another operation is running")
+	native := nativeUpdates{lock: func() (io.Closer, error) { return nil, failure }}
+	// No runners are configured: a failed lock must stop before any native work.
+	_, err := native.Check(t.Context())
+	require.ErrorIs(t, err, failure)
+	require.ErrorIs(t, native.Update(t.Context()), failure)
+}
+
 func TestMutationDoesNotRunWithoutLock(t *testing.T) {
 	failure := errors.New("busy")
 	native := nativeUpdates{lock: func() (io.Closer, error) { return nil, failure }}
-	err := native.mutate(t.Context(), updates.Selection{}, func(context.Context, updates.Selection) error {
+	err := native.mutate(t.Context(), func(context.Context) error {
 		t.Fatal("mutation must not run without its lock")
 		return nil
 	})

@@ -1,38 +1,33 @@
+export interface ImageReference {
+  image: string;
+  transport: string;
+}
 export interface Image {
-  version: string;
+  version: string | null;
   imageDigest: string;
   architecture: string;
-  image: { image: string; transport: string };
+  image: ImageReference;
 }
 export interface Deployment {
   image: Image | null;
+  cachedUpdate: Image | null;
   downloadOnly: boolean;
   incompatible: boolean;
 }
 export interface Host {
   apiVersion: string;
   kind: string;
+  spec: { image: ImageReference | null };
   status: {
     booted: Deployment;
     staged: Deployment | null;
     rollbackQueued: boolean;
     usrOverlay: unknown;
+    readOnly: boolean;
   };
-}
-export interface Release {
-  version: string;
-  revision: string;
-  architecture: string;
-  reference: string;
-  notes_url: string;
-}
-export interface Selection {
-  version: string;
-  reference: string;
 }
 export interface NativeUpdates {
   status(): Promise<Host>;
-  check(): Promise<Release>;
-  download(selection: Selection, progress: (text: string) => void): Promise<void>;
-  apply(selection: Selection, progress: (text: string) => void): Promise<void>;
+  check(): Promise<Host>;
+  update(progress: (text: string) => void): Promise<void>;
 }

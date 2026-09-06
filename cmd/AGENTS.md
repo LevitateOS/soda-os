@@ -150,8 +150,10 @@ Protocol-specific outcomes remain explicit and tested:
   for structured removal results; its coordinator interprets completion.
 - Tailnet welcome guidance remains non-fatal when status is unavailable.
 - Forgejo's Tailnet reporter remains a plain endpoint record, not JSON.
-- Updates status/check remain JSON; download/apply retain streamed native
-  progress. Root authorization and re-verification remain mandatory.
+- Updates status/check return native host JSON; check progress stays on stderr.
+  Update streams native `bootc upgrade --apply` progress/errors. Root
+  authorization and injected runners are mandatory; no browser-selected release,
+  version/digest approval, or separate Soda reboot protocol is accepted.
 
 ## 6. Auxiliary code and Go style
 

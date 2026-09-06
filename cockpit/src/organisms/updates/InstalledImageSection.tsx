@@ -9,15 +9,15 @@ export function InstalledImageSection({ image }: { image: Image | null | undefin
       <CardBody>
         {image ? (
           <>
-            <p>Soda OS {image.version || "Unknown version"}</p>
+            <p>Version: {image.version || "Unknown version"}</p>
+            <p>
+              Actual booted digest: <CodeValue>{image.imageDigest}</CodeValue>
+            </p>
             <details>
               <summary>Image details</summary>
               <p>Architecture: {image.architecture}</p>
               <p>
                 <CodeValue>{image.image.image}</CodeValue>
-              </p>
-              <p>
-                <CodeValue>{image.imageDigest}</CodeValue>
               </p>
             </details>
           </>

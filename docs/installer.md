@@ -107,13 +107,18 @@ authentication. Soda copies no CLI configuration or credential.
 ## Manual image lifecycle
 
 The runtime disables automatic bootc updates. A Linux administrator uses native
-bootc operations with exact signed Soda image references. Supported fallback
-uses the same native deployment path with the previous signed OCI digest and
-preserves current machine state. Direct `bootc rollback` is unsupported unless
+bootc operations or the [Soda Updates page](cockpit-updates.md). Check fetches
+metadata; Update and restart follows the configured source and requires native
+booted-digest readback afterward. Existing exact-digest installations need an
+explicit native switch before tracking a development tag. Installer exact-digest
+binding is unchanged. Fallback selects an earlier exact OCI digest and must
+preserve current machine state. Direct `bootc rollback` is unsupported unless
 it is separately proved to preserve current `/etc` and `/var` state.
 
-Soda ships no release-discovery client, update daemon, translated deployment
-state, wrapper CLI, retry process, or recovery service.
+The narrow synchronous helper adds no release-discovery client, update daemon,
+deployment database, retry process, or recovery service. Runtime updates require
+no signature or release record. The record-bound build/publication code below
+remains pending replacement under #61; it does not govern runtime updates.
 
 ## Release records
 

@@ -112,8 +112,10 @@ See [Data safety and removal](public/40-Operate-Soda-OS/30-data-safety-and-remov
 - Inactive provider fields are disabled; local runner lifecycle progress is named.
 - Tailscale read, mutation, and Forgejo errors remain independent. Forgejo repair
   has an explicit retry; routing feedback does not claim provider approval.
-- Updates retains the installed image during download, invalidates failed
-  readback, and distinguishes downloaded data from verified deployment status.
+- Updates presents native tracking/cached/pending facts, invalidates unavailable
+  readback, and distinguishes command completion from the actual booted digest.
+  One explicit Update and restart action follows native bootc, not a browser
+  release selection or separate download/approval ceremony.
 
 These preserve native authorization, Git/provider ownership, credential clearing,
 and explicit update activation. Full page redesigns remain separate milestones.
@@ -143,9 +145,10 @@ passed on x86-64. Earlier setup evidence has 44 states in
 
 ## Remaining milestones and evidence
 
-1. Redesign Runners, then Tailscale, then Updates in focused increments. Keep
-   provider jobs provider-owned, routing optional, and download separate from
-   confirmed restart.
+1. Redesign Runners and Tailscale in focused increments, keeping provider jobs
+   provider-owned and routing optional. Updates runtime/workflow ownership is
+   reserved to #61, including its explicit Update and restart action and native
+   readback; it is not a second redesign assignment here.
 2. Complete comprehensive accessibility and representative-user validation.
    Screenshots and component tests alone do not establish usability.
 3. Run separately authorized destructive installed acceptance on disposable

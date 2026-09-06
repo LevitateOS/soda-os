@@ -11,7 +11,7 @@ Native helpers still authorize, revalidate, and perform operations.
 | Feature | State/action owner | Useful starting actions |
 | --- | --- | --- |
 | Runners | `cockpit/src/runners/store.ts` | `register`, `changeListener`, `remove` |
-| Updates | `cockpit/src/updates/store.ts` | `check`, `download`, `requestApply`, `apply` |
+| Updates | `cockpit/src/updates/store.ts` | `refresh`, `check`, `update` |
 | Projects | `cockpit/src/projects/store.ts` | `open`, `setupWorkspace`, `checkRemoval`, `remove` |
 | Tailscale | `cockpit/src/tailscale/store.ts` | `signIn`, `applyExitNode`, `applyAdvertisement`, `retryForgejo` |
 
@@ -38,7 +38,9 @@ closes its native handles and constructs a fresh adapter on reactivation.
 - Projects shares keyed workspace observations between catalog and task views.
   Refresh invalidates observations, not removal receipts. Partial/unknown removal
   requires renewed explicit review; exact confirmation is enforced by the action.
-- Updates retains the reviewed apply selection independently of later host reads.
+- Updates holds native observations, not a reviewed release selection. Check is
+  informational; Update follows bootc's source at operation start. Completion or
+  disconnection is not boot proof; reload/focus/refresh rereads the booted digest.
 - Ordinary form buffers, disclosure, input elements, and focus stay in components.
   Task-significant choices such as the registration provider belong to the store.
 - Runner registration tokens never enter observable state. The submit boundary
@@ -65,7 +67,7 @@ The residual read bookkeeping is concrete and bounded:
 | Observation | Current coordination that a read library would need to preserve |
 | --- | --- |
 | Runner list | One page consumer; explicit refresh and readback after both successful and failed commands |
-| Update host | Initial/focus reads; unavailable host blocks actions; status errors remain independent of verification/download/apply outcomes |
+| Update host | Initial/focus reads; unavailable host blocks Update; status errors remain independent of check/update outcomes |
 | Project catalog and workspace | Explicit refresh and keyed invalidation; one shared readiness observation; read-only checks never imply setup |
 | Removal preview | Explicit renewed review, exact current revision, and attempt-local receipts/account identities; never automatic destructive retry |
 | Tailscale status/preferences | One non-overlapping observer; draft/write ordering; native-client lifetime and streaming authentication; conditional Forgejo refresh |

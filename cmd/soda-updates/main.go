@@ -21,13 +21,12 @@ func run() int {
 	defer stop()
 	architecture := map[string]string{"amd64": "x86_64", "arm64": "aarch64"}[runtime.GOARCH]
 	command := newCommand(architecture, os.Geteuid(), func(stdout, stderr io.Writer) updateOperations {
-		queries := process.OSRunner{Stderr: stderr}
-		releases := updates.NewReleases(queries)
 		return nativeUpdates{
-			queries:    queries,
-			releases:   releases,
-			operations: updates.Operations{Runner: process.OSRunner{Stdout: stdout, Stderr: stderr}, Releases: releases, Architecture: architecture},
-			lock:       func() (io.Closer, error) { return updates.Lock("/run/soda-updates.lock") },
+			operations: updates.Operations{
+				Queries: process.OSRunner{Stderr: stderr},
+				Runner:  process.OSRunner{Stdout: stdout, Stderr: stderr},
+			},
+			lock: func() (io.Closer, error) { return updates.Lock("/run/soda-updates.lock") },
 		}
 	})
 	command.SetArgs(os.Args[1:])

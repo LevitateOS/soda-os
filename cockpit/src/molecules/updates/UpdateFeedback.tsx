@@ -5,12 +5,12 @@ export function UpdateFeedback({
   operation,
   error,
   notice,
-  blocked,
+  diagnostic,
 }: {
   operation: string | null;
   error: string | null;
   notice: string | null;
-  blocked: boolean;
+  diagnostic: string | null;
 }) {
   return (
     <Stack hasGutter>
@@ -33,12 +33,9 @@ export function UpdateFeedback({
           <DiagnosticAlert variant="info" message={notice} />
         </StackItem>
       )}
-      {blocked && (
+      {diagnostic && (
         <StackItem>
-          <DiagnosticAlert
-            variant="warning"
-            message="Resolve the queued rollback or transient /usr overlay with native tools before updating."
-          />
+          <DiagnosticAlert variant="warning" message={diagnostic} />
         </StackItem>
       )}
     </Stack>

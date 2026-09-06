@@ -135,8 +135,11 @@ cleanup lifecycle. Soda owns no tool downloader, cache, package manager, profile
 system, or version state.
 
 Administrators use native bootc operations for manual update and supported
-fallback. Automatic updates remain disabled. Soda has no updater or recovery
-engine.
+fallback. The Soda Updates page exposes native status, informational metadata
+checking, and one explicit Update and restart action. Bootc owns the configured
+source, activation, and restart; native readback must establish the booted digest.
+Automatic updates remain disabled. Soda adds no deployment-state or recovery
+engine. The OCI-only development publication replacement remains pending #61.
 
 ## Current implementation
 

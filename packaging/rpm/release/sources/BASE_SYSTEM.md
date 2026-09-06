@@ -49,17 +49,24 @@ their tokens or configuration.
 
 ## Manual image lifecycle
 
-Automatic image updates are disabled. A Linux administrator selects an exact
-signed Soda image through native bootc operations:
+Automatic image updates are disabled. A Linux administrator uses Soda Updates
+in Cockpit or native bootc. Check is informational; Update and restart follows
+the native source at operation start and lets bootc activate/restart as needed:
 
 ```sh
-sudo bootc status
-sudo bootc switch --download-only ghcr.io/levitateos/soda-os@sha256:<digest>
-sudo bootc status
-sudo bootc switch --from-downloaded
-sudo systemctl reboot
+sudo bootc status --json
+sudo bootc upgrade --check
+sudo bootc upgrade --apply
 ```
 
-Supported fallback repeats the sequence with the previous signed Soda image
-digest. Direct `bootc rollback` is unsupported because it may restore the
-earlier deployment's historical `/etc` instead of preserving current accounts.
+Reconnect and verify the actual booted digest and current accounts/data. A
+successful command or disconnection is not boot proof. Digest-pinned systems
+need an explicit native `bootc switch` to follow a moving tag; Soda never changes
+the configured source implicitly. The selected pre-alpha development policy
+requires no signature, release approval, or increasing version. Its OCI-only
+publication command remains pending under #61.
+
+Fallback selects an earlier exact architecture-matched Soda digest with native
+`bootc switch` and must preserve current mutable state; arbitrary downgrade
+compatibility is not established. Direct `bootc rollback` is unsupported because
+it may restore historical `/etc` instead of preserving current accounts.

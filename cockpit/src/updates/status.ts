@@ -1,37 +1,26 @@
-import type { Host, Release, Selection } from "./types";
+import type { Host } from "./types";
 
-const stable = /^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/;
-export function availability(host: Host | null, release: Release | null) {
-  const booted = host?.status.booted.image;
-  if (!booted || !release) return { newer: false, message: "Check for an approved Soda release." };
-  if (!stable.test(booted.version) || !stable.test(release.version)) {
-    return {
-      newer: false,
-      message: "Development or unknown version: use native bootc for an explicit image selection.",
-    };
-  }
-  const installed = booted.version.split(".").map(BigInt),
-    available = release.version.split(".").map(BigInt);
-  for (let index = 0; index < installed.length; index++) {
-    if (installed[index] < available[index])
-      return { newer: true, message: "A newer verified release is available." };
-    if (installed[index] > available[index])
-      return {
-        newer: false,
-        message:
-          "This installation is newer than the latest published release. No downgrade will be offered.",
-      };
-  }
-  return {
-    newer: false,
-    message:
-      booted.imageDigest === release.reference.split("@")[1]
-        ? "Up to date."
-        : "Same version, different image. This may be a development candidate; it will not be replaced automatically.",
-  };
+export function updateDiagnostic(host: Host | null): string | null {
+  if (!host) return "Native deployment status is unavailable. Refresh status before updating.";
+  if (host.status.rollbackQueued)
+    return "A rollback is queued. Resolve it with native bootc before updating.";
+  if (host.status.usrOverlay) return "A /usr overlay is active. Resolve it before updating.";
+  if (host.status.readOnly) return "The bootc system is read-only; updating is unavailable.";
+  if (host.status.booted.incompatible || !host.status.booted.image)
+    return "bootc cannot manage the current deployment.";
+  if (host.status.staged?.incompatible)
+    return "bootc cannot manage the staged deployment. Inspect native status before updating.";
+  if (!host.spec.image) return "No native image source is configured. Inspect bootc status.";
+  return null;
 }
-export function stagedSelection(host: Host | null): Selection | null {
-  const staged = host?.status.staged;
-  if (!staged?.image || staged.incompatible) return null;
-  return { version: staged.image.version, reference: staged.image.image.image };
+
+export function cachedUpdate(host: Host | null) {
+  const source = host?.spec.image;
+  if (!source) return null;
+  for (const entry of [host.status.staged, host.status.booted]) {
+    const cached = entry?.cachedUpdate;
+    if (cached?.image.image === source.image && cached.image.transport === source.transport)
+      return cached;
+  }
+  return null;
 }

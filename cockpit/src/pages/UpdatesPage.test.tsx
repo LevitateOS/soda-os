@@ -1,276 +1,200 @@
 // @vitest-environment jsdom
-import { test, expect, vi } from "vite-plus/test";
+import { test, expect } from "vite-plus/test";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { UpdatesPage } from "./UpdatesPage";
 import { createUpdatesStore } from "../updates/store";
-import type { Host, Release, NativeUpdates } from "../updates/types";
+import { hostFixture, nativeFixture, source, bootedDigest, nextDigest } from "../../tests/updates";
 
-const reference = "ghcr.io/levitateos/soda-os@sha256:" + "a".repeat(64);
-const release: Release = {
-  version: "0.6.4",
-  reference,
-  revision: "b".repeat(40),
-  architecture: "x86_64",
-  notes_url: "https://github.com/LevitateOS/soda-os/releases/tag/v0.6.4",
-};
-function host(version = "0.6.3", pending = false): Host {
-  const image = {
-    version,
-    imageDigest: reference.split("@")[1],
-    architecture: "amd64",
-    image: { image: reference, transport: "registry" },
-  };
-  return {
-    apiVersion: "org.containers.bootc/v1",
-    kind: "BootcHost",
-    status: {
-      booted: { image, downloadOnly: false, incompatible: false },
-      staged: pending
-        ? { image: { ...image, version: release.version }, downloadOnly: true, incompatible: false }
-        : null,
-      rollbackQueued: false,
-      usrOverlay: null,
-    },
-  };
-}
-function setup(current = host()) {
-  const native = {
-    status: vi.fn<NativeUpdates["status"]>().mockResolvedValue(current),
-    check: vi.fn<NativeUpdates["check"]>().mockResolvedValue(release),
-    download: vi.fn<NativeUpdates["download"]>().mockResolvedValue(undefined),
-    apply: vi.fn<NativeUpdates["apply"]>().mockResolvedValue(undefined),
-  };
+function setup(host = hostFixture()) {
+  const native = nativeFixture(host);
   render(<UpdatesPage store={createUpdatesStore(native)} />);
   return native;
 }
 async function ready() {
   await waitFor(() =>
     expect(
-      (screen.getByRole("button", { name: "Check for updates" }) as HTMLButtonElement).disabled,
+      (screen.getByRole("button", { name: "Refresh status" }) as HTMLButtonElement).disabled,
     ).toBe(false),
   );
 }
+function updateButton() {
+  return screen.getByRole("button", {
+    name: "Update and restart",
+  }) as HTMLButtonElement;
+}
 
-test("check, verified download, then explicit restart confirmation", async () => {
+test("one explicit action works without Check and shows tracked source and actual booted digest", async () => {
   const native = setup();
   await ready();
+  expect(screen.getByRole("region", { name: "Tracked image source" }).textContent).toContain(
+    source,
+  );
+  const installed = within(screen.getByRole("region", { name: "Installed image" }));
+  expect(installed.getByText(bootedDigest).className).toContain("soda-code");
+  expect(screen.getByText(/interrupting SSH sessions/)).toBeTruthy();
+  expect(updateButton().disabled).toBe(false);
+  fireEvent.click(updateButton());
+  await ready();
+  expect(native.update).toHaveBeenCalledExactlyOnceWith(expect.any(Function));
   expect(native.check).not.toHaveBeenCalled();
+  expect(screen.queryByRole("dialog")).toBeNull();
+  expect(screen.queryByRole("button", { name: /Download|Apply/ })).toBeNull();
+  expect(screen.getByText(/command completion alone is not boot proof/)).toBeTruthy();
+});
+
+test("same-version cached image is informational and stale Check does not select Update's target", async () => {
+  const native = setup();
+  await ready();
+  const checked = hostFixture();
+  checked.status.booted.cachedUpdate = { ...checked.status.booted.image!, imageDigest: nextDigest };
+  native.check.mockResolvedValue(checked);
   fireEvent.click(screen.getByRole("button", { name: "Check for updates" }));
-  await screen.findByRole("button", { name: "Download update" });
-  native.status.mockResolvedValue(host("0.6.3", true));
-  fireEvent.click(screen.getByRole("button", { name: "Download update" }));
-  await screen.findByText("Downloaded — not yet enabled for restart");
-  expect(native.download).toHaveBeenCalledWith(release, expect.any(Function));
-  expect(native.apply).not.toHaveBeenCalled();
-  fireEvent.click(screen.getByRole("button", { name: "Apply and restart…" }));
-  await screen.findByRole("dialog");
+  await screen.findByText("Native cached update: 0.6.3");
+  expect(updateButton().disabled).toBe(false);
+  const booted = hostFixture();
+  booted.status.booted.image!.imageDigest = "sha256:" + "c".repeat(64);
+  native.status.mockResolvedValue(booted);
+  fireEvent.click(updateButton());
+  await ready();
+  expect(native.update).toHaveBeenCalledExactlyOnceWith(expect.any(Function));
   expect(
-    screen.getByText(/SSH sessions and running development workloads will be interrupted/),
-  ).toBeTruthy();
-  fireEvent.click(screen.getByRole("button", { name: "Apply and restart" }));
-  await waitFor(() =>
-    expect(native.apply).toHaveBeenCalledWith(
-      { version: release.version, reference },
-      expect.any(Function),
+    within(screen.getByRole("region", { name: "Installed image" })).getByText(
+      booted.status.booted.image!.imageDigest,
     ),
-  );
+  ).toBeTruthy();
 });
 
-test("reload recovers the downloaded deployment without browser workflow state", async () => {
-  setup(host("0.6.3", true));
-  await screen.findByText("Downloaded — not yet enabled for restart");
-  expect(screen.getByRole("button", { name: "Apply and restart…" })).toBeTruthy();
-});
-
-test("registry failure never displays up to date and clears a previous result", async () => {
-  const native = setup();
-  await ready();
-  native.check.mockRejectedValue(new Error("registry unavailable"));
-  fireEvent.click(screen.getByRole("button", { name: "Check for updates" }));
-  await screen.findByText(/registry unavailable/);
-  expect(screen.queryByText("Up to date.")).toBeNull();
-  expect(screen.queryByRole("button", { name: "Download update" })).toBeNull();
-});
-
-test("no published release is informational, not up to date", async () => {
-  const native = setup();
-  await ready();
-  native.check.mockRejectedValue(
-    new Error("soda-updates: no published stable Soda release is available"),
-  );
-  fireEvent.click(screen.getByRole("button", { name: "Check for updates" }));
-  await screen.findByText(/No published stable Soda release is available yet/);
-  expect(screen.queryByText("Up to date.")).toBeNull();
-  expect(screen.queryByRole("alert")).toBeNull();
-});
-
-test("a newer local version is not automatically downgraded", async () => {
-  setup(host("0.7.0"));
-  await ready();
-  fireEvent.click(screen.getByRole("button", { name: "Check for updates" }));
-  await screen.findByText(/No downgrade will be offered/);
-  expect(screen.queryByRole("button", { name: "Download update" })).toBeNull();
-});
-
-test("an activation disconnect requires inspection rather than claiming success", async () => {
-  const native = setup(host("0.6.3", true));
-  await ready();
-  native.apply.mockRejectedValue(new Error("connection closed"));
-  fireEvent.click(screen.getByRole("button", { name: "Apply and restart…" }));
-  fireEvent.click(await screen.findByRole("button", { name: "Apply and restart" }));
-  await screen.findByText(/do not assume the update failed/);
-  expect(screen.queryByText(/^Restart requested/)).toBeNull();
-});
-
-test("Apply dialog identifies the exact image and cancels without a native mutation", async () => {
-  const native = setup(host("0.6.3", true));
-  await ready();
-  fireEvent.click(screen.getByRole("button", { name: "Apply and restart…" }));
-  const dialog = await screen.findByRole("dialog", { name: "Apply update and restart?" });
-  expect(within(dialog).getByText(reference).className).toBe("soda-code");
-  expect(within(dialog).getByText(/atomic expected-digest activation guard/)).toBeTruthy();
-  await waitFor(() => expect(dialog.contains(document.activeElement)).toBe(true));
-  fireEvent.click(within(dialog).getByRole("button", { name: "Keep working" }));
-  await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
-  expect(native.apply).not.toHaveBeenCalled();
-  expect(native.download).not.toHaveBeenCalled();
-});
-
-test.each(["rollbackQueued", "usrOverlay"] as const)(
-  "%s blocks download and Apply, not release checks",
-  async (blocker) => {
-    const current = host("0.6.3", true);
-    if (blocker === "rollbackQueued") current.status.rollbackQueued = true;
-    else current.status.usrOverlay = { persistence: "transient" };
-    const native = setup(current);
+test.each([true, false])(
+  "native pending downloadOnly=%s is visible without blocking Update",
+  async (downloadOnly) => {
+    const host = hostFixture();
+    host.status.staged = {
+      ...host.status.booted,
+      downloadOnly,
+      image: { ...host.status.booted.image!, imageDigest: nextDigest },
+    };
+    setup(host);
     await ready();
-    expect(screen.getByText(/Resolve the queued rollback or transient/)).toBeTruthy();
-    const apply = screen.getByRole("button", { name: "Apply and restart…" }) as HTMLButtonElement;
-    expect(apply.disabled).toBe(true);
-    fireEvent.click(apply);
-    expect(screen.queryByRole("dialog")).toBeNull();
-    current.status.staged = null;
-    fireEvent.click(screen.getByRole("button", { name: "Check for updates" }));
-    const download = (await screen.findByRole("button", {
-      name: "Download update",
-    })) as HTMLButtonElement;
-    await ready();
-    expect(download.disabled).toBe(true);
-    fireEvent.click(download);
-    expect(native.check).toHaveBeenCalledOnce();
-    expect(native.download).not.toHaveBeenCalled();
-    expect(native.apply).not.toHaveBeenCalled();
+    const pending = within(screen.getByRole("region", { name: "Pending deployment" }));
+    expect(pending.getByText(nextDigest)).toBeTruthy();
+    expect(pending.queryByRole("button")).toBeNull();
+    expect(updateButton().disabled).toBe(false);
+    expect(
+      within(screen.getByRole("region", { name: "Installed image" })).getByText(bootedDigest),
+    ).toBeTruthy();
   },
 );
 
-test("enabled deployments recover and incompatible pending images cannot be applied", async () => {
-  const current = host("0.6.3", true);
-  current.status.staged!.downloadOnly = false;
-  current.status.staged!.incompatible = true;
-  setup(current);
+test.each([
+  ["rollback", "A rollback is queued"],
+  ["overlay", "A /usr overlay is active"],
+  ["booted", "bootc cannot manage the current deployment"],
+  ["staged", "bootc cannot manage the staged deployment"],
+  ["read-only", "The bootc system is read-only"],
+  ["source", "No native image source is configured"],
+])("%s diagnostics block Update but not a native metadata check", async (kind, message) => {
+  const host = hostFixture();
+  switch (kind) {
+    case "rollback":
+      host.status.rollbackQueued = true;
+      break;
+    case "overlay":
+      host.status.usrOverlay = { persistence: "transient", accessMode: "readWrite" };
+      break;
+    case "booted":
+      host.status.booted.incompatible = true;
+      break;
+    case "staged":
+      host.status.staged = { ...host.status.booted, incompatible: true };
+      break;
+    case "read-only":
+      host.status.readOnly = true;
+      break;
+    case "source":
+      host.spec.image = null;
+      break;
+  }
+  const native = setup(host);
   await ready();
-  expect(screen.getByText("Enabled for next restart")).toBeTruthy();
+  expect(screen.getByText(new RegExp(message))).toBeTruthy();
+  expect(updateButton().disabled).toBe(true);
+  fireEvent.click(updateButton());
+  expect(native.update).not.toHaveBeenCalled();
   expect(
-    (screen.getByRole("button", { name: "Apply and restart…" }) as HTMLButtonElement).disabled,
-  ).toBe(true);
+    (screen.getByRole("button", { name: "Check for updates" }) as HTMLButtonElement).disabled,
+  ).toBe(false);
 });
 
-test("native output stays bounded and wraps while a download is busy", async () => {
+test("administrator sources and unknown versions are not replaced with Soda policy", async () => {
+  const host = hostFixture();
+  host.spec.image = { image: "example.test/custom:branch", transport: "registry" };
+  host.status.booted.image!.version = null;
+  setup(host);
+  await ready();
+  expect(screen.getByText("example.test/custom:branch")).toBeTruthy();
+  expect(screen.getByText("Version: Unknown version")).toBeTruthy();
+  expect(updateButton().disabled).toBe(false);
+});
+
+test("digest-pinned source guidance does not silently switch sources", async () => {
+  const host = hostFixture();
+  host.spec.image = { image: "example.test/os@" + bootedDigest, transport: "registry" };
+  const native = setup(host);
+  await ready();
+  expect(screen.getByText(/administrator explicitly selects that tag/)).toBeTruthy();
+  expect(native.update).not.toHaveBeenCalled();
+  expect(updateButton().disabled).toBe(false);
+});
+
+test("disconnect is not boot proof and focus rereads actual status without retrying", async () => {
   const native = setup();
   await ready();
-  fireEvent.click(screen.getByRole("button", { name: "Check for updates" }));
-  await screen.findByRole("button", { name: "Download update" });
-  let complete!: () => void;
-  const output = "x".repeat(20000) + "\nlast native line";
-  native.download.mockImplementation((_selection, progress) => {
-    progress(output);
-    return new Promise<void>((resolve) => {
-      complete = resolve;
+  native.update.mockRejectedValueOnce(new Error("connection closed"));
+  native.status.mockRejectedValueOnce(new Error("host unavailable"));
+  fireEvent.click(updateButton());
+  await screen.findByText(/proves neither success nor failure/);
+  expect(updateButton().disabled).toBe(true);
+  const booted = hostFixture();
+  booted.status.booted.image!.imageDigest = nextDigest;
+  native.status.mockResolvedValue(booted);
+  fireEvent(window, new Event("focus"));
+  await screen.findByText(nextDigest);
+  expect(screen.getByText(/connection closed/)).toBeTruthy();
+  expect(native.update).toHaveBeenCalledOnce();
+});
+
+test("native text is bounded output, not a source of success or eligibility", async () => {
+  const native = setup();
+  await ready();
+  let finish!: () => void;
+  native.update.mockImplementationOnce((progress) => {
+    progress("x".repeat(20000) + " Update successful!");
+    return new Promise((resolve) => {
+      finish = resolve;
     });
   });
-  fireEvent.click(screen.getByRole("button", { name: "Download update" }));
-  const log = await screen.findByText(/last native line/);
-  expect(log.textContent).toBe(output.slice(-16384));
-  expect(log.className).toBe("soda-diagnostic");
-  expect(screen.getByText("Soda OS 0.6.3")).toBeTruthy();
-  expect(screen.queryByText(/Enable Cockpit administrative access/)).toBeNull();
+  fireEvent.click(updateButton());
+  expect(updateButton().disabled).toBe(true);
+  const output = screen.getByText(/Update successful!/);
+  expect(output.textContent).toHaveLength(16384);
+  expect(output.className).toBe("soda-diagnostic");
   expect(
-    screen
-      .getByText("Native operation output (most recent 16 KiB)")
-      .parentElement?.hasAttribute("open"),
-  ).toBe(true);
-  expect(
-    screen.getByText("Verifying and downloading the selected image").getAttribute("role"),
+    screen.getByText("Updating the native image and restarting when needed").getAttribute("role"),
   ).toBe("status");
-  expect(
-    (screen.getByRole("button", { name: "Refresh status" }) as HTMLButtonElement).disabled,
-  ).toBe(true);
-  complete();
+  expect(screen.queryByText(/Native update command completed/)).toBeNull();
+  finish();
   await ready();
-  expect(native.apply).not.toHaveBeenCalled();
 });
 
-test("image identities and detailed failures use shared wrapping styles", async () => {
+test("a failed Check is never reported as up to date", async () => {
   const native = setup();
   await ready();
-  const installed = within(screen.getByRole("region", { name: "Installed image" }));
-  expect(installed.getByText(reference).className).toBe("soda-code");
+  native.check.mockRejectedValueOnce(new Error("registry unreachable"));
   fireEvent.click(screen.getByRole("button", { name: "Check for updates" }));
-  await screen.findByRole("button", { name: "Download update" });
-  const available = within(screen.getByRole("region", { name: "Available release" }));
-  expect(available.getByText(reference).className).toBe("soda-code");
-  expect(available.getByRole("link", { name: "Release notes" }).getAttribute("href")).toBe(
-    release.notes_url,
-  );
-  const diagnostic = `verification failed\n${reference}`;
-  native.check.mockRejectedValue(new Error(diagnostic));
-  fireEvent.click(screen.getByRole("button", { name: "Check for updates" }));
-  const alert = await screen.findByRole("alert");
-  expect(within(alert).getByText("Operation could not be confirmed")).toBeTruthy();
-  const detail = within(alert).getByText(/verification failed/);
-  expect(detail.textContent).toBe(`Error: ${diagnostic}`);
-  expect(detail.className).toBe("soda-diagnostic");
-});
-
-test("a failed status read clears previous deployment facts without diagnosing permissions", async () => {
-  const native = setup(host("0.6.3", true));
+  await screen.findByText(/registry unreachable/);
+  expect(screen.queryByText("Up to date.")).toBeNull();
+  expect(updateButton().disabled).toBe(true);
+  fireEvent(window, new Event("focus"));
   await ready();
-  native.status.mockRejectedValueOnce(new Error("bootc status unavailable"));
-  fireEvent.click(screen.getByRole("button", { name: "Refresh status" }));
-  await screen.findByText(/bootc status unavailable/);
-  expect(screen.queryByText("Soda OS 0.6.3")).toBeNull();
-  expect(screen.queryByRole("button", { name: "Apply and restart…" })).toBeNull();
-  expect(
-    screen.getByText("Installed image unavailable. Refresh status to try again."),
-  ).toBeTruthy();
-  expect(screen.queryByText(/Enable Cockpit administrative access/)).toBeNull();
-  fireEvent.click(screen.getByRole("button", { name: "Refresh status" }));
-  await screen.findByText("Soda OS 0.6.3");
-  expect(screen.queryByText(/bootc status unavailable/)).toBeNull();
-});
-
-test("window focus refresh cannot erase an unrelated verification failure", async () => {
-  const native = setup();
-  await ready();
-  native.check.mockRejectedValueOnce(new Error("signature verification failed"));
-  fireEvent.click(screen.getByRole("button", { name: "Check for updates" }));
-  await screen.findByText(/signature verification failed/);
-  fireEvent.focus(window);
-  await ready();
-  expect(screen.getByText(/signature verification failed/)).toBeTruthy();
-  expect(native.check).toHaveBeenCalledOnce();
-});
-
-test("completed download is distinguished from failed deployment readback", async () => {
-  const native = setup();
-  await ready();
-  fireEvent.click(screen.getByRole("button", { name: "Check for updates" }));
-  await screen.findByRole("button", { name: "Download update" });
-  native.status.mockRejectedValueOnce(new Error("readback unavailable"));
-  fireEvent.click(screen.getByRole("button", { name: "Download update" }));
-  await screen.findByText(
-    /image download completed, but current deployment status could not be read/,
-  );
-  expect(screen.queryByRole("button", { name: "Apply and restart…" })).toBeNull();
-  expect(native.apply).not.toHaveBeenCalled();
+  expect(screen.getByText(/registry unreachable/)).toBeTruthy();
 });

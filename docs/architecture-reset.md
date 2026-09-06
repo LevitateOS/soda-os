@@ -238,11 +238,19 @@ rejected implementation debt, not product requirements.
 ## Native image lifecycle
 
 Administrators choose updates manually through native bootc behavior. Fedora's
-automatic bootc update timer is disabled. Soda has no update discovery client,
-translated deployment state, custom updater, update API, update page, or
-automatic reboot behavior.
+automatic bootc update timer is disabled. The administrator-only Soda Updates
+page now exposes native status, informational metadata checking, and one explicit
+Update and restart action through a synchronous helper. Native bootc owns source
+resolution, staging, activation and restart. There is no Soda discovery client,
+release selection, deployment database, or automatic update/reboot service.
+Reconnection and native readback must establish the actual booted digest.
 
-Supported fallback selects an earlier exact signed Soda OCI digest through a
+Issue #61 selects architecture-independent pre-alpha development-tag tracking,
+without signature, version-increase, installer, or sibling prerequisites. Its
+publication/release-system replacement remains pending; the release section below
+describes the old machinery, not prerequisites of the replacement runtime updater.
+
+Supported fallback selects an earlier exact Soda OCI digest through a
 native bootc path that preserves current identities, groups, homes, catalog,
 workspaces, Forgejo state, Tailscale identity, SSH state, and other authoritative
 mutable data. Direct `bootc rollback` is unsupported unless independently

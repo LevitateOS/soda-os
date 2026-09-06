@@ -4,6 +4,13 @@ This is an internal operator document. The accepted release contract is in
 [architecture-reset.md](architecture-reset.md). No command in this document is
 evidence that a public release exists.
 
+**Runtime policy update (#61):** Soda Updates now follows native bootc tracking
+with informational Check and one Update and restart action. It no longer
+consumes the records/signatures below. The OCI-only development publication
+command and deletion of this old release orchestration remain pending; these
+historical production prerequisites are not runtime-update prerequisites. See
+[cockpit-updates.md](cockpit-updates.md) for the implemented runtime boundary.
+
 ## Product contract
 
 A push to protected `production` coordinates one release for x86-64 and

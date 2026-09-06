@@ -76,13 +76,13 @@ components. `UpdatesPage` follows the same composition. Interaction tests live
 beside the pages. Native protocol, status, and stream tests remain with their
 feature owners.
 
-Updates organisms own the installed-image, available-release, and pending-
-deployment sections and the Apply confirmation dialog. Its feature molecules
+Updates organisms own the installed-image, tracked-source, and pending-deployment
+sections, with one explicit Update and restart action. Its feature molecules
 own operation feedback and native output presentation. The page connects them
-to `updates/store.ts`, which owns requests, bounded streaming output, reviewed
-selection, and native-state refresh. Status-read errors are independent of
-command/check outcomes; focus refresh never erases an unrelated failure. Long
-image identities reuse `CodeValue`; notices reuse
+to `updates/store.ts`, which owns requests, bounded streaming output, lifecycle
+retirement, and native-state refresh without release/approval state. Status-read
+errors are independent of command/check outcomes; focus refresh never erases an
+unrelated failure. Long image identities reuse `CodeValue`; notices reuse
 `DiagnosticAlert`, while errors retain a separate summary and detailed diagnostic.
 
 Passive organisms and molecules never invoke Cockpit or import native adapters.
@@ -285,8 +285,10 @@ screenshots only after login and without entering provider registration secrets.
 It writes a source/architecture/package record only after passing.
 
 Updates has a separate, read-only installed smoke test with narrower prerequisites
-and evidence; see [Soda Updates](cockpit-updates.md). That checkpoint test does
-not substitute for RPM, theme, responsive-layout, or full upgrade acceptance.
+and evidence; see [Soda Updates](cockpit-updates.md). It reads native status only;
+setting its existing target variable cannot update or reboot a guest. It does
+not substitute for RPM, theme, responsive-layout, or full update acceptance.
+The separately opted-in mutating update/reconnect journey remains pending #61.
 
 Complete mutating acceptance on disposable fixtures as well: project addition,
 metadata editing, failed and successful setup with native Git key registration,

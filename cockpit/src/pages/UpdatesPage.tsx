@@ -3,13 +3,13 @@ import { CockpitPageTemplate } from "../templates/CockpitPageTemplate";
 import { UpdateFeedback } from "../molecules/updates/UpdateFeedback";
 import { NativeOperationOutput } from "../molecules/updates/NativeOperationOutput";
 import { InstalledImageSection } from "../organisms/updates/InstalledImageSection";
-import { AvailableReleaseSection } from "../organisms/updates/AvailableReleaseSection";
+import { TrackedImageSection } from "../organisms/updates/TrackedImageSection";
 import { PendingDeploymentSection } from "../organisms/updates/PendingDeploymentSection";
-import { ApplyUpdateDialog } from "../organisms/updates/ApplyUpdateDialog";
 import { useEffect } from "react";
 import { useStore } from "zustand";
 import { operationLabels, type UpdatesStore } from "../updates/store";
-import { stagedSelection } from "../updates/status";
+import { updateDiagnostic } from "../updates/status";
+
 export function UpdatesPage({ store }: { store: UpdatesStore }) {
   const state = useStore(store);
   useEffect(() => {
@@ -25,12 +25,11 @@ export function UpdatesPage({ store }: { store: UpdatesStore }) {
   }, [store]);
   const busy = Boolean(state.operation);
   const staged = state.host?.status.staged;
-  const selected = stagedSelection(state.host);
-  const blocked = Boolean(state.host?.status.rollbackQueued || state.host?.status.usrOverlay);
+  const diagnostic = updateDiagnostic(state.host);
   return (
     <CockpitPageTemplate
       title="Soda Updates"
-      description="Verified OS image updates. You decide when to download and restart."
+      description="Native OS image updates. You decide when to update and restart."
       busy={busy}
       actions={
         <Button variant="secondary" isDisabled={busy} onClick={() => void state.refresh()}>
@@ -42,15 +41,7 @@ export function UpdatesPage({ store }: { store: UpdatesStore }) {
           operation={state.operation ? operationLabels[state.operation] : null}
           error={[...new Set([state.error, state.readError].filter(Boolean))].join("\n\n") || null}
           notice={state.notice}
-          blocked={blocked}
-        />
-      }
-      dialogs={
-        <ApplyUpdateDialog
-          selection={state.confirmation}
-          busy={busy}
-          onClose={state.cancelApply}
-          onApply={() => void state.apply()}
+          diagnostic={busy ? null : diagnostic}
         />
       }
     >
@@ -60,24 +51,17 @@ export function UpdatesPage({ store }: { store: UpdatesStore }) {
             <InstalledImageSection image={state.host?.status.booted.image} />
           </StackItem>
           <StackItem>
-            <AvailableReleaseSection
+            <TrackedImageSection
               host={state.host}
-              release={state.release}
               busy={busy}
-              blocked={blocked}
+              blocked={Boolean(diagnostic)}
               onCheck={() => void state.check()}
-              onDownload={() => void state.download()}
+              onUpdate={() => void state.update()}
             />
           </StackItem>
           {staged && (
             <StackItem>
-              <PendingDeploymentSection
-                deployment={staged}
-                selection={selected}
-                busy={busy}
-                blocked={blocked}
-                onApply={state.requestApply}
-              />
+              <PendingDeploymentSection deployment={staged} />
             </StackItem>
           )}
           {state.progress && (

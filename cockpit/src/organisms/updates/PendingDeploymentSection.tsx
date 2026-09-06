@@ -1,42 +1,22 @@
-import { Button, Card, CardBody, CardTitle } from "@patternfly/react-core";
+import { Card, CardBody, CardTitle } from "@patternfly/react-core";
 import { CodeValue } from "../../atoms/CodeValue";
-import type { Deployment, Selection } from "../../updates/types";
+import type { Deployment } from "../../updates/types";
 
-export function PendingDeploymentSection({
-  deployment,
-  selection,
-  busy,
-  blocked,
-  onApply,
-}: {
-  deployment: Deployment;
-  selection: Selection | null;
-  busy: boolean;
-  blocked: boolean;
-  onApply: () => void;
-}) {
+export function PendingDeploymentSection({ deployment }: { deployment: Deployment }) {
   return (
     <Card component="section" aria-label="Pending deployment">
       <CardTitle>
-        {deployment.downloadOnly
-          ? "Downloaded — not yet enabled for restart"
-          : "Enabled for next restart"}
+        {deployment.downloadOnly ? "Downloaded — finalization locked" : "Enabled for next restart"}
       </CardTitle>
       <CardBody>
-        <p>Soda OS {deployment.image?.version || "Unknown version"}</p>
-        <details>
-          <summary>Pending image details</summary>
-          <p>
-            <CodeValue>{deployment.image?.image.image}</CodeValue>
-          </p>
-        </details>
-        <Button variant="warning" isDisabled={busy || !selection || blocked} onClick={onApply}>
-          Apply and restart…
-        </Button>
+        <p>Version: {deployment.image?.version || "Unknown version"}</p>
         <p>
-          The release is verified again before activation. Native CLI deployments that are not
-          approved Soda releases cannot be applied here.
+          <CodeValue>{deployment.image?.image.image}</CodeValue>
         </p>
+        <p>
+          <CodeValue>{deployment.image?.imageDigest}</CodeValue>
+        </p>
+        <p>This is native pending state, not the image currently booted.</p>
       </CardBody>
     </Card>
   );

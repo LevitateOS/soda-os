@@ -75,12 +75,14 @@ profile system, or version database. Coding assistants are selected and
 authenticated separately per workspace.
 
 Administrators update explicitly through the Soda Updates Cockpit page or native
-bootc commands. The page discovers approved published releases, verifies their
-exact images, and separates downloading from a confirmed restart. Automatic
-updates are disabled. Supported fallback selects an earlier exact signed image
-while preserving current accounts and data. Soda has no updater, recovery
-engine, runtime daemon, general API, workflow engine, credential broker, or
-reconciliation service.
+bootc commands. The page shows native tracking and deployment facts, offers an
+informational metadata check, and one Update and restart action. Reconnect and
+verify the actual booted digest. Automatic updates are disabled. The selected
+pre-alpha development-tag policy has no signature, version-increase, installer,
+or sibling prerequisite; its OCI-only publication command remains pending #61.
+Fallback selects an earlier exact image while preserving current accounts and
+data. Soda has no updater, recovery engine, runtime daemon, general API, workflow
+engine, credential broker, or reconciliation service.
 
 The [base principles](docs/principles.md) explain the product purpose. The
 [architectural reset](docs/architecture-reset.md) defines the accepted

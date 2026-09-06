@@ -1,13 +1,13 @@
 import { test, expect, vi } from "vite-plus/test";
 import { nativeUpdates } from "./native";
 import type { CockpitProcess, SpawnOptions } from "../cockpit/types";
+import { hostFixture } from "../../tests/updates";
 
-test("every operation requires Cockpit admin access and passes literal arguments", async () => {
-  const stream = vi.fn();
+test("fixed native operations require administrative access with no browser selection arguments", async () => {
+  const host = hostFixture();
   const spawn = vi.fn((_args: string[], _options: SpawnOptions) => {
-    const result = Promise.resolve("{}") as unknown as CockpitProcess;
+    const result = Promise.resolve(JSON.stringify(host)) as unknown as CockpitProcess;
     result.stream = (callback) => {
-      stream(callback);
       callback("native output");
       return result;
     };
@@ -15,31 +15,23 @@ test("every operation requires Cockpit admin access and passes literal arguments
   });
   const native = nativeUpdates({ spawn });
   const progress = vi.fn();
-  const selection = { version: "0.6.4", reference: "ghcr.io/levitateos/soda-os@sha256:literal" };
-  await native.status();
-  await native.check();
-  await native.download(selection, progress);
-  await native.apply(selection, progress);
-  expect(spawn.mock.calls.map(([args]) => args)).toEqual([
-    ["/usr/libexec/soda/soda-updates", "status"],
-    ["/usr/libexec/soda/soda-updates", "check"],
-    [
-      "/usr/libexec/soda/soda-updates",
-      "download",
-      "--version",
-      selection.version,
-      "--reference",
-      selection.reference,
-    ],
-    [
-      "/usr/libexec/soda/soda-updates",
-      "apply",
-      "--version",
-      selection.version,
-      "--reference",
-      selection.reference,
-    ],
+  expect(await native.status()).toEqual(host);
+  expect(await native.check()).toEqual(host);
+  await native.update(progress);
+  expect(spawn.mock.calls).toEqual([
+    [["/usr/libexec/soda/soda-updates", "status"], { superuser: "require", err: "message" }],
+    [["/usr/libexec/soda/soda-updates", "check"], { superuser: "require", err: "message" }],
+    [["/usr/libexec/soda/soda-updates", "update"], { superuser: "require", err: "out" }],
   ]);
-  expect(spawn.mock.calls.every(([, options]) => options.superuser === "require")).toBe(true);
   expect(progress).toHaveBeenCalledWith("native output");
+});
+
+test("read transport failures and polluted JSON cannot become successful status", async () => {
+  const spawn = vi
+    .fn()
+    .mockRejectedValueOnce(new Error("access denied"))
+    .mockResolvedValueOnce("native progress\n{}");
+  const native = nativeUpdates({ spawn });
+  await expect(native.status()).rejects.toThrow("access denied");
+  await expect(native.check()).rejects.toThrow();
 });
