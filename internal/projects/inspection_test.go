@@ -38,7 +38,7 @@ func TestWorkspaceInspectionCannotSelectAnotherHumanOrAnArbitraryPath(t *testing
 func TestHelperInspectionWaitsForDestructiveOperations(t *testing.T) {
 	fixture := newHelperFixture(t)
 	addSite(t, &fixture)
-	held, err := fixture.helper.operationLocks.Exclusive()
+	held, err := fixture.helper.operationLocks.Exclusive(t.Context())
 	require.NoError(t, err)
 	assertHelperActionBlocks(t, fixture, held, helperLockCase{action: "workspace-inspect", request: `{"id":"site"}`}, "")
 }

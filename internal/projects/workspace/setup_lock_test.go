@@ -1,6 +1,7 @@
 package workspace
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -18,12 +19,18 @@ func TestSetupLockerSerializesOnePrimaryProject(t *testing.T) {
 	require.NoError(t, os.MkdirAll(filepath.Join(runtimeRoot, fmt.Sprint(account.UID)), 0o700))
 	locker := NewSetupLocker(runtimeRoot)
 	entry := projectEntry("site")
-	first, err := locker.Lock(account, entry)
+	first, err := locker.Lock(t.Context(), account, entry)
 	require.NoError(t, err)
+	defer first.Close()
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	cancelled, err := locker.Lock(ctx, account, entry)
+	require.ErrorIs(t, err, context.Canceled)
+	require.Nil(t, cancelled)
 	acquired := make(chan io.Closer, 1)
 	failed := make(chan error, 1)
 	go func() {
-		lock, lockErr := locker.Lock(account, entry)
+		lock, lockErr := locker.Lock(t.Context(), account, entry)
 		if lockErr != nil {
 			failed <- lockErr
 			return

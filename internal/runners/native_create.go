@@ -24,7 +24,7 @@ type preparedRunner struct {
 type identity struct{ UID, GID uint32 }
 
 func (native *Native) Create(ctx context.Context, request CreateRequest) error {
-	lock, err := native.lock()
+	lock, err := native.lock(ctx)
 	if err != nil {
 		return err
 	}

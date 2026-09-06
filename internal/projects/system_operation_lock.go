@@ -1,6 +1,7 @@
 package projects
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -8,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/LevitateOS/soda-os/internal/filelock"
 	"golang.org/x/sys/unix"
 )
 
@@ -47,22 +49,22 @@ func (lock *workspaceOperationLock) Close() error {
 	return errors.Join(unlockErr, closeErr)
 }
 
-func (locker OperationLocker) Shared() (io.Closer, error) {
-	return locker.lock(unix.LOCK_SH)
+func (locker OperationLocker) Shared(ctx context.Context) (io.Closer, error) {
+	return locker.lock(ctx, unix.LOCK_SH)
 }
 
-func (locker OperationLocker) Exclusive() (io.Closer, error) {
-	return locker.lock(unix.LOCK_EX)
+func (locker OperationLocker) Exclusive(ctx context.Context) (io.Closer, error) {
+	return locker.lock(ctx, unix.LOCK_EX)
 }
 
-func (locker OperationLocker) lock(kind int) (io.Closer, error) {
+func (locker OperationLocker) lock(ctx context.Context, kind int) (io.Closer, error) {
 	if locker.path == "" {
 		return nil, errors.New("workspace operation locker was not constructed")
 	}
-	return openWorkspaceOperationLock(locker.path, locker.ownerUID, kind)
+	return openWorkspaceOperationLock(ctx, locker.path, locker.ownerUID, kind)
 }
 
-func openWorkspaceOperationLock(path string, ownerUID, kind int) (io.Closer, error) {
+func openWorkspaceOperationLock(ctx context.Context, path string, ownerUID, kind int) (io.Closer, error) {
 	parent, err := openWorkspaceOperationLockDirectory(filepath.Dir(path))
 	if err != nil {
 		return nil, fmt.Errorf("open workspace operation lock directory: %w", err)
@@ -84,7 +86,7 @@ func openWorkspaceOperationLock(path string, ownerUID, kind int) (io.Closer, err
 		file.Close()
 		return nil, err
 	}
-	if err = unix.Flock(descriptor, kind); err != nil {
+	if err = filelock.Acquire(ctx, file, kind); err != nil {
 		file.Close()
 		return nil, fmt.Errorf("lock workspace operations: %w", err)
 	}

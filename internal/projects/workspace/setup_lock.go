@@ -1,12 +1,14 @@
 package workspace
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
 	"os"
 	"strconv"
 
+	"github.com/LevitateOS/soda-os/internal/filelock"
 	"github.com/LevitateOS/soda-os/internal/linuxhost"
 	"github.com/LevitateOS/soda-os/internal/projects/catalog"
 	"golang.org/x/sys/unix"
@@ -28,7 +30,7 @@ func NewSetupLocker(runtimeRoot string) SetupLocker {
 	return SetupLocker{runtimeRoot: runtimeRoot}
 }
 
-func (locker SetupLocker) Lock(account linuxhost.Account, entry catalog.Entry) (io.Closer, error) {
+func (locker SetupLocker) Lock(ctx context.Context, account linuxhost.Account, entry catalog.Entry) (io.Closer, error) {
 	if err := entry.Validate(); err != nil {
 		return nil, err
 	}
@@ -41,7 +43,7 @@ func (locker SetupLocker) Lock(account linuxhost.Account, entry catalog.Entry) (
 	if err != nil {
 		return nil, err
 	}
-	if err = unix.Flock(int(lock.Fd()), unix.LOCK_EX); err != nil {
+	if err = filelock.Acquire(ctx, lock, unix.LOCK_EX); err != nil {
 		lock.Close()
 		return nil, fmt.Errorf("lock workspace setup: %w", err)
 	}

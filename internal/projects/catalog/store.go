@@ -2,6 +2,7 @@ package catalog
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -12,6 +13,8 @@ import (
 	"strings"
 	"syscall"
 	"unicode/utf8"
+
+	"github.com/LevitateOS/soda-os/internal/filelock"
 )
 
 const (
@@ -57,7 +60,7 @@ func (store *Store) Get(id string) (Entry, error) {
 }
 
 func (store *Store) Add(entry Entry) error {
-	locked, err := store.Lock()
+	locked, err := store.Lock(context.Background())
 	if err != nil {
 		return err
 	}
@@ -66,7 +69,7 @@ func (store *Store) Add(entry Entry) error {
 }
 
 func (store *Store) Edit(edit Edit) error {
-	locked, err := store.Lock()
+	locked, err := store.Lock(context.Background())
 	if err != nil {
 		return err
 	}
@@ -115,7 +118,7 @@ func (locked *LockedStore) Edit(edit Edit) (Entry, error) {
 // Lock acquires the catalog lock for a caller that must keep workspace removal
 // and catalog removal in one ordered operation. The caller must close the
 // returned LockedStore.
-func (store *Store) Lock() (*LockedStore, error) {
+func (store *Store) Lock(ctx context.Context) (*LockedStore, error) {
 	if err := store.requireConfigured(); err != nil {
 		return nil, err
 	}
@@ -126,7 +129,7 @@ func (store *Store) Lock() (*LockedStore, error) {
 	if err != nil {
 		return nil, fmt.Errorf("open project lock: %w", err)
 	}
-	if err = syscall.Flock(int(file.Fd()), syscall.LOCK_EX); err != nil {
+	if err = filelock.Acquire(ctx, file, syscall.LOCK_EX); err != nil {
 		return nil, errors.Join(fmt.Errorf("lock project catalog: %w", err), file.Close())
 	}
 	return &LockedStore{store: store, lock: file}, nil

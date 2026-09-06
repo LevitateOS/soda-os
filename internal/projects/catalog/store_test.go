@@ -98,7 +98,7 @@ func TestLockedStoreOwnsRemovalAndBlocksInternalMutations(t *testing.T) {
 	store := newTestStore(t)
 	require.NoError(t, store.Add(Entry{ID: "site", DisplayName: "Site", CanonicalURL: "git@git.test:site.git"}))
 
-	locked, err := store.Lock()
+	locked, err := store.Lock(t.Context())
 	require.NoError(t, err)
 	defer locked.Close()
 	entry, err := locked.Get("site")

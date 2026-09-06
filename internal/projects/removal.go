@@ -129,7 +129,7 @@ func (helper Helper) removalInspect(ctx context.Context, identity linuxhost.PKEx
 	if err := strictjson.Decode(input, &request); err != nil {
 		return RemovalInspectionResponse{}, err
 	}
-	lock, err := helper.operationLocks.Shared()
+	lock, err := helper.operationLocks.Shared(ctx)
 	if err != nil {
 		return RemovalInspectionResponse{}, err
 	}
@@ -154,7 +154,7 @@ func (helper Helper) executeRemoval(ctx context.Context, identity linuxhost.PKEx
 	if expected == "" {
 		return RemovalResponse{}, errors.New("inspect removal and confirm the current scope before deleting")
 	}
-	lock, err := helper.operationLocks.Exclusive()
+	lock, err := helper.operationLocks.Exclusive(ctx)
 	if err != nil {
 		return RemovalResponse{}, err
 	}
@@ -170,7 +170,7 @@ func (helper Helper) confirmedRemoval(ctx context.Context, identity linuxhost.PK
 	if request.Action != "remove" {
 		return helper.removeWithCurrentScope(ctx, identity, request, expected, nil)
 	}
-	locked, err := helper.store.Lock()
+	locked, err := helper.store.Lock(ctx)
 	if err != nil {
 		return emptyRemovalResponse(), err
 	}

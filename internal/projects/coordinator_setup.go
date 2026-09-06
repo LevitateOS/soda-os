@@ -17,7 +17,7 @@ func (coordinator Coordinator) setup(ctx context.Context, primary linuxhost.Acco
 	if err != nil {
 		return SetupResponse{}, err
 	}
-	setupLock, err := coordinator.setupLocks.Lock(primary, entry)
+	setupLock, err := coordinator.setupLocks.Lock(ctx, primary, entry)
 	if err != nil {
 		return SetupResponse{}, fmt.Errorf("lock project setup: %w", err)
 	}
@@ -26,7 +26,7 @@ func (coordinator Coordinator) setup(ctx context.Context, primary linuxhost.Acco
 }
 
 func (coordinator Coordinator) setupWithOperationLock(ctx context.Context, request SetupRequest) (SetupResponse, error) {
-	lock, err := coordinator.operationLocks.Shared()
+	lock, err := coordinator.operationLocks.Shared(ctx)
 	if err != nil {
 		return SetupResponse{}, fmt.Errorf("lock workspace operations: %w", err)
 	}

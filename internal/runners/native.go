@@ -14,6 +14,7 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/LevitateOS/soda-os/internal/filelock"
 	"golang.org/x/sys/unix"
 )
 
@@ -121,7 +122,7 @@ func (native *Native) Restart(ctx context.Context, id string) error {
 }
 
 func (native *Native) Remove(ctx context.Context, id string) error {
-	lock, err := native.lock()
+	lock, err := native.lock(ctx)
 	if err != nil {
 		return err
 	}
@@ -234,12 +235,12 @@ func (native *Native) providerVersion(ctx context.Context, descriptor Descriptor
 	return strings.TrimSpace(result.Stdout), nil
 }
 
-func (native *Native) lock() (*os.File, error) {
+func (native *Native) lock(ctx context.Context) (*os.File, error) {
 	file, err := os.OpenFile(native.lockPath(), os.O_CREATE|os.O_RDWR, 0o600)
 	if err != nil {
 		return nil, err
 	}
-	if err = unix.Flock(int(file.Fd()), unix.LOCK_EX); err != nil {
+	if err = filelock.Acquire(ctx, file, unix.LOCK_EX); err != nil {
 		file.Close()
 		return nil, err
 	}

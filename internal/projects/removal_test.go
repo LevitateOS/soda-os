@@ -66,7 +66,7 @@ func TestRemovalRejectsUnreviewedOrChangedScopeBeforeMutation(t *testing.T) {
 
 func TestRemovalInspectionWaitsForExclusiveOperations(t *testing.T) {
 	fixture := newHelperFixture(t)
-	held, err := fixture.helper.operationLocks.Exclusive()
+	held, err := fixture.helper.operationLocks.Exclusive(t.Context())
 	require.NoError(t, err)
 	result := make(chan error, 1)
 	go func() {

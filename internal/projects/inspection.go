@@ -29,7 +29,7 @@ func (helper Helper) workspaceInspect(ctx context.Context, actor linuxhost.PKExe
 	if err := strictjson.Decode(input, &request); err != nil {
 		return WorkspaceInspectionResponse{}, err
 	}
-	lock, err := helper.operationLocks.Shared()
+	lock, err := helper.operationLocks.Shared(ctx)
 	if err != nil {
 		return WorkspaceInspectionResponse{}, fmt.Errorf("lock workspace operations: %w", err)
 	}

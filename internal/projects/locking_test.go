@@ -36,7 +36,7 @@ func TestCoordinatorSetupHoldsSharedOperationLockThroughPublication(t *testing.T
 	}
 	exclusiveResult := make(chan lockResult, 1)
 	go func() {
-		lock, err := fixture.coordinator.operationLocks.Exclusive()
+		lock, err := fixture.coordinator.operationLocks.Exclusive(t.Context())
 		exclusiveResult <- lockResult{lock: lock, err: err}
 	}()
 	requireBlocked(t, exclusiveResult, "exclusive removal lock acquired while setup was publishing")
@@ -63,7 +63,7 @@ func TestHelperSetupStepsUseSharedOperationLock(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			fixture := newHelperFixture(t)
 			test.prepare(t, &fixture)
-			held, err := fixture.helper.operationLocks.Exclusive()
+			held, err := fixture.helper.operationLocks.Exclusive(t.Context())
 			require.NoError(t, err)
 			assertHelperActionBlocks(t, fixture, held, test, "project URL changed")
 		})
@@ -82,7 +82,7 @@ func TestHelperDestructiveActionsUseExclusiveOperationLock(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			fixture := newHelperFixture(t)
 			test.prepare(t, &fixture)
-			held, err := fixture.helper.operationLocks.Shared()
+			held, err := fixture.helper.operationLocks.Shared(t.Context())
 			require.NoError(t, err)
 			assertHelperActionBlocks(t, fixture, held, test, "")
 		})
@@ -108,7 +108,7 @@ func assertHelperActionBlocks(t *testing.T, fixture helperFixture, held io.Close
 
 func TestCatalogAddDoesNotAcquireWorkspaceOperationLock(t *testing.T) {
 	fixture := newHelperFixture(t)
-	held, err := fixture.helper.operationLocks.Exclusive()
+	held, err := fixture.helper.operationLocks.Exclusive(t.Context())
 	require.NoError(t, err)
 	result := make(chan error, 1)
 	go func() {

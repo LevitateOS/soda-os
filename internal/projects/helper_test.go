@@ -241,7 +241,7 @@ func TestHelperHumanDeletionUsesNoCatalogLock(t *testing.T) {
 	fixture.host.candidates = []linuxhost.Account{workspaceAccount}
 
 	request := confirmedRemovalInput(t, fixture, "delete-human", "target")
-	locked, err := fixture.store.Lock()
+	locked, err := fixture.store.Lock(t.Context())
 	require.NoError(t, err)
 	result := make(chan error, 1)
 	go func() {

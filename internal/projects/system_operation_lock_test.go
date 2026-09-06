@@ -1,6 +1,7 @@
 package projects
 
 import (
+	"context"
 	"io"
 	"os"
 	"path/filepath"
@@ -17,7 +18,7 @@ type operationLockResult struct {
 }
 
 func TestOperationLockerRequiresExplicitConstruction(t *testing.T) {
-	_, err := (OperationLocker{}).Shared()
+	_, err := (OperationLocker{}).Shared(t.Context())
 	require.ErrorContains(t, err, "not constructed")
 	_, err = NewOperationLocker("relative.lock", os.Getuid())
 	require.ErrorContains(t, err, "absolute")
@@ -27,7 +28,7 @@ func TestOperationLockerRequiresExplicitConstruction(t *testing.T) {
 
 func TestWorkspaceOperationLockCoordinatesSetupAndRemoval(t *testing.T) {
 	path := testOperationLockFile(t)
-	firstShared, err := openWorkspaceOperationLock(path, os.Getuid(), unix.LOCK_SH)
+	firstShared, err := openWorkspaceOperationLock(t.Context(), path, os.Getuid(), unix.LOCK_SH)
 	require.NoError(t, err)
 	defer func() {
 		if firstShared != nil {
@@ -35,9 +36,9 @@ func TestWorkspaceOperationLockCoordinatesSetupAndRemoval(t *testing.T) {
 		}
 	}()
 
-	exclusiveResult := acquireOperationLock(path, unix.LOCK_EX)
+	exclusiveResult := acquireOperationLock(t.Context(), path, unix.LOCK_EX)
 	requireLockBlocked(t, exclusiveResult)
-	secondSharedResult := acquireOperationLock(path, unix.LOCK_SH)
+	secondSharedResult := acquireOperationLock(t.Context(), path, unix.LOCK_SH)
 	secondShared := requireLockAcquired(t, secondSharedResult)
 	require.NotNil(t, secondShared, "the helper must nest a shared lock while removal waits")
 	requireLockBlocked(t, exclusiveResult)
@@ -47,7 +48,7 @@ func TestWorkspaceOperationLockCoordinatesSetupAndRemoval(t *testing.T) {
 	firstShared = nil
 	exclusive := requireLockAcquired(t, exclusiveResult)
 
-	sharedResult := acquireOperationLock(path, unix.LOCK_SH)
+	sharedResult := acquireOperationLock(t.Context(), path, unix.LOCK_SH)
 	requireLockBlocked(t, sharedResult)
 	require.NoError(t, exclusive.Close())
 	shared := requireLockAcquired(t, sharedResult)
@@ -59,15 +60,15 @@ func TestWorkspaceOperationLockRejectsMutableOrSymlinkedFiles(t *testing.T) {
 	mutable := filepath.Join(root, "mutable.lock")
 	require.NoError(t, os.WriteFile(mutable, nil, 0o600))
 	require.NoError(t, os.Chmod(mutable, 0o644))
-	_, err := openWorkspaceOperationLock(mutable, os.Getuid(), unix.LOCK_SH)
+	_, err := openWorkspaceOperationLock(t.Context(), mutable, os.Getuid(), unix.LOCK_SH)
 	require.ErrorContains(t, err, "mode 0444")
 
 	locked := testOperationLockFile(t)
-	_, err = openWorkspaceOperationLock(locked, os.Getuid()+1, unix.LOCK_SH)
+	_, err = openWorkspaceOperationLock(t.Context(), locked, os.Getuid()+1, unix.LOCK_SH)
 	require.ErrorContains(t, err, "ownership")
 	symlink := filepath.Join(root, "symlink.lock")
 	require.NoError(t, os.Symlink(locked, symlink))
-	_, err = openWorkspaceOperationLock(symlink, os.Getuid(), unix.LOCK_SH)
+	_, err = openWorkspaceOperationLock(t.Context(), symlink, os.Getuid(), unix.LOCK_SH)
 	require.Error(t, err)
 }
 
@@ -79,10 +80,10 @@ func testOperationLockFile(t *testing.T) string {
 	return path
 }
 
-func acquireOperationLock(path string, kind int) <-chan operationLockResult {
+func acquireOperationLock(ctx context.Context, path string, kind int) <-chan operationLockResult {
 	result := make(chan operationLockResult, 1)
 	go func() {
-		lock, err := openWorkspaceOperationLock(path, os.Getuid(), kind)
+		lock, err := openWorkspaceOperationLock(ctx, path, os.Getuid(), kind)
 		result <- operationLockResult{lock: lock, err: err}
 	}()
 	return result

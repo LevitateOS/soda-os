@@ -90,7 +90,7 @@ func (helper Helper) catalogAdd(ctx context.Context, actor linuxhost.PKExecIdent
 	if err := strictjson.Decode(input, &request); err != nil {
 		return ProjectMutationResponse{}, err
 	}
-	locked, err := helper.store.Lock()
+	locked, err := helper.store.Lock(ctx)
 	if err != nil {
 		return ProjectMutationResponse{}, err
 	}
@@ -113,7 +113,7 @@ func (helper Helper) catalogEdit(ctx context.Context, actor linuxhost.PKExecIden
 	if err := strictjson.Decode(input, &request); err != nil {
 		return ProjectMutationResponse{}, err
 	}
-	locked, err := helper.store.Lock()
+	locked, err := helper.store.Lock(ctx)
 	if err != nil {
 		return ProjectMutationResponse{}, err
 	}
@@ -141,7 +141,7 @@ func (helper Helper) workspacePrepare(ctx context.Context, actor linuxhost.PKExe
 	if err := strictjson.Decode(input, &request); err != nil {
 		return WorkspacePreparationResponse{}, err
 	}
-	lock, err := helper.operationLocks.Shared()
+	lock, err := helper.operationLocks.Shared(ctx)
 	if err != nil {
 		return WorkspacePreparationResponse{}, fmt.Errorf("lock workspace operations: %w", err)
 	}
@@ -167,7 +167,7 @@ func (helper Helper) workspacePublish(ctx context.Context, actor linuxhost.PKExe
 	if err := strictjson.Decode(input, &request); err != nil {
 		return WorkspacePublicationResponse{}, err
 	}
-	lock, err := helper.operationLocks.Shared()
+	lock, err := helper.operationLocks.Shared(ctx)
 	if err != nil {
 		return WorkspacePublicationResponse{}, fmt.Errorf("lock workspace operations: %w", err)
 	}
