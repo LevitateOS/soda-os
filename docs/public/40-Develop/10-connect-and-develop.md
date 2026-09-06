@@ -93,7 +93,7 @@ Tea and GitHub CLI are available in every workspace. Their sessions are separate
 from browser authentication and from every other workspace.
 
 - For Forgejo, run `tea logins add` interactively, verify with `tea whoami`, and follow
-  [Tea's login guidance](https://docs.gitea.com/usage/command-line/tea).
+  [Tea and Forgejo CLI guidance](https://docs.codeberg.org/git/clone-commit-via-cli/).
   Use the reachable Forgejo URL and your own token through a protected prompt.
 - For GitHub, run `gh auth login --git-protocol ssh`, verify with `gh auth status`, and follow
   [GitHub CLI authentication](https://cli.github.com/manual/gh_auth_login).

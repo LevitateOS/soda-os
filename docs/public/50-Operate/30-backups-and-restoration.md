@@ -50,7 +50,7 @@ calling a running-machine snapshot a backup does not make application data consi
 
 If using **file/application backups** instead, coordinate a native maintenance
 window and use each application's documented backup method. For Forgejo, follow
-[its backup and restore guide](https://forgejo.org/docs/latest/admin/backup-restore/)
+[its backup guidance](https://forgejo.org/docs/latest/admin/upgrade/#backup)
 for the bundled version and configuration above. Quiesce writes and preserve its
 database and repositories as one consistent set; do not copy a live database
 file and assume consistency. Back up project databases with their own native

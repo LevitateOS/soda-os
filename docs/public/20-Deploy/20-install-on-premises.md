@@ -31,7 +31,7 @@ previous contents.** Check its identity and capacity before confirming, then
 eject cleanly. In a VM, attach the verified ISO as optical media instead.
 
 Boot it in the target's native architecture and wait for graphical Anaconda.
-Follow the [Fedora installation guide](https://docs.fedoraproject.org/en-US/fedora/latest/install-guide/)
+Follow the [Fedora installation guide](https://docs.fedoraproject.org/en-US/fedora/latest/getting-started/)
 for the installer's native storage and device controls.
 
 ## Install with Anaconda
